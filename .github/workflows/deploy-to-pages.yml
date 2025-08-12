@@ -1,0 +1,90 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check authorization
+      run: |
+        # List of authorized GitHub usernames (add your username here)
+        AUTHORIZED_USERS="Xiaohan-Tian"
+        
+        if [[ ",$AUTHORIZED_USERS," != *",${{ github.actor }},"* ]]; then
+          echo "❌ Unauthorized user: ${{ github.actor }}"
+          echo "Only the following users can trigger this workflow: $AUTHORIZED_USERS"
+          exit 1
+        fi
+        echo "✅ Authorized user: ${{ github.actor }}"
+    
+    - name: Checkout source repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.19.3'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Checkout target pages repository
+      uses: actions/checkout@v4
+      with:
+        repository: KGAudioLab/KGAudioLab.github.io
+        token: ${{ secrets.PAGES_DEPLOY_TOKEN }}
+        path: pages-repo
+        fetch-depth: 0
+
+    - name: Prepare deployment directory
+      run: |
+        # Create kgstudio directory if it doesn't exist
+        mkdir -p pages-repo/kgstudio
+        # Clean existing content in kgstudio directory
+        rm -rf pages-repo/kgstudio/*
+        echo "Cleaned deployment directory"
+
+    - name: Copy build artifacts
+      run: |
+        # Copy all built files from dist to kgstudio folder
+        cp -r dist/* pages-repo/kgstudio/
+        echo "Copied build artifacts to kgstudio folder"
+        
+    - name: Configure git
+      run: |
+        cd pages-repo
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+
+    - name: Commit and push changes
+      run: |
+        cd pages-repo
+        git add .
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+          exit 0
+        fi
+        git commit -m "Deploy K.G.Studio to GitHub Pages
+        
+        - Source commit: ${{ github.sha }}
+        - Build date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        - Deployed to: /kgstudio/"
+        git push
+        echo "Successfully deployed to GitHub Pages!"
+
+    - name: Summary
+      run: |
+        echo "🚀 Deployment Summary:"
+        echo "- Source: KGAudioLab/K.G.Studio@${{ github.sha }}"
+        echo "- Target: KGAudioLab/KGAudioLab.github.io/kgstudio/"
+        echo "- URL: https://kgaudiolab.github.io/kgstudio/"
+        echo "- Build completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
