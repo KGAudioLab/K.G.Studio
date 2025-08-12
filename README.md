@@ -2,7 +2,7 @@
   <img src="./public/logo.png" alt="K.G.Studio Logo" width="160" />
 </div>
 
-## K.G.Studio — Browser-based DAW (Digital Audio Workstation)
+## K.G.Studio — A Browser-based DAW with AI Assistant
 
 K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with **K.G.Studio Musician Assistant** at its core. It features realistic instrument playback via Tone.js samplers, a piano‑roll editor, track and region management with full undo/redo, project persistence to IndexedDB, a configurable settings panel, and an integrated AI assistant with tool execution.
 
@@ -23,15 +23,19 @@ For a deeper technical overview, see `res/overview.md`.
 
 ## Getting Started
 
-### Prerequisites
-- Node.js 20.19.3+
+### Start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
 
-### Install & Run
+### Or clone and run locally:
 ```bash
-git clone https://github.com/Xiaohan-Tian/KGSP {your-local-path}
+# Make sure you have Node.js >= 20.19.3 installed
+# Clone the repository
+git clone https://github.com/KGAudioLab/KGStudio {your-local-path}
 cd {your-local-path}
 
+# Install dependencies
 npm install
+
+# Run the development server
 npm run dev
 ```
 
@@ -60,6 +64,8 @@ K.G.Studio loads defaults from `./public/config.json` (with an internal fallback
 - For security, when running from a non‑local host we do not persist your API key in IndexedDB (to reduce XSS risk). You’ll be prompted to enter it each time you start K.G.Studio.
 
 ## Using the App
+
+You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 
 1. Start the app and a default project will load. A default “Melody” MIDI track is ensured on load.
 2. Add tracks, rename and reorder them. Click or drag in the track grid to create and arrange regions.
