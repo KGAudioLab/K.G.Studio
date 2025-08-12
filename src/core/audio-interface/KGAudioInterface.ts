@@ -229,6 +229,8 @@ export class KGAudioInterface {
   public preparePlayback(project: KGProject, startPosition: number): void {
     // Clear any existing scheduled events
     this.clearScheduledEvents();
+
+    console.log("Preparing playback");
     
     try {
       // Set project BPM and time signature FIRST (this affects timing calculations)
@@ -245,10 +247,14 @@ export class KGAudioInterface {
       project.getTracks().forEach(track => {
         const trackId = track.getId().toString();
         const audioBus = this.trackAudioBuses.get(trackId);
+
+        console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
         if (audioBus && track.getType() === 'MIDI') {
           track.getRegions().forEach(region => {
-            if (region.constructor.name === 'KGMidiRegion') {
+            console.log(`Region ${region.getId().toString()}: type: ${region.getCurrentType()}`);
+
+            if (region.getCurrentType() === 'KGMidiRegion') {
               const midiRegion = region as unknown as { getNotes: () => KGMidiNote[] };
               
               // Get notes from region (assuming it has a getNotes method)

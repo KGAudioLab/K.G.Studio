@@ -35,7 +35,7 @@ export class RemoveTrackCommand extends KGCommand {
     this.originalTrackIndex = trackToRemove.getTrackIndex();
     
     // Store instrument if it's a MIDI track
-    if (trackToRemove.constructor.name === 'KGMidiTrack' && 'getInstrument' in trackToRemove) {
+    if (trackToRemove.getCurrentType() === 'KGMidiTrack' && 'getInstrument' in trackToRemove) {
       this.originalInstrument = (trackToRemove as KGMidiTrack).getInstrument();
     }
     

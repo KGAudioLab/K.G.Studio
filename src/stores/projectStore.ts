@@ -313,7 +313,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         
         // Type guard to check if track is KGMidiTrack
         const isMidiTrack = (track: KGTrack): track is KGMidiTrack => {
-          return track.constructor.name === 'KGMidiTrack' && 'getInstrument' in track;
+          return track.getCurrentType() === 'KGMidiTrack' && 'getInstrument' in track;
         };
         
         // Check if instrument changed (only for MIDI tracks)
@@ -455,7 +455,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           const trackId = track.getId().toString();
           // Get instrument from track model if it's a MIDI track
           let instrument: InstrumentType = 'acoustic_grand_piano'; // Default fallback
-          if (track.constructor.name === 'KGMidiTrack' && 'getInstrument' in track) {
+          if (track.getCurrentType() === 'KGMidiTrack' && 'getInstrument' in track) {
             instrument = (track as KGMidiTrack).getInstrument();
           }
           audioInterface.createTrackSynth(trackId, instrument);
