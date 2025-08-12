@@ -1,0 +1,1 @@
+When making chord progression for existing melody, you should be very careful to make sure the chords can match the notes in the melody at any given time, they should sound harmony.

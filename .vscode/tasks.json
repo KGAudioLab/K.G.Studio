@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "npm",
+            "script": "dev",
+            "label": "npm: dev",
+            "detail": "vite",
+            "isBackground": true,
+            "options": {
+                "shell": {
+                    "executable": "/bin/zsh",
+                    "args": ["-c", "source ~/.nvm/nvm.sh && nvm use 20 && npm run dev"]
+                }
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": "ready in .*ms"
+                }
+            }
+        }
+    ]
+}

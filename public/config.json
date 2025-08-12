@@ -1,0 +1,60 @@
+{
+    "general": {
+        "language": "en_us",
+        "llm_provider": "openai",
+        "openai": {
+            "api_key": "",
+            "flex": false,
+            "model": "gpt-4o"
+        },
+        "gemini": {
+            "api_key": "",
+            "model": "gemini-2.5-flash"
+        },
+        "claude": {
+            "api_key": "",
+            "model": "claude-sonnet-4-0"
+        },
+        "openai_compatible": {
+            "api_key": "",
+            "base_url": "",
+            "model": ""
+        }, 
+        "soundfont": {
+            "base_url": "https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/"
+        }
+    },
+    "hotkeys": {
+        "main": {
+            "hold_to_create_region": "ctrl",
+            "play": "space",
+            "undo": "ctrl+z",
+            "redo": "ctrl+shift+z",
+            "copy": "ctrl+c",
+            "cut": "ctrl+x",
+            "paste": "ctrl+v",
+            "save": "ctrl+s"
+        },
+        "piano_roll": {
+            "select": "q",
+            "pencil": "w",
+            "hold_to_create_note": "ctrl",
+            "snap_none": "1",
+            "snap_1_4": "2",
+            "snap_1_8": "3",
+            "snap_1_16": "4",
+            "qua_pos_1_4": "5",
+            "qua_pos_1_8": "6",
+            "qua_pos_1_16": "7",
+            "qua_len_1_4": "8",
+            "qua_len_1_8": "9",
+            "qua_len_1_16": "0"
+        }
+    },
+    "chatbox": {
+        "default_open": true
+    },
+    "templates": {
+        "custom_instructions": ""
+    }
+}
