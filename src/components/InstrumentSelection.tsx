@@ -65,7 +65,7 @@ const InstrumentSelection: React.FC = () => {
       <div className="instrument-selection-top">
         <div className="instrument-preview">
           <img
-            src={`/resources/instruments/${previewImage}`}
+            src={`${import.meta.env.BASE_URL}resources/instruments/${previewImage}`}
             alt={previewAlt.toString()}
             width={256}
             height={256}

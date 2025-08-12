@@ -34,7 +34,7 @@ export class SystemPrompts {
     }
     
     try {
-      const response = await fetch('/prompts/system.md');
+      const response = await fetch(`${import.meta.env.BASE_URL}prompts/system.md`);
       if (!response.ok) {
         throw new Error(`Failed to load system prompt: ${response.status}`);
       }

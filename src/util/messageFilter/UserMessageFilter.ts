@@ -57,7 +57,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
           const oaiCompatBaseUrl = (configManager.get('general.openai_compatible.base_url') as string) || '';
           const isNew = openaiKey.trim() === '' && oaiCompatKey.trim() === '' && oaiCompatBaseUrl.trim() === '';
 
-          const url = isNew ? '/chat/welcome_new.md' : '/chat/welcome_again.md';
+          const url = isNew ? `${import.meta.env.BASE_URL}chat/welcome_new.md` : `${import.meta.env.BASE_URL}chat/welcome_again.md`;
           const resp = await fetch(url);
           if (!resp.ok) {
             throw new Error(`Failed to fetch ${url}: ${resp.status}`);
@@ -110,7 +110,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
       if (provider === 'openai') {
         const openaiKey = (configManager.get('general.openai.api_key') as string) || '';
         if (openaiKey.trim() === '') {
-          const url = '/chat/error_no_openai_key.md';
+          const url = `${import.meta.env.BASE_URL}chat/error_no_openai_key.md`;
           let md = 'OpenAI provider selected, but no API key configured.';
           try {
             const resp = await fetch(url);
@@ -129,7 +129,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
       } else if (provider === 'openai_compatible') {
         const baseUrl = (configManager.get('general.openai_compatible.base_url') as string) || '';
         if (baseUrl.trim() === '') {
-          const url = '/chat/error_no_openai_compatible_base_url.md';
+          const url = `${import.meta.env.BASE_URL}chat/error_no_openai_compatible_base_url.md`;
           let md = 'OpenAI Compatible provider selected, but no Base URL configured.';
           try {
             const resp = await fetch(url);
@@ -148,7 +148,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
 
         const model = (configManager.get('general.openai_compatible.model') as string) || '';
         if (model.trim() === '') {
-          const url = '/chat/error_no_openai_compatible_model.md';
+          const url = `${import.meta.env.BASE_URL}chat/error_no_openai_compatible_model.md`;
           let md = 'OpenAI Compatible provider selected, but no Model configured.';
           try {
             const resp = await fetch(url);
@@ -174,7 +174,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
 
     if (!hasContextRegion) {
       // No region context: show guidance and do not send to LLM
-      const url = '/chat/error_no_selected_region.md';
+      const url = `${import.meta.env.BASE_URL}chat/error_no_selected_region.md`;
       let md = 'Please select a region or open a MIDI region in the piano roll before asking for editing.';
       try {
         const resp = await fetch(url);
@@ -198,7 +198,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
     // Has region context: pass through, but append processed appendix to the LLM-bound message
     let appendix = '';
     try {
-      const resp = await fetch('/prompts/user_msg_appendix.md');
+      const resp = await fetch(`${import.meta.env.BASE_URL}prompts/user_msg_appendix.md`);
       if (resp.ok) {
         const rawAppendix = await resp.text();
         appendix = await SystemPrompts.getPromptWithContext(rawAppendix);

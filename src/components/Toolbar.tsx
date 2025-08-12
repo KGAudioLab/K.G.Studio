@@ -675,7 +675,7 @@ const Toolbar: React.FC = () => {
       <div className="toolbar">
         <div className="toolbar-left">
           <div className="logo-container">
-            <img src="/logo.png" alt="DAW Logo" className="logo" />
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="DAW Logo" className="logo" />
           </div>
           <div 
             className="project-name" 

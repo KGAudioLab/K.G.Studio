@@ -247,7 +247,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
         <div className="track-name-and-volume">
           <div className="instrument-image">
             <img 
-              src={`/resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`} 
+              src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`} 
               alt={String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.displayName || currentInstrument)}
               width="64"
               height="64"

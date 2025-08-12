@@ -137,7 +137,7 @@ export class ConfigManager {
    */
   private async loadDefaultConfig(): Promise<void> {
     try {
-      const response = await fetch('/config.json');
+      const response = await fetch(`${import.meta.env.BASE_URL}config.json`);
       if (!response.ok) {
         throw new Error(`Failed to fetch config.json: ${response.status}`);
       }
