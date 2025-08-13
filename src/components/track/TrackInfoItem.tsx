@@ -193,8 +193,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     e.stopPropagation();
     // Select this track as active when opening instrument panel
     setSelectedTrack(track.getId().toString());
-    // Toggle global InstrumentSelection panel for this track
-    toggleInstrumentSelectionForTrack(track.getId().toString());
+    // Toggle global InstrumentSelection panel (it follows selectedTrackId)
+    toggleInstrumentSelectionForTrack();
   };
 
   // Handle settings button click

@@ -6,14 +6,14 @@ import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 const InstrumentSelection: React.FC = () => {
   const {
     tracks,
-    instrumentSelectionTrackId,
+    selectedTrackId,
     closeInstrumentSelection,
     setTrackInstrument
   } = useProjectStore();
 
   const targetTrack = useMemo(() => {
-    return tracks.find(t => t.getId().toString() === instrumentSelectionTrackId) || null;
-  }, [tracks, instrumentSelectionTrackId]);
+    return tracks.find(t => t.getId().toString() === selectedTrackId) || null;
+  }, [tracks, selectedTrackId]);
 
   const currentInstrumentKey: InstrumentType = (targetTrack && targetTrack instanceof KGMidiTrack)
     ? (targetTrack.getInstrument() as InstrumentType)
@@ -27,7 +27,7 @@ const InstrumentSelection: React.FC = () => {
   useEffect(() => {
     // Sync when the target track or its instrument changes
     setSelectedGroupKey(currentInstrumentDef?.group || 'PIANO_AND_KEYBOARDS');
-  }, [instrumentSelectionTrackId, currentInstrumentKey, currentInstrumentDef]);
+  }, [selectedTrackId, currentInstrumentKey, currentInstrumentDef]);
 
   const groups = useMemo(() => Object.entries(INSTRUMENT_GROUPS) as Array<[string, string]>, []);
 
