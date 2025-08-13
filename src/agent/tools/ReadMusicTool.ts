@@ -4,6 +4,7 @@ import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { convertRegionToABCNotation } from '../../util/abcNotationUtil';
 import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
+import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 
 /**
  * Tool for reading music content from the project
@@ -30,6 +31,25 @@ export class ReadMusicTool extends BaseTool {
       required: false
     }
   };
+
+  /**
+   * Get the display name for percussion instruments, or null if not percussion
+   */
+  private getPercussionDisplayName(track: KGMidiTrack): string | null {
+    try {
+      const instrument = track.getInstrument();
+      const instrumentInfo = FLUIDR3_INSTRUMENT_MAP[instrument];
+      
+      if (instrumentInfo && instrumentInfo.group === 'PERCUSSION_KIT') {
+        return instrumentInfo.displayName;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting percussion display name:', error);
+      return null;
+    }
+  }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
@@ -168,8 +188,22 @@ export class ReadMusicTool extends BaseTool {
       const trackNumber = index + 1;
       const trackName = track.getName() || `Track ${trackNumber}`;
       
-      // hardcode the 1st track to be the melody, other track names are the same as the original track names
-      output += `Track ${trackNumber} - ${trackNumber === 1 ? 'Melody' : trackName}:\n`;
+      // Check if this track uses a percussion instrument
+      const percussionDisplayName = this.getPercussionDisplayName(track);
+      
+      let displayTrackName: string;
+      if (percussionDisplayName) {
+        // Use percussion instrument display name for all percussion tracks
+        displayTrackName = percussionDisplayName;
+      } else if (trackNumber === 1) {
+        // Use "Melody" for the first non-percussion track
+        displayTrackName = 'Melody';
+      } else {
+        // Use original track name for other non-percussion tracks
+        displayTrackName = trackName;
+      }
+      
+      output += `Track ${trackNumber} - ${displayTrackName}:\n`;
       
       // Get all regions from the track and convert each one
       const regions = track.getRegions().filter(region => region instanceof KGMidiRegion) as KGMidiRegion[];
