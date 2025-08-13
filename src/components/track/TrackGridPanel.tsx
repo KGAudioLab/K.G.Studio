@@ -9,6 +9,7 @@ import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand } from '../../core/commands';
 import { KGCore } from '../../core/KGCore';
+import { generateNewRegionName } from '../../util/miscUtil';
 
 interface TrackGridPanelProps {
   tracks: KGTrack[];
@@ -97,7 +98,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       barNumber,
       1, // Default to 1 bar length
       beatsPerBar,
-      `${track.getName()} Region`
+      generateNewRegionName(trackId)
     );
     
     KGCore.instance().executeCommand(command);
