@@ -57,7 +57,7 @@ interface ProjectState {
 
   // Instrument selection panel state
   showInstrumentSelection: boolean;
-  instrumentSelectionTrackId: string | null;
+  // instrumentSelectionTrackId removed; panel now follows selectedTrackId
   
   // Settings state
   showSettings: boolean;
@@ -105,8 +105,8 @@ interface ProjectState {
   toggleChatBox: () => void;
 
   // Instrument selection panel actions
-  openInstrumentSelectionForTrack: (trackId: string) => void;
-  toggleInstrumentSelectionForTrack: (trackId: string) => void;
+  openInstrumentSelectionForTrack: () => void;
+  toggleInstrumentSelectionForTrack: () => void;
   closeInstrumentSelection: () => void;
   
   // Settings actions
@@ -200,7 +200,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Also auto-select it and open instrument selection panel
   let initialSelectedTrackId: string | null = null;
   let initialShowInstrumentSelection = false;
-  let initialInstrumentSelectionTrackId: string | null = null;
   try {
     const project = KGCore.instance().getCurrentProject();
     if (project.getTracks().length === 0) {
@@ -209,7 +208,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const createdId = String(addDefaultTrackCommand.getTrackId());
       initialSelectedTrackId = createdId;
       initialShowInstrumentSelection = true;
-      initialInstrumentSelectionTrackId = createdId;
     }
   } catch (error) {
     console.error('Error creating default track on startup:', error);
@@ -242,7 +240,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
-    instrumentSelectionTrackId: initialInstrumentSelectionTrackId,
     
     // Initial Settings state
     showSettings: false,
@@ -280,6 +277,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const project = KGCore.instance().getCurrentProject();
         set({ tracks: [...project.getTracks()] as KGTrack[] });
         
+        // Auto-select the newly created track and open instrument selection panel
+        const newTrackId = command.getTrackId().toString();
+        set({
+          selectedTrackId: newTrackId,
+          showInstrumentSelection: true,
+        });
+        
         console.log(`Added track ${command.getTrackId()}`);
       } catch (error) {
         console.error('Error adding track:', error);
@@ -289,13 +293,43 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     removeTrack: async (id: number) => {
       try {
+        // Get the current tracks and find the index of the track being deleted
+        const currentTracks = KGCore.instance().getCurrentProject().getTracks();
+        const deletedTrackIndex = currentTracks.findIndex(track => track.getId() === id);
+        const { selectedTrackId } = get();
+        const isCurrentTrackSelected = selectedTrackId === id.toString();
+        
         // Create and execute the remove track command
         const command = new RemoveTrackCommand(id);
         KGCore.instance().executeCommand(command);
         
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        const remainingTracks = [...project.getTracks()] as KGTrack[];
+        set({ tracks: remainingTracks });
+        
+        // Auto-select another track if any remain
+        if (remainingTracks.length > 0) {
+          // Prefer previous track, fallback to next track
+          const newSelectedIndex = deletedTrackIndex > 0 
+            ? deletedTrackIndex - 1  // Select previous track
+            : 0;                     // Select first remaining track (was next)
+          
+          const newSelectedTrack = remainingTracks[newSelectedIndex];
+          const newSelectedTrackId = newSelectedTrack.getId().toString();
+
+          setTimeout(() => {
+            set({
+              selectedTrackId: isCurrentTrackSelected ? newSelectedTrackId : selectedTrackId,
+            });
+          }, 0);
+        } else {
+          // No tracks left, clear selection and close instrument panel
+          set({
+            selectedTrackId: null,
+            showInstrumentSelection: false,
+          });
+        }
         
         console.log(`Removed track ${id}`);
       } catch (error) {
@@ -492,7 +526,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           set({
             selectedTrackId: firstTrackIdStr,
             showInstrumentSelection: true,
-            instrumentSelectionTrackId: firstTrackIdStr
           });
         }
 
@@ -603,13 +636,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     setSelectedTrack: (trackId: string | null) => {
-      const { showInstrumentSelection } = get();
       // Update selected track id
       set({ selectedTrackId: trackId });
-      // If instrument panel is open and a track is selected, retarget the panel
-      if (showInstrumentSelection && trackId) {
-        set({ instrumentSelectionTrackId: trackId });
-      }
     },
     
     // Piano roll actions
@@ -647,14 +675,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     // Instrument selection panel actions
-    openInstrumentSelectionForTrack: (trackId: string) => {
-      set({ showInstrumentSelection: true, instrumentSelectionTrackId: trackId });
+    openInstrumentSelectionForTrack: () => {
+      set({ showInstrumentSelection: true });
     },
-    toggleInstrumentSelectionForTrack: (trackId: string) => {
-      set({ showInstrumentSelection: true, instrumentSelectionTrackId: trackId });
+    toggleInstrumentSelectionForTrack: () => {
+      set({ showInstrumentSelection: true });
     },
     closeInstrumentSelection: () => {
-      set({ showInstrumentSelection: false, instrumentSelectionTrackId: null });
+      set({ showInstrumentSelection: false });
     },
     
     // Settings action implementations

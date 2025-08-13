@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, memo } from 'react';
+import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { FaPlus, FaBan } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
@@ -44,7 +44,11 @@ const createLLMProvider = (): LLMProvider => {
   }
 };
 
-const ChatBox: React.FC = () => {
+interface ChatBoxProps {
+  isVisible: boolean;
+}
+
+const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   const [inputValue, setInputValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -61,6 +65,33 @@ const ChatBox: React.FC = () => {
   
   // Track if this is the first message (for system prompt logging)
   const [isFirstMessage, setIsFirstMessage] = useState(true);
+
+  const generateMessageId = (): string => {
+    return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  };
+
+  const clearChatUI = useCallback(async () => {
+    // Clear UI state
+    setMessages([]);
+    
+    // Reset first message flag so system prompt will be logged again
+    setIsFirstMessage(true);
+    
+    // Auto-show welcome message after clearing (like on app startup)
+    try {
+      const result = await processUserMessage('/welcome');
+      if (result.pseudoAssistantResponse) {
+        const pseudoId = generateMessageId();
+        setMessages(prev => [...prev, {
+          id: pseudoId,
+          role: 'assistant',
+          content: result.pseudoAssistantResponse!,
+        }]);
+      }
+    } catch {
+      // ignore errors, just don't show welcome if it fails
+    }
+  }, []);
 
   // Initialize AgentCore with configured provider and register clear UI callback
   useEffect(() => {
@@ -103,11 +134,7 @@ const ChatBox: React.FC = () => {
         // ignore
       }
     })();
-  }, []);
-
-  const generateMessageId = (): string => {
-    return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-  };
+  }, [clearChatUI]);
 
   const handleAbort = () => {
     if (abortController) {
@@ -126,14 +153,6 @@ const ChatBox: React.FC = () => {
       
       setIsProcessing(false);
     }
-  };
-
-  const clearChatUI = () => {
-    // Clear UI state
-    setMessages([]);
-    
-    // Reset first message flag so system prompt will be logged again
-    setIsFirstMessage(true);
   };
 
   const handleClearCommand = () => {
@@ -519,7 +538,7 @@ const ChatBox: React.FC = () => {
   }, [isProcessing, isExecutingTools]);
 
   return (
-    <div className="chatbox">
+    <div className="chatbox" style={{ display: isVisible ? 'flex' : 'none' }}>
       <div className="chatbox-header">
         <h3>K.G.Studio Musician Assistant</h3>
         <div className="chatbox-actions">

@@ -222,6 +222,7 @@ You have access to two tools for working with the current music region: **remove
 
 ## Important Considerations
 
+- **Do not omit notes**: It is important that when adding notes, you must explicitly output every note that should be added — do not omit, summarize, or replace them with comments like “...”. Even if the pattern is repetitive, list all notes in full detail in the correct order. NEVER OMIT ANY NOTES IN THE XML BECAUSE OF REPETITION!!
 - **Reading Music**: You should NEVER ask the user to manually provide you music pieces BEFORE invoking the read_music tool. Always use the read_music tool to get the music pieces first.
 - **Music Validation**: Always validate your musical choices:
   - Ensure pitches are within reasonable ranges for the current instrument

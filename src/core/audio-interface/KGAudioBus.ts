@@ -215,7 +215,7 @@ export class KGAudioBus {
       this.instrument = newInstrument;
       
       // Restore volume settings
-      // this.updateSamplerVolume();
+      this.updateSamplerVolume();
       
       console.log(`Instrument changed successfully to ${newInstrument}`);
     } catch (error) {

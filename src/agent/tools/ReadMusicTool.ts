@@ -4,9 +4,7 @@ import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { convertRegionToABCNotation } from '../../util/abcNotationUtil';
 import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
-import { useProjectStore } from '../../stores/projectStore';
-import { KGRegion } from '../../core/region/KGRegion';
-import { KGCore } from '../../core/KGCore';
+import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 
 /**
  * Tool for reading music content from the project
@@ -33,6 +31,25 @@ export class ReadMusicTool extends BaseTool {
       required: false
     }
   };
+
+  /**
+   * Get the display name for percussion instruments, or null if not percussion
+   */
+  private getPercussionDisplayName(track: KGMidiTrack): string | null {
+    try {
+      const instrument = track.getInstrument();
+      const instrumentInfo = FLUIDR3_INSTRUMENT_MAP[instrument];
+      
+      if (instrumentInfo && instrumentInfo.group === 'PERCUSSION_KIT') {
+        return instrumentInfo.displayName;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting percussion display name:', error);
+      return null;
+    }
+  }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
@@ -104,65 +121,43 @@ export class ReadMusicTool extends BaseTool {
   }
 
   /**
-   * Get KGCore instance
+   * Find tracks that should be skipped because they have no musical content
+   * (no regions or regions with no notes)
    */
-  private getKGCore(): KGCore {
-    return KGCore.instance();
-  }
-
-  /**
-   * Find the track that contains the active piano roll region or first selected region
-   */
-  private findTrackToSkip(tracks: KGMidiTrack[]): KGMidiTrack | null {
+  private findTracksToSkip(tracks: KGMidiTrack[]): KGMidiTrack[] {
     try {
-      const store = useProjectStore.getState();
-      const core = this.getKGCore();
+      const tracksToSkip: KGMidiTrack[] = [];
       
-      // First check for active piano roll region
-      if (store.activeRegionId) {
-        const activeRegion = this.findRegionById(store.activeRegionId, tracks);
-        if (activeRegion) {
-          const track = this.findTrackByRegion(activeRegion, tracks);
-          return track;
+      for (const track of tracks) {
+        const regions = track.getRegions();
+        
+        // Skip tracks with no regions
+        if (regions.length === 0) {
+          tracksToSkip.push(track);
+          continue;
+        }
+        
+        // Check if all regions in this track are empty (have no notes)
+        const hasAnyNotes = regions.some(region => {
+          if (region.getCurrentType() === 'KGMidiRegion') {
+            return (region as KGMidiRegion).getNotes().length > 0;
+          }
+          return false;
+        });
+        
+        // Skip tracks where no regions have notes
+        if (!hasAnyNotes) {
+          tracksToSkip.push(track);
         }
       }
       
-      // Then check for selected regions
-      const selectedItems = core.getSelectedItems();
-      const selectedRegion = selectedItems.find((item: unknown) => item instanceof KGRegion) as KGRegion;
-      
-      if (selectedRegion) {
-        const track = this.findTrackByRegion(selectedRegion, tracks);
-        return track;
-      }
-      
-      return null;
+      return tracksToSkip;
     } catch (error) {
-      console.error('Error finding track to skip:', error);
-      return null;
+      console.error('Error finding tracks to skip:', error);
+      return [];
     }
   }
   
-  /**
-   * Find a region by ID across all tracks
-   */
-  private findRegionById(regionId: string, tracks: KGMidiTrack[]): KGRegion | null {
-    for (const track of tracks) {
-      const regions = track.getRegions();
-      const region = regions.find(r => r.getId() === regionId);
-      if (region) {
-        return region;
-      }
-    }
-    return null;
-  }
-  
-  /**
-   * Find track that contains the given region
-   */
-  private findTrackByRegion(region: KGRegion, tracks: KGMidiTrack[]): KGMidiTrack | null {
-    return tracks.find(track => track.getRegions().includes(region)) || null;
-  }
 
   /**
    * Generate ABC notation for all tracks
@@ -174,9 +169,8 @@ export class ReadMusicTool extends BaseTool {
       return 'No MIDI tracks found in the project.';
     }
     
-    // Find the track to skip (unless it's the first track)
-    const trackToSkip = this.findTrackToSkip(midiTracks);
-    const firstTrack = midiTracks[0]; // The melody track
+    // Find tracks to skip (tracks with no content)
+    const tracksToSkip = this.findTracksToSkip(midiTracks);
     
     // Get project settings for proper notation
     const project = this.getCurrentProject();
@@ -187,15 +181,29 @@ export class ReadMusicTool extends BaseTool {
     let output = `All Tracks (beats ${startBeat}-${endBeat || 'end'}):\n\n`;
     
     midiTracks.forEach((track, index) => {
-      // Skip this track if it's the track to skip AND it's not the first track (melody)
-      if (trackToSkip && track === trackToSkip && track !== firstTrack) {
+      // Skip tracks that have no musical content
+      if (tracksToSkip.includes(track)) {
         return; // Skip this track
       }
       const trackNumber = index + 1;
       const trackName = track.getName() || `Track ${trackNumber}`;
       
-      // hardcode the 1st track to be the melody, other track names are the same as the original track names
-      output += `Track ${trackNumber} - ${trackNumber === 1 ? 'Melody' : trackName}:\n`;
+      // Check if this track uses a percussion instrument
+      const percussionDisplayName = this.getPercussionDisplayName(track);
+      
+      let displayTrackName: string;
+      if (percussionDisplayName) {
+        // Use percussion instrument display name for all percussion tracks
+        displayTrackName = percussionDisplayName;
+      } else if (trackNumber === 1) {
+        // Use "Melody" for the first non-percussion track
+        displayTrackName = 'Melody';
+      } else {
+        // Use original track name for other non-percussion tracks
+        displayTrackName = trackName;
+      }
+      
+      output += `Track ${trackNumber} - ${displayTrackName}:\n`;
       
       // Get all regions from the track and convert each one
       const regions = track.getRegions().filter(region => region instanceof KGMidiRegion) as KGMidiRegion[];

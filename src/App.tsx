@@ -61,15 +61,14 @@ function App() {
 
       {/* Main Display Area containing MainContent, ChatBox, and Settings */}
       <div className="main-display-area">
-        {showSettings ? (
-          <SettingsPanel onClose={() => setShowSettings(false)} />
-        ) : (
+        {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+        {!showSettings && (
           <>
             {showInstrumentSelection && <InstrumentSelection />}
             <MainContent />
-            {showChatBox && <ChatBox />}
           </>
         )}
+        <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 
       {/* Track Control */}

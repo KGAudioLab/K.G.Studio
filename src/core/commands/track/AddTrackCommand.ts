@@ -2,6 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGMidiTrack, type InstrumentType } from '../../track/KGMidiTrack';
 import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
+import { generateNewTrackName } from '../../../util/miscUtil';
 
 /**
  * Command to add a new track to the project
@@ -28,7 +29,7 @@ export class AddTrackCommand extends KGCommand {
       this.trackId = trackId;
     }
     
-    this.trackName = trackName || `Track ${this.trackId}`;
+    this.trackName = trackName || generateNewTrackName();
     this.instrument = instrument;
     
     // Track index will be set during execution

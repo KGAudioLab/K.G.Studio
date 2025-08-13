@@ -193,8 +193,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     e.stopPropagation();
     // Select this track as active when opening instrument panel
     setSelectedTrack(track.getId().toString());
-    // Toggle global InstrumentSelection panel for this track
-    toggleInstrumentSelectionForTrack(track.getId().toString());
+    // Toggle global InstrumentSelection panel (it follows selectedTrackId)
+    toggleInstrumentSelectionForTrack();
   };
 
   // Handle settings button click
@@ -214,9 +214,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           }
 
           // Clear selection if this track is selected
-          if (selectedTrackId === track.getId().toString()) {
-            setSelectedTrack(null);
-          }
+          // if (selectedTrackId === track.getId().toString()) {
+          //   setSelectedTrack(null);
+          // }
 
           // Delete the track using the command system
           await removeTrack(track.getId());

@@ -39,7 +39,7 @@ export class AttemptCompletionTool extends BaseTool {
       agentState.setIsWorkingOnTask(false);
       
       return this.createSuccessResult(
-        `Task completed: ${comment}. Agent task status updated to not working.`
+        `Task completed: ${comment}. `
       );
       
     } catch (error) {

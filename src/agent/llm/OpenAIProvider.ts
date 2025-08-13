@@ -10,36 +10,38 @@ import { URL_CONSTANTS } from '../../constants/coreConstants';
 export class OpenAIProvider extends LLMProvider {
   readonly name = 'OpenAI';
   
-  private apiKey: string;
-  private model: string;
-  private flexMode: boolean = false;
-  private baseURL: string;
-  private isCompatibleProvider: boolean;
-  private apiEndpoint: string;
   private isOllamaFormat: boolean | null = null; // Detected at runtime
   
   constructor() {
     super();
-    
+  }
+
+  /**
+   * Get current configuration values from ConfigManager
+   */
+  private getCurrentConfig() {
     const configManager = ConfigManager.instance();
     const llmProvider = configManager.get('general.llm_provider') as string;
-    this.isCompatibleProvider = llmProvider === 'openai_compatible';
+    const isCompatibleProvider = llmProvider === 'openai_compatible';
     
-    // Set API key, model, base URL, and endpoint based on provider type
-    if (this.isCompatibleProvider) {
-      this.apiKey = configManager.get('general.openai_compatible.api_key') as string;
-      this.model = configManager.get('general.openai_compatible.model') as string;
-      this.baseURL = configManager.get('general.openai_compatible.base_url') as string;
+    if (isCompatibleProvider) {
+      const apiKey = configManager.get('general.openai_compatible.api_key') as string;
+      const model = configManager.get('general.openai_compatible.model') as string;
+      const baseURL = configManager.get('general.openai_compatible.base_url') as string;
       // For compatible providers, use the full URL as provided (assume it includes the endpoint)
       // Common patterns: http://localhost:11434/api/chat (Ollama), https://api.openrouter.ai/v1 (OpenRouter)
-      this.apiEndpoint = this.baseURL;
-      this.flexMode = false; // Not applicable to compatible providers
+      const apiEndpoint = baseURL;
+      const flexMode = false; // Not applicable to compatible providers
+      
+      return { apiKey, model, baseURL, apiEndpoint, flexMode, isCompatibleProvider };
     } else {
-      this.apiKey = configManager.get('general.openai.api_key') as string;
-      this.model = configManager.get('general.openai.model') as string;
-      this.flexMode = (configManager.get('general.openai.flex') as boolean) === true;
-      this.baseURL = URL_CONSTANTS.DEFAULT_OPENAI_BASE_URL;
-      this.apiEndpoint = `${this.baseURL}/chat/completions`;
+      const apiKey = configManager.get('general.openai.api_key') as string;
+      const model = configManager.get('general.openai.model') as string;
+      const flexMode = (configManager.get('general.openai.flex') as boolean) === true;
+      const baseURL = URL_CONSTANTS.DEFAULT_OPENAI_BASE_URL;
+      const apiEndpoint = `${baseURL}/chat/completions`;
+      
+      return { apiKey, model, baseURL, apiEndpoint, flexMode, isCompatibleProvider };
     }
   }
 
@@ -127,6 +129,9 @@ export class OpenAIProvider extends LLMProvider {
     systemPrompt?: string,
     tools?: Record<string, unknown>[]
   ): AsyncIterableIterator<StreamChunk> {
+    // Get fresh config values
+    const config = this.getCurrentConfig();
+    
     // Build OpenAI messages array with role preservation
     const openAIMessages: Array<{ role: string; content: string }> = [];
     
@@ -141,15 +146,15 @@ export class OpenAIProvider extends LLMProvider {
       content: msg.content
     })));
 
-    const response = await fetch(this.apiEndpoint, {
+    const response = await fetch(config.apiEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'Authorization': `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: this.model,
-        ...(this.flexMode && !this.isCompatibleProvider ? { service_tier: 'flex' } : {}),
+        model: config.model,
+        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
         messages: openAIMessages,
         stream: true,
         tools: tools || undefined
@@ -332,6 +337,9 @@ export class OpenAIProvider extends LLMProvider {
     systemPrompt?: string,
     tools?: Record<string, unknown>[]
   ): Promise<LLMResponse> {
+    // Get fresh config values
+    const config = this.getCurrentConfig();
+    
     // Build OpenAI messages array with role preservation
     const openAIMessages: Array<{ role: string; content: string }> = [];
     
@@ -346,15 +354,15 @@ export class OpenAIProvider extends LLMProvider {
       content: msg.content
     })));
 
-    const response = await fetch(this.apiEndpoint, {
+    const response = await fetch(config.apiEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        'Authorization': `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: this.model,
-        ...(this.flexMode && !this.isCompatibleProvider ? { service_tier: 'flex' } : {}),
+        model: config.model,
+        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
         messages: openAIMessages,
         stream: false,
         tools: tools || undefined

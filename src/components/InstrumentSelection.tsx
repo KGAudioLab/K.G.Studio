@@ -6,14 +6,14 @@ import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 const InstrumentSelection: React.FC = () => {
   const {
     tracks,
-    instrumentSelectionTrackId,
+    selectedTrackId,
     closeInstrumentSelection,
     setTrackInstrument
   } = useProjectStore();
 
   const targetTrack = useMemo(() => {
-    return tracks.find(t => t.getId().toString() === instrumentSelectionTrackId) || null;
-  }, [tracks, instrumentSelectionTrackId]);
+    return tracks.find(t => t.getId().toString() === selectedTrackId) || null;
+  }, [tracks, selectedTrackId]);
 
   const currentInstrumentKey: InstrumentType = (targetTrack && targetTrack instanceof KGMidiTrack)
     ? (targetTrack.getInstrument() as InstrumentType)
@@ -27,7 +27,7 @@ const InstrumentSelection: React.FC = () => {
   useEffect(() => {
     // Sync when the target track or its instrument changes
     setSelectedGroupKey(currentInstrumentDef?.group || 'PIANO_AND_KEYBOARDS');
-  }, [instrumentSelectionTrackId, currentInstrumentKey, currentInstrumentDef]);
+  }, [selectedTrackId, currentInstrumentKey, currentInstrumentDef]);
 
   const groups = useMemo(() => Object.entries(INSTRUMENT_GROUPS) as Array<[string, string]>, []);
 
@@ -42,8 +42,9 @@ const InstrumentSelection: React.FC = () => {
   };
 
   const handleSelectInstrument = async (instrumentKey: string) => {
-    const instrument = instrumentKey as InstrumentType;
+    // If no valid target track, ignore user interaction
     if (!targetTrack || !(targetTrack instanceof KGMidiTrack)) return;
+    const instrument = instrumentKey as InstrumentType;
     try {
       await setTrackInstrument(targetTrack.getId(), instrument);
     } catch (err) {
@@ -53,25 +54,26 @@ const InstrumentSelection: React.FC = () => {
 
   const previewImage = FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.image || 'piano.png';
   const previewAlt = FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.displayName || currentInstrumentKey;
-
-  if (!targetTrack) return null;
+  const hasTargetTrack = !!targetTrack;
 
   return (
-    <div className="instrument-selection">
+      <div className="instrument-selection">
       <div className="instrument-selection-header">
-        <h3>{`${previewAlt.toString()}`}</h3>
+        <h3>{hasTargetTrack ? `${previewAlt.toString()}` : ''}</h3>
         <button className="instrument-selection-close-btn" onClick={closeInstrumentSelection}>✕</button>
       </div>
       <div className="instrument-selection-top">
-        <div className="instrument-preview">
-          <img
-            src={`${import.meta.env.BASE_URL}resources/instruments/${previewImage}`}
-            alt={previewAlt.toString()}
-            width={256}
-            height={256}
-          />
-        </div>
-        <div className="instrument-name-overlay">{targetTrack.getName()}</div>
+        {hasTargetTrack && (
+            <div className="instrument-preview">
+              <img
+                src={`${import.meta.env.BASE_URL}resources/instruments/${previewImage}`}
+                alt={previewAlt.toString()}
+                width={256}
+                height={256}
+              />
+            </div>
+          )}
+          <div className="instrument-name-overlay">{hasTargetTrack ? targetTrack.getName() : ''}</div>
       </div>
       <div className="instrument-selection-bottom">
         <div className="instrument-groups">
