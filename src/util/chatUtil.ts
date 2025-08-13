@@ -25,13 +25,13 @@ export const clearChatHistoryWithStatus = (setStatus?: (message: string) => void
 };
 
 // Global callback for clearing UI state
-let globalClearChatUI: (() => void) | null = null;
+let globalClearChatUI: (() => void | Promise<void>) | null = null;
 
 /**
  * Register a callback to clear chat UI state
  * This allows external components to clear the ChatBox UI
  */
-export const registerClearChatUICallback = (callback: () => void) => {
+export const registerClearChatUICallback = (callback: () => void | Promise<void>) => {
   globalClearChatUI = callback;
 };
 
