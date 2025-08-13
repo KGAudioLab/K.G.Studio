@@ -71,6 +71,25 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Get beats per bar from the time signature
     const beatsPerBar = timeSignature.numerator;
     
+    // Check for overlapping regions before creating a new one
+    const newRegionStartBeat = (barNumber - 1) * beatsPerBar;
+    const newRegionEndBeat = newRegionStartBeat + beatsPerBar - 1;
+    
+    const existingRegions = track.getRegions();
+    const hasOverlap = existingRegions.some(region => {
+      const existingStart = region.getStartFromBeat();
+      const existingEnd = existingStart + region.getLength() - 1;
+      return newRegionStartBeat <= existingEnd && newRegionEndBeat >= existingStart;
+    });
+    
+    if (hasOverlap) {
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`Cannot create region at bar ${barNumber}: overlaps with existing region`);
+      }
+      alert('Cannot create region: overlaps with existing region');
+      return; // Don't create the region if it overlaps
+    }
+    
     // Create and execute the region creation command
     const command = CreateRegionCommand.fromBarCoordinates(
       trackId,
