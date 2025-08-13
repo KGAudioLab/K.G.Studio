@@ -280,6 +280,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const project = KGCore.instance().getCurrentProject();
         set({ tracks: [...project.getTracks()] as KGTrack[] });
         
+        // Auto-select the newly created track and open instrument selection panel
+        const newTrackId = command.getTrackId().toString();
+        set({
+          selectedTrackId: newTrackId,
+          showInstrumentSelection: true,
+          instrumentSelectionTrackId: newTrackId
+        });
+        
         console.log(`Added track ${command.getTrackId()}`);
       } catch (error) {
         console.error('Error adding track:', error);
@@ -289,13 +297,46 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     removeTrack: async (id: number) => {
       try {
+        // Get the current tracks and find the index of the track being deleted
+        const currentTracks = KGCore.instance().getCurrentProject().getTracks();
+        const deletedTrackIndex = currentTracks.findIndex(track => track.getId() === id);
+        const currentSelectedTrackId = get().selectedTrackId;
+        const isCurrentTrackSelected = currentSelectedTrackId === id.toString();
+        
         // Create and execute the remove track command
         const command = new RemoveTrackCommand(id);
         KGCore.instance().executeCommand(command);
         
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        const remainingTracks = [...project.getTracks()] as KGTrack[];
+        set({ tracks: remainingTracks });
+        
+        // Auto-select another track if any remain
+        if (remainingTracks.length > 0) {
+          // Prefer previous track, fallback to next track
+          const newSelectedIndex = deletedTrackIndex > 0 
+            ? deletedTrackIndex - 1  // Select previous track
+            : 0;                     // Select first remaining track (was next)
+          
+          const newSelectedTrack = remainingTracks[newSelectedIndex];
+          const newSelectedTrackId = newSelectedTrack.getId().toString();
+
+          setTimeout(() => {
+            set({
+              selectedTrackId: isCurrentTrackSelected ? newSelectedTrackId : currentSelectedTrackId,
+              showInstrumentSelection: true,
+              instrumentSelectionTrackId: isCurrentTrackSelected ? newSelectedTrackId : currentSelectedTrackId,
+            });
+          }, 0);
+        } else {
+          // No tracks left, clear selection and close instrument panel
+          set({
+            selectedTrackId: null,
+            showInstrumentSelection: false,
+            instrumentSelectionTrackId: null
+          });
+        }
         
         console.log(`Removed track ${id}`);
       } catch (error) {

@@ -214,9 +214,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           }
 
           // Clear selection if this track is selected
-          if (selectedTrackId === track.getId().toString()) {
-            setSelectedTrack(null);
-          }
+          // if (selectedTrackId === track.getId().toString()) {
+          //   setSelectedTrack(null);
+          // }
 
           // Delete the track using the command system
           await removeTrack(track.getId());
