@@ -1591,7 +1591,7 @@ textarea {
 
 .settings-input, .settings-select, .settings-textarea {
   width: 100%;
-  max-width: 300px;
+  /* max-width: 300px; */
   padding: 8px 12px;
   background-color: #3a3a3a;
   border: 1px solid #555;
