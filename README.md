@@ -8,6 +8,12 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 **K.G.Studio Musician Assistant** is an AI assistance agent for harmony, arrangement, and note editing — but not full auto‑composition.
 
+## Project Status
+
+**K.G.Studio is an experimental project in early development.** We're exploring the possibilities of integrating AI agents and LLMs into music production workflows — essentially building a "Cursor or Claude Code for DAW" experience. 
+
+This project investigates how AI-human collaboration can enhance creative music-making, from intelligent harmony suggestions to automated editing tasks. As an experimental platform, expect frequent changes, evolving features, and occasional instability as we push the boundaries of what's possible in AI-assisted music production.
+
 ### Highlights
 - **K.G.Studio Musician Assistant**: Chat with the LLM‑powered K.G.Studio Musician Assistant AI Agent; it can automatically execute tools to make music edits.
 - **Multiple LLM providers**: OpenAI, Claude (via OpenRouter), Gemini (via OpenRouter), or OpenAI‑compatible (e.g., Ollama, OpenRouter).
@@ -144,12 +150,47 @@ K.G.Studio does not provide or host any of the models listed above, nor is it af
 ## Upcoming Features
 
 - [ ] More instruments
+- [ ] Automated testing (unit tests, integration tests, etc.)
 - [ ] Support track control automations (e.g. sustain, volume, pan, etc.)
 - [ ] Support MIDI control events (e.g. CC, pitch bend, etc.)
 - [ ] Support WAV audio tracks
+- [ ] Filters and effects
 - [ ] MCP Support
 - [ ] Add support for OpenAI's open source models (`gpt-oss-20b` and `gpt-oss-120b`)
 - [ ] Automatically compact conversations when the context window runs low on space
+
+## Help Needed
+
+We're looking for contributors to help make K.G.Studio even better! Whether you're a developer, musician, or designer, your expertise can make a real difference.
+
+### How You Can Help
+
+**🎵 Musicians & Music Producers**
+- Test the DAW with real-world music production workflows
+- Provide feedback on instrument quality and realism
+- Suggest missing features that are essential for music creation
+- Help improve the AI assistant's musical understanding
+
+**💻 Developers**
+- Implement new features from our roadmap
+- Fix bugs and improve performance
+- Enhance the Web Audio integration
+- Work on AI assistant capabilities
+
+**🎨 UI/UX Designers**
+- Improve the user interface and workflow
+- Design better visual feedback for music editing
+- Create more intuitive interactions
+
+### Get Involved
+
+Interested in contributing? We'd love to hear from you!
+
+- **Email us**: [kgstudio@duck.com](mailto:kgstudio@duck.com)
+- **Check our Issues**: Browse open issues labeled with `help wanted` or `good first issue`
+- **Join Discussions**: Share ideas and feedback in GitHub Discussions
+
+No contribution is too small — from reporting bugs to suggesting new features, every bit of help moves the project forward!
 
 ## License
 
