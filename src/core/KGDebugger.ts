@@ -29,7 +29,8 @@ export class KGDebugger {
       'createTestRegion()',
       'testExtractXMLFromString(input)',
       'testXMLToolExecution(input)',
-      'testAttemptCompletion(comment)'
+      'testAttemptCompletion(comment)',
+      'inputChatBox(content, interval?)'
     ]);
   }
 
@@ -402,6 +403,7 @@ export class KGDebugger {
     console.log("  testExtractXMLFromString(input) - Test XML extraction from string");
     console.log("  testXMLToolExecution(input) - Test complete XML tool execution pipeline");
     console.log("  testAttemptCompletion(comment) - Test AttemptCompletionTool with agent state");
+    console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
     console.log("  help() - Show this help");
     console.log("");
     console.log("💡 Usage tips:");
@@ -411,5 +413,95 @@ export class KGDebugger {
     console.log("  - For XML testing, try: testExtractXMLFromString('I will <add_notes><note>...</note></add_notes> create notes');");
     console.log("  - For full tool execution, try: await testXMLToolExecution('Create notes: <add_notes><note><pitch>C4</pitch><start_beat>0</start_beat><length>1</length></note></add_notes>');");
     console.log("  - For completion testing, try: await testAttemptCompletion('Successfully created a C major chord');");
+  }
+
+  /**
+   * Type content into ChatBox textarea character-by-character and submit with Enter.
+   * Honors auto-resize (by dispatching 'input' events) and ChatBox's Enter-to-send behavior.
+   * @param content - The text to type into the chat input
+   * @param interval - Delay in ms between characters (default 30ms)
+   */
+  public async inputChatBox(content: string, interval: number = 30): Promise<void> {
+    try {
+      const textarea = document.querySelector('textarea.chatbox-input') as HTMLTextAreaElement | null;
+      if (!textarea) {
+        console.error('❌ ChatBox textarea not found. Ensure ChatBox is mounted and visible.');
+        return;
+      }
+
+      // Focus to trigger ChatBox focus handlers and ensure caret/attribute setup
+      textarea.focus();
+
+      // Use native value setter to keep React's value tracker in sync
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      const setValue = (val: string) => {
+        if (valueSetter) {
+          valueSetter.call(textarea, val);
+        } else {
+          textarea.value = val;
+        }
+      };
+
+      // Helper to dispatch an InputEvent so React's onChange fires
+      const dispatchInput = (data?: string) => {
+        const ev = typeof InputEvent !== 'undefined'
+          ? new InputEvent('input', { bubbles: true, data, inputType: 'insertText' })
+          : new Event('input', { bubbles: true });
+        textarea.dispatchEvent(ev);
+      };
+
+      // Start from empty content to simulate a fresh user input
+      setValue('');
+      dispatchInput('');
+
+      // Helper: sleep
+      const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+      let typed = '';
+      for (let i = 0; i < content.length; i++) {
+        typed += content[i];
+
+        // Update the controlled textarea and dispatch input so React onChange fires
+        setValue(typed);
+        dispatchInput(content[i]);
+
+        // Place caret at end for realism
+        try {
+          textarea.selectionStart = textarea.selectionEnd = typed.length;
+        } catch {
+          // noop
+        }
+
+        if (interval > 0) {
+          await sleep(interval);
+        }
+      }
+
+      // Give React a brief moment to commit the last setState and run auto-resize effect
+      await sleep(Math.max(30, interval));
+
+      // Simulate pressing Enter to submit (ChatBox listens on keydown)
+      const enterEvent = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      } as KeyboardEventInit & { keyCode: number; which: number });
+      textarea.dispatchEvent(enterEvent);
+
+      // Optional: follow-up keyup to mirror real typing (some UIs inspect it)
+      const keyupEvent = new KeyboardEvent('keyup', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+      } as KeyboardEventInit & { keyCode: number; which: number });
+      textarea.dispatchEvent(keyupEvent);
+    } catch (error) {
+      console.error('❌ Error in inputChatBox:', error);
+    }
   }
 }
