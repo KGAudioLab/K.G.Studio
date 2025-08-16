@@ -1,8 +1,9 @@
 import { LLMProvider } from './LLMProvider';
-import type { StreamChunk, LLMResponse } from './StreamingTypes';
+import type { StreamChunk } from './StreamingTypes';
 import type { Message } from '../core/AgentState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { URL_CONSTANTS } from '../../constants/coreConstants';
+import { LLM_PROTOCOL } from '../../constants/llmConstants';
 
 /**
  * OpenAI API provider implementation
@@ -15,6 +16,78 @@ export class OpenAIProvider extends LLMProvider {
   constructor() {
     super();
   }
+
+  /**
+   * Build OpenAI-compatible messages array from input messages and system prompt
+   */
+  private buildRequestMessages(messages: Message[], systemPrompt?: string): Array<{ role: string; content: string }> {
+    const openAIMessages: Array<{ role: string; content: string }> = [];
+    
+    // Add system prompt if provided
+    if (systemPrompt) {
+      openAIMessages.push({ role: 'system', content: systemPrompt });
+    }
+    
+    // Add conversation history with preserved roles
+    openAIMessages.push(...messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    })));
+
+    return openAIMessages;
+  }
+
+  /**
+   * Create API request with proper headers and body
+   */
+  private async createApiRequest(messages: Array<{ role: string; content: string }>, config: ReturnType<typeof this.getCurrentConfig>, streaming: boolean): Promise<Response> {
+    const response = await fetch(config.apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
+        messages,
+        stream: streaming,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`${this.name} API request failed (${response.status}): ${response.statusText}. ${errorText}`);
+    }
+    
+    return response;
+  }
+
+  /**
+   * Process thinking and content chunks, yielding appropriate StreamChunks
+   */
+  private async *processContentChunk(
+    thinking: string | undefined, 
+    content: string | undefined, 
+    lastSegmentType: { current: 'thinking' | 'content' | null }
+  ): AsyncIterableIterator<StreamChunk> {
+    if (typeof thinking === 'string' && thinking.length > 0) {
+      if (lastSegmentType.current && lastSegmentType.current !== 'thinking') {
+        yield { type: 'text', content: LLM_PROTOCOL.SEGMENT_SEPARATOR };
+      }
+      yield { type: 'text', content: thinking };
+      lastSegmentType.current = 'thinking';
+    }
+
+    if (typeof content === 'string' && content.length > 0) {
+      if (lastSegmentType.current && lastSegmentType.current !== 'content') {
+        yield { type: 'text', content: LLM_PROTOCOL.SEGMENT_SEPARATOR };
+      }
+      yield { type: 'text', content: content };
+      lastSegmentType.current = 'content';
+    }
+  }
+
 
   /**
    * Get current configuration values from ConfigManager
@@ -50,7 +123,7 @@ export class OpenAIProvider extends LLMProvider {
    */
   private detectStreamFormat(firstChunk: string): boolean {
     // If it starts with "data: ", it's OpenAI SSE format
-    if (firstChunk.trim().startsWith('data: ')) {
+    if (firstChunk.trim().startsWith(LLM_PROTOCOL.SSE_DATA_PREFIX)) {
       return false; // Not Ollama format
     }
     
@@ -85,12 +158,12 @@ export class OpenAIProvider extends LLMProvider {
    * Parse OpenAI's SSE format chunk
    */
   private parseOpenAIChunk(line: string): { thinking?: string; content?: string; isDone?: boolean } {
-    if (!line.startsWith('data: ')) {
+    if (!line.startsWith(LLM_PROTOCOL.SSE_DATA_PREFIX)) {
       return {};
     }
 
-    const data = line.slice(6);
-    if (data === '[DONE]') {
+    const data = line.slice(LLM_PROTOCOL.SSE_DATA_PREFIX.length);
+    if (data === LLM_PROTOCOL.SSE_DONE_MARKER) {
       return { isDone: true };
     }
 
@@ -109,52 +182,20 @@ export class OpenAIProvider extends LLMProvider {
     messages: Message[], 
     systemPrompt?: string
   ): AsyncIterableIterator<StreamChunk> {
-    // Get fresh config values
     const config = this.getCurrentConfig();
-    
-    // Build OpenAI messages array with role preservation
-    const openAIMessages: Array<{ role: string; content: string }> = [];
-    
-    // Add system prompt if provided
-    if (systemPrompt) {
-      openAIMessages.push({ role: 'system', content: systemPrompt });
-    }
-    
-    // Add conversation history with preserved roles
-    openAIMessages.push(...messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    })));
-
-    const response = await fetch(config.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
-        messages: openAIMessages,
-        stream: true,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
+    const requestMessages = this.buildRequestMessages(messages, systemPrompt);
+    const response = await this.createApiRequest(requestMessages, config, true);
     
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('Failed to get response reader');
+      throw new Error(`${this.name} streaming: Failed to get response reader from API response`);
     }
     
     const decoder = new TextDecoder();
     let buffer = '';
     let firstChunkProcessed = false;
-    let lastSegmentType: 'thinking' | 'content' | null = null;
+    const lastSegmentType = { current: null as 'thinking' | 'content' | null };
 
-    
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -177,124 +218,20 @@ export class OpenAIProvider extends LLMProvider {
             firstChunkProcessed = true;
           }
           
-          if (this.isOllamaFormat) {
-            const { thinking, content, isDone } = this.parseOllamaChunk(trimmedLine);
-            if (isDone) {
-              yield { type: 'done', content: '' };
-              return;
-            }
-
-            if (typeof thinking === 'string' && thinking.length > 0) {
-              if (lastSegmentType && lastSegmentType !== 'thinking') {
-                yield { type: 'text', content: '\n\n' };
-              }
-              yield { type: 'text', content: thinking };
-              lastSegmentType = 'thinking';
-            }
-
-            if (typeof content === 'string' && content.length > 0) {
-              if (lastSegmentType && lastSegmentType !== 'content') {
-                yield { type: 'text', content: '\n\n' };
-              }
-              yield { type: 'text', content: content };
-              lastSegmentType = 'content';
-            }
-
-            continue;
-          }
-
-          const { thinking, content, isDone } = this.parseOpenAIChunk(trimmedLine);
+          const { thinking, content, isDone } = this.isOllamaFormat 
+            ? this.parseOllamaChunk(trimmedLine)
+            : this.parseOpenAIChunk(trimmedLine);
+            
           if (isDone) {
             yield { type: 'done', content: '' };
             return;
           }
-          
-          if (typeof thinking === 'string' && thinking.length > 0) {
-            if (lastSegmentType && lastSegmentType !== 'thinking') {
-              yield { type: 'text', content: '\n\n' };
-            }
-            yield { type: 'text', content: thinking };
-            lastSegmentType = 'thinking';
-          }
 
-          if (typeof content === 'string' && content.length > 0) {
-            if (lastSegmentType && lastSegmentType !== 'content') {
-              yield { type: 'text', content: '\n\n' };
-            }
-            yield { type: 'text', content };
-            lastSegmentType = 'content';
-          }
+          yield* this.processContentChunk(thinking, content, lastSegmentType);
         }
       }
     } finally {
       reader.releaseLock();
-    }
-  }
-  
-  async generateCompletion(
-    messages: Message[], 
-    systemPrompt?: string
-  ): Promise<LLMResponse> {
-    // Get fresh config values
-    const config = this.getCurrentConfig();
-    
-    // Build OpenAI messages array with role preservation
-    const openAIMessages: Array<{ role: string; content: string }> = [];
-    
-    // Add system prompt if provided
-    if (systemPrompt) {
-      openAIMessages.push({ role: 'system', content: systemPrompt });
-    }
-    
-    // Add conversation history with preserved roles
-    openAIMessages.push(...messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    })));
-
-    const response = await fetch(config.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
-        messages: openAIMessages,
-        stream: false,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-
-    // Handle different response formats
-
-    if (data.message) {
-      // Ollama/compatible format
-      const thinking: string = data.message.thinking || '';
-      const contentText: string = data.message.content || data.response || '';
-      const textCombined = thinking && contentText ? `${thinking}\n\n${contentText}` : (thinking || contentText);
-
-      return {
-        content: textCombined,
-        finished: data.done === true || data.done_reason === 'stop'
-      };
-    } else {
-      // OpenAI format
-      const choice = data.choices?.[0];
-      const thinking: string = choice?.message?.thinking || '';
-      const contentText: string = choice?.message?.content || '';
-      const textCombined = thinking && contentText ? `${thinking}\n\n${contentText}` : (thinking || contentText);
-
-      return {
-        content: textCombined,
-        finished: choice?.finish_reason === 'stop'
-      };
     }
   }
 }

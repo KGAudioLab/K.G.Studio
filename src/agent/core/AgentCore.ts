@@ -93,31 +93,6 @@ export class AgentCore {
     }
   }
   
-  /**
-   * Process user input and get complete response (non-streaming)
-   */
-  async processUserInputComplete(userInput: string): Promise<string> {
-    if (!this.llmProvider) {
-      throw new Error('No LLM provider configured');
-    }
-    
-    // Add user message to state
-    this.agentState.addMessage('user', userInput);
-    
-    // Get system prompt with current context
-    const systemPrompt = await SystemPrompts.getSystemPromptWithContext();
-    
-    // Get full conversation history with preserved roles
-    const conversationHistory = this.agentState.getMessages();
-    
-    // Generate complete response with full conversation context
-    const response = await this.llmProvider.generateCompletion(conversationHistory, systemPrompt);
-    
-    // Add assistant response to state
-    this.agentState.addMessage('assistant', response.content);
-    
-    return response.content;
-  }
   
   /**
    * Abort the current streaming request and clean up messages
