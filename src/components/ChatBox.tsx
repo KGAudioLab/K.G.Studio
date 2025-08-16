@@ -276,7 +276,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     setMessages(prev => [...prev, {
       id: assistantMsgId,
       role: 'assistant',
-      content: 'processing... 0 tokens received. click here to abort.',
+      content: '<span class="processing-wave">Processing...</span> 0 tokens received. click here to abort.',
       isStreaming: true,
       tokenCount: 0
     }]);
@@ -304,7 +304,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
           // Update streaming message with token count and abort link
           setMessages(prev => prev.map(msg => 
             msg.id === assistantMsgId
-              ? { ...msg, content: `processing... ${tokenCount} tokens received. click here to abort.`, tokenCount }
+              ? { ...msg, content: `<span class="processing-wave">Processing...</span> ${tokenCount} tokens received. click here to abort.`, tokenCount }
               : msg
           ));
         } else if (chunk.type === 'done') {
@@ -396,7 +396,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       setMessages(prev => [...prev, {
         id: assistantMsgId,
         role: 'assistant',
-        content: 'processing... 0 tokens received. click here to abort.',
+        content: '<span class="processing-wave">Processing...</span> 0 tokens received. click here to abort.',
         isStreaming: true,
         tokenCount: 0
       }]);
@@ -441,7 +441,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
             // Update streaming message with token count and abort link
             setMessages(prev => prev.map(msg => 
               msg.id === assistantMsgId
-                ? { ...msg, content: `processing... ${tokenCount} tokens received. click here to abort.`, tokenCount }
+                ? { ...msg, content: `<span class="processing-wave">Processing...</span> ${tokenCount} tokens received. click here to abort.`, tokenCount }
                 : msg
             ));
           } else if (chunk.type === 'done') {
