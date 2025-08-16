@@ -66,30 +66,15 @@ export class OpenAIProvider extends LLMProvider {
   /**
    * Parse Ollama's raw JSON chunk format
    */
-  private parseOllamaChunk(chunk: string): { thinking?: string; content?: string; isDone?: boolean; toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }> } {
+  private parseOllamaChunk(chunk: string): { thinking?: string; content?: string; isDone?: boolean } {
     try {
       const json = JSON.parse(chunk.trim());
       const thinking: string | undefined = json.message?.thinking;
       const content: string | undefined = json.message?.content || json.response; // Handle both chat and completion formats
-      type WireToolCall = { function?: { name?: unknown; arguments?: unknown } };
-      const toolCallsRaw: unknown[] | undefined = json.message?.tool_calls as unknown[] | undefined;
-      const toolCalls = Array.isArray(toolCallsRaw)
-        ? (toolCallsRaw
-            .map((tc: unknown) => {
-              const wire = tc as WireToolCall;
-              const fn = wire?.function;
-              if (!fn || typeof fn.name !== 'string') return null;
-              const args = fn.arguments;
-              if (args === null || typeof args !== 'object' || Array.isArray(args)) return null;
-              return { name: fn.name, arguments: args as Record<string, unknown> };
-            })
-            .filter((v): v is { name: string; arguments: Record<string, unknown> } => v !== null))
-        : undefined;
       return {
         thinking,
         content,
-        isDone: json.done === true,
-        toolCalls
+        isDone: json.done === true
       };
     } catch {
       return {}; // Invalid JSON, return empty object
@@ -99,7 +84,7 @@ export class OpenAIProvider extends LLMProvider {
   /**
    * Parse OpenAI's SSE format chunk
    */
-  private parseOpenAIChunk(line: string): { thinking?: string; content?: string; isDone?: boolean; toolCallDelta?: Array<{ index?: number; function?: { name?: string; arguments?: string } }> } {
+  private parseOpenAIChunk(line: string): { thinking?: string; content?: string; isDone?: boolean } {
     if (!line.startsWith('data: ')) {
       return {};
     }
@@ -114,11 +99,7 @@ export class OpenAIProvider extends LLMProvider {
       const delta = json.choices?.[0]?.delta;
       const thinking: string | undefined = delta?.thinking; // Some providers may stream "thinking"
       const content: string | undefined = delta?.content;
-      const tcd = delta?.tool_calls;
-      const toolCallDelta: Array<{ index?: number; function?: { name?: string; arguments?: string } }> | undefined = Array.isArray(tcd)
-        ? (tcd as Array<{ index?: number; function?: { name?: string; arguments?: string } }>)
-        : undefined;
-      return { thinking, content, isDone: false, toolCallDelta };
+      return { thinking, content, isDone: false };
     } catch {
       return {}; // Skip invalid JSON lines
     }
@@ -126,8 +107,7 @@ export class OpenAIProvider extends LLMProvider {
   
   async *generateStream(
     messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
+    systemPrompt?: string
   ): AsyncIterableIterator<StreamChunk> {
     // Get fresh config values
     const config = this.getCurrentConfig();
@@ -157,7 +137,6 @@ export class OpenAIProvider extends LLMProvider {
         ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
         messages: openAIMessages,
         stream: true,
-        tools: tools || undefined
       }),
     });
     
@@ -174,28 +153,7 @@ export class OpenAIProvider extends LLMProvider {
     let buffer = '';
     let firstChunkProcessed = false;
     let lastSegmentType: 'thinking' | 'content' | null = null;
-    const pendingFunctionCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-    const openAIToolCallBuilders: Record<number, { name?: string; argumentsText: string }> = {};
 
-    const escapeXml = (text: string): string =>
-      String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-
-    const functionCallToXml = (name: string, args: Record<string, unknown>): string => {
-      const keys = Object.keys(args);
-      const inner = keys
-        .map((k) => {
-          const value = (args as Record<string, unknown>)[k];
-          const text = typeof value === 'string' ? value : JSON.stringify(value);
-          return `<${k}>${escapeXml(text)}</${k}>`;
-        })
-        .join('\n');
-      return `<${name}>\n${inner}\n</${name}>`;
-    };
     
     try {
       while (true) {
@@ -220,19 +178,8 @@ export class OpenAIProvider extends LLMProvider {
           }
           
           if (this.isOllamaFormat) {
-            const { thinking, content, isDone, toolCalls } = this.parseOllamaChunk(trimmedLine);
+            const { thinking, content, isDone } = this.parseOllamaChunk(trimmedLine);
             if (isDone) {
-              // Append any pending or current tool calls as XML before finishing
-              const allToolCalls = [
-                ...pendingFunctionCalls,
-                ...(toolCalls || [])
-              ];
-              if (allToolCalls.length > 0) {
-                const xmlBlocks = allToolCalls
-                  .map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`)
-                  .join('');
-                yield { type: 'text', content: xmlBlocks };
-              }
               yield { type: 'done', content: '' };
               return;
             }
@@ -253,41 +200,11 @@ export class OpenAIProvider extends LLMProvider {
               lastSegmentType = 'content';
             }
 
-            if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-              // Accumulate and append at the end of stream
-              pendingFunctionCalls.push(...toolCalls);
-            }
             continue;
           }
 
-          const { thinking, content, isDone, toolCallDelta } = this.parseOpenAIChunk(trimmedLine);
+          const { thinking, content, isDone } = this.parseOpenAIChunk(trimmedLine);
           if (isDone) {
-            // Finalize any accumulated OpenAI tool calls and emit XML
-            const finalizedToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-            for (const indexStr of Object.keys(openAIToolCallBuilders)) {
-              const idx = Number(indexStr);
-              const builder = openAIToolCallBuilders[idx];
-              if (!builder || !builder.name) continue;
-              let argsObj: Record<string, unknown> | null = null;
-              if (builder.argumentsText) {
-                try {
-                  argsObj = JSON.parse(builder.argumentsText);
-                } catch {
-                  argsObj = null;
-                }
-              }
-              if (argsObj) {
-                finalizedToolCalls.push({ name: builder.name, arguments: argsObj });
-              }
-            }
-
-            const allToolCalls = [...pendingFunctionCalls, ...finalizedToolCalls];
-            if (allToolCalls.length > 0) {
-              const xmlBlocks = allToolCalls
-                .map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`)
-                .join('');
-              yield { type: 'text', content: xmlBlocks };
-            }
             yield { type: 'done', content: '' };
             return;
           }
@@ -307,24 +224,6 @@ export class OpenAIProvider extends LLMProvider {
             yield { type: 'text', content };
             lastSegmentType = 'content';
           }
-
-          if (Array.isArray(toolCallDelta) && toolCallDelta.length > 0) {
-            for (const tc of toolCallDelta) {
-              const index: number = typeof tc.index === 'number' ? tc.index : 0;
-              if (!openAIToolCallBuilders[index]) {
-                openAIToolCallBuilders[index] = { argumentsText: '' };
-              }
-              const fn = tc.function;
-              if (fn) {
-                if (typeof fn.name === 'string') {
-                  openAIToolCallBuilders[index].name = fn.name;
-                }
-                if (typeof fn.arguments === 'string') {
-                  openAIToolCallBuilders[index].argumentsText += fn.arguments;
-                }
-              }
-            }
-          }
         }
       }
     } finally {
@@ -334,8 +233,7 @@ export class OpenAIProvider extends LLMProvider {
   
   async generateCompletion(
     messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
+    systemPrompt?: string
   ): Promise<LLMResponse> {
     // Get fresh config values
     const config = this.getCurrentConfig();
@@ -365,7 +263,6 @@ export class OpenAIProvider extends LLMProvider {
         ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
         messages: openAIMessages,
         stream: false,
-        tools: tools || undefined
       }),
     });
     
@@ -376,25 +273,6 @@ export class OpenAIProvider extends LLMProvider {
     const data = await response.json();
 
     // Handle different response formats
-    const escapeXml = (text: string): string =>
-      String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-
-    const functionCallToXml = (name: string, args: Record<string, unknown>): string => {
-      const keys = Object.keys(args);
-      const inner = keys
-        .map((k) => {
-          const value = (args as Record<string, unknown>)[k];
-          const text = typeof value === 'string' ? value : JSON.stringify(value);
-          return `<${k}>${escapeXml(text)}</${k}>`;
-        })
-        .join('\n');
-      return `<${name}>\n${inner}\n</${name}>`;
-    };
 
     if (data.message) {
       // Ollama/compatible format
@@ -402,28 +280,8 @@ export class OpenAIProvider extends LLMProvider {
       const contentText: string = data.message.content || data.response || '';
       const textCombined = thinking && contentText ? `${thinking}\n\n${contentText}` : (thinking || contentText);
 
-      type WireToolCall = { function?: { name?: unknown; arguments?: unknown } };
-      const toolCallsRaw: unknown[] | undefined = data.message.tool_calls as unknown[] | undefined;
-      const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = Array.isArray(toolCallsRaw)
-        ? (toolCallsRaw
-            .map((tc: unknown) => {
-              const wire = tc as WireToolCall;
-              const fn = wire?.function;
-              if (!fn || typeof fn.name !== 'string') return null;
-              const args = fn.arguments;
-              if (args === null || typeof args !== 'object' || Array.isArray(args)) return null;
-              return { name: fn.name, arguments: args as Record<string, unknown> };
-            })
-            .filter((v): v is { name: string; arguments: Record<string, unknown> } => v !== null))
-        : [];
-
-      const xmlBlocks = toolCalls.length > 0
-        ? toolCalls.map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`).join('')
-        : '';
-
       return {
-        content: `${textCombined}${xmlBlocks}`,
-        toolCalls: data.message.tool_calls || undefined,
+        content: textCombined,
         finished: data.done === true || data.done_reason === 'stop'
       };
     } else {
@@ -433,29 +291,9 @@ export class OpenAIProvider extends LLMProvider {
       const contentText: string = choice?.message?.content || '';
       const textCombined = thinking && contentText ? `${thinking}\n\n${contentText}` : (thinking || contentText);
 
-      type WireToolCall2 = { function?: { name?: unknown; arguments?: unknown } };
-      const toolCallsRaw: unknown[] | undefined = choice?.message?.tool_calls as unknown[] | undefined;
-      const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = Array.isArray(toolCallsRaw)
-        ? (toolCallsRaw
-            .map((tc: unknown) => {
-              const wire = tc as WireToolCall2;
-              const fn = wire?.function;
-              if (!fn || typeof fn.name !== 'string') return null;
-              const args = fn.arguments;
-              if (args === null || typeof args !== 'object' || Array.isArray(args)) return null;
-              return { name: fn.name, arguments: args as Record<string, unknown> };
-            })
-            .filter((v): v is { name: string; arguments: Record<string, unknown> } => v !== null))
-        : [];
-
-      const xmlBlocks = toolCalls.length > 0
-        ? toolCalls.map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`).join('')
-        : '';
-
       return {
-        content: `${textCombined}${xmlBlocks}`,
-        toolCalls: choice?.message?.tool_calls || undefined,
-        finished: choice?.finish_reason === 'stop' || choice?.finish_reason === 'tool_calls'
+        content: textCombined,
+        finished: choice?.finish_reason === 'stop'
       };
     }
   }
