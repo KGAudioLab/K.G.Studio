@@ -14,6 +14,27 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 This project investigates how AI-human collaboration can enhance creative music-making, from intelligent harmony suggestions to automated editing tasks. As an experimental platform, expect frequent changes, evolving features, and occasional instability as we push the boundaries of what's possible in AI-assisted music production.
 
+## Demo Videos
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="https://youtu.be/FXgihfAH2vc">
+          <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
+        </a>
+        <br><b>📱 Short Demo</b>
+      </td>
+      <td align="center">
+        <a href="https://youtu.be/vKbWAQRt0r0">
+          <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
+        </a>
+        <br><b>🎬 Full Demo</b>
+      </td>
+    </tr>
+  </table>
+</div>
+
 ### Highlights
 - **K.G.Studio Musician Assistant**: Chat with the LLM‑powered K.G.Studio Musician Assistant AI Agent; it can automatically execute tools to make music edits.
 - **Multiple LLM providers**: OpenAI, Claude (via OpenRouter), Gemini (via OpenRouter), or OpenAI‑compatible (e.g., Ollama, OpenRouter).
