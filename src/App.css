@@ -1964,3 +1964,29 @@ textarea {
 @keyframes globalSpinner {
   to { transform: rotate(360deg); }
 }
+
+/* Processing wave animation */
+.processing-wave {
+  background: linear-gradient(
+    90deg,
+    rgba(135, 206, 250, 0.5) 0%,
+    rgba(135, 206, 250, 0.8) 25%,
+    rgb(171, 218, 250) 50%,
+    rgba(135, 206, 250, 0.8) 75%,
+    rgba(135, 206, 250, 0.5) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wave 2s linear infinite;
+}
+
+@keyframes wave {
+  0% {
+    background-position: 200% 0%;
+  }
+  100% {
+    background-position: -200% 0%;
+  }
+}

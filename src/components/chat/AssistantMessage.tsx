@@ -113,19 +113,50 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   // Handle special abort link for streaming messages
   const renderContent = () => {
     if (isStreaming && onAbort && content.includes('click here to abort')) {
-      const parts = content.split('click here to abort');
-      return (
-        <span>
-          {parts[0]}
-          <button 
-            onClick={onAbort}
-            className="abort-link"
-          >
-            click here to abort
-          </button>
-          {parts[1]}
-        </span>
-      );
+      // Check if content has the processing wave HTML
+      const hasProcessingWave = content.includes('<span class="processing-wave">Processing...</span>');
+      
+      if (hasProcessingWave) {
+        // Parse the content to handle both the wave animation and abort link
+        const parts = content.split('click here to abort');
+        const beforeAbort = parts[0];
+        const afterAbort = parts[1];
+        
+        // Replace the HTML span with JSX
+        const processedBefore = beforeAbort.replace(
+          '<span class="processing-wave">Processing...</span>',
+          ''
+        );
+        
+        return (
+          <span>
+            <span className="processing-wave">Processing...</span>
+            {processedBefore}
+            <button 
+              onClick={onAbort}
+              className="abort-link"
+            >
+              click here to abort
+            </button>
+            {afterAbort}
+          </span>
+        );
+      } else {
+        // Original logic for non-wave processing messages
+        const parts = content.split('click here to abort');
+        return (
+          <span>
+            {parts[0]}
+            <button 
+              onClick={onAbort}
+              className="abort-link"
+            >
+              click here to abort
+            </button>
+            {parts[1]}
+          </span>
+        );
+      }
     }
 
     const processedContent = processContentWithXMLExpanders(content);
