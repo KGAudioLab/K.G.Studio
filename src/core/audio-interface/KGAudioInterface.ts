@@ -7,6 +7,7 @@ import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
 import type { InstrumentType } from '../track/KGMidiTrack';
 import { KGCore } from '../KGCore';
+import { ConfigManager } from '../config/ConfigManager';
 
 /**
  * KGAudioInterface - Audio engine interface for the DAW
@@ -31,6 +32,10 @@ export class KGAudioInterface {
 
   // Master volume control
   private masterGain: Tone.Gain | null = null;
+
+  // Audio capture for screen sharing
+  private captureDestination: MediaStreamAudioDestinationNode | null = null;
+  private captureStream: MediaStream | null = null;
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -65,6 +70,14 @@ export class KGAudioInterface {
       // Configure transport settings
       Tone.Transport.bpm.value = TIME_CONSTANTS.DEFAULT_BPM; // Default BPM
       Tone.Transport.timeSignature = [TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.numerator, TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.denominator]; // Default time signature
+      
+      // Check config and setup audio capture if enabled
+      const configManager = ConfigManager.instance();
+      const enableCapture = configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean;
+      
+      if (enableCapture) {
+        this.setupAudioCapture();
+      }
       
       this.isInitialized = true;
       console.log("Audio engine initialized successfully");
@@ -113,6 +126,12 @@ export class KGAudioInterface {
       if (this.masterGain) {
         this.masterGain.dispose();
         this.masterGain = null;
+      }
+      
+      // Clean up capture resources
+      if (this.captureDestination) {
+        this.captureDestination = null;
+        this.captureStream = null;
       }
       
       this.isInitialized = false;
@@ -602,7 +621,26 @@ export class KGAudioInterface {
     return Object.keys(FLUIDR3_INSTRUMENT_MAP) as InstrumentType[];
   }
 
+  public getCaptureStream(): MediaStream | null {
+    return this.captureStream;
+  }
+
   // ===== PRIVATE UTILITY METHODS =====
+
+  /**
+   * Setup audio capture for screen sharing
+   */
+  private setupAudioCapture(): void {
+    if (this.masterGain && !this.captureDestination) {
+      this.captureDestination = Tone.getContext().createMediaStreamDestination();
+      this.captureStream = this.captureDestination.stream;
+      
+      // Connect master gain to both speakers AND capture destination
+      this.masterGain.connect(this.captureDestination);
+      
+      console.log('Audio capture enabled for screen sharing');
+    }
+  }
 
   /**
    * Check if any tracks are currently soloed
