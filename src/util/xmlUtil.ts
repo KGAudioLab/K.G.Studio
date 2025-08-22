@@ -50,3 +50,20 @@ export function extractXMLFromString(input: string): string[] {
   
   return matches;
 }
+
+/**
+ * Wrap XML blocks in content with fenced code blocks
+ * @param content - The input string that may contain XML blocks
+ * @returns The input string with XML blocks wrapped in fenced code blocks
+ */
+export const wrapXmlBlocksInContent = (content: string): string => {
+  if (!content) return content;
+  const xmlBlocks = extractXMLFromString(content);
+  if (!xmlBlocks || xmlBlocks.length === 0) return content;
+  let result = content;
+  for (const block of xmlBlocks) {
+    const fenced = '```\n' + block + '\n```';
+    result = result.split(block).join(fenced);
+  }
+  return result;
+};

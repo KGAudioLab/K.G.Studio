@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
-import { FaPlus, FaBan } from 'react-icons/fa';
+import { FaPlus, FaBan, FaDownload } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
 import { OpenAIProvider } from '../agent/llm/OpenAIProvider';
@@ -14,6 +14,10 @@ import { processUserMessage } from '../util/messageFilter/UserMessageFilter';
 import { useStreamProcessor } from '../hooks/useStreamProcessor';
 import { createMessage, addWelcomeMessage } from '../utils/chatMessageUtils';
 import { extractActionableTools, executeAllTools } from '../utils/toolExecutionUtils';
+import { formatLocalDateTime } from '../util/timeUtil';
+import { downloadBlob, buildTimestampSuffix } from '../util/miscUtil';
+import { wrapXmlBlocksInContent } from '../util/xmlUtil';
+import KGDropdown from './common/KGDropdown';
 
 import type { ChatMessage } from '../types/projectTypes';
 
@@ -59,6 +63,65 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   
   // Track if this is the first message (for system prompt logging)
   const [isFirstMessage, setIsFirstMessage] = useState(true);
+
+  // Export dropdown state and options
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportOptions = [
+    'Export conversation as JSON',
+    'Export conversation as Markdown'
+  ];
+
+  const handleExportOptionSelect = (option: string) => {
+    if (option === 'Export conversation as JSON') {
+      try {
+        const messages = AgentCore.instance().getAgentState().getMessages();
+        const exportMessages = messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: formatLocalDateTime(new Date(m.timestamp))
+        }));
+        const json = JSON.stringify(exportMessages, null, 2);
+        const filename = `kgstudio-conversation-${buildTimestampSuffix()}.json`;
+        downloadBlob(json, 'application/json', filename);
+      } catch (err) {
+        console.error('Failed to export conversation as JSON:', err);
+      }
+    } else if (option === 'Export conversation as Markdown') {
+      (async () => {
+        try {
+          const messages = AgentCore.instance().getAgentState().getMessages();
+          const templateUrl = `${import.meta.env.BASE_URL}chat/export_conversation_template.md`;
+          const res = await fetch(templateUrl);
+          const template = await res.text();
+
+          const isAutomatedUserMessage = (content: string): boolean => {
+            return /^tool:\s.*\nsuccess:\s*(true|false)/i.test(content);
+          };
+
+          const sections = messages.map((m) => {
+            const isAutomaticUserMessage = isAutomatedUserMessage(m.content);
+            const roleLabel = m.role === 'assistant' ? 'Assistant' : (isAutomaticUserMessage ? 'User (Automatic)' : 'User');
+            const ts = formatLocalDateTime(new Date(m.timestamp));
+            const contentWithXml = isAutomaticUserMessage ? "```\n" + m.content + "\n```" : wrapXmlBlocksInContent(m.content);
+            return template
+              .replace('{role}', roleLabel)
+              .replace('{timestamp}', ts)
+              .replace('{content}', contentWithXml);
+          });
+
+          const markdown = sections.join('\n');
+          const filename = `kgstudio-conversation-${buildTimestampSuffix()}.md`;
+          downloadBlob(markdown, 'text/markdown', filename);
+        } catch (err) {
+          console.error('Failed to export conversation as Markdown:', err);
+        }
+      })();
+    } else {
+      console.log('Chat export selected:', option);
+    }
+    setShowExportDropdown(false);
+  };
 
   // Message update callbacks for stream processor
   const handleMessageUpdate = useCallback((messageId: string, updater: (msg: ChatMessage) => ChatMessage) => {
@@ -323,7 +386,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   }, [isProcessing, isExecutingTools]);
 
   return (
-    <div className="chatbox" style={{ display: isVisible ? 'flex' : 'none' }}>
+    <div className={`chatbox ${isVisible ? '' : 'is-hidden'}`}>
       <div className="chatbox-header">
         <h3>K.G.Studio Musician Assistant</h3>
         <div className="chatbox-actions">
@@ -337,6 +400,28 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               <FaBan />
             </button>
           )}
+          <div className="chatbox-export-wrapper">
+            <button
+              type="button"
+              title="Export"
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className="chatbox-action-btn chatbox-export-btn"
+            >
+              <FaDownload />
+            </button>
+            <div className="chatbox-export-dropdown-anchor">
+              <KGDropdown
+                options={exportOptions}
+                value={exportOptions[0]}
+                onChange={handleExportOptionSelect}
+                label="Export"
+                hideButton={true}
+                isOpen={showExportDropdown}
+                onToggle={setShowExportDropdown}
+                className="chatbox-export-dropdown"
+              />
+            </div>
+          </div>
           <button
             type="button"
             title="New Chat"

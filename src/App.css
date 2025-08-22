@@ -669,9 +669,9 @@ body {
   color: #e0e0e0;
 }
 
-.export-dropdown .quant-dropdown {
-  width: 200px;
-  left: 0;
+.chatbox-export-dropdown .quant-dropdown {
+  width: 250px;
+  left: -200px;
 }
 
 .key-signature-dropdown .quant-dropdown {
@@ -1039,6 +1039,10 @@ body {
   flex-shrink: 0;
 }
 
+.chatbox.is-hidden {
+  display: none;
+}
+
 /* Instrument Selection Panel */
 .instrument-selection {
   display: flex;
@@ -1195,6 +1199,25 @@ body {
 .chatbox-action-btn:hover {
   background-color: #4a4a4a;
   border-radius: 3px;
+}
+
+/* ChatBox export button wrapper and dropdown positioning */
+.chatbox-export-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.chatbox-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chatbox-export-dropdown-anchor {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10000;
 }
 
 .chatbox-header h3 {

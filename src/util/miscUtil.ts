@@ -67,3 +67,26 @@ export const generateNewRegionName = (trackId: string): string => {
     i++;
   }
 };
+
+/** Create and trigger a download for a text/blob payload */
+export function downloadBlob(content: BlobPart, mimeType: string, filename: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/** Pad number with leading zero to 2 digits */
+export function pad2(n: number): string {
+  return n.toString().padStart(2, '0');
+}
+
+/** Build timestamped filename suffix YYYY-MM-DD-hh-mm-ss */
+export function buildTimestampSuffix(date: Date = new Date()): string {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}-${pad2(date.getHours())}-${pad2(date.getMinutes())}-${pad2(date.getSeconds())}`;
+}
