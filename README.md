@@ -40,6 +40,7 @@ This project investigates how AI-human collaboration can enhance creative music-
 ## Quick Start
 
 ### Setting up K.G.Studio Musician Assistant
+  - Click here to start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
   - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
   - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
   - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh the page. Keep it safe.)
