@@ -1,8 +1,9 @@
 import { LLMProvider } from './LLMProvider';
-import type { StreamChunk, LLMResponse } from './StreamingTypes';
+import type { StreamChunk } from './StreamingTypes';
 import type { Message } from '../core/AgentState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { URL_CONSTANTS } from '../../constants/coreConstants';
+import { LLM_PROTOCOL } from '../../constants/llmConstants';
 
 /**
  * OpenAI API provider implementation
@@ -15,6 +16,78 @@ export class OpenAIProvider extends LLMProvider {
   constructor() {
     super();
   }
+
+  /**
+   * Build OpenAI-compatible messages array from input messages and system prompt
+   */
+  private buildRequestMessages(messages: Message[], systemPrompt?: string): Array<{ role: string; content: string }> {
+    const openAIMessages: Array<{ role: string; content: string }> = [];
+    
+    // Add system prompt if provided
+    if (systemPrompt) {
+      openAIMessages.push({ role: 'system', content: systemPrompt });
+    }
+    
+    // Add conversation history with preserved roles
+    openAIMessages.push(...messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    })));
+
+    return openAIMessages;
+  }
+
+  /**
+   * Create API request with proper headers and body
+   */
+  private async createApiRequest(messages: Array<{ role: string; content: string }>, config: ReturnType<typeof this.getCurrentConfig>, streaming: boolean): Promise<Response> {
+    const response = await fetch(config.apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
+        messages,
+        stream: streaming,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`${this.name} API request failed (${response.status}): ${response.statusText}. ${errorText}`);
+    }
+    
+    return response;
+  }
+
+  /**
+   * Process thinking and content chunks, yielding appropriate StreamChunks
+   */
+  private async *processContentChunk(
+    thinking: string | undefined, 
+    content: string | undefined, 
+    lastSegmentType: { current: 'thinking' | 'content' | null }
+  ): AsyncIterableIterator<StreamChunk> {
+    if (typeof thinking === 'string' && thinking.length > 0) {
+      if (lastSegmentType.current && lastSegmentType.current !== 'thinking') {
+        yield { type: 'text', content: LLM_PROTOCOL.SEGMENT_SEPARATOR };
+      }
+      yield { type: 'text', content: thinking };
+      lastSegmentType.current = 'thinking';
+    }
+
+    if (typeof content === 'string' && content.length > 0) {
+      if (lastSegmentType.current && lastSegmentType.current !== 'content') {
+        yield { type: 'text', content: LLM_PROTOCOL.SEGMENT_SEPARATOR };
+      }
+      yield { type: 'text', content: content };
+      lastSegmentType.current = 'content';
+    }
+  }
+
 
   /**
    * Get current configuration values from ConfigManager
@@ -50,7 +123,7 @@ export class OpenAIProvider extends LLMProvider {
    */
   private detectStreamFormat(firstChunk: string): boolean {
     // If it starts with "data: ", it's OpenAI SSE format
-    if (firstChunk.trim().startsWith('data: ')) {
+    if (firstChunk.trim().startsWith(LLM_PROTOCOL.SSE_DATA_PREFIX)) {
       return false; // Not Ollama format
     }
     
@@ -66,30 +139,15 @@ export class OpenAIProvider extends LLMProvider {
   /**
    * Parse Ollama's raw JSON chunk format
    */
-  private parseOllamaChunk(chunk: string): { thinking?: string; content?: string; isDone?: boolean; toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }> } {
+  private parseOllamaChunk(chunk: string): { thinking?: string; content?: string; isDone?: boolean } {
     try {
       const json = JSON.parse(chunk.trim());
       const thinking: string | undefined = json.message?.thinking;
       const content: string | undefined = json.message?.content || json.response; // Handle both chat and completion formats
-      type WireToolCall = { function?: { name?: unknown; arguments?: unknown } };
-      const toolCallsRaw: unknown[] | undefined = json.message?.tool_calls as unknown[] | undefined;
-      const toolCalls = Array.isArray(toolCallsRaw)
-        ? (toolCallsRaw
-            .map((tc: unknown) => {
-              const wire = tc as WireToolCall;
-              const fn = wire?.function;
-              if (!fn || typeof fn.name !== 'string') return null;
-              const args = fn.arguments;
-              if (args === null || typeof args !== 'object' || Array.isArray(args)) return null;
-              return { name: fn.name, arguments: args as Record<string, unknown> };
-            })
-            .filter((v): v is { name: string; arguments: Record<string, unknown> } => v !== null))
-        : undefined;
       return {
         thinking,
         content,
-        isDone: json.done === true,
-        toolCalls
+        isDone: json.done === true
       };
     } catch {
       return {}; // Invalid JSON, return empty object
@@ -99,13 +157,13 @@ export class OpenAIProvider extends LLMProvider {
   /**
    * Parse OpenAI's SSE format chunk
    */
-  private parseOpenAIChunk(line: string): { thinking?: string; content?: string; isDone?: boolean; toolCallDelta?: Array<{ index?: number; function?: { name?: string; arguments?: string } }> } {
-    if (!line.startsWith('data: ')) {
+  private parseOpenAIChunk(line: string): { thinking?: string; content?: string; isDone?: boolean } {
+    if (!line.startsWith(LLM_PROTOCOL.SSE_DATA_PREFIX)) {
       return {};
     }
 
-    const data = line.slice(6);
-    if (data === '[DONE]') {
+    const data = line.slice(LLM_PROTOCOL.SSE_DATA_PREFIX.length);
+    if (data === LLM_PROTOCOL.SSE_DONE_MARKER) {
       return { isDone: true };
     }
 
@@ -114,11 +172,7 @@ export class OpenAIProvider extends LLMProvider {
       const delta = json.choices?.[0]?.delta;
       const thinking: string | undefined = delta?.thinking; // Some providers may stream "thinking"
       const content: string | undefined = delta?.content;
-      const tcd = delta?.tool_calls;
-      const toolCallDelta: Array<{ index?: number; function?: { name?: string; arguments?: string } }> | undefined = Array.isArray(tcd)
-        ? (tcd as Array<{ index?: number; function?: { name?: string; arguments?: string } }>)
-        : undefined;
-      return { thinking, content, isDone: false, toolCallDelta };
+      return { thinking, content, isDone: false };
     } catch {
       return {}; // Skip invalid JSON lines
     }
@@ -126,77 +180,22 @@ export class OpenAIProvider extends LLMProvider {
   
   async *generateStream(
     messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
+    systemPrompt?: string
   ): AsyncIterableIterator<StreamChunk> {
-    // Get fresh config values
     const config = this.getCurrentConfig();
-    
-    // Build OpenAI messages array with role preservation
-    const openAIMessages: Array<{ role: string; content: string }> = [];
-    
-    // Add system prompt if provided
-    if (systemPrompt) {
-      openAIMessages.push({ role: 'system', content: systemPrompt });
-    }
-    
-    // Add conversation history with preserved roles
-    openAIMessages.push(...messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    })));
-
-    const response = await fetch(config.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
-        messages: openAIMessages,
-        stream: true,
-        tools: tools || undefined
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
+    const requestMessages = this.buildRequestMessages(messages, systemPrompt);
+    const response = await this.createApiRequest(requestMessages, config, true);
     
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('Failed to get response reader');
+      throw new Error(`${this.name} streaming: Failed to get response reader from API response`);
     }
     
     const decoder = new TextDecoder();
     let buffer = '';
     let firstChunkProcessed = false;
-    let lastSegmentType: 'thinking' | 'content' | null = null;
-    const pendingFunctionCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-    const openAIToolCallBuilders: Record<number, { name?: string; argumentsText: string }> = {};
+    const lastSegmentType = { current: null as 'thinking' | 'content' | null };
 
-    const escapeXml = (text: string): string =>
-      String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-
-    const functionCallToXml = (name: string, args: Record<string, unknown>): string => {
-      const keys = Object.keys(args);
-      const inner = keys
-        .map((k) => {
-          const value = (args as Record<string, unknown>)[k];
-          const text = typeof value === 'string' ? value : JSON.stringify(value);
-          return `<${k}>${escapeXml(text)}</${k}>`;
-        })
-        .join('\n');
-      return `<${name}>\n${inner}\n</${name}>`;
-    };
-    
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -219,244 +218,20 @@ export class OpenAIProvider extends LLMProvider {
             firstChunkProcessed = true;
           }
           
-          if (this.isOllamaFormat) {
-            const { thinking, content, isDone, toolCalls } = this.parseOllamaChunk(trimmedLine);
-            if (isDone) {
-              // Append any pending or current tool calls as XML before finishing
-              const allToolCalls = [
-                ...pendingFunctionCalls,
-                ...(toolCalls || [])
-              ];
-              if (allToolCalls.length > 0) {
-                const xmlBlocks = allToolCalls
-                  .map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`)
-                  .join('');
-                yield { type: 'text', content: xmlBlocks };
-              }
-              yield { type: 'done', content: '' };
-              return;
-            }
-
-            if (typeof thinking === 'string' && thinking.length > 0) {
-              if (lastSegmentType && lastSegmentType !== 'thinking') {
-                yield { type: 'text', content: '\n\n' };
-              }
-              yield { type: 'text', content: thinking };
-              lastSegmentType = 'thinking';
-            }
-
-            if (typeof content === 'string' && content.length > 0) {
-              if (lastSegmentType && lastSegmentType !== 'content') {
-                yield { type: 'text', content: '\n\n' };
-              }
-              yield { type: 'text', content: content };
-              lastSegmentType = 'content';
-            }
-
-            if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-              // Accumulate and append at the end of stream
-              pendingFunctionCalls.push(...toolCalls);
-            }
-            continue;
-          }
-
-          const { thinking, content, isDone, toolCallDelta } = this.parseOpenAIChunk(trimmedLine);
+          const { thinking, content, isDone } = this.isOllamaFormat 
+            ? this.parseOllamaChunk(trimmedLine)
+            : this.parseOpenAIChunk(trimmedLine);
+            
           if (isDone) {
-            // Finalize any accumulated OpenAI tool calls and emit XML
-            const finalizedToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-            for (const indexStr of Object.keys(openAIToolCallBuilders)) {
-              const idx = Number(indexStr);
-              const builder = openAIToolCallBuilders[idx];
-              if (!builder || !builder.name) continue;
-              let argsObj: Record<string, unknown> | null = null;
-              if (builder.argumentsText) {
-                try {
-                  argsObj = JSON.parse(builder.argumentsText);
-                } catch {
-                  argsObj = null;
-                }
-              }
-              if (argsObj) {
-                finalizedToolCalls.push({ name: builder.name, arguments: argsObj });
-              }
-            }
-
-            const allToolCalls = [...pendingFunctionCalls, ...finalizedToolCalls];
-            if (allToolCalls.length > 0) {
-              const xmlBlocks = allToolCalls
-                .map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`)
-                .join('');
-              yield { type: 'text', content: xmlBlocks };
-            }
             yield { type: 'done', content: '' };
             return;
           }
-          
-          if (typeof thinking === 'string' && thinking.length > 0) {
-            if (lastSegmentType && lastSegmentType !== 'thinking') {
-              yield { type: 'text', content: '\n\n' };
-            }
-            yield { type: 'text', content: thinking };
-            lastSegmentType = 'thinking';
-          }
 
-          if (typeof content === 'string' && content.length > 0) {
-            if (lastSegmentType && lastSegmentType !== 'content') {
-              yield { type: 'text', content: '\n\n' };
-            }
-            yield { type: 'text', content };
-            lastSegmentType = 'content';
-          }
-
-          if (Array.isArray(toolCallDelta) && toolCallDelta.length > 0) {
-            for (const tc of toolCallDelta) {
-              const index: number = typeof tc.index === 'number' ? tc.index : 0;
-              if (!openAIToolCallBuilders[index]) {
-                openAIToolCallBuilders[index] = { argumentsText: '' };
-              }
-              const fn = tc.function;
-              if (fn) {
-                if (typeof fn.name === 'string') {
-                  openAIToolCallBuilders[index].name = fn.name;
-                }
-                if (typeof fn.arguments === 'string') {
-                  openAIToolCallBuilders[index].argumentsText += fn.arguments;
-                }
-              }
-            }
-          }
+          yield* this.processContentChunk(thinking, content, lastSegmentType);
         }
       }
     } finally {
       reader.releaseLock();
-    }
-  }
-  
-  async generateCompletion(
-    messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
-  ): Promise<LLMResponse> {
-    // Get fresh config values
-    const config = this.getCurrentConfig();
-    
-    // Build OpenAI messages array with role preservation
-    const openAIMessages: Array<{ role: string; content: string }> = [];
-    
-    // Add system prompt if provided
-    if (systemPrompt) {
-      openAIMessages.push({ role: 'system', content: systemPrompt });
-    }
-    
-    // Add conversation history with preserved roles
-    openAIMessages.push(...messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    })));
-
-    const response = await fetch(config.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        ...(config.flexMode && !config.isCompatibleProvider ? { service_tier: 'flex' } : {}),
-        messages: openAIMessages,
-        stream: false,
-        tools: tools || undefined
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-
-    // Handle different response formats
-    const escapeXml = (text: string): string =>
-      String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-
-    const functionCallToXml = (name: string, args: Record<string, unknown>): string => {
-      const keys = Object.keys(args);
-      const inner = keys
-        .map((k) => {
-          const value = (args as Record<string, unknown>)[k];
-          const text = typeof value === 'string' ? value : JSON.stringify(value);
-          return `<${k}>${escapeXml(text)}</${k}>`;
-        })
-        .join('\n');
-      return `<${name}>\n${inner}\n</${name}>`;
-    };
-
-    if (data.message) {
-      // Ollama/compatible format
-      const thinking: string = data.message.thinking || '';
-      const contentText: string = data.message.content || data.response || '';
-      const textCombined = thinking && contentText ? `${thinking}\n\n${contentText}` : (thinking || contentText);
-
-      type WireToolCall = { function?: { name?: unknown; arguments?: unknown } };
-      const toolCallsRaw: unknown[] | undefined = data.message.tool_calls as unknown[] | undefined;
-      const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = Array.isArray(toolCallsRaw)
-        ? (toolCallsRaw
-            .map((tc: unknown) => {
-              const wire = tc as WireToolCall;
-              const fn = wire?.function;
-              if (!fn || typeof fn.name !== 'string') return null;
-              const args = fn.arguments;
-              if (args === null || typeof args !== 'object' || Array.isArray(args)) return null;
-              return { name: fn.name, arguments: args as Record<string, unknown> };
-            })
-            .filter((v): v is { name: string; arguments: Record<string, unknown> } => v !== null))
-        : [];
-
-      const xmlBlocks = toolCalls.length > 0
-        ? toolCalls.map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`).join('')
-        : '';
-
-      return {
-        content: `${textCombined}${xmlBlocks}`,
-        toolCalls: data.message.tool_calls || undefined,
-        finished: data.done === true || data.done_reason === 'stop'
-      };
-    } else {
-      // OpenAI format
-      const choice = data.choices?.[0];
-      const thinking: string = choice?.message?.thinking || '';
-      const contentText: string = choice?.message?.content || '';
-      const textCombined = thinking && contentText ? `${thinking}\n\n${contentText}` : (thinking || contentText);
-
-      type WireToolCall2 = { function?: { name?: unknown; arguments?: unknown } };
-      const toolCallsRaw: unknown[] | undefined = choice?.message?.tool_calls as unknown[] | undefined;
-      const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = Array.isArray(toolCallsRaw)
-        ? (toolCallsRaw
-            .map((tc: unknown) => {
-              const wire = tc as WireToolCall2;
-              const fn = wire?.function;
-              if (!fn || typeof fn.name !== 'string') return null;
-              const args = fn.arguments;
-              if (args === null || typeof args !== 'object' || Array.isArray(args)) return null;
-              return { name: fn.name, arguments: args as Record<string, unknown> };
-            })
-            .filter((v): v is { name: string; arguments: Record<string, unknown> } => v !== null))
-        : [];
-
-      const xmlBlocks = toolCalls.length > 0
-        ? toolCalls.map((tc) => `\n${functionCallToXml(tc.name, tc.arguments)}\n`).join('')
-        : '';
-
-      return {
-        content: `${textCombined}${xmlBlocks}`,
-        toolCalls: choice?.message?.tool_calls || undefined,
-        finished: choice?.finish_reason === 'stop' || choice?.finish_reason === 'tool_calls'
-      };
     }
   }
 }

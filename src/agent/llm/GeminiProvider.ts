@@ -1,5 +1,5 @@
 import { LLMProvider } from './LLMProvider';
-import type { StreamChunk, LLMResponse } from './StreamingTypes';
+import type { StreamChunk } from './StreamingTypes';
 import type { Message } from '../core/AgentState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 
@@ -179,67 +179,5 @@ export class GeminiProvider extends LLMProvider {
     } finally {
       reader.releaseLock();
     }
-  }
-  
-  async generateCompletion(
-    messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
-  ): Promise<LLMResponse> {
-    const { systemInstruction, contents } = this.convertMessages(messages, systemPrompt);
-    
-    const requestBody: {
-      contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
-      generationConfig: { temperature: number; maxOutputTokens: number };
-      systemInstruction?: { parts: Array<{ text: string }> };
-      tools?: Record<string, unknown>[];
-    } = {
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-      }
-    };
-    
-    if (systemInstruction) {
-      requestBody.systemInstruction = systemInstruction;
-    }
-    
-    if (tools && tools.length > 0) {
-      requestBody.tools = tools;
-    }
-
-    const response = await fetch(`${this.apiEndpoint}:generateContent?key=${this.apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // Extract content from Gemini's response format
-    const candidate = data.candidates?.[0];
-    const content = candidate?.content?.parts?.[0]?.text || '';
-    
-    // Extract tool calls if present (Gemini format)
-    const toolCalls = candidate?.content?.parts
-      ?.filter((part: { functionCall?: unknown }) => part.functionCall)
-      ?.map((part: { functionCall: { name: string; args: Record<string, unknown> } }) => ({
-        id: `tool_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, // Generate ID
-        name: part.functionCall.name,
-        parameters: part.functionCall.args
-      })) || [];
-    
-    return {
-      content,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      finished: candidate?.finishReason === 'STOP' || candidate?.finishReason === 'MAX_TOKENS'
-    };
   }
 }

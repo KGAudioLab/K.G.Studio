@@ -60,6 +60,9 @@ interface AppConfig {
   chatbox: {
     default_open: boolean;
   };
+  audio: {
+    enable_audio_capture_for_screen_sharing: boolean;
+  };
   templates: {
     custom_instructions: string;
   };
@@ -204,6 +207,9 @@ export class ConfigManager {
         },
         chatbox: {
           default_open: true
+        },
+        audio: {
+          enable_audio_capture_for_screen_sharing: false
         },
         templates: {
           custom_instructions: ''

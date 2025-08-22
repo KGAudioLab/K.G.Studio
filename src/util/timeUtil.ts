@@ -88,3 +88,21 @@ export function beatsToTimeString(
   
   return `${BBB}:${B} | ${mm}:${ss}:${mmm}`;
 } 
+
+/**
+ * Format a Date object into a human-readable local datetime string with timezone.
+ * Example: 2025/08/21, 19:57:11 GMT-7
+ */
+export function formatLocalDateTime(date: Date): string {
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZoneName: 'short'
+  };
+  return date.toLocaleString(undefined, options);
+}

@@ -1,5 +1,5 @@
 import { LLMProvider } from './LLMProvider';
-import type { StreamChunk, LLMResponse } from './StreamingTypes';
+import type { StreamChunk } from './StreamingTypes';
 import type { Message } from '../core/AgentState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 
@@ -159,71 +159,4 @@ export class ClaudeProvider extends LLMProvider {
     }
   }
   
-  async generateCompletion(
-    messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
-  ): Promise<LLMResponse> {
-    const { system, messages: claudeMessages } = this.convertMessages(messages, systemPrompt);
-    
-    const requestBody: {
-      model: string;
-      max_tokens: number;
-      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-      stream: boolean;
-      system?: string;
-      tools?: Record<string, unknown>[];
-    } = {
-      model: this.model,
-      max_tokens: 8192,
-      messages: claudeMessages,
-      stream: false
-    };
-    
-    if (system) {
-      requestBody.system = system;
-    }
-    
-    if (tools && tools.length > 0) {
-      requestBody.tools = tools;
-    }
-
-    const response = await fetch(this.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'x-api-key': this.apiKey,
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify(requestBody),
-      mode: 'cors'
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Claude API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // Extract content from Claude's response format
-    const content = data.content
-      ?.filter((block: { type: string }) => block.type === 'text')
-      ?.map((block: { text: string }) => block.text)
-      ?.join('') || '';
-    
-    // Extract tool calls if present
-    const toolCalls = data.content
-      ?.filter((block: { type: string }) => block.type === 'tool_use')
-      ?.map((block: { id: string; name: string; input: Record<string, unknown> }) => ({
-        id: block.id,
-        name: block.name,
-        parameters: block.input
-      })) || [];
-    
-    return {
-      content,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      finished: data.stop_reason === 'end_turn' || data.stop_reason === 'tool_use'
-    };
-  }
 }

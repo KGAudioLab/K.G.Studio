@@ -82,9 +82,36 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
         }
       }
 
+      case '/help': {
+        try {
+          const url = `${import.meta.env.BASE_URL}chat/help.md`;
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+          }
+          const md = await resp.text();
+          return {
+            displayUserMessage: false,
+            sendToLLM: false,
+            finalMessageForLLM: null,
+            pseudoAssistantResponse: md,
+            metadata: { command: 'help' }
+          };
+        } catch (err) {
+          const fallback = 'Help is currently unavailable.';
+          return {
+            displayUserMessage: false,
+            sendToLLM: false,
+            finalMessageForLLM: null,
+            pseudoAssistantResponse: fallback,
+            metadata: { command: 'help', error: String(err) }
+          };
+        }
+      }
+
       default: {
         const { setStatus } = useProjectStore.getState();
-        const help = 'Available commands: /clear, /welcome';
+        const help = 'Available commands: /clear, /welcome, /help';
         setStatus(`Unknown command: ${command}. ${help}`);
         return {
           displayUserMessage: false,

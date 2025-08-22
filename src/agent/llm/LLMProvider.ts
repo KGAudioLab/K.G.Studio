@@ -1,4 +1,4 @@
-import type { StreamChunk, LLMResponse } from './StreamingTypes';
+import type { StreamChunk } from './StreamingTypes';
 import type { Message } from '../core/AgentState';
 
 /**
@@ -18,16 +18,4 @@ export abstract class LLMProvider {
     systemPrompt?: string,
     tools?: Record<string, unknown>[]
   ): AsyncIterableIterator<StreamChunk>;
-  
-  /**
-   * Generate a complete response from the LLM (non-streaming)
-   * @param messages The full conversation history with preserved roles
-   * @param systemPrompt The system prompt (optional, can be included in messages)
-   * @param tools Available tools (optional for now)
-   */
-  abstract generateCompletion(
-    messages: Message[], 
-    systemPrompt?: string,
-    tools?: Record<string, unknown>[]
-  ): Promise<LLMResponse>;
 }

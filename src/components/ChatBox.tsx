@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
-import { FaPlus, FaBan } from 'react-icons/fa';
+import { FaPlus, FaBan, FaDownload } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
 import { OpenAIProvider } from '../agent/llm/OpenAIProvider';
@@ -8,22 +8,21 @@ import { GeminiProvider } from '../agent/llm/GeminiProvider';
 import { LLMProvider } from '../agent/llm/LLMProvider';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { useProjectStore } from '../stores/projectStore';
-import { XMLToolExecutor } from '../agent/core/XMLToolExecutor';
-import { extractXMLFromString } from '../util/xmlUtil';
 import { SystemPrompts } from '../agent/core/SystemPrompts';
 import { clearChatHistoryAndUI, registerClearChatUICallback } from '../util/chatUtil';
 import { processUserMessage } from '../util/messageFilter/UserMessageFilter';
+import { useStreamProcessor } from '../hooks/useStreamProcessor';
+import { createMessage, addWelcomeMessage } from '../utils/chatMessageUtils';
+import { extractActionableTools, executeAllTools } from '../utils/toolExecutionUtils';
+import { formatLocalDateTime } from '../util/timeUtil';
+import { downloadBlob, buildTimestampSuffix } from '../util/miscUtil';
+import { wrapXmlBlocksInContent } from '../util/xmlUtil';
+import KGDropdown from './common/KGDropdown';
+
+import type { ChatMessage } from '../types/projectTypes';
 
 // Module-level guard to avoid duplicate welcome in React StrictMode dev remounts
 let hasShownWelcomeOnceInRuntime = false;
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  isStreaming?: boolean;
-  tokenCount?: number;
-}
 
 /**
  * Create the appropriate LLM provider based on configuration
@@ -55,7 +54,6 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   // Initialize with empty messages
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
   
   // Tool execution state
@@ -66,9 +64,84 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   // Track if this is the first message (for system prompt logging)
   const [isFirstMessage, setIsFirstMessage] = useState(true);
 
-  const generateMessageId = (): string => {
-    return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  // Export dropdown state and options
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const exportOptions = [
+    'Export conversation as JSON',
+    'Export conversation as Markdown'
+  ];
+
+  const handleExportOptionSelect = (option: string) => {
+    if (option === 'Export conversation as JSON') {
+      try {
+        const messages = AgentCore.instance().getAgentState().getMessages();
+        const exportMessages = messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: formatLocalDateTime(new Date(m.timestamp))
+        }));
+        const json = JSON.stringify(exportMessages, null, 2);
+        const filename = `kgstudio-conversation-${buildTimestampSuffix()}.json`;
+        downloadBlob(json, 'application/json', filename);
+      } catch (err) {
+        console.error('Failed to export conversation as JSON:', err);
+      }
+    } else if (option === 'Export conversation as Markdown') {
+      (async () => {
+        try {
+          const messages = AgentCore.instance().getAgentState().getMessages();
+          const templateUrl = `${import.meta.env.BASE_URL}chat/export_conversation_template.md`;
+          const res = await fetch(templateUrl);
+          const template = await res.text();
+
+          const isAutomatedUserMessage = (content: string): boolean => {
+            return /^tool:\s.*\nsuccess:\s*(true|false)/i.test(content);
+          };
+
+          const sections = messages.map((m) => {
+            const isAutomaticUserMessage = isAutomatedUserMessage(m.content);
+            const roleLabel = m.role === 'assistant' ? 'Assistant' : (isAutomaticUserMessage ? 'User (Automatic)' : 'User');
+            const ts = formatLocalDateTime(new Date(m.timestamp));
+            const contentWithXml = isAutomaticUserMessage ? "```\n" + m.content + "\n```" : wrapXmlBlocksInContent(m.content);
+            return template
+              .replace('{role}', roleLabel)
+              .replace('{timestamp}', ts)
+              .replace('{content}', contentWithXml);
+          });
+
+          const markdown = sections.join('\n');
+          const filename = `kgstudio-conversation-${buildTimestampSuffix()}.md`;
+          downloadBlob(markdown, 'text/markdown', filename);
+        } catch (err) {
+          console.error('Failed to export conversation as Markdown:', err);
+        }
+      })();
+    } else {
+      console.log('Chat export selected:', option);
+    }
+    setShowExportDropdown(false);
   };
+
+  // Message update callbacks for stream processor
+  const handleMessageUpdate = useCallback((messageId: string, updater: (msg: ChatMessage) => ChatMessage) => {
+    setMessages(prev => prev.map(msg => msg.id === messageId ? updater(msg) : msg));
+  }, []);
+
+  const handleMessageAdd = useCallback((message: ChatMessage) => {
+    setMessages(prev => [...prev, message]);
+  }, []);
+
+  const handleProcessingChange = useCallback((processing: boolean) => {
+    setIsProcessing(processing);
+  }, []);
+
+  // Stream processor hook
+  const streamProcessor = useStreamProcessor({
+    onMessageUpdate: handleMessageUpdate,
+    onMessageAdd: handleMessageAdd,
+    onProcessingChange: handleProcessingChange
+  });
 
   const clearChatUI = useCallback(async () => {
     // Clear UI state
@@ -78,18 +151,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     setIsFirstMessage(true);
     
     // Auto-show welcome message after clearing (like on app startup)
-    try {
-      const result = await processUserMessage('/welcome');
-      if (result.pseudoAssistantResponse) {
-        const pseudoId = generateMessageId();
-        setMessages(prev => [...prev, {
-          id: pseudoId,
-          role: 'assistant',
-          content: result.pseudoAssistantResponse!,
-        }]);
-      }
-    } catch {
-      // ignore errors, just don't show welcome if it fails
+    const welcomeMessage = await addWelcomeMessage();
+    if (welcomeMessage) {
+      setMessages([welcomeMessage]);
     }
   }, []);
 
@@ -117,29 +181,20 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     
     // Auto-trigger welcome on first launch (guard against React StrictMode double-invoke only)
     (async () => {
-      try {
-        if (hasShownWelcomeOnceInRuntime) return;
-        hasShownWelcomeOnceInRuntime = true;
+      if (hasShownWelcomeOnceInRuntime) return;
+      hasShownWelcomeOnceInRuntime = true;
 
-        const result = await processUserMessage('/welcome');
-        if (result.pseudoAssistantResponse) {
-          const pseudoId = generateMessageId();
-          setMessages(prev => [...prev, {
-            id: pseudoId,
-            role: 'assistant',
-            content: result.pseudoAssistantResponse!,
-          }]);
-        }
-      } catch {
-        // ignore
+      const welcomeMessage = await addWelcomeMessage();
+      if (welcomeMessage) {
+        setMessages([welcomeMessage]);
       }
     })();
   }, [clearChatUI]);
 
   const handleAbort = () => {
-    if (abortController) {
-      abortController.abort();
-      setAbortController(null);
+    const controller = streamProcessor.abortController;
+    if (controller) {
+      controller.abort();
       
       // Use AgentCore to clean up the data model and get the user message content
       const agentCore = AgentCore.instance();
@@ -160,28 +215,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     clearChatHistoryAndUI(setStatus);
   };
 
-
-  const addToolResultMessage = (toolName: string, success: boolean, result: string) => {
-    const toolMsgId = generateMessageId();
-    const friendlyDisplay = `${success ? '✅' : '❌'} __**${toolName}**__ \n\n └── ${result}`;
-    
-    setMessages(prev => [...prev, {
-      id: toolMsgId,
-      role: 'user',
-      content: friendlyDisplay
-    }]);
-  };
-
   const executeToolsFromResponse = async (response: string): Promise<boolean> => {
     try {
-      // Check if response contains XML tool invocations
-      const xmlBlocks = extractXMLFromString(response);
-      // Consider only actionable tools (exclude think/thinking)
-      const actionableBlocks = xmlBlocks.filter((block) => {
-        const match = block.match(/<([a-zA-Z_][a-zA-Z0-9_-]*)/);
-        const name = match ? match[1].toLowerCase() : '';
-        return name !== 'think' && name !== 'thinking';
-      });
+      const actionableBlocks = extractActionableTools(response);
 
       if (actionableBlocks.length === 0) {
         // No actionable tools to execute, stop the loop
@@ -194,46 +230,12 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       setCurrentToolIndex(0);
       
       const { setStatus } = useProjectStore.getState();
-      setStatus(`Executing ${actionableBlocks.length} tool(s)...`);
-
-      const executor = XMLToolExecutor.instance();
-      let accumulatedResults = '';
-
-      // Execute tools sequentially with real-time updates
-      for (let i = 0; i < actionableBlocks.length; i++) {
-        setCurrentToolIndex(i + 1);
-        setStatus(`Executing tool ${i + 1} of ${actionableBlocks.length}...`);
-
-        // Determine tool name from XML block
-        const toolNameMatch = actionableBlocks[i].match(/<([a-zA-Z_][a-zA-Z0-9_-]*)/);
-        const toolName = toolNameMatch ? toolNameMatch[1] : 'unknown_tool';
-
-        try {
-          // Execute single XML block
-          const results = await executor.executeXMLTools(actionableBlocks[i]);
-          const result = results[0]; // Single block should give single result
-          
-          if (result) {
-            // Add friendly display message
-            addToolResultMessage(toolName, result.success, result.result);
-            
-            // Accumulate formatted result for LLM (skip thinking tools)
-            if (toolName !== 'thinking' && toolName !== 'think') {
-              const formattedResult = `tool: ${toolName}\nsuccess: ${result.success}\nresult:\n${result.result}\n------------\n`;
-              accumulatedResults += formattedResult;
-            }
-          }
-        } catch (error) {
-          // Handle individual tool error
-          addToolResultMessage(toolName, false, `Tool execution failed: ${error}`);
-          
-          // Accumulate error result for LLM (skip thinking tools)
-          if (toolName !== 'thinking' && toolName !== 'think') {
-            const formattedResult = `tool: ${toolName}\nsuccess: false\nresult:\nTool execution failed: ${error}\n------------\n`;
-            accumulatedResults += formattedResult;
-          }
-        }
-      }
+      
+      // Execute all tools and get accumulated results
+      const accumulatedResults = await executeAllTools(actionableBlocks, {
+        onMessageAdd: handleMessageAdd,
+        onStatusUpdate: setStatus
+      });
 
       // Store accumulated results
       setToolResults(accumulatedResults);
@@ -264,90 +266,16 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   };
 
   const sendToolResultsToLLM = async (toolResultsString: string): Promise<void> => {
-    // Send tool results as hidden user input to LLM
-    setIsProcessing(true);
-
-    // Create abort controller for this request
-    const controller = new AbortController();
-    setAbortController(controller);
-
-    // Add streaming assistant message for the response
-    const assistantMsgId = generateMessageId();
-    setMessages(prev => [...prev, {
-      id: assistantMsgId,
-      role: 'assistant',
-      content: '<span class="processing-wave">Processing...</span> 0 tokens received. click here to abort.',
-      isStreaming: true,
-      tokenCount: 0
-    }]);
-
-    try {
+    // Process tool results through the stream processor
+    const assistantResponse = await streamProcessor.processStream(toolResultsString, 'TOOL_RESULTS');
+    
+    // Check if the new response contains more tools
+    const hasMoreTools = await executeToolsFromResponse(assistantResponse);
+    
+    // If no more tools were found, set working flag to false
+    if (!hasMoreTools) {
       const agentCore = AgentCore.instance();
-      let assistantResponse = '';
-      let tokenCount = 0;
-
-      // Log the tool results being sent to LLM
-      console.log('------------ USER ------------');
-      console.log(toolResultsString);
-      console.log('------------------------------');
-
-      for await (const chunk of agentCore.processUserInput(toolResultsString)) {
-        // Check if request was aborted
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        if (chunk.type === 'text') {
-          assistantResponse += chunk.content;
-          tokenCount++;
-          
-          // Update streaming message with token count and abort link
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMsgId
-              ? { ...msg, content: `<span class="processing-wave">Processing...</span> ${tokenCount} tokens received. click here to abort.`, tokenCount }
-              : msg
-          ));
-        } else if (chunk.type === 'done') {
-          // Replace with final response
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMsgId
-              ? { ...msg, content: assistantResponse, isStreaming: false, tokenCount: undefined }
-              : msg
-          ));
-          
-          // Log the complete assistant response
-          console.log('------------ ASSISTANT ------------');
-          console.log(assistantResponse);
-          console.log('-----------------------------------');
-          
-          // Check if the new response contains more tools
-          const hasMoreTools = await executeToolsFromResponse(assistantResponse);
-          
-          // If no more tools were found, set working flag to false
-          if (!hasMoreTools) {
-            const agentCore = AgentCore.instance();
-            agentCore.getAgentState().setIsWorkingOnTask(false);
-          }
-          
-          break;
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Request was aborted, don't show error
-        return;
-      }
-      
-      console.error('Error processing tool results:', error);
-      // Update with error message
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMsgId
-          ? { ...msg, content: 'Error: Failed to process tool results', isStreaming: false, tokenCount: undefined }
-          : msg
-      ));
-    } finally {
-      setAbortController(null);
-      setIsProcessing(false);
+      agentCore.getAgentState().setIsWorkingOnTask(false);
     }
   };
 
@@ -362,22 +290,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
 
       // Conditionally show the user message bubble
       if (filterResult.displayUserMessage) {
-        const userMsgId = generateMessageId();
-        setMessages(prev => [...prev, {
-          id: userMsgId,
-          role: 'user',
-          content: userMessage
-        }]);
+        const userMsgObject = createMessage('user', userMessage);
+        handleMessageAdd(userMsgObject);
       }
 
       // If we have a pseudo assistant response, show it immediately
       if (filterResult.pseudoAssistantResponse) {
-        const pseudoId = generateMessageId();
-        setMessages(prev => [...prev, {
-          id: pseudoId,
-          role: 'assistant',
-          content: filterResult.pseudoAssistantResponse!,
-        }]);
+        const pseudoMessage = createMessage('assistant', filterResult.pseudoAssistantResponse);
+        handleMessageAdd(pseudoMessage);
       }
 
       // If we shouldn't send anything to LLM, stop here
@@ -385,105 +305,33 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
         return;
       }
 
-      setIsProcessing(true);
+      // Set working on task flag when user sends a message
+      const agentCore = AgentCore.instance();
+      agentCore.getAgentState().setIsWorkingOnTask(true);
 
-      // Create abort controller for this request
-      const controller = new AbortController();
-      setAbortController(controller);
-
-      // Add streaming assistant message
-      const assistantMsgId = generateMessageId();
-      setMessages(prev => [...prev, {
-        id: assistantMsgId,
-        role: 'assistant',
-        content: '<span class="processing-wave">Processing...</span> 0 tokens received. click here to abort.',
-        isStreaming: true,
-        tokenCount: 0
-      }]);
-
-      try {
-        const agentCore = AgentCore.instance();
-        let assistantResponse = '';
-        let tokenCount = 0;
-
-        // Set working on task flag when user sends a message
-        agentCore.getAgentState().setIsWorkingOnTask(true);
-
-        // Log system prompt only for first message or first message after clear
-        if (isFirstMessage) {
-          try {
-            const systemPrompt = await SystemPrompts.getSystemPromptWithContext();
-            console.log('------------ SYSTEM ------------');
-            console.log(systemPrompt);
-            console.log('--------------------------------');
-          } catch (error) {
-            console.error('Failed to log system prompt:', error);
-          }
-          // Mark that we've logged the system prompt for this conversation
-          setIsFirstMessage(false);
+      // Log system prompt only for first message or first message after clear
+      if (isFirstMessage) {
+        try {
+          const systemPrompt = await SystemPrompts.getSystemPromptWithContext();
+          console.log('------------ SYSTEM ------------');
+          console.log(systemPrompt);
+          console.log('--------------------------------');
+        } catch (error) {
+          console.error('Failed to log system prompt:', error);
         }
+        // Mark that we've logged the system prompt for this conversation
+        setIsFirstMessage(false);
+      }
 
-        // Log the final user message being sent to LLM
-        console.log('------------ USER ------------');
-        console.log(filterResult.finalMessageForLLM);
-        console.log('------------------------------');
-
-        for await (const chunk of agentCore.processUserInput(filterResult.finalMessageForLLM)) {
-          // Check if request was aborted
-          if (controller.signal.aborted) {
-            return;
-          }
-
-          if (chunk.type === 'text') {
-            assistantResponse += chunk.content;
-            tokenCount++;
-            
-            // Update streaming message with token count and abort link
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMsgId
-                ? { ...msg, content: `<span class="processing-wave">Processing...</span> ${tokenCount} tokens received. click here to abort.`, tokenCount }
-                : msg
-            ));
-          } else if (chunk.type === 'done') {
-            // Replace with final response
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMsgId
-                ? { ...msg, content: assistantResponse, isStreaming: false, tokenCount: undefined }
-                : msg
-            ));
-            
-            // Log the complete assistant response
-            console.log('------------ ASSISTANT ------------');
-            console.log(assistantResponse);
-            console.log('-----------------------------------');
-            
-            // Check if response contains tools to execute
-            const hasTools = await executeToolsFromResponse(assistantResponse);
-            
-            // If no tools were found, set working flag to false and return control to user
-            if (!hasTools) {
-              agentCore.getAgentState().setIsWorkingOnTask(false);
-            }
-            
-            break;
-          }
-        }
-      } catch (error) {
-        if (error instanceof Error && error.name === 'AbortError') {
-          // Request was aborted, don't show error
-          return;
-        }
-        
-        console.error('Error processing message:', error);
-        // Update with error message
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMsgId
-            ? { ...msg, content: 'Error: Failed to process message', isStreaming: false, tokenCount: undefined }
-            : msg
-        ));
-      } finally {
-        setAbortController(null);
-        setIsProcessing(false);
+      // Process user input through the stream processor
+      const assistantResponse = await streamProcessor.processStream(filterResult.finalMessageForLLM, 'USER');
+      
+      // Check if response contains tools to execute
+      const hasTools = await executeToolsFromResponse(assistantResponse);
+      
+      // If no tools were found, set working flag to false and return control to user
+      if (!hasTools) {
+        agentCore.getAgentState().setIsWorkingOnTask(false);
       }
     }
   };
@@ -538,7 +386,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   }, [isProcessing, isExecutingTools]);
 
   return (
-    <div className="chatbox" style={{ display: isVisible ? 'flex' : 'none' }}>
+    <div className={`chatbox ${isVisible ? '' : 'is-hidden'}`}>
       <div className="chatbox-header">
         <h3>K.G.Studio Musician Assistant</h3>
         <div className="chatbox-actions">
@@ -552,6 +400,28 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               <FaBan />
             </button>
           )}
+          <div className="chatbox-export-wrapper">
+            <button
+              type="button"
+              title="Export"
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className="chatbox-action-btn chatbox-export-btn"
+            >
+              <FaDownload />
+            </button>
+            <div className="chatbox-export-dropdown-anchor">
+              <KGDropdown
+                options={exportOptions}
+                value={exportOptions[0]}
+                onChange={handleExportOptionSelect}
+                label="Export"
+                hideButton={true}
+                isOpen={showExportDropdown}
+                onToggle={setShowExportDropdown}
+                className="chatbox-export-dropdown"
+              />
+            </div>
+          </div>
           <button
             type="button"
             title="New Chat"

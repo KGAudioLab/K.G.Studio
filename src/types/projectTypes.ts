@@ -5,6 +5,14 @@ export interface TimeSignature {
     denominator: number;
 }
 
+export interface ChatMessage {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    isStreaming?: boolean;
+    tokenCount?: number;
+}
+
 /**
  * A reusable class-transformer decorator to apply a default value during deserialization.
  * @param defaultValue The default value to apply if the field is undefined.

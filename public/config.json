@@ -54,6 +54,9 @@
     "chatbox": {
         "default_open": true
     },
+    "audio": {
+        "enable_audio_capture_for_screen_sharing": false
+    },
     "templates": {
         "custom_instructions": ""
     }

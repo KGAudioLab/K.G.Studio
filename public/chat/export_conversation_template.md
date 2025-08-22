@@ -1,0 +1,7 @@
+# From: {role} 
+
+{timestamp}
+
+{content}
+
+---
