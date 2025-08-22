@@ -259,6 +259,14 @@ Interested in contributing? We'd love to hear from you!
 
 No contribution is too small — from reporting bugs to suggesting new features, every bit of help moves the project forward!
 
+### Disclaimer
+
+K.G.Studio is an experimental project in early development. We're exploring the possibilities of integrating AI agents and LLMs into music production workflows — essentially building a "Cursor or Claude Code for DAW" experience. 
+
+This project investigates how AI-human collaboration can enhance creative music-making, from intelligent harmony suggestions to automated editing tasks. As an experimental platform, expect frequent changes, evolving features, and occasional instability as we push the boundaries of what's possible in AI-assisted music production.
+
+K.G.Studio does not provide or host any of LLM models, nor is it affiliated with any model provider. All data is stored locally on your device; K.G.Studio does not collect or transmit your data. You are solely responsible for any data you provide to third-party model providers.
+
 ## License
 
 Licensed under the Apache License, Version 2.0, with additional terms (see `LICENSE`):
