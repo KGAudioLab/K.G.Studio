@@ -79,7 +79,7 @@ You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 - **Export/Import**: Export your project as a MIDI file, or import a MIDI file into your project.
 - **Settings**: LLM provider, AI agent custom instructions, app behavior, and more.
 
-For a deeper technical overview, see `res/overview.md`.
+For a deeper technical overview, see [overview.md](./docs/technical/overview.md).
 
 ## Getting Started
 
