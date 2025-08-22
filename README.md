@@ -44,7 +44,7 @@ This project investigates how AI-human collaboration can enhance creative music-
   - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
   - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
   - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh the page. Keep it safe.)
-  - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free`. (Note: non‑free models may require billing; some model providers may retain your data, check their privacy policies; this project is not affiliated with OpenRouter or any model provider.)
+  - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free` or `qwen/qwen3-235b-a22b:free`. (Note: these are free models [qwen3-30b-a3b](https://openrouter.ai/qwen/qwen3-30b-a3b:free) and [qwen3-235b-a22b](https://openrouter.ai/qwen/qwen3-235b-a22b:free); non‑free models may require billing; some model providers may retain your data, check their privacy policies; this project is not affiliated with OpenRouter or any model provider.)
   - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1/chat/completions`.
 
 (Alternatively, you can use the official OpenAI API, other OpenAI‑compatible services, or your own hosted LLM server. e.g., Ollama, vLLM)
@@ -57,6 +57,12 @@ This project investigates how AI-human collaboration can enhance creative music-
   - Click to select; Shift+click for multi‑select; drag to box‑select.
   - Drag note edges to resize; drag the note body to move selected notes.
   - Use Snapping in the piano roll toolbar (top‑right) to quantize to grid.
+
+### Using K.G.Studio Musician Assistant
+  - Select the music region you want the assistant to work on, type your prompt in the chatbox; press Enter to send, Shift+Enter to insert a new line.
+  - The agent will automatically process your request and invoke tools to make modifications scoped to the selected region. It may take one or more turns to complete a task.
+  - Note that the AI could make mistakes, so you should always check the result and make adjustments if necessary. You can also use undo/redo to revert the changes.
+  - Click the "+" button or `/clear` command to clear the chat history.
 
 ### More details
 
