@@ -14,6 +14,8 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 This project investigates how AI-human collaboration can enhance creative music-making, from intelligent harmony suggestions to automated editing tasks. As an experimental platform, expect frequent changes, evolving features, and occasional instability as we push the boundaries of what's possible in AI-assisted music production.
 
+### Start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
+
 ## Demo Videos
 
 <div align="center">
@@ -35,6 +37,30 @@ This project investigates how AI-human collaboration can enhance creative music-
   </table>
 </div>
 
+## Quick Start
+
+### Setting up K.G.Studio Musician Assistant
+  - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
+  - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
+  - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh the page. Keep it safe.)
+  - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free`. (Note: non‑free models may require billing; some model providers may retain your data, check their privacy policies; this project is not affiliated with OpenRouter or any model provider.)
+  - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1/chat/completions`.
+
+(Alternatively, you can use the official OpenAI API, other OpenAI‑compatible services, or your own hosted LLM server. e.g., Ollama, vLLM)
+
+### Basic DAW operations
+  - Double‑click (or hold Ctrl/Cmd and click) on a track to create a region.
+  - Drag region edges to resize; drag the body to move.
+  - Click the small pencil at a region’s top‑left to open the piano roll.
+  - In the piano roll, double‑click (or Ctrl/Cmd+click) to create a note.
+  - Click to select; Shift+click for multi‑select; drag to box‑select.
+  - Drag note edges to resize; drag the note body to move selected notes.
+  - Use Snapping in the piano roll toolbar (top‑right) to quantize to grid.
+
+### More details
+
+You can find the detailed user guide [here](./docs/USER_GUIDE.md).
+
 ### Highlights
 - **K.G.Studio Musician Assistant**: Chat with the LLM‑powered K.G.Studio Musician Assistant AI Agent; it can automatically execute tools to make music edits.
 - **Multiple LLM providers**: OpenAI, Claude (via OpenRouter), Gemini (via OpenRouter), or OpenAI‑compatible (e.g., Ollama, OpenRouter).
@@ -49,8 +75,6 @@ This project investigates how AI-human collaboration can enhance creative music-
 For a deeper technical overview, see `res/overview.md`.
 
 ## Getting Started
-
-### Start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
 
 ### Or clone and run locally:
 ```bash
@@ -94,16 +118,33 @@ K.G.Studio loads defaults from `./public/config.json` (with an internal fallback
 
 You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 
-1. Start the app and a default project will load. A default “Melody” MIDI track is ensured on load.
-2. Add tracks, rename and reorder them. Click or drag in the track grid to create and arrange regions.
-3. Add a region by double‑clicking or holding Ctrl/Cmd and clicking. Drag the edges to resize a region; drag the center to move it. Use Ctrl/Cmd+C and Ctrl/Cmd+V to copy/paste regions.
-4. Open a MIDI region to edit notes in the Piano Roll window (click the pencil icon on the region’s top‑left corner, or click the Piano icon on the toolbar).
-5. Double‑click or hold Ctrl/Cmd and click to create a note. Drag the edges to change its length, or drag the center to move it. Use box selection or hold Shift to multi‑select.
-6. Quantize note length/position using the Quantize dropdowns at the top‑right of the piano roll.
-7. Change instruments via the Instrument Selection panel; samples are downloaded on demand.
-8. Save projects to your browser’s IndexedDB and load by name from the toolbar. Export your project as a MIDI file, or import a MIDI file into your project.
+- Tracks
+  - Add, rename, and reorder tracks from the track info panel.
+  - Change instrument using the instrument button (piano icon); adjust Solo (S), Mute (M), and Volume.
+  - Delete a track from the track’s settings menu (button to the right of the instrument).
 
-## Keyboard Shortcuts (defaults)
+- Regions
+  - Create region: with the Pointer tool, double‑click; or hold Ctrl/Cmd and click. With the Pencil tool, single‑click.
+  - Move/resize: drag the body to move; drag edges to resize.
+  - Open Piano Roll via the small pencil at a region’s top‑left.
+
+- Piano Roll (MIDI notes)
+  - Tools: Select vs Pencil.
+  - Create notes: double‑click or Ctrl/Cmd+click (Select); single‑click (Pencil).
+  - Select notes: click; Shift+click for multi‑select; drag to box‑select.
+  - Move/resize: drag note body to move selected notes; drag edges to resize.
+  - Close the piano roll with X or ESC.
+
+- Snapping and Quantize
+  - Set snapping from the NO SNAP menu (top‑right).
+  - Quantize timing with Qua. Pos. (start) and Qua. Len. (length).
+
+- Playback & Playhead
+  - Back to beginning; Play/Pause from the toolbar.
+  - Set the playhead by clicking bar numbers in the main grid; in Piano Roll, click the header timeline (respects snapping).
+  - Change BPM, time signature, and key signature via the toolbar readouts.
+
+## Keyboard Shortcuts
 
 - Main
   - Play/Pause: Space
@@ -120,11 +161,11 @@ You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 
 ## AI Assistant
 
-### Quick Start
+### Using K.G.Studio Musician Assistant
 
-- First, select an LLM provider in **Settings ⚙️ → General → LLM Provider**. If you are using OpenAI (e.g., GPT‑4o), get your API key from [**OpenAI**](https://platform.openai.com/account/api-keys) and paste it in **OpenAI → Key**.
+- Make sure you have followed the previous section to set up the LLM provider.
 - You can find the K.G.Studio Musician Assistant chatbox on the right. If you don't see it, you can click the Chat 🗨️ button on the toolbar.
-- Type your message in the chatbox; press Enter to send, Shift+Enter to insert a new line.
+- Select the region you want the assistant to work on, type your prompt in the chatbox; press Enter to send, Shift+Enter to insert a new line.
 - The agent will automatically process your request and invoke tools to make modifications scoped to the selected region. It may take one or more turns to complete a task.
 - Note that the AI could make mistakes, so you should always check the result and make adjustments if necessary. You can also use undo/redo to revert the changes.
 - Click the "+" button or `/clear` command to clear the chat history.
@@ -153,11 +194,9 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 4. Browse available models on the [**OpenRouter Models Page**](https://openrouter.ai/models). Use the "Prompt Pricing" filter to identify free models.  
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
 5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
-    - `Google: gemini-2.5-pro`
-    - `Anthropic: claude-4-sonnet`
-    - `DeepSeek: deepseek-r1` (free: `deepseek/deepseek-r1-0528:free`)
-    - `DeepSeek: deepseek-v3` (free: `deepseek/deepseek-chat-v3-0324:free`)
-    - `Qwen: qwen3-235b-a22b` (free: `qwen/qwen3-235b-a22b:free`)
+    - `Anthropic: claude-4-sonnet` (`anthropic/claude-sonnet-4`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4))
+    - `Qwen: qwen3-30b-a3b` (FREE MODEL: `qwen/qwen3-30b-a3b:free`: [Link](https://openrouter.ai/qwen/qwen3-30b-a3b:free))
+    - `Qwen: qwen3-235b-a22b` (FREE MODEL: `qwen/qwen3-235b-a22b:free`: [Link](https://openrouter.ai/qwen/qwen3-235b-a22b:free))
 6. Input the base URL `https://openrouter.ai/api/v1/chat/completions` **OpenAI Compatible Server → Base URL**.
 
 ### About the agent and LLM providers

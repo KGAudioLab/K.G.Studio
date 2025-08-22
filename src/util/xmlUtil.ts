@@ -62,7 +62,7 @@ export const wrapXmlBlocksInContent = (content: string): string => {
   if (!xmlBlocks || xmlBlocks.length === 0) return content;
   let result = content;
   for (const block of xmlBlocks) {
-    const fenced = '```\n' + block + '\n```';
+    const fenced = '```xml\n' + block + '\n```';
     result = result.split(block).join(fenced);
   }
   return result;
