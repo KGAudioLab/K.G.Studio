@@ -21,20 +21,32 @@ export class ClaudeOpenRouterProvider extends LLMProvider {
   /**
    * Build OpenAI-compatible messages array where each message content is an array of parts.
    */
-  private buildRequestMessages(messages: Message[], systemPrompt?: string): Array<{ role: string; content: Array<{ type: 'text'; text: string }> }> {
-    const openAIMessages: Array<{ role: string; content: Array<{ type: 'text'; text: string }> }> = [];
+  private buildRequestMessages(messages: Message[], systemPrompt?: string): Array<{ role: string; content: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> }> {
+    type ORPart = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
+    const openAIMessages: Array<{ role: string; content: Array<ORPart> }> = [];
 
     // Add system prompt if provided
     if (systemPrompt) {
-      openAIMessages.push({ role: 'system', content: [{ type: 'text', text: systemPrompt }] });
+      openAIMessages.push({ role: 'system', content: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }] });
     }
 
     // Add conversation history with preserved roles
+    let lastUserIndex = -1;
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].role === 'user') lastUserIndex = i;
+    }
+
     openAIMessages.push(
-      ...messages.map(msg => ({
-        role: msg.role,
-        content: [{ type: 'text' as const, text: msg.content }]
-      }))
+      ...messages.map((msg, i) => {
+        const part: ORPart = { type: 'text', text: msg.content };
+        if (msg.role === 'user' && i === lastUserIndex) {
+          part.cache_control = { type: 'ephemeral' };
+        }
+        return {
+          role: msg.role,
+          content: [part]
+        };
+      })
     );
 
     return openAIMessages;
@@ -43,7 +55,7 @@ export class ClaudeOpenRouterProvider extends LLMProvider {
   /**
    * Create API request with proper headers and body
    */
-  private async createApiRequest(messages: Array<{ role: string; content: Array<{ type: 'text'; text: string }> }>, config: ReturnType<typeof this.getCurrentConfig>, streaming: boolean): Promise<Response> {
+  private async createApiRequest(messages: Array<{ role: string; content: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> }>, config: ReturnType<typeof this.getCurrentConfig>, streaming: boolean): Promise<Response> {
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
