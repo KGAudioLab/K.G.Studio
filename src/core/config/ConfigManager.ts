@@ -7,7 +7,7 @@ import { DB_CONSTANTS } from '../../constants/coreConstants';
 interface AppConfig {
   general: {
     language: string;
-    llm_provider: 'openai' | 'gemini' | 'claude' | 'openai_compatible';
+    llm_provider: 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     openai: {
       api_key: string;
       flex: boolean;
@@ -19,6 +19,11 @@ interface AppConfig {
     };
     claude: {
       api_key: string;
+      model: string;
+    };
+    claude_openrouter: {
+      api_key: string;
+      base_url: string;
       model: string;
     };
     openai_compatible: {
@@ -85,6 +90,7 @@ export class ConfigManager {
   private storage: KGStorage;
   private isInitialized: boolean = false;
   private defaultConfig: AppConfig | null = null;
+  private changeListeners: Set<(changedKeys: string[]) => void> = new Set();
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -168,6 +174,11 @@ export class ConfigManager {
           claude: {
             api_key: '',
             model: 'claude-sonnet-4-0'
+          },
+          claude_openrouter: {
+            api_key: '',
+            base_url: 'https://openrouter.ai/api/v1/chat/completions',
+            model: 'anthropic/claude-sonnet-4'
           },
           openai_compatible: {
             api_key: '',
@@ -351,6 +362,8 @@ export class ConfigManager {
     await this.saveToStorage();
     
     console.log(`Config updated: ${key} = ${value}`);
+    // Notify listeners of the specific key change
+    this.notifyChangeListeners([key]);
   }
 
   /**
@@ -368,6 +381,11 @@ export class ConfigManager {
     await this.saveToStorage();
     
     console.log('Config updated with multiple values:', updates);
+    // Notify listeners of changed keys (dot notation)
+    const changedKeys = this.collectDotKeys(updates as Record<string, unknown>);
+    if (changedKeys.length > 0) {
+      this.notifyChangeListeners(changedKeys);
+    }
   }
 
   /**
@@ -386,6 +404,7 @@ export class ConfigManager {
     await this.saveToStorage();
     
     console.log('Config reset to defaults');
+    this.notifyChangeListeners(['__all__']);
   }
 
   /**
@@ -431,6 +450,44 @@ export class ConfigManager {
     
     // Set the final value
     current[keys[keys.length - 1]] = value;
+  }
+
+  /**
+   * Subscribe to config changes. Returns an unsubscribe function.
+   */
+  public addChangeListener(listener: (changedKeys: string[]) => void): () => void {
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
+  }
+
+  public removeChangeListener(listener: (changedKeys: string[]) => void): void {
+    this.changeListeners.delete(listener);
+  }
+
+  private notifyChangeListeners(changedKeys: string[]): void {
+    for (const listener of this.changeListeners) {
+      try {
+        listener(changedKeys);
+      } catch (error) {
+        console.error('Config change listener error:', error);
+      }
+    }
+  }
+
+  /**
+   * Collect dot-notation keys for all leaf values in a partial config object
+   */
+  private collectDotKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+    const keys: string[] = [];
+    for (const [k, v] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        keys.push(...this.collectDotKeys(v as Record<string, unknown>, path));
+      } else {
+        keys.push(path);
+      }
+    }
+    return keys;
   }
 
   /**

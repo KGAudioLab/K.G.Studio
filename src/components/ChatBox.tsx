@@ -4,6 +4,7 @@ import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
 import { OpenAIProvider } from '../agent/llm/OpenAIProvider';
 import { ClaudeProvider } from '../agent/llm/ClaudeProvider';
+import { ClaudeOpenRouterProvider } from '../agent/llm/ClaudeOpenRouterProvider';
 import { GeminiProvider } from '../agent/llm/GeminiProvider';
 import { LLMProvider } from '../agent/llm/LLMProvider';
 import { ConfigManager } from '../core/config/ConfigManager';
@@ -36,6 +37,8 @@ const createLLMProvider = (): LLMProvider => {
       return new ClaudeProvider();
     case 'gemini':
       return new GeminiProvider();
+    case 'claude_openrouter':
+      return new ClaudeOpenRouterProvider();
     case 'openai_compatible':
     case 'openai':
     default:
@@ -167,17 +170,39 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
         await configManager.initialize();
       }
       
-      const provider = createLLMProvider();
-      const agentCore = AgentCore.instance();
-      agentCore.setLLMProvider(provider);
+      const applyProviderFromConfig = () => {
+        const provider = createLLMProvider();
+        const agentCore = AgentCore.instance();
+        agentCore.setLLMProvider(provider);
+        console.log(`Switched to ${provider.name} provider`);
+      };
 
-      console.log(`Switched to ${provider.name} provider`);
+      // Initial apply
+      applyProviderFromConfig();
+
+      // Subscribe to config changes to hot-swap providers
+      const unsubscribe = configManager.addChangeListener((changedKeys) => {
+        // Hot-swap on provider change or when relevant provider config changes
+        if (
+          changedKeys.includes('general.llm_provider') ||
+          changedKeys.some(k => k.startsWith('general.openai.')) ||
+          changedKeys.some(k => k.startsWith('general.openai_compatible.')) ||
+          changedKeys.some(k => k.startsWith('general.claude_openrouter.')) ||
+          changedKeys.some(k => k.startsWith('general.gemini.')) ||
+          changedKeys.some(k => k.startsWith('general.claude.'))
+        ) {
+          applyProviderFromConfig();
+        }
+      });
+
+      // Cleanup subscription on unmount
+      return unsubscribe;
     };
     
     // Register the UI clear callback for external components to use
     registerClearChatUICallback(clearChatUI);
     
-    initializeProvider();
+    const maybeUnsubscribePromise = initializeProvider();
     
     // Auto-trigger welcome on first launch (guard against React StrictMode double-invoke only)
     (async () => {
@@ -189,6 +214,12 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
         setMessages([welcomeMessage]);
       }
     })();
+    // In case initializeProvider returned a cleanup, ensure we call it
+    return () => {
+      Promise.resolve(maybeUnsubscribePromise).then((cleanup) => {
+        if (typeof cleanup === 'function') cleanup();
+      }).catch(() => {});
+    };
   }, [clearChatUI]);
 
   const handleAbort = () => {
