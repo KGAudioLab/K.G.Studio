@@ -9,6 +9,9 @@ const GeneralSettings: React.FC = () => {
   const [geminiModel, setGeminiModel] = useState<string>('');
   const [claudeKey, setClaudeKey] = useState<string>('');
   const [claudeModel, setClaudeModel] = useState<string>('');
+  const [claudeOpenRouterKey, setClaudeOpenRouterKey] = useState<string>('');
+  const [claudeOpenRouterBaseUrl, setClaudeOpenRouterBaseUrl] = useState<string>('');
+  const [claudeOpenRouterModel, setClaudeOpenRouterModel] = useState<string>('');
   const [openaiFlex, setOpenaiFlex] = useState<boolean>(false);
   const [compatibleKey, setCompatibleKey] = useState<string>('');
   const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
@@ -46,6 +49,9 @@ const GeneralSettings: React.FC = () => {
       setGeminiModel((configManager.get('general.gemini.model') as string) || '');
       setClaudeKey((configManager.get('general.claude.api_key') as string) || '');
       setClaudeModel((configManager.get('general.claude.model') as string) || '');
+      setClaudeOpenRouterKey((configManager.get('general.claude_openrouter.api_key') as string) || '');
+      setClaudeOpenRouterBaseUrl((configManager.get('general.claude_openrouter.base_url') as string) || '');
+      setClaudeOpenRouterModel((configManager.get('general.claude_openrouter.model') as string) || '');
       setCompatibleKey((configManager.get('general.openai_compatible.api_key') as string) || '');
       setCompatibleBaseUrl((configManager.get('general.openai_compatible.base_url') as string) || '');
       setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
@@ -121,6 +127,21 @@ const GeneralSettings: React.FC = () => {
     debouncedSave('general.claude.model', value);
   };
 
+  const handleClaudeOpenRouterKeyChange = (value: string) => {
+    setClaudeOpenRouterKey(value);
+    debouncedSave('general.claude_openrouter.api_key', value);
+  };
+
+  const handleClaudeOpenRouterModelChange = (value: string) => {
+    setClaudeOpenRouterModel(value);
+    debouncedSave('general.claude_openrouter.model', value);
+  };
+
+  const handleClaudeOpenRouterBaseUrlChange = (value: string) => {
+    setClaudeOpenRouterBaseUrl(value);
+    debouncedSave('general.claude_openrouter.base_url', value);
+  };
+
   const handleCompatibleKeyChange = (value: string) => {
     setCompatibleKey(value);
     debouncedSave('general.openai_compatible.api_key', value);
@@ -164,6 +185,7 @@ const GeneralSettings: React.FC = () => {
               <option value="openai">OpenAI</option>
               {/* <option value="gemini">Gemini</option>
               <option value="claude">Claude</option> */}
+              <option value="claude_openrouter">Claude (via OpenRouter)</option>
               <option value="openai_compatible">OpenAI Compatible (e.g. OpenRouter, Ollama)</option>
             </select>
           </div>
@@ -285,6 +307,58 @@ const GeneralSettings: React.FC = () => {
         </div> */}
 
         <div className="settings-group">
+          <h4>Anthropic Claude (via OpenRouter)</h4>
+          
+          <div className="settings-item">
+            <label className="settings-label">
+              Key
+            </label>
+            <input 
+              type="password" 
+              className="settings-input"
+              placeholder="Enter your Claude API key"
+              value={claudeOpenRouterKey}
+              onChange={(e) => handleClaudeOpenRouterKeyChange(e.target.value)}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {isLocalEnvironment
+                ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Base URL
+            </label>
+            <input 
+              type="text" 
+              className="settings-input"
+              placeholder="e.g. https://openrouter.ai/api/v1/chat/completions"
+              value={claudeOpenRouterBaseUrl}
+              onChange={(e) => handleClaudeOpenRouterBaseUrlChange(e.target.value)}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              This is the base URL for the OpenRouter API. Please do not change this unless you know what you are doing.
+            </div>
+          </div>
+          
+          <div className="settings-item">
+            <label className="settings-label">
+              Model
+            </label>
+            <select
+              className="settings-select"
+              value={claudeOpenRouterModel}
+              onChange={(e) => handleClaudeOpenRouterModelChange(e.target.value)}
+            >
+              <option value="anthropic/claude-sonnet-4">claude-sonnet-4</option>
+              <option value="anthropic/claude-opus-4.1">claude-opus-4.1</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-group">
           <h4>OpenAI Compatible Server</h4>
           
           <div className="settings-item">
@@ -312,7 +386,7 @@ const GeneralSettings: React.FC = () => {
             <input 
               type="text" 
               className="settings-input"
-              placeholder="e.g. https://api.openrouter.ai/v1"
+              placeholder="e.g. https://openrouter.ai/api/v1/chat/completions"
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />

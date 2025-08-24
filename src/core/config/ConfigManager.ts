@@ -7,7 +7,7 @@ import { DB_CONSTANTS } from '../../constants/coreConstants';
 interface AppConfig {
   general: {
     language: string;
-    llm_provider: 'openai' | 'gemini' | 'claude' | 'openai_compatible';
+    llm_provider: 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     openai: {
       api_key: string;
       flex: boolean;
@@ -19,6 +19,11 @@ interface AppConfig {
     };
     claude: {
       api_key: string;
+      model: string;
+    };
+    claude_openrouter: {
+      api_key: string;
+      base_url: string;
       model: string;
     };
     openai_compatible: {
@@ -168,6 +173,11 @@ export class ConfigManager {
           claude: {
             api_key: '',
             model: 'claude-sonnet-4-0'
+          },
+          claude_openrouter: {
+            api_key: '',
+            base_url: 'https://openrouter.ai/api/v1/chat/completions',
+            model: 'anthropic/claude-sonnet-4'
           },
           openai_compatible: {
             api_key: '',
