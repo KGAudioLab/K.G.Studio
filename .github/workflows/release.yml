@@ -1,0 +1,197 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check authorization
+      run: |
+        # List of authorized GitHub usernames (add your username here)
+        AUTHORIZED_USERS="Xiaohan-Tian"
+        
+        if [[ ",$AUTHORIZED_USERS," != *",${{ github.actor }},"* ]]; then
+          echo "❌ Unauthorized user: ${{ github.actor }}"
+          echo "Only the following users can trigger this workflow: $AUTHORIZED_USERS"
+          exit 1
+        fi
+        echo "✅ Authorized user: ${{ github.actor }}"
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.19.3'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Configure git
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+
+    - name: Generate date-based prerelease version
+      id: version
+      run: |
+        # Get current version from package.json
+        CURRENT_VERSION=$(node -p "require('./package.json').version")
+        
+        # Extract major.minor.patch
+        if [[ $CURRENT_VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+          MAJOR=${BASH_REMATCH[1]}
+          MINOR=${BASH_REMATCH[2]}
+          PATCH=${BASH_REMATCH[3]}
+        else
+          echo "Invalid version format: $CURRENT_VERSION"
+          exit 1
+        fi
+        
+        # Bump version based on input
+        case "${{ github.event.inputs.release_type }}" in
+          major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+          minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+          patch)
+            PATCH=$((PATCH + 1))
+            ;;
+        esac
+        
+        # Generate date-based build suffix
+        BUILD_DATE=$(date -u '+%Y%m%d')
+        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-build.${BUILD_DATE}"
+        
+        echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+        echo "Generated version: ${NEW_VERSION}"
+
+    - name: Update package.json version
+      run: |
+        NEW_VERSION="${{ steps.version.outputs.version }}"
+        npm version $NEW_VERSION --no-git-tag-version
+        echo "Updated package.json to version: $NEW_VERSION"
+
+    - name: Generate changelog
+      run: |
+        # Get last release tag
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -z "$LAST_TAG" ]; then
+          echo "No previous tags found, generating full changelog"
+          COMMIT_RANGE=""
+        else
+          echo "Last tag: $LAST_TAG"
+          COMMIT_RANGE="${LAST_TAG}..HEAD"
+        fi
+        
+        # Generate changelog entry
+        NEW_VERSION="${{ steps.version.outputs.version }}"
+        RELEASE_DATE=$(date -u '+%Y-%m-%d')
+        
+        # Create changelog entry
+        echo "# [$NEW_VERSION] ($RELEASE_DATE)" > changelog_entry.md
+        echo "" >> changelog_entry.md
+        
+        if [ -z "$COMMIT_RANGE" ]; then
+          git log --oneline --pretty=format:"* %s (%h)" >> changelog_entry.md
+        else
+          git log ${COMMIT_RANGE} --oneline --pretty=format:"* %s (%h)" >> changelog_entry.md
+        fi
+        
+        # Update or create CHANGELOG.md
+        if [ -f "CHANGELOG.md" ]; then
+          # Prepend new entry to existing changelog
+          echo "" >> changelog_entry.md
+          cat CHANGELOG.md >> changelog_entry.md
+          mv changelog_entry.md CHANGELOG.md
+        else
+          # Create new changelog
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          cat changelog_entry.md >> CHANGELOG.md
+        fi
+
+    - name: Commit and tag release
+      run: |
+        NEW_VERSION="${{ steps.version.outputs.version }}"
+        
+        # Add updated files
+        git add package.json CHANGELOG.md
+        
+        # Commit changes
+        git commit -m "chore(release): ${NEW_VERSION}" \
+                   -m "Generated release with automated versioning system." \
+                   -m "Release type: ${{ github.event.inputs.release_type }}" \
+                   -m "Build date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" \
+                   -m "🤖 Generated with automated release workflow"
+        
+        # Create tag
+        git tag -a "v${NEW_VERSION}" -m "Release ${NEW_VERSION}"
+        
+        # Push changes and tag
+        git push origin main
+        git push origin "v${NEW_VERSION}"
+        
+        echo "✅ Released version: ${NEW_VERSION}"
+
+    - name: Create GitHub release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Release ${{ steps.version.outputs.version }}
+        body: |
+          ## Release ${{ steps.version.outputs.version }}
+          
+          **Release Type:** ${{ github.event.inputs.release_type }}
+          **Build Date:** $(date -u '+%Y-%m-%d')
+          
+          ### Changes
+          
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed changes.
+          
+          ---
+          🤖 Generated with automated release workflow
+        draft: false
+        prerelease: true
+
+    - name: Summary
+      run: |
+        NEW_VERSION="${{ steps.version.outputs.version }}"
+        echo "🚀 Release Summary:"
+        echo "- Version: ${NEW_VERSION}"
+        echo "- Type: ${{ github.event.inputs.release_type }}"
+        echo "- Tag: v${NEW_VERSION}"
+        echo "- CHANGELOG.md updated"
+        echo "- GitHub release created"
+        echo ""
+        echo "Next steps:"
+        echo "1. Review the release at: https://github.com/${{ github.repository }}/releases/tag/v${NEW_VERSION}"
+        echo "2. Run the 'Deploy to GitHub Pages' workflow when ready to deploy"
