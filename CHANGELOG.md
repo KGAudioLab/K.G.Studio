@@ -2,6 +2,7 @@
 
 * Merge pull request #16 from KGAudioLab/fix/2025-08-24-misc (8eeec39)
 * fix: use correct token in `release` action. (f93626d)
+
 # [0.5.1-build.20250829] (2025-08-29)
 
 * Merge pull request #15 from KGAudioLab/fix/2025-08-24-misc (58ba8e9)
@@ -31,22 +32,3 @@
 * optimized ChatBox component. (8b0ddae)
 * cleaned up the LLM providers. (429efaf)
 * removed native tool_calls handling from `OpenAIProvider`. (cf4f3ed)
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-## [0.5.0-build.20250829] (2025-08-29)
-
-### Initial Release Setup
-
-* fix: reset mute/solo UI states on project/track changes (62b3a8c)
-* fix: preserve overlapping notes with same end time in ABC conversion (1fd1486)
-* feat: implemented select all notes feature (6445325)
-* feat: implemented Claude caching breakpoints (OpenRouter version) (b0e589d)
-* feat: implemented ClaudeOpenRouterProvider (efb161d)
-* feat: added a configuration option for Claude through OpenRouter (81c6aeb)
-* docs: added Disclaimer section to README (efee261)
-
-### Setup Notes
-
-This is the initial setup of automated versioning and changelog generation. Future releases will be automatically managed through the GitHub Actions workflow.
