@@ -84,6 +84,13 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   useEffect(() => {
     setVolume(track.getVolume());
   }, [allTracks, track]);
+
+  // Sync mute/solo UI with audio interface state on track/project changes
+  useEffect(() => {
+    setMuted(false);
+    setSolo(false);
+  }, [allTracks, track]);
+  
   // Handle track name edit within the component
   const handleTrackNameClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening piano roll when clicking track name
