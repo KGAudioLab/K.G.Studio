@@ -1,3 +1,7 @@
+# [0.5.2-build.20250829] (2025-08-29)
+
+* Merge pull request #16 from KGAudioLab/fix/2025-08-24-misc (8eeec39)
+* fix: use correct token in `release` action. (f93626d)
 # [0.5.1-build.20250829] (2025-08-29)
 
 * Merge pull request #15 from KGAudioLab/fix/2025-08-24-misc (58ba8e9)
