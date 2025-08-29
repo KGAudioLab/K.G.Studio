@@ -4,6 +4,7 @@ import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil
 import { saveProject } from '../util/saveUtil';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { useProjectStore } from '../stores/projectStore';
+import { selectAllNotesInActiveRegion } from '../util/selectionUtil';
 
 /**
  * Global keyboard handler for copy/paste, undo/redo, play/pause, and save operations
@@ -56,6 +57,7 @@ export const useGlobalKeyboardHandler = () => {
       const redoShortcut = configManager.get('hotkeys.main.redo') as string;
       const copyShortcut = configManager.get('hotkeys.main.copy') as string;
       const pasteShortcut = configManager.get('hotkeys.main.paste') as string;
+      const selectAllShortcut = configManager.get('hotkeys.main.select_all') as string;
       const playShortcut = configManager.get('hotkeys.main.play') as string;
       const saveShortcut = configManager.get('hotkeys.main.save') as string;
 
@@ -106,6 +108,13 @@ export const useGlobalKeyboardHandler = () => {
         } else {
           setStatus('Cannot paste - no valid clipboard content or context');
         }
+        return;
+      }
+
+      // Check for select-all-notes shortcut (only when piano roll is open)
+      if (selectAllShortcut && matchesKeyboardShortcut(event, selectAllShortcut)) {
+        event.preventDefault();
+        selectAllNotesInActiveRegion();
         return;
       }
 
