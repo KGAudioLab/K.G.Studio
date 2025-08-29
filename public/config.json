@@ -35,6 +35,7 @@
             "play": "space",
             "undo": "ctrl+z",
             "redo": "ctrl+shift+z",
+            "select_all": "ctrl+a",
             "copy": "ctrl+c",
             "cut": "ctrl+x",
             "paste": "ctrl+v",

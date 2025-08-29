@@ -10,7 +10,7 @@ const StatusBar: React.FC = () => {
         {currentStatus}
       </div>
       <div className="status-right">
-        <span>K.G.Studio</span>
+        <span>K.G.Studio (v{__APP_VERSION__})</span>
       </div>
     </div>
   );

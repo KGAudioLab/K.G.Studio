@@ -261,7 +261,7 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
     while (nextIndex < abcNotes.length && currentNote.endTick > abcNotes[nextIndex].startTick) {
       const nextNote = abcNotes[nextIndex];
       
-      if (currentNote.endTick >= nextNote.endTick) {
+      if (currentNote.endTick > nextNote.endTick) {
         // Current note completely covers next note - remove next note
         abcNotes.splice(nextIndex, 1);
         // Don't increment nextIndex since we removed an element

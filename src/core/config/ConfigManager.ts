@@ -41,6 +41,7 @@ interface AppConfig {
       play: string;
       undo: string;
       redo: string;
+      select_all: string;
       copy: string;
       cut: string;
       paste: string;
@@ -195,6 +196,7 @@ export class ConfigManager {
             play: 'space',
             undo: 'ctrl+z',
             redo: 'ctrl+shift+z',
+            select_all: 'ctrl+a',
             copy: 'ctrl+c',
             cut: 'ctrl+x',
             paste: 'ctrl+v', 
