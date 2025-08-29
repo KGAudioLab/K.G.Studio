@@ -126,6 +126,7 @@ jobs:
         if [ -f "CHANGELOG.md" ]; then
           # Prepend new entry to existing changelog
           echo "" >> changelog_entry.md
+          echo "" >> changelog_entry.md
           cat CHANGELOG.md >> changelog_entry.md
           mv changelog_entry.md CHANGELOG.md
         else
