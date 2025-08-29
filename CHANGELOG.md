@@ -1,3 +1,8 @@
+# [0.5.3-build.20250829] (2025-08-29)
+
+* Merge pull request #17 from KGAudioLab/fix/2025-08-24-misc (d5dbe90)
+* fix: manually cleaned up the initial changelog. (d601bd1)
+
 # [0.5.2-build.20250829] (2025-08-29)
 
 * Merge pull request #16 from KGAudioLab/fix/2025-08-24-misc (8eeec39)
