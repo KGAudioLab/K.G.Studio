@@ -1,3 +1,8 @@
+# [0.5.4-build.20250830] (2025-08-30)
+
+* Merge pull request #18 from KGAudioLab/feat/2025-08-29-new-instruments (3f087e2)
+* feat: added 28 new instruments. (3dae319)
+
 # [0.5.3-build.20250829] (2025-08-29)
 
 * Merge pull request #17 from KGAudioLab/fix/2025-08-24-misc (d5dbe90)
