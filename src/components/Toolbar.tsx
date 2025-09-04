@@ -14,7 +14,7 @@ import {
   FaCog
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
-import { plainToClass, instanceToPlain } from 'class-transformer';
+import { plainToInstance, instanceToPlain } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
@@ -315,9 +315,9 @@ const Toolbar: React.FC = () => {
       const projectData = JSON.parse(fileContent);
       
       // Deserialize the project data using class-transformer (same as KGStorage)
-      const deserializedResult = plainToClass(KGProject, projectData);
+      const deserializedResult = plainToInstance(KGProject, projectData);
       
-      // Handle case where plainToClass might return an array
+      // Handle case where plainToInstance might return an array
       const deserializedProject = Array.isArray(deserializedResult) 
         ? deserializedResult[0] || null 
         : deserializedResult;
