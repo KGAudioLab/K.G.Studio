@@ -2,7 +2,7 @@
 
 import { openDB } from 'idb'
 import type { IDBPDatabase } from 'idb'
-import { plainToClass, instanceToPlain } from 'class-transformer'
+import { plainToInstance, instanceToPlain } from 'class-transformer'
 import { DB_CONSTANTS } from '../../constants/coreConstants'
 
 export interface StorageEntry {
@@ -96,7 +96,7 @@ export class KGStorage {
         return null
       }
       
-      const instance = plainToClass(classType, entry.data)
+      const instance = plainToInstance(classType, entry.data)
       const loadedInstance = Array.isArray(instance) ? instance[0] || null : instance
       
       if (loadedInstance && typeof (loadedInstance as { setName?: (projectName: string) => void }).setName === 'function') {

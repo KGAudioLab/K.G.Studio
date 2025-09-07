@@ -196,6 +196,11 @@ body {
   color: #fff;
 }
 
+.export-dropdown .quant-dropdown {
+  width: 250px;
+  left: 0;
+}
+
 /* Main content */
 .main-content {
   display: flex;

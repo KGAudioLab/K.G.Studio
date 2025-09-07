@@ -1,0 +1,299 @@
+{
+  "name": "joy",
+  "maxBars": 32,
+  "currentBars": 0,
+  "timeSignature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "bpm": 125,
+  "keySignature": "C major",
+  "projectStructureVersion": 1,
+  "tracks": [
+    {
+      "__type": "KGMidiTrack",
+      "name": "Melody",
+      "id": 1,
+      "trackIndex": 0,
+      "type": "MIDI",
+      "volume": 0.8,
+      "regions": [
+        {
+          "__type": "KGMidiRegion",
+          "id": "KGMidiRegion_1755134493138_iufo370n9",
+          "trackId": "1",
+          "trackIndex": 0,
+          "name": "Melody Region 1",
+          "startFromBeat": 0,
+          "length": 32,
+          "selected": true,
+          "notes": [
+            {
+              "id": "KGMidiNote_1755134524628_dfmfpzoa9",
+              "startBeat": 0,
+              "endBeat": 1,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134528480_2uml69rkg",
+              "startBeat": 1,
+              "endBeat": 2,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134530480_4r34d57ig",
+              "startBeat": 2,
+              "endBeat": 3,
+              "pitch": 65,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134531066_zahyopqtg",
+              "startBeat": 3,
+              "endBeat": 4,
+              "pitch": 67,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134531647_65jgmc4m2",
+              "startBeat": 4,
+              "endBeat": 5,
+              "pitch": 67,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134532248_mnd24k18e",
+              "startBeat": 5,
+              "endBeat": 6,
+              "pitch": 65,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134532815_506vblsde",
+              "startBeat": 6,
+              "endBeat": 7,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134533716_ah1hw0kfe",
+              "startBeat": 7,
+              "endBeat": 8,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134534566_m8bunoc6t",
+              "startBeat": 8,
+              "endBeat": 9,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134536265_7qeciq0m6",
+              "startBeat": 9,
+              "endBeat": 10,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134537068_o6bb5y7ha",
+              "startBeat": 10,
+              "endBeat": 11,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134537752_ya958b30e",
+              "startBeat": 11,
+              "endBeat": 12,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134538401_bzer7pq8h",
+              "startBeat": 12,
+              "endBeat": 13.5,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134541568_so9s6pa1u",
+              "startBeat": 13.5,
+              "endBeat": 14,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134545236_r9xnsoggt",
+              "startBeat": 14,
+              "endBeat": 16,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_idvq2hr0t",
+              "startBeat": 16,
+              "endBeat": 17,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_i6za508pa",
+              "startBeat": 17,
+              "endBeat": 18,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_0kru65kt6",
+              "startBeat": 18,
+              "endBeat": 19,
+              "pitch": 65,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_ayj4954ko",
+              "startBeat": 19,
+              "endBeat": 20,
+              "pitch": 67,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_5toqdpq5n",
+              "startBeat": 20,
+              "endBeat": 21,
+              "pitch": 67,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_yilvvambd",
+              "startBeat": 21,
+              "endBeat": 22,
+              "pitch": 65,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_r8w8tr21a",
+              "startBeat": 22,
+              "endBeat": 23,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_d8t91xm5l",
+              "startBeat": 23,
+              "endBeat": 24,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_hk0q0ow9q",
+              "startBeat": 24,
+              "endBeat": 25,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561530_gnl53ldaz",
+              "startBeat": 25,
+              "endBeat": 26,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561531_53kdyl7u5",
+              "startBeat": 26,
+              "endBeat": 27,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561531_les717v12",
+              "startBeat": 27,
+              "endBeat": 28,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561531_owdko4big",
+              "startBeat": 28,
+              "endBeat": 29.5,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561531_b04zbsgnf",
+              "startBeat": 29.5,
+              "endBeat": 30,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1755134561531_jgvrlacer",
+              "startBeat": 30,
+              "endBeat": 32,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            }
+          ]
+        }
+      ],
+      "instrument": "acoustic_grand_piano"
+    },
+    {
+      "__type": "KGMidiTrack",
+      "name": "Pad Chord",
+      "id": 2,
+      "trackIndex": 1,
+      "type": "MIDI",
+      "volume": 1,
+      "regions": [
+        {
+          "__type": "KGMidiRegion",
+          "id": "KGMidiRegion_1755326973407_9hsnkcgwr",
+          "trackId": "2",
+          "trackIndex": 1,
+          "name": "Pad Chord Region 1",
+          "startFromBeat": 0,
+          "length": 32,
+          "selected": true,
+          "notes": []
+        }
+      ],
+      "instrument": "pad_1_new_age"
+    }
+  ]
+}
