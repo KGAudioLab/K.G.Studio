@@ -12,6 +12,7 @@ import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
+import { KGPianoRollState } from './core/state/KGPianoRollState';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
@@ -29,14 +30,27 @@ function App() {
     const initializeApp = async () => {
       // Load the current project from KGCore
       loadProject(null);
-      
+
       // Initialize store from config after ConfigManager is ready
       await initializeFromConfig();
-      
+
+      // Load mode list from JSON
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL}resources/modes/mode_list.json`);
+        const data = await response.json();
+        const modeNames = data.modes.map((mode: { name: string; steps: number[] }) => mode.name);
+        KGPianoRollState.MODE_OPTIONS = modeNames;
+        console.log(`Loaded ${modeNames.length} modes:`, modeNames);
+      } catch (error) {
+        console.error('Failed to load mode list:', error);
+        // Fallback to default mode
+        KGPianoRollState.MODE_OPTIONS = ['ionian'];
+      }
+
       // Log maxBars to console
       console.log(`Project max bars: ${maxBars}`);
     };
-    
+
     initializeApp();
   }, [loadProject, maxBars, initializeFromConfig]);
 

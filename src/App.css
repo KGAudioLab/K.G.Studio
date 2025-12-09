@@ -597,6 +597,7 @@ body {
   padding: 0 10px;
   user-select: none;
   position: relative;
+  z-index: 100; /* Ensure toolbar and its dropdowns appear above piano roll content */
 }
 
 /* Override pointer-events for piano roll toolbar sections */
@@ -607,6 +608,15 @@ body {
 
 .piano-roll-toolbar .quant-button {
   font-size: 10px;
+}
+
+.piano-roll-toolbar .toolbar-left .quant-button {
+  margin-left: 0px;
+  margin-right: 5px;
+}
+
+.piano-roll-toolbar .toolbar-left .quant-dropdown {
+  left: 0;
 }
 
 /* Generic button blink effect */

@@ -35,9 +35,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
   const [quantLength, setQuantLength] = useState<string>('1/8');
-  
+
   // Snapping state
   const [snapping, setSnapping] = useState<string>('NO SNAP');
+
+  // Mode state
+  const [selectedMode, setSelectedMode] = useState<string>('ionian');
   
   // Piano roll state with temporary initial values
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
@@ -293,6 +296,15 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     KGPianoRollState.instance().setCurrentSnap(value);
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Selected snapping: ${value}`);
+    }
+  }, []);
+
+  // Handle mode selection
+  const handleModeSelect = useCallback((value: string) => {
+    setSelectedMode(value);
+    KGPianoRollState.instance().setCurrentMode(value);
+    if (DEBUG_MODE.PIANO_ROLL) {
+      console.log(`Selected mode: ${value}`);
     }
   }, []);
   
@@ -765,6 +777,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onQuantSelect={handleQuantSelect}
         snapping={snapping}
         onSnappingSelect={handleSnappingSelect}
+        selectedMode={selectedMode}
+        onModeChange={handleModeSelect}
         blinkButton={blinkButton}
       />
       

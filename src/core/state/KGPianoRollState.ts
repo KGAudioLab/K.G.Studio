@@ -8,10 +8,12 @@ export class KGPianoRollState {
   public static SNAP_OPTIONS: string[] = ['NO SNAP', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
   public static QUANT_POS_OPTIONS: string[] = ['1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
   public static QUANT_LEN_OPTIONS: string[] = ['1/1', '1/2', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
+  public static MODE_OPTIONS: string[] = []; // Will be populated from mode_list.json
 
   private activeTool: string = "pointer";
   private currentSnap: string = "NO SNAP";
   private lastEditedNoteLength: number = 1; // Default to 1 beat
+  private currentMode: string = "ionian"; // Default mode
 
   private constructor() {
     console.log("KGPianoRollState initialized");
@@ -47,5 +49,13 @@ export class KGPianoRollState {
 
   public setLastEditedNoteLength(length: number): void {
     this.lastEditedNoteLength = length;
+  }
+
+  public getCurrentMode(): string {
+    return this.currentMode;
+  }
+
+  public setCurrentMode(mode: string): void {
+    this.currentMode = mode;
   }
 }

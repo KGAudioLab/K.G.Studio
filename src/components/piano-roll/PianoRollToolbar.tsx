@@ -11,6 +11,8 @@ interface PianoRollToolbarProps {
   onQuantSelect: (type: 'position' | 'length', value: string) => void;
   snapping: string;
   onSnappingSelect: (value: string) => void;
+  selectedMode: string;
+  onModeChange: (value: string) => void;
   blinkButton?: string | null;
 }
 
@@ -22,12 +24,21 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onQuantSelect,
   snapping,
   onSnappingSelect,
+  selectedMode,
+  onModeChange,
   blinkButton = null
 }) => {
   return (
     <div className="piano-roll-toolbar">
       <div className="toolbar-left">
-        {/* Left section - can add more tools later */}
+        {/* Left section with mode dropdown */}
+        <KGDropdown
+          options={KGPianoRollState.MODE_OPTIONS}
+          value={selectedMode}
+          onChange={(value) => onModeChange(value)}
+          label="Mode"
+          buttonClassName="mode-dropdown"
+        />
       </div>
       
       <div className="toolbar-center">
@@ -58,7 +69,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           buttonClassName="snapping"
           showValueAsLabel={true}
         />
-        
+
         <KGDropdown
           options={KGPianoRollState.QUANT_POS_OPTIONS}
           value={quantPosition}
@@ -66,7 +77,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           label="Qua. Pos."
           buttonClassName={`quant-position ${blinkButton === 'quant-position' ? 'button-blink' : ''}`}
         />
-        
+
         <KGDropdown
           options={KGPianoRollState.QUANT_LEN_OPTIONS}
           value={quantLength}
