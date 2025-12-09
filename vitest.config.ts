@@ -11,9 +11,10 @@ export default defineConfig({
     // Global test setup
     setupFiles: ['./src/test/setup.ts'],
     
-    // Include unit test files co-located with source
+    // Include unit test files co-located with source AND integration tests
     include: [
-      'src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
+      'src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'src/test/integration/**/*.integration.test.ts'
     ],
     
     // Exclude directories
@@ -21,8 +22,7 @@ export default defineConfig({
       'node_modules',
       'dist',
       '.git',
-      '.cache',
-      'tests/' // Exclude integration/e2e folder for now
+      '.cache'
     ],
     
     // Enable global test functions (describe, it, expect)

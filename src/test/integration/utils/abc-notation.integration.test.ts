@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { plainToInstance } from 'class-transformer'
-import { convertRegionToABCNotation } from './abcNotationUtil'
-import { KGMidiRegion } from '../core/region/KGMidiRegion'
-import { KGMidiTrack } from '../core/track/KGMidiTrack'
-import { KGCore } from '../core/KGCore'
-import { KGProject } from '../core/KGProject'
+import { convertRegionToABCNotation } from '../../../util/abcNotationUtil'
+import { KGMidiRegion } from '../../../core/region/KGMidiRegion'
+import { KGMidiTrack } from '../../../core/track/KGMidiTrack'
+import { KGCore } from '../../../core/KGCore'
+import { KGProject } from '../../../core/KGProject'
 
 // Import the test fixture
-import joyProjectData from '../test/fixtures/joy-project.json'
+import joyProjectData from '../../fixtures/joy-project.json'
 
 // Helper function to load project using real class-transformer deserialization (same as UI)
 function loadProjectFromJSON(projectData: Record<string, unknown>): KGProject {
