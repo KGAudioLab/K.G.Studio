@@ -38,6 +38,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           onChange={(value) => onModeChange(value)}
           label="Mode"
           buttonClassName="mode-dropdown"
+          showValueAsLabel={true}
         />
       </div>
       
