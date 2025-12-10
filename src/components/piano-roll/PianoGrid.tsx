@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { Playhead } from '../common';
 import SelectionBox from './SelectionBox';
 import { isModifierKeyPressed } from '../../util/osUtil';
+import { generatePianoGridBackground } from '../../util/scaleUtil';
+import type { KeySignature } from '../../core/KGProject';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -18,6 +20,8 @@ interface PianoGridProps {
     endY: number;
   };
   regionStartBeat?: number;
+  selectedMode: string;
+  keySignature: KeySignature;
 }
 
 interface CursorPosition {
@@ -35,10 +39,17 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   onMouseDown,
   isBoxSelecting,
   selectionBox,
-  regionStartBeat = 0
+  regionStartBeat = 0,
+  selectedMode,
+  keySignature
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
   const [isModifierPressed, setIsModifierPressed] = useState(false);
+
+  // Generate background with scale highlighting - only regenerate when mode or key changes
+  const backgroundImage = useMemo(() => {
+    return generatePianoGridBackground(selectedMode, keySignature);
+  }, [selectedMode, keySignature]);
 
   // Track modifier key state
   useEffect(() => {
@@ -116,9 +127,10 @@ const PianoGrid: React.FC<PianoGridProps> = ({
 
   return (
     <div className="piano-grid-container">
-      <div 
+      <div
         className={`piano-grid ${isModifierPressed ? 'pencil-cursor' : ''}`}
         ref={gridRef}
+        style={{ backgroundImage }}
         onDoubleClick={onDoubleClick}
         onClick={onClick}
         onMouseDown={(e) => onMouseDown(e)}

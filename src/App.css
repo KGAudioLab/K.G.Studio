@@ -863,19 +863,8 @@ body {
   width: 100%;
   height: 100%;
   position: relative;
-  background-size: var(--region-grid-beat-width) var(--region-piano-key-height), var(--region-grid-bar-width) var(--region-piano-key-height);
-  background-image: 
-    /* Vertical lines for beats */
-    linear-gradient(to right, 
-      transparent calc(var(--region-grid-beat-width) - 1px), #444 calc(var(--region-grid-beat-width) - 1px), #444 var(--region-grid-beat-width), 
-      transparent calc(var(--region-grid-beat-width)), transparent calc(var(--region-grid-beat-width) * 2 - 1px), #444 calc(var(--region-grid-beat-width) * 2 - 1px), #444 calc(var(--region-grid-beat-width) * 2),
-      transparent calc(var(--region-grid-beat-width) * 2), transparent calc(var(--region-grid-beat-width) * 3 - 1px), #444 calc(var(--region-grid-beat-width) * 3 - 1px), #444 calc(var(--region-grid-beat-width) * 3),
-      transparent calc(var(--region-grid-beat-width) * 3), transparent calc(var(--region-grid-beat-width) * 4 - 1px), #3a3a3a calc(var(--region-grid-beat-width) * 4 - 1px), #3a3a3a calc(var(--region-grid-beat-width) * 4)
-    ),
-    /* Horizontal lines for notes */
-    linear-gradient(to bottom,
-      transparent calc(var(--region-piano-key-height) - 1px), #3a3a3a calc(var(--region-piano-key-height) - 1px), #3a3a3a var(--region-piano-key-height)
-    );
+  background-size: var(--region-grid-beat-width) var(--region-piano-key-height), 100% 100%;
+  /* background-image is now set dynamically via React inline styles in PianoGrid component */
 }
 
 .piano-grid.pencil-cursor {

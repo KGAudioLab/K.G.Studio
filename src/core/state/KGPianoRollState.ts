@@ -8,7 +8,7 @@ export class KGPianoRollState {
   public static SNAP_OPTIONS: string[] = ['NO SNAP', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
   public static QUANT_POS_OPTIONS: string[] = ['1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
   public static QUANT_LEN_OPTIONS: string[] = ['1/1', '1/2', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
-  public static MODE_OPTIONS: string[] = []; // Will be populated from mode_list.json
+  public static MODE_DATA: Array<{ id: string; name: string; steps: number[] }> = []; // Modes with id, display name, and interval steps
 
   private activeTool: string = "pointer";
   private currentSnap: string = "NO SNAP";

@@ -33,7 +33,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
       <div className="toolbar-left">
         {/* Left section with mode dropdown */}
         <KGDropdown
-          options={KGPianoRollState.MODE_OPTIONS}
+          options={KGPianoRollState.MODE_DATA.map(m => ({ label: m.name, value: m.id }))}
           value={selectedMode}
           onChange={(value) => onModeChange(value)}
           label="Mode"

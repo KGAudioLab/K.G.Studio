@@ -27,7 +27,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   initialPosition,
   initialSize
 }) => {
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -792,6 +792,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         tracks={tracks}
         onSetNoteUpdateTrigger={handleSetNoteUpdateTrigger}
         onSetDeleteNotesTrigger={handleSetDeleteNotesTrigger}
+        selectedMode={selectedMode}
+        keySignature={keySignature}
       />
       
       <div 

@@ -38,13 +38,15 @@ function App() {
       try {
         const response = await fetch(`${import.meta.env.BASE_URL}resources/modes/mode_list.json`);
         const data = await response.json();
-        const modeNames = data.modes.map((mode: { name: string; steps: number[] }) => mode.name);
-        KGPianoRollState.MODE_OPTIONS = modeNames;
-        console.log(`Loaded ${modeNames.length} modes:`, modeNames);
+
+        // Store mode data with id, name, and steps
+        KGPianoRollState.MODE_DATA = data.modes;
+
+        console.log(`Loaded ${data.modes.length} modes:`, data.modes.map((m: { name: string }) => m.name));
       } catch (error) {
         console.error('Failed to load mode list:', error);
         // Fallback to default mode
-        KGPianoRollState.MODE_OPTIONS = ['ionian'];
+        KGPianoRollState.MODE_DATA = [{ id: 'ionian', name: 'Ionian', steps: [2, 2, 1, 2, 2, 2, 1] }];
       }
 
       // Log maxBars to console
