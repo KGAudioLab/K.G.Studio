@@ -13,6 +13,7 @@ export interface ProjectUpdateProperties {
   bpm?: number;
   timeSignature?: TimeSignature;
   keySignature?: KeySignature;
+  selectedMode?: string;
 }
 
 /**
@@ -42,6 +43,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       bpm: this.targetProject.getBpm(),
       timeSignature: { ...this.targetProject.getTimeSignature() }, // Create a copy
       keySignature: this.targetProject.getKeySignature(),
+      selectedMode: this.targetProject.getSelectedMode(),
     };
 
     // Apply updates and track what actually changes
@@ -93,6 +95,13 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       this.targetProject.setKeySignature(this.newProperties.keySignature);
       this.changedProperties.add('keySignature');
       updatedProperties.push(`keySignature: "${this.originalProperties.keySignature}" → "${this.newProperties.keySignature}"`);
+    }
+
+    // Update selected mode
+    if (this.newProperties.selectedMode !== undefined && this.newProperties.selectedMode !== this.originalProperties.selectedMode) {
+      this.targetProject.setSelectedMode(this.newProperties.selectedMode);
+      this.changedProperties.add('selectedMode');
+      updatedProperties.push(`selectedMode: "${this.originalProperties.selectedMode}" → "${this.newProperties.selectedMode}"`);
     }
 
     if (updatedProperties.length > 0) {
@@ -147,6 +156,12 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       restoredProperties.push(`keySignature: "${this.originalProperties.keySignature}"`);
     }
 
+    // Restore selected mode (only if it was changed)
+    if (this.changedProperties.has('selectedMode') && this.originalProperties.selectedMode !== undefined) {
+      this.targetProject.setSelectedMode(this.originalProperties.selectedMode);
+      restoredProperties.push(`selectedMode: "${this.originalProperties.selectedMode}"`);
+    }
+
     console.log(`Restored project: ${restoredProperties.join(', ')}`);
   }
 
@@ -170,6 +185,9 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     }
     if (this.newProperties.keySignature !== undefined) {
       updatedProps.push('key signature');
+    }
+    if (this.newProperties.selectedMode !== undefined) {
+      updatedProps.push('selected mode');
     }
 
     if (updatedProps.length === 1) {

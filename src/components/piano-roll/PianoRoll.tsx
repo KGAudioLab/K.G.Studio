@@ -21,13 +21,13 @@ interface PianoRollProps {
   initialSize?: { width: number; height: number };
 }
 
-const PianoRoll: React.FC<PianoRollProps> = ({ 
-  onClose, 
+const PianoRoll: React.FC<PianoRollProps> = ({
+  onClose,
   regionId,
   initialPosition,
   initialSize
 }) => {
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -39,9 +39,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Snapping state
   const [snapping, setSnapping] = useState<string>('NO SNAP');
 
-  // Mode state
-  const [selectedMode, setSelectedMode] = useState<string>('ionian');
-  
   // Piano roll state with temporary initial values
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
   
@@ -302,11 +299,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Handle mode selection
   const handleModeSelect = useCallback((value: string) => {
     setSelectedMode(value);
-    KGPianoRollState.instance().setCurrentMode(value);
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Selected mode: ${value}`);
     }
-  }, []);
+  }, [setSelectedMode]);
   
   // Handler for receiving the setNoteUpdateCounter function from PianoRollContent
   const handleSetNoteUpdateTrigger = (setNoteFn: React.Dispatch<React.SetStateAction<number>>) => {

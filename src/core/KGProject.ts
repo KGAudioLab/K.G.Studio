@@ -32,10 +32,14 @@ export class KGProject {
   private keySignature: KeySignature = "C major";
 
   @Expose()
+  @WithDefault("ionian")
+  private selectedMode: string = "ionian";
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 1;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 2;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -50,13 +54,14 @@ export class KGProject {
   private tracks: KGTrack[] = [];
 
   // Constructor
-  constructor(name: string = "Untitled Project", maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
+  constructor(name: string = "Untitled Project", maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
     this.bpm = bpm;
     this.timeSignature = timeSignature;
     this.keySignature = keySignature;
+    this.selectedMode = selectedMode;
     this.tracks = tracks;
     this.projectStructureVersion = projectStructureVersion;
   }
@@ -90,6 +95,10 @@ export class KGProject {
     return this.keySignature;
   }
 
+  public getSelectedMode(): string {
+    return this.selectedMode;
+  }
+
   public getTracks(): KGTrack[] {
     return this.tracks;
   }
@@ -113,6 +122,10 @@ export class KGProject {
 
   public setKeySignature(keySignature: KeySignature): void {
     this.keySignature = keySignature;
+  }
+
+  public setSelectedMode(selectedMode: string): void {
+    this.selectedMode = selectedMode;
   }
 
   public setTracks(tracks: KGTrack[]): void {
