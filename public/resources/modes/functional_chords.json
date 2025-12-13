@@ -1,0 +1,67 @@
+{
+    "ionian": {
+        "T": ["I", "vi", "iii", "I⁶"],
+        "S": ["IV", "ii", "vi", "IV⁶"],
+        "D": ["V", "V7", "vii°", "♭II"]
+    },
+
+    "aeolian": {
+        "T": ["i", "VI", "III", "i⁶"],
+        "S": ["iv", "ii°", "VI", "iv⁶"],
+        "D": ["v", "♭VII"]
+    },
+
+    "harmonic_minor": {
+        "T": ["i", "VI", "III", "i⁶"],
+        "S": ["iv", "ii°", "VI", "iv⁶"],
+        "D": ["V", "V7", "vii°", "♭II"]
+    },
+
+    "melodic_minor": {
+        "T": ["i", "III", "VI", "i⁶"],
+        "S": ["IV", "ii", "iv"],
+        "D": ["V", "vii°"]
+    },
+
+    "dorian": {
+        "T": ["i", "III", "i⁶"],
+        "S": ["IV", "ii"],
+        "D": ["v", "♭VII"]
+    },
+
+    "phrygian": {
+        "T": ["i", "i⁶"],
+        "S": ["♭II", "iv"],
+        "D": []
+    },
+
+    "lydian": {
+        "T": ["I", "I⁶"],
+        "S": ["II"],
+        "D": ["V"]
+    },
+
+    "mixolydian": {
+        "T": ["I", "vi"],
+        "S": ["IV", "ii"],
+        "D": ["v", "♭VII"]
+    },
+
+    "locrian": {
+        "T": ["i°"],
+        "S": ["♭II", "iv"],
+        "D": []
+    },
+
+    "phrygian_dominant": {
+        "T": ["i", "i⁶"],
+        "S": ["♭II", "iv"],
+        "D": ["V", "vii°"]
+    },
+
+    "harmonic_major": {
+        "T": ["I", "vi", "iii"],
+        "S": ["IV", "ii"],
+        "D": ["V", "V7", "vii°", "♭II"]
+    }
+}
