@@ -2,6 +2,7 @@ import React from 'react';
 import { FaMousePointer, FaPencilAlt } from 'react-icons/fa';
 import { KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
+import { KGCore } from '../../core/KGCore';
 
 interface PianoRollToolbarProps {
   activeTool: 'pointer' | 'pencil';
@@ -13,6 +14,8 @@ interface PianoRollToolbarProps {
   onSnappingSelect: (value: string) => void;
   selectedMode: string;
   onModeChange: (value: string) => void;
+  chordGuide: string;
+  onChordGuideChange: (value: string) => void;
   blinkButton?: string | null;
 }
 
@@ -26,18 +29,33 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onSnappingSelect,
   selectedMode,
   onModeChange,
+  chordGuide,
+  onChordGuideChange,
   blinkButton = null
 }) => {
   return (
     <div className="piano-roll-toolbar">
       <div className="toolbar-left">
-        {/* Left section with mode dropdown */}
+        {/* Left section with mode and chord guide dropdowns */}
         <KGDropdown
-          options={KGPianoRollState.MODE_DATA.map(m => ({ label: m.name, value: m.id }))}
+          options={KGCore.MODE_DATA.map(m => ({ label: m.name, value: m.id }))}
           value={selectedMode}
           onChange={(value) => onModeChange(value)}
           label="Mode"
           buttonClassName="mode-dropdown"
+          showValueAsLabel={true}
+        />
+        <KGDropdown
+          options={[
+            { label: 'Guide: Disabled', value: 'N' },
+            { label: 'Chord Guide: T', value: 'T' },
+            { label: 'Chord Guide: S', value: 'S' }, 
+            { label: 'Chord Guide: D', value: 'D' }
+          ]}
+          value={chordGuide}
+          onChange={(value) => onChordGuideChange(value)}
+          label="Chord"
+          buttonClassName="chord-guide-dropdown"
           showValueAsLabel={true}
         />
       </div>

@@ -1,4 +1,4 @@
-import { KGPianoRollState } from '../core/state/KGPianoRollState';
+import { KGCore } from '../core/KGCore';
 import { pianoRollIndexToPitch } from './midiUtil';
 import type { KeySignature } from '../core/KGProject';
 
@@ -66,12 +66,143 @@ export const getScalePitchClasses = (rootNote: string, modeSteps: number[]): num
  * @returns Array of interval steps, or default ionian if not found
  */
 export const getModeSteps = (modeId: string): number[] => {
-  const modeData = KGPianoRollState.MODE_DATA.find(m => m.id === modeId);
+  const modeData = KGCore.MODE_DATA.find(m => m.id === modeId);
   if (!modeData) {
     console.warn(`Mode not found: ${modeId}, defaulting to ionian`);
     return [2, 2, 1, 2, 2, 2, 1]; // Default to ionian (major scale)
   }
   return modeData.steps;
+};
+
+/**
+ * Transposes a note name by a given number of semitones
+ * @param noteName - Note name like "C", "C#", "Db"
+ * @param semitones - Number of semitones to transpose (positive or negative)
+ * @returns Transposed note name
+ */
+const transposeNote = (noteName: string, semitones: number): string => {
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const pitchClass = noteNameToPitchClass(noteName);
+  const newPitchClass = (pitchClass + semitones + 12) % 12;
+  return noteNames[newPitchClass];
+};
+
+/**
+ * Gets the list of suitable chords for a given key, mode, and functional harmony group
+ * @param keySignature - Key signature like "C major", "F# minor", "Bb major"
+ * @param modeId - Mode ID (e.g., "ionian", "aeolian", "dorian")
+ * @param functionType - Functional harmony group: "T" (Tonic), "S" (Subdominant), or "D" (Dominant)
+ * @returns Map of chord symbols to their transposed note arrays, e.g., { "I": ["C", "E", "G"], "vi": ["A", "C", "E"] }
+ *         Returns empty object if mode or function not found
+ *
+ * Example:
+ * - getSuitableChords("C major", "ionian", "T") returns { "I": ["C", "E", "G"], "vi": ["A", "C", "E"], ... }
+ * - getSuitableChords("D major", "ionian", "T") returns { "I": ["D", "F#", "A"], "vi": ["B", "D", "F#"], ... }
+ */
+export const getSuitableChords = (
+  keySignature: KeySignature,
+  modeId: string,
+  functionType: 'T' | 'S' | 'D'
+): Record<string, string[]> => {
+  // Get the functional chords for this mode
+  const functionalChords = KGCore.FUNCTIONAL_CHORDS_DATA[modeId];
+  if (!functionalChords) {
+    console.warn(`No functional chords found for mode: ${modeId}`);
+    return {};
+  }
+
+  // Get the chord symbols for the specified function (T/S/D)
+  const chordSymbols = functionalChords[functionType];
+  if (!chordSymbols || chordSymbols.length === 0) {
+    console.warn(`No chords found for function ${functionType} in mode ${modeId}`);
+    return {};
+  }
+
+  // Get the mode-specific chords data
+  const modeChords = functionalChords.chords;
+  if (!modeChords) {
+    console.warn(`No chords data found for mode: ${modeId}`);
+    return {};
+  }
+
+  // Get the root note from key signature
+  const rootNote = getRootNoteFromKeySignature(keySignature);
+
+  // Calculate the transposition interval from C to the root note
+  const transposeSemitones = noteNameToPitchClass(rootNote);
+
+  // Build a map of chord symbols to transposed notes
+  const chordMap: Record<string, string[]> = {};
+
+  for (const chordSymbol of chordSymbols) {
+    // Get the chord notes from mode-specific chords data (in C key)
+    const chordNotes = modeChords[chordSymbol];
+    if (!chordNotes) {
+      console.warn(`Chord symbol not found in mode ${modeId} chords: ${chordSymbol}`);
+      continue; // Skip this chord if not found
+    }
+
+    // If the key is C, use notes as-is; otherwise transpose
+    if (rootNote === 'C') {
+      chordMap[chordSymbol] = chordNotes;
+    } else {
+      // Transpose each note in the chord
+      const transposedNotes = chordNotes.map(note => transposeNote(note, transposeSemitones));
+      chordMap[chordSymbol] = transposedNotes;
+    }
+  }
+
+  return chordMap;
+};
+
+/**
+ * Gets the transposed notes for a specific chord in a given key and mode
+ * @param chordSymbol - Chord symbol (e.g., "I", "V7", "ii")
+ * @param keySignature - Key signature like "C major", "F# minor"
+ * @param modeId - Mode ID (e.g., "ionian", "aeolian")
+ * @returns Array of note names for the chord in the specified key, or empty array if not found
+ */
+export const getChordNotesInKey = (
+  chordSymbol: string,
+  keySignature: KeySignature,
+  modeId: string
+): string[] => {
+  // Get the functional chords for this mode
+  const functionalChords = KGCore.FUNCTIONAL_CHORDS_DATA[modeId];
+  if (!functionalChords) {
+    console.warn(`No functional chords found for mode: ${modeId}`);
+    return [];
+  }
+
+  // Get the mode-specific chords data
+  const modeChords = functionalChords.chords;
+  if (!modeChords) {
+    console.warn(`No chords data found for mode: ${modeId}`);
+    return [];
+  }
+
+  // Get the root note from key signature
+  const rootNote = getRootNoteFromKeySignature(keySignature);
+
+  // Get the chord notes from mode-specific chords data (in C key)
+  const chordNotes = modeChords[chordSymbol];
+  if (!chordNotes) {
+    console.warn(`Chord symbol not found in mode ${modeId} chords: ${chordSymbol}`);
+    return [];
+  }
+
+  // If the key is C, return the notes as-is
+  if (rootNote === 'C') {
+    return chordNotes;
+  }
+
+  // Calculate the transposition interval from C to the root note
+  const transposeSemitones = noteNameToPitchClass(rootNote);
+
+  // Transpose each note in the chord
+  const transposedNotes = chordNotes.map(note => transposeNote(note, transposeSemitones));
+
+  return transposedNotes;
 };
 
 /**

@@ -8,12 +8,15 @@ export class KGPianoRollState {
   public static SNAP_OPTIONS: string[] = ['NO SNAP', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
   public static QUANT_POS_OPTIONS: string[] = ['1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
   public static QUANT_LEN_OPTIONS: string[] = ['1/1', '1/2', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
-  public static MODE_DATA: Array<{ id: string; name: string; steps: number[] }> = []; // Modes with id, display name, and interval steps
 
   private activeTool: string = "pointer";
   private currentSnap: string = "NO SNAP";
   private lastEditedNoteLength: number = 1; // Default to 1 beat
   private currentMode: string = "ionian"; // Default mode
+
+  // Chord guide state
+  private currentSuitableChords: Record<string, string[]> = {}; // Map of chord symbols to note names (e.g., {"I": ["C", "E", "G"]})
+  private currentSuitableChordsPitchClasses: Record<string, number[]> = {}; // Map of chord symbols to pitch classes (e.g., {"I": [0, 4, 7]})
 
   private constructor() {
     console.log("KGPianoRollState initialized");
@@ -57,5 +60,21 @@ export class KGPianoRollState {
 
   public setCurrentMode(mode: string): void {
     this.currentMode = mode;
+  }
+
+  public getCurrentSuitableChords(): Record<string, string[]> {
+    return this.currentSuitableChords;
+  }
+
+  public setCurrentSuitableChords(chords: Record<string, string[]>): void {
+    this.currentSuitableChords = chords;
+  }
+
+  public getCurrentSuitableChordsPitchClasses(): Record<string, number[]> {
+    return this.currentSuitableChordsPitchClasses;
+  }
+
+  public setCurrentSuitableChordsPitchClasses(chordsPitchClasses: Record<string, number[]>): void {
+    this.currentSuitableChordsPitchClasses = chordsPitchClasses;
   }
 }
