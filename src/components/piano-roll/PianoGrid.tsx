@@ -167,6 +167,18 @@ const PianoGrid: React.FC<PianoGridProps> = ({
     return highlights;
   }, [cursorPosition, matchingChords, selectedChordIndex]);
 
+  const cursorPitch = cursorPosition?.pitch ?? null;
+
+  useEffect(() => {
+    const pianoRollState = KGPianoRollState.instance();
+    pianoRollState.setCurrentMatchingChords(matchingChords);
+    pianoRollState.setCurrentChordCursorPitch(cursorPitch);
+  }, [matchingChords, cursorPitch]);
+
+  useEffect(() => {
+    KGPianoRollState.instance().setCurrentSelectedChordIndex(selectedChordIndex);
+  }, [selectedChordIndex]);
+
   const lastEditedNoteLength = KGPianoRollState.instance().getLastEditedNoteLength();
 
   // Reset selected chord index when cursor moves to a different pitch or beat

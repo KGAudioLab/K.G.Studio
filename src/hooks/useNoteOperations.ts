@@ -10,6 +10,7 @@ import { KGCore } from '../core/KGCore';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGAudioInterface } from '../core/audio-interface/KGAudioInterface';
 import { CreateNoteCommand, DeleteNotesCommand, ResizeNotesCommand, MoveNotesCommand } from '../core/commands';
+import { CreateNotesCommand } from '../core/commands/note/CreateNotesCommand';
 
 interface UseNoteOperationsProps {
   activeRegion: KGMidiRegion | null;
@@ -210,20 +211,64 @@ export const useNoteOperations = ({
     const lastEditedLength = KGPianoRollState.instance().getLastEditedNoteLength();
     const noteEndBeat = noteStartBeat + lastEditedLength; // Use last edited note length
     const velocity = 127; // Maximum velocity
+    const pianoRollState = KGPianoRollState.instance();
+    const matchingChordPitches = pianoRollState.getCurrentMatchingChords();
+    const selectedChordIndex = pianoRollState.getCurrentSelectedChordIndex();
+    const cursorChordPitch = pianoRollState.getCurrentChordCursorPitch();
+    const chordIndex = matchingChordPitches.length > 0
+      ? ((selectedChordIndex % matchingChordPitches.length) + matchingChordPitches.length) % matchingChordPitches.length
+      : 0;
 
-    // Create and execute the note creation command
-    const command = new CreateNoteCommand(
-      activeRegion.getId(),
-      noteStartBeat,
-      noteEndBeat,
-      pitch,
-      velocity
-    );
+    let chordNotePitches: number[] = [];
 
-    core.executeCommand(command);
+    if (
+      matchingChordPitches.length > 0 &&
+      cursorChordPitch !== null &&
+      Math.abs(cursorChordPitch - pitch) <= 1
+    ) {
+      const cursorOctave = Math.floor(cursorChordPitch / 12);
+      const pitchClasses = matchingChordPitches[chordIndex] || [];
+      chordNotePitches = pitchClasses
+        .map(actualPitchClass => {
+          const actualPitch = cursorOctave * 12 + actualPitchClass;
+          return actualPitch >= 0 && actualPitch <= 127 ? actualPitch : null;
+        })
+        .filter((value): value is number => value !== null);
 
-    // Get the created note for audio preview
-    const createdNote = command.getCreatedNote();
+      chordNotePitches = Array.from(new Set(chordNotePitches));
+    }
+
+    const notePitchesToCreate = chordNotePitches.length > 0 ? chordNotePitches : [pitch];
+    const isChordCreation = notePitchesToCreate.length > 1;
+
+    let createdNotes: KGMidiNote[] = [];
+
+    if (isChordCreation) {
+      const chordCommand = new CreateNotesCommand(
+        notePitchesToCreate.map(notePitch => ({
+          regionId: activeRegion.getId(),
+          startBeat: noteStartBeat,
+          endBeat: noteEndBeat,
+          pitch: notePitch,
+          velocity
+        }))
+      );
+      core.executeCommand(chordCommand);
+      createdNotes = chordCommand.getCreatedNotes().map(({ note }) => note);
+    } else {
+      const singleNoteCommand = new CreateNoteCommand(
+        activeRegion.getId(),
+        noteStartBeat,
+        noteEndBeat,
+        notePitchesToCreate[0],
+        velocity
+      );
+      core.executeCommand(singleNoteCommand);
+      const createdNote = singleNoteCommand.getCreatedNote();
+      if (createdNote) {
+        createdNotes = [createdNote];
+      }
+    }
 
     // Increment the note update counter to trigger a re-render
     setNoteUpdateCounter((prev: number) => prev + 1);
@@ -238,19 +283,19 @@ export const useNoteOperations = ({
       updateTrack(track);
       
       // Play note preview if audio interface is ready and note was created
-      if (createdNote) {
+      if (createdNotes.length > 0) {
         const audioInterface = KGAudioInterface.instance();
         if (audioInterface.getIsInitialized()) {
-          // Try to start audio context if not started yet (user interaction will allow this)
           if (!audioInterface.getIsAudioContextStarted()) {
             audioInterface.startAudioContext().catch(() => {
               // Silently fail if still not allowed - browser policy
             });
           }
-          
-          // Trigger note if audio context is now started
+
           if (audioInterface.getIsAudioContextStarted()) {
-            audioInterface.triggerNote(track.getId().toString(), createdNote);
+            createdNotes.forEach(note => {
+              audioInterface.triggerNote(track.getId().toString(), note);
+            });
           }
         }
       }
