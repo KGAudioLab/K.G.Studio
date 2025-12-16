@@ -5,6 +5,7 @@ import SelectionBox from './SelectionBox';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { generatePianoGridBackground, getMatchingChordsForPitch } from '../../util/scaleUtil';
 import type { KeySignature } from '../../core/KGProject';
+import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -166,6 +167,8 @@ const PianoGrid: React.FC<PianoGridProps> = ({
     return highlights;
   }, [cursorPosition, matchingChords, selectedChordIndex]);
 
+  const lastEditedNoteLength = KGPianoRollState.instance().getLastEditedNoteLength();
+
   // Reset selected chord index when cursor moves to a different pitch or beat
   useEffect(() => {
     setSelectedChordIndex(0);
@@ -235,7 +238,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
                   style={{
                     top: yPosition,
                     left: highlight.beat * beatWidth,
-                    width: beatWidth,
+                    width: beatWidth * lastEditedNoteLength,
                     height: noteHeight
                   }}
                 />
