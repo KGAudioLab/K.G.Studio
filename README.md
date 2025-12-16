@@ -8,6 +8,10 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 **K.G.Studio Musician Assistant** is an AI assistance agent for harmony, arrangement, and note editing — but not full auto‑composition.
 
+## Latest Updates
+
+- **2025.12.15**: Added Intelligent Chord Assistant with functional harmony guidance (T/S/D). Hover over piano keys to see context-aware chord suggestions and create full chords with one click!
+
 ## Project Status
 
 **K.G.Studio is an experimental project in early development.** We're exploring the possibilities of integrating AI agents and LLMs into music production workflows — essentially building a "Cursor or Claude Code for DAW" experience. 
@@ -70,12 +74,13 @@ You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 
 ### Highlights
 - **K.G.Studio Musician Assistant**: Chat with the LLM‑powered K.G.Studio Musician Assistant AI Agent; it can automatically execute tools to make music edits.
+- **Intelligent Chord Assistant**: Real-time chord suggestions based on functional harmony (Tonic/Subdominant/Dominant) with visual preview and one-click chord creation.
 - **Multiple LLM providers**: OpenAI, Claude (via OpenRouter), Gemini (via OpenRouter), or OpenAI‑compatible (e.g., Ollama, OpenRouter).
 - **Track & Region editing**: Add/reorder tracks, create/move/resize regions, copy/paste regions, and more.
 - **Piano roll**: Create and edit notes with snapping/quantization support.
 - **Real instruments**: Tone.js‑based Sampler with high‑quality FluidR3 soundfonts.
 - **Undo/Redo everywhere**: Command pattern for tracks, regions, notes, and project properties
-- **Persistence with privacy**: Save/load projects and configuration in your browser’s IndexedDB (on your device).
+- **Persistence with privacy**: Save/load projects and configuration in your browser's IndexedDB (on your device).
 - **Export/Import**: Export your project as a MIDI file, or import a MIDI file into your project.
 - **Settings**: LLM provider, AI agent custom instructions, app behavior, and more.
 
@@ -141,6 +146,13 @@ You can find the detailed user guide [here](./docs/USER_GUIDE.md).
   - Select notes: click; Shift+click for multi‑select; drag to box‑select.
   - Move/resize: drag note body to move selected notes; drag edges to resize.
   - Close the piano roll with X or ESC.
+
+- Intelligent Chord Assistant (Added 2025-12-15)
+  - Enable chord guide from the piano roll toolbar: select T (Tonic), S (Subdominant), or D (Dominant) function.
+  - Hover over any key to see context-aware chord suggestions highlighted in red, matching your selected key signature and mode.
+  - Press Tab to cycle through different chord voicings for the same harmonic function.
+  - Double-click (or Ctrl/Cmd+click) on a highlighted chord to create all notes at once.
+  - Chord length automatically matches your last edited note for consistent rhythm.
 
 - Snapping and Quantize
   - Set snapping from the NO SNAP menu (top‑right).
@@ -216,8 +228,11 @@ K.G.Studio does not provide or host any of the models listed above, nor is it af
 
 ## Upcoming Features
 
-- [ ] More instruments
-- [ ] Automated testing (unit tests, integration tests, etc.)
+Feature priorities might change.
+
+- [X] More instruments
+- [X] Automated testing (unit tests, integration tests, etc.)
+- [X] Intelligent Chord Assistant with functional harmony guidance (T/S/D)
 - [ ] Support track control automations (e.g. sustain, volume, pan, etc.)
 - [ ] Support MIDI control events (e.g. CC, pitch bend, etc.)
 - [ ] Support WAV audio tracks
