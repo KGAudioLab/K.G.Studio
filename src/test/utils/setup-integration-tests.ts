@@ -6,12 +6,27 @@ import { beforeEach, afterEach, vi } from 'vitest'
 import { mockAudioInterface } from '../mocks/audio-interface'
 import { mockIndexedDB, clearMockStorage } from '../mocks/indexed-db'
 import { mockTone } from '../mocks/tone-js'
+import { KGCore } from '../../core/KGCore'
+import { KGProject } from '../../core/KGProject'
+
+// Initialize KGCore with a default project at module load time
+// This prevents errors when projectStore module initializes and tries to access currentProject
+// This runs synchronously when the module is imported, before any tests
+const initializeKGCore = async () => {
+  const defaultProject = new KGProject('Test Setup Project')
+  const core = KGCore.instance()
+  await core.initialize()
+  core.setCurrentProject(defaultProject)
+}
+
+// Run initialization immediately at module load
+await initializeKGCore()
 
 // Global setup for integration tests
 beforeEach(() => {
   // Clear all mocks
   vi.clearAllMocks()
-  
+
   // Clear mock storage
   clearMockStorage()
   

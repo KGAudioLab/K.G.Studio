@@ -32,7 +32,7 @@ describe('Project Store Synchronization Integration Tests', () => {
     
     // Initialize KGCore
     const core = KGCore.instance()
-    await core.initializeAsync()
+    await core.initialize()
     core.setCurrentProject(testProject)
     
     // Reset store state
@@ -286,10 +286,10 @@ describe('Project Store Synchronization Integration Tests', () => {
       const { setActiveRegionId, syncSelectionFromCore } = useProjectStore.getState()
       
       // Add a track and region for testing
-      const testTrack = new KGMidiTrack('Test Track', 'acoustic_grand_piano')
-      const testRegion = new KGMidiRegion('Test Region', 0, 16)
+      const testTrack = new KGMidiTrack('Test Track', 0, 'acoustic_grand_piano')
+      const testRegion = new KGMidiRegion('region-1', 'track-0', 0, 'Test Region', 0, 16)
       testTrack.addRegion(testRegion)
-      testProject.addTrack(testTrack)
+      testProject.setTracks([...testProject.getTracks(), testTrack])
       
       // Set active region
       act(() => {
@@ -341,10 +341,10 @@ describe('Project Store Synchronization Integration Tests', () => {
       const { setShowPianoRoll, setActiveRegionId } = useProjectStore.getState()
       
       // Add test region
-      const testTrack = new KGMidiTrack('Test Track', 'acoustic_grand_piano')
-      const testRegion = new KGMidiRegion('Test Region', 0, 16)
+      const testTrack = new KGMidiTrack('Test Track', 0, 'acoustic_grand_piano')
+      const testRegion = new KGMidiRegion('region-2', 'track-0', 0, 'Test Region', 0, 16)
       testTrack.addRegion(testRegion)
-      testProject.addTrack(testTrack)
+      testProject.setTracks([...testProject.getTracks(), testTrack])
       
       // Show piano roll with active region
       act(() => {
@@ -409,13 +409,13 @@ describe('Project Store Synchronization Integration Tests', () => {
       newProject.setMaxBars(48)
       
       // Add a track with region and notes
-      const track = new KGMidiTrack('Loaded Track', 'violin')
-      const region = new KGMidiRegion('Loaded Region', 0, 8)
+      const track = new KGMidiTrack('Loaded Track', 0, 'violin')
+      const region = new KGMidiRegion('loaded-region', 'track-0', 0, 'Loaded Region', 0, 8)
       const note = new KGMidiNote('test-note', 0, 1, 64, 100)
-      
+
       region.addNote(note)
       track.addRegion(region)
-      newProject.addTrack(track)
+      newProject.setTracks([track])
       
       // Load the new project
       await act(async () => {
