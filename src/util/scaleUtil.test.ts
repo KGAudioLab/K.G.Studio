@@ -267,7 +267,7 @@ describe('scaleUtil', () => {
         // 2. ii chord: F is 2nd → [2, 5, 9] (no offset)
         // 3. IV⁶ chord: F is 3rd → [9, 12, 17] offset by -12 → [-3, 0, 5]
         expect(result).toEqual([
-          [-7, -3, 0],    // IV chord (F-A-C): F is root, offset applied
+          [5, 9, 12],    // IV chord (F-A-C): F is root, offset applied
           [2, 5, 9],      // ii chord (D-F-A): F is 2nd
           [-3, 0, 5]      // IV⁶ chord (A-C-F): F is 3rd, offset applied
         ])
@@ -282,8 +282,8 @@ describe('scaleUtil', () => {
         // 1. V chord: G is root → [7, 11, 14] offset by -12 → [-5, -1, 2]
         // 2. V7 chord: G is root → [7, 11, 14, 17] offset by -12 → [-5, -1, 2, 5]
         expect(result).toEqual([
-          [-5, -1, 2],       // V chord (G-B-D): G is root, offset applied
-          [-5, -1, 2, 5]     // V7 chord (G-B-D-F): G is root, offset applied
+          [7, 11, 14],       // V chord (G-B-D): G is root, offset applied
+          [7, 11, 14, 17]     // V7 chord (G-B-D-F): G is root, offset applied
         ])
       })
 

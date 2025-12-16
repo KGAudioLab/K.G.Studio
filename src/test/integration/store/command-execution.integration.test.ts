@@ -39,16 +39,16 @@ describe('Command Execution Integration Tests', () => {
     testProject.setMaxBars(32)
     
     // Create test track and region
-    testTrack = new KGMidiTrack('Test Track', 'acoustic_grand_piano')
-    testRegion = new KGMidiRegion('Test Region', 0, 16)
-    
+    testTrack = new KGMidiTrack('Test Track', 0, 'acoustic_grand_piano')
+    testRegion = new KGMidiRegion('region-1', 'track-0', 0, 'Test Region', 0, 16)
+
     // Set up the project hierarchy
     testTrack.addRegion(testRegion)
-    testProject.addTrack(testTrack)
-    
+    testProject.setTracks([testTrack])
+
     // Initialize KGCore with test project
     const core = KGCore.instance()
-    await core.initializeAsync()
+    await core.initialize()
     core.setCurrentProject(testProject)
     
     // Clear command history
@@ -211,7 +211,7 @@ describe('Command Execution Integration Tests', () => {
       const initialTrackCount = testProject.getTracks().length
       
       // Execute track addition command
-      const addTrackCommand = new AddTrackCommand('Bass Track', 'acoustic_bass')
+      const addTrackCommand = new AddTrackCommand(1, 'Bass Track', 'acoustic_bass')
       
       act(() => {
         commandHistory.executeCommand(addTrackCommand)
@@ -297,33 +297,33 @@ describe('Command Execution Integration Tests', () => {
     it('should keep store undo/redo state synchronized with command history', async () => {
       const regionId = testRegion.getId()
       const commandHistory = KGCommandHistory.instance()
-      const { refreshUndoRedoState } = useProjectStore.getState()
-      
+      const { syncUndoRedoState } = useProjectStore.getState()
+
       // Initial state
       expect(useProjectStore.getState().canUndo).toBe(false)
       expect(useProjectStore.getState().canRedo).toBe(false)
-      
+
       // Execute command
       const createCommand = new CreateNoteCommand(regionId, 0, 1, 60, 100)
-      
+
       act(() => {
         commandHistory.executeCommand(createCommand)
-        refreshUndoRedoState() // Simulate store sync
+        syncUndoRedoState() // Simulate store sync
       })
-      
+
       // Verify store state updated
       let storeState = useProjectStore.getState()
       expect(storeState.canUndo).toBe(true)
       expect(storeState.canRedo).toBe(false)
       expect(storeState.undoDescription).toBe('Create note C4')
       expect(storeState.redoDescription).toBeNull()
-      
+
       // Execute undo
       act(() => {
         commandHistory.undo()
-        refreshUndoRedoState() // Simulate store sync
+        syncUndoRedoState() // Simulate store sync
       })
-      
+
       // Verify store state updated after undo
       storeState = useProjectStore.getState()
       expect(storeState.canUndo).toBe(false)

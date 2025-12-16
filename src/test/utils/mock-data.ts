@@ -120,6 +120,7 @@ export const createMockProject = (overrides: Partial<{
     defaults.bpm,
     defaults.timeSignature,
     'C major', // keySignature
+    'ionian', // selectedMode
     defaults.tracks, // tracks
     1 // projectStructureVersion
   )
