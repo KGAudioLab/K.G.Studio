@@ -1,3 +1,8 @@
+# [0.6.1-build.20251216] (2025-12-16)
+
+* Merge pull request #21 from KGAudioLab/feat/2025-12-08-chord-assistant (2fc6e56)
+* test: fixed test errors; skip failing integration tests temporarily (46d3a21)
+
 # [0.6.0-build.20251216] (2025-12-16)
 
 * Merge pull request #20 from KGAudioLab/feat/2025-12-08-chord-assistant (03b5796)
