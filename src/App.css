@@ -896,6 +896,15 @@ body {
   transition: opacity 0.1s ease;
 }
 
+.piano-grid-chord-highlight {
+  position: absolute;
+  background-color: rgba(255, 77, 77, 0.25);
+  border: 1px solid rgba(255, 77, 77, 0.8);
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.1s ease;
+}
+
 .resize-handle {
   position: absolute;
   right: 5px;

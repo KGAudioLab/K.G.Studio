@@ -206,6 +206,95 @@ export const getChordNotesInKey = (
 };
 
 /**
+ * Gets matching chords for a given pitch, prioritized by which note in the chord matches
+ * @param hoverPitch - The MIDI pitch being hovered over (0-127)
+ * @param keySignature - Key signature like "C major", "F# minor"
+ * @param modeId - Mode ID (e.g., "ionian", "aeolian")
+ * @param functionType - Functional harmony group: "T" (Tonic), "S" (Subdominant), or "D" (Dominant)
+ * @returns Array of chord pitch class arrays, prioritized by match position
+ *          (root matches first, then 2nd note matches, then 3rd note, etc.)
+ *          Each chord is adjusted so its pitch classes work in the same octave as the hover pitch
+ *
+ * Example:
+ * - getMatchingChordsForPitch(60, "C major", "ionian", "T")
+ *   Returns chords where C (pitch class 0) appears, with pitch classes adjusted for display
+ */
+export const getMatchingChordsForPitch = (
+  hoverPitch: number,
+  keySignature: KeySignature,
+  modeId: string,
+  functionType: 'T' | 'S' | 'D'
+): number[][] => {
+  // Get suitable chords for the given key, mode, and function
+  const suitableChords = getSuitableChords(keySignature, modeId, functionType);
+
+  if (Object.keys(suitableChords).length === 0) {
+    return [];
+  }
+
+  // Convert chord note names to ascending pitch classes
+  const chordsPitchClasses: Record<string, number[]> = {};
+
+  for (const [chordSymbol, noteNames] of Object.entries(suitableChords)) {
+    const pitchClasses: number[] = [];
+    let previousPitch = -1;
+
+    for (const noteName of noteNames) {
+      let pitchClass = noteNameToPitchClass(noteName);
+      // Ensure ascending order by adding 12 if pitch class <= previous
+      if (previousPitch >= 0 && pitchClass <= previousPitch) {
+        pitchClass += 12;
+      }
+      pitchClasses.push(pitchClass);
+      previousPitch = pitchClass;
+    }
+
+    chordsPitchClasses[chordSymbol] = pitchClasses;
+  }
+
+  // Get the pitch class of the current hovering note (mod 12)
+  const hoverPitchClass = hoverPitch % 12;
+
+  // Group chords by which note position matches the hovering pitch class
+  // matchesByPosition[0] = chords where 1st note matches
+  // matchesByPosition[1] = chords where 2nd note matches, etc.
+  const matchesByPosition: number[][][] = [];
+
+  for (const pitchClasses of Object.values(chordsPitchClasses)) {
+    // Check each note position in the chord
+    for (let i = 0; i < pitchClasses.length; i++) {
+      if (pitchClasses[i] % 12 === hoverPitchClass) {
+        // Ensure the array exists for this position
+        if (!matchesByPosition[i]) {
+          matchesByPosition[i] = [];
+        }
+
+        // Offset the chord based on the matched pitch class
+        // If the matched note is >= 12 (in the second octave), shift all notes down by 12
+        if (pitchClasses[i] >= 12) {
+          const offsetChord = pitchClasses.map(p => p - 12);
+          matchesByPosition[i].push(offsetChord);
+        } else {
+          matchesByPosition[i].push(pitchClasses);
+        }
+
+        break; // Only count each chord once (at first matching position)
+      }
+    }
+  }
+
+  // Flatten the grouped matches: 1st position matches first, then 2nd, then 3rd, etc.
+  const result: number[][] = [];
+  for (const matches of matchesByPosition) {
+    if (matches) {
+      result.push(...matches);
+    }
+  }
+
+  return result;
+};
+
+/**
  * Generates the CSS background-image string for the piano grid with scale highlighting
  * @param selectedMode - Current mode ID (e.g., "ionian", "dorian")
  * @param keySignature - Current key signature (e.g., "C major", "F# minor")

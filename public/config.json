@@ -42,6 +42,7 @@
             "save": "ctrl+s"
         },
         "piano_roll": {
+            "switch": "tab", 
             "select": "q",
             "pencil": "w",
             "hold_to_create_note": "ctrl",

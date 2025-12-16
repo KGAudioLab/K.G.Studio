@@ -24,6 +24,7 @@ interface PianoRollContentProps {
   onSetDeleteNotesTrigger?: (deleteFn: () => boolean) => void;
   selectedMode: string;
   keySignature: KeySignature;
+  chordGuide: string;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
@@ -37,7 +38,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   onSetNoteUpdateTrigger,
   onSetDeleteNotesTrigger,
   selectedMode,
-  keySignature
+  keySignature,
+  chordGuide
 }) => {
   // Get KGCore instance
   const core = KGCore.instance();
@@ -234,6 +236,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           regionStartBeat={activeRegion?.getStartFromBeat() || 0}
           selectedMode={selectedMode}
           keySignature={keySignature}
+          chordGuide={chordGuide}
         >
           {memoizedNotes}
         </PianoGrid>

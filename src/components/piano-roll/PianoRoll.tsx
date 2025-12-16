@@ -677,6 +677,19 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Handle piano roll hotkeys
       const configManager = ConfigManager.instance();
       if (configManager.getIsInitialized()) {
+        // Chord guide switch hotkey
+        const switch_key = configManager.get('hotkeys.piano_roll.switch') as string;
+        if (event.key && event.key.toLowerCase() === switch_key.toLowerCase()) {
+          // Call the switchChord function exposed by PianoGrid
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const switchChord = (window as any).__pianoGridSwitchChord;
+          if (typeof switchChord === 'function') {
+            switchChord();
+            event.preventDefault();
+          }
+          return;
+        }
+
         // Snapping hotkeys
         const snap_none_key = configManager.get('hotkeys.piano_roll.snap_none') as string;
         const snap_1_4_key = configManager.get('hotkeys.piano_roll.snap_1_4') as string;
@@ -851,6 +864,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onSetDeleteNotesTrigger={handleSetDeleteNotesTrigger}
         selectedMode={selectedMode}
         keySignature={keySignature}
+        chordGuide={chordGuide}
       />
       
       <div 
