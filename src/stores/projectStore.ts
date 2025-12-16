@@ -39,6 +39,7 @@ interface ProjectState {
   timeSignature: TimeSignature;
   bpm: number;
   keySignature: KeySignature;
+  selectedMode: string;
   playheadPosition: number; // in beats
   isPlaying: boolean;
   currentTime: string; // formatted time string
@@ -87,7 +88,8 @@ interface ProjectState {
   setMaxBars: (maxBars: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
   setKeySignature: (keySignature: KeySignature) => void;
-  
+  setSelectedMode: (selectedMode: string) => void;
+
   // Selection actions
   syncSelectionFromCore: () => void;
   clearAllSelections: () => void;
@@ -222,6 +224,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     timeSignature: currentProject.getTimeSignature(),
     bpm: currentProject.getBpm(),
     keySignature: currentProject.getKeySignature(),
+    selectedMode: currentProject.getSelectedMode(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
@@ -515,6 +518,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           timeSignature,
           bpm,
           keySignature,
+          selectedMode: projectToLoad.getSelectedMode(),
           playheadPosition: 0, // Ensure store state is also updated
           currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
         });
@@ -616,14 +620,30 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ keySignature });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ keySignature });
-        
+
         console.log(`Set key signature to ${keySignature}`);
       } catch (error) {
         console.error('Error setting key signature:', error);
         get().setStatus('Failed to set key signature');
+      }
+    },
+
+    setSelectedMode: (selectedMode: string) => {
+      try {
+        // Create and execute the change project property command
+        const command = new ChangeProjectPropertyCommand({ selectedMode });
+        KGCore.instance().executeCommand(command);
+
+        // Update the store state
+        set({ selectedMode });
+
+        console.log(`Set selected mode to ${selectedMode}`);
+      } catch (error) {
+        console.error('Error setting selected mode:', error);
+        get().setStatus('Failed to set selected mode');
       }
     },
 
@@ -784,7 +804,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         maxBars: project.getMaxBars(),
         timeSignature: project.getTimeSignature(),
         bpm: project.getBpm(),
-        keySignature: project.getKeySignature()
+        keySignature: project.getKeySignature(),
+        selectedMode: project.getSelectedMode()
       });
       
       // Sync CSS variables that affect layout

@@ -48,6 +48,7 @@ interface AppConfig {
       save: string;
     };
     piano_roll: {
+      switch: string;
       select: string;
       pencil: string;
       hold_to_create_note: string;
@@ -203,6 +204,7 @@ export class ConfigManager {
             save: 'ctrl+s'
           },
           piano_roll: {
+            switch: 'tab', 
             select: 'q',
             pencil: 'w',
             hold_to_create_note: 'ctrl',

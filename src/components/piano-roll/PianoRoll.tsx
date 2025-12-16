@@ -13,6 +13,7 @@ import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
+import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -21,13 +22,13 @@ interface PianoRollProps {
   initialSize?: { width: number; height: number };
 }
 
-const PianoRoll: React.FC<PianoRollProps> = ({ 
-  onClose, 
+const PianoRoll: React.FC<PianoRollProps> = ({
+  onClose,
   regionId,
   initialPosition,
   initialSize
 }) => {
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -35,10 +36,13 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
   const [quantLength, setQuantLength] = useState<string>('1/8');
-  
+
   // Snapping state
   const [snapping, setSnapping] = useState<string>('NO SNAP');
-  
+
+  // Chord guide state
+  const [chordGuide, setChordGuide] = useState<string>('N');
+
   // Piano roll state with temporary initial values
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
   
@@ -295,7 +299,70 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       console.log(`Selected snapping: ${value}`);
     }
   }, []);
-  
+
+  // Handle mode selection
+  const handleModeSelect = useCallback((value: string) => {
+    setSelectedMode(value);
+    if (DEBUG_MODE.PIANO_ROLL) {
+      console.log(`Selected mode: ${value}`);
+    }
+  }, [setSelectedMode]);
+
+  // Handle chord guide selection
+  const handleChordGuideSelect = useCallback((value: string) => {
+    setChordGuide(value);
+  }, []);
+
+  // Update suitable chords whenever chord guide, key signature, or mode changes
+  useEffect(() => {
+    const pianoRollState = KGPianoRollState.instance();
+
+    if (chordGuide === 'N') {
+      // Disabled - clear chord data
+      pianoRollState.setCurrentSuitableChords({});
+      pianoRollState.setCurrentSuitableChordsPitchClasses({});
+
+      if (DEBUG_MODE.PIANO_ROLL) {
+        console.log(`Chord guide disabled - cleared suitable chords`);
+      }
+    } else {
+      // Get suitable chords for the selected function (T/S/D)
+      const functionType = chordGuide as 'T' | 'S' | 'D';
+      const suitableChords = getSuitableChords(keySignature, selectedMode, functionType);
+
+      // Convert note names to pitch classes (ensuring ascending order)
+      const chordsPitchClasses: Record<string, number[]> = {};
+      for (const [chordSymbol, noteNames] of Object.entries(suitableChords)) {
+        const pitchClasses: number[] = [];
+        let previousPitch = -1;
+
+        for (const noteName of noteNames) {
+          let pitchClass = noteNameToPitchClass(noteName);
+
+          // If this pitch is lower than the previous one, add an octave
+          if (previousPitch >= 0 && pitchClass <= previousPitch) {
+            pitchClass += 12;
+          }
+
+          pitchClasses.push(pitchClass);
+          previousPitch = pitchClass;
+        }
+
+        chordsPitchClasses[chordSymbol] = pitchClasses;
+      }
+
+      // Update piano roll state
+      pianoRollState.setCurrentSuitableChords(suitableChords);
+      pianoRollState.setCurrentSuitableChordsPitchClasses(chordsPitchClasses);
+
+      if (DEBUG_MODE.PIANO_ROLL) {
+        console.log(`Chord guide updated: ${chordGuide} (${functionType})`);
+        console.log(`Suitable chords for ${keySignature} in ${selectedMode} mode:`, suitableChords);
+        console.log(`Pitch classes:`, chordsPitchClasses);
+      }
+    }
+  }, [chordGuide, keySignature, selectedMode]);
+
   // Handler for receiving the setNoteUpdateCounter function from PianoRollContent
   const handleSetNoteUpdateTrigger = (setNoteFn: React.Dispatch<React.SetStateAction<number>>) => {
     triggerNoteUpdateRef.current = setNoteFn;
@@ -610,6 +677,19 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Handle piano roll hotkeys
       const configManager = ConfigManager.instance();
       if (configManager.getIsInitialized()) {
+        // Chord guide switch hotkey
+        const switch_key = configManager.get('hotkeys.piano_roll.switch') as string;
+        if (event.key && event.key.toLowerCase() === switch_key.toLowerCase()) {
+          // Call the switchChord function exposed by PianoGrid
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const switchChord = (window as any).__pianoGridSwitchChord;
+          if (typeof switchChord === 'function') {
+            switchChord();
+            event.preventDefault();
+          }
+          return;
+        }
+
         // Snapping hotkeys
         const snap_none_key = configManager.get('hotkeys.piano_roll.snap_none') as string;
         const snap_1_4_key = configManager.get('hotkeys.piano_roll.snap_1_4') as string;
@@ -765,6 +845,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onQuantSelect={handleQuantSelect}
         snapping={snapping}
         onSnappingSelect={handleSnappingSelect}
+        selectedMode={selectedMode}
+        onModeChange={handleModeSelect}
+        chordGuide={chordGuide}
+        onChordGuideChange={handleChordGuideSelect}
         blinkButton={blinkButton}
       />
       
@@ -778,6 +862,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         tracks={tracks}
         onSetNoteUpdateTrigger={handleSetNoteUpdateTrigger}
         onSetDeleteNotesTrigger={handleSetDeleteNotesTrigger}
+        selectedMode={selectedMode}
+        keySignature={keySignature}
+        chordGuide={chordGuide}
       />
       
       <div 

@@ -597,6 +597,7 @@ body {
   padding: 0 10px;
   user-select: none;
   position: relative;
+  z-index: 100; /* Ensure toolbar and its dropdowns appear above piano roll content */
 }
 
 /* Override pointer-events for piano roll toolbar sections */
@@ -607,6 +608,15 @@ body {
 
 .piano-roll-toolbar .quant-button {
   font-size: 10px;
+}
+
+.piano-roll-toolbar .toolbar-left .quant-button {
+  margin-left: 0px;
+  margin-right: 5px;
+}
+
+.piano-roll-toolbar .toolbar-left .quant-dropdown {
+  left: 0;
 }
 
 /* Generic button blink effect */
@@ -853,19 +863,8 @@ body {
   width: 100%;
   height: 100%;
   position: relative;
-  background-size: var(--region-grid-beat-width) var(--region-piano-key-height), var(--region-grid-bar-width) var(--region-piano-key-height);
-  background-image: 
-    /* Vertical lines for beats */
-    linear-gradient(to right, 
-      transparent calc(var(--region-grid-beat-width) - 1px), #444 calc(var(--region-grid-beat-width) - 1px), #444 var(--region-grid-beat-width), 
-      transparent calc(var(--region-grid-beat-width)), transparent calc(var(--region-grid-beat-width) * 2 - 1px), #444 calc(var(--region-grid-beat-width) * 2 - 1px), #444 calc(var(--region-grid-beat-width) * 2),
-      transparent calc(var(--region-grid-beat-width) * 2), transparent calc(var(--region-grid-beat-width) * 3 - 1px), #444 calc(var(--region-grid-beat-width) * 3 - 1px), #444 calc(var(--region-grid-beat-width) * 3),
-      transparent calc(var(--region-grid-beat-width) * 3), transparent calc(var(--region-grid-beat-width) * 4 - 1px), #3a3a3a calc(var(--region-grid-beat-width) * 4 - 1px), #3a3a3a calc(var(--region-grid-beat-width) * 4)
-    ),
-    /* Horizontal lines for notes */
-    linear-gradient(to bottom,
-      transparent calc(var(--region-piano-key-height) - 1px), #3a3a3a calc(var(--region-piano-key-height) - 1px), #3a3a3a var(--region-piano-key-height)
-    );
+  background-size: var(--region-grid-beat-width) var(--region-piano-key-height), 100% 100%;
+  /* background-image is now set dynamically via React inline styles in PianoGrid component */
 }
 
 .piano-grid.pencil-cursor {
@@ -894,6 +893,15 @@ body {
   border-right: 1px solid rgba(123, 104, 238, 0.25);
   pointer-events: none;
   z-index: 1;
+  transition: opacity 0.1s ease;
+}
+
+.piano-grid-chord-highlight {
+  position: absolute;
+  background-color: rgba(255, 77, 77, 0.25);
+  border: 1px solid rgba(255, 77, 77, 0.8);
+  pointer-events: none;
+  z-index: 2;
   transition: opacity 0.1s ease;
 }
 

@@ -10,6 +10,7 @@ import PianoGridHeader from './PianoGridHeader';
 import PianoGrid from './PianoGrid';
 import { useNoteOperations } from '../../hooks/useNoteOperations';
 import { useNoteSelection } from '../../hooks/useNoteSelection';
+import type { KeySignature } from '../../core/KGProject';
 
 interface PianoRollContentProps {
   contentRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -21,6 +22,9 @@ interface PianoRollContentProps {
   tracks: KGTrack[];
   onSetNoteUpdateTrigger?: (setNoteFn: React.Dispatch<React.SetStateAction<number>>) => void;
   onSetDeleteNotesTrigger?: (deleteFn: () => boolean) => void;
+  selectedMode: string;
+  keySignature: KeySignature;
+  chordGuide: string;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
@@ -32,7 +36,10 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   updateTrack,
   tracks,
   onSetNoteUpdateTrigger,
-  onSetDeleteNotesTrigger
+  onSetDeleteNotesTrigger,
+  selectedMode,
+  keySignature,
+  chordGuide
 }) => {
   // Get KGCore instance
   const core = KGCore.instance();
@@ -227,6 +234,9 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           isBoxSelecting={isBoxSelectingRef.current}
           selectionBox={selectionBoxRef.current}
           regionStartBeat={activeRegion?.getStartFromBeat() || 0}
+          selectedMode={selectedMode}
+          keySignature={keySignature}
+          chordGuide={chordGuide}
         >
           {memoizedNotes}
         </PianoGrid>

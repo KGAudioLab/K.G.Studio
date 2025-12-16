@@ -12,33 +12,70 @@ import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
+import { KGCore } from './core/KGCore';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
   useGlobalKeyboardHandler();
   
   // Use project store instead of local state for project name and tracks
-  const { 
+  const {
     refreshStatus,
-    loadProject, maxBars, showChatBox, showSettings, setShowSettings, initializeFromConfig,
+    loadProject, showChatBox, showSettings, setShowSettings, initializeFromConfig,
     showInstrumentSelection
   } = useProjectStore();
 
+  // Track if app has been initialized to prevent multiple initializations
+  const hasInitialized = useRef(false);
+
   // Load project when component mounts
   useEffect(() => {
+    // Guard against multiple initializations (can happen due to React Strict Mode or rerenders)
+    if (hasInitialized.current) {
+      return;
+    }
+    hasInitialized.current = true;
+
     const initializeApp = async () => {
       // Load the current project from KGCore
       loadProject(null);
-      
+
       // Initialize store from config after ConfigManager is ready
       await initializeFromConfig();
-      
-      // Log maxBars to console
-      console.log(`Project max bars: ${maxBars}`);
+
+      // Load all mode and chord data files in parallel
+      try {
+        const [modeListResponse, functionalChordsResponse] = await Promise.all([
+          fetch(`${import.meta.env.BASE_URL}resources/modes/mode_list.json`),
+          fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`)
+        ]);
+
+        const [modeListData, functionalChordsData] = await Promise.all([
+          modeListResponse.json(),
+          functionalChordsResponse.json()
+        ]);
+
+        // Store mode data with id, name, and steps
+        KGCore.MODE_DATA = modeListData.modes;
+        console.log(`Loaded ${modeListData.modes.length} modes:`, modeListData.modes.map((m: { name: string }) => m.name));
+
+        // Store functional chords data (T/S/D by mode, including mode-specific chord notes)
+        KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData;
+        console.log(`Loaded functional chords for ${Object.keys(functionalChordsData).length} modes`);
+      } catch (error) {
+        console.error('Failed to load mode/chord data:', error);
+        // Fallback to defaults
+        KGCore.MODE_DATA = [{ id: 'ionian', name: 'Ionian', steps: [2, 2, 1, 2, 2, 2, 1] }];
+        KGCore.FUNCTIONAL_CHORDS_DATA = {};
+      }
+
+      // Log maxBars after initialization completes
+      const currentMaxBars = useProjectStore.getState().maxBars;
+      console.log(`Project max bars: ${currentMaxBars}`);
     };
-    
+
     initializeApp();
-  }, [loadProject, maxBars, initializeFromConfig]);
+  }, [loadProject, initializeFromConfig]);
 
   // Refresh status periodically to ensure UI is in sync with KGCore
   useEffect(() => {

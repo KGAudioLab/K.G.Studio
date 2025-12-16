@@ -17,6 +17,10 @@ export class KGCore {
   // Private static instance for singleton pattern
   private static _instance: KGCore | null = null;
 
+  // Global music data resources
+  public static MODE_DATA: Array<{ id: string; name: string; steps: number[] }> = []; // Modes with id, display name, and interval steps
+  public static FUNCTIONAL_CHORDS_DATA: Record<string, { T: string[]; S: string[]; D: string[]; chords: Record<string, string[]> }> = {}; // Functional chords by mode (T/S/D) with mode-specific chord notes
+
   private currentProject: KGProject = new KGProject();
 
   private status: string = "Ready";

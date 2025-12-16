@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import { Playhead } from '../common';
 import SelectionBox from './SelectionBox';
 import { isModifierKeyPressed } from '../../util/osUtil';
+import { generatePianoGridBackground, getMatchingChordsForPitch } from '../../util/scaleUtil';
+import type { KeySignature } from '../../core/KGProject';
+import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -18,6 +21,9 @@ interface PianoGridProps {
     endY: number;
   };
   regionStartBeat?: number;
+  selectedMode: string;
+  keySignature: KeySignature;
+  chordGuide: string;
 }
 
 interface CursorPosition {
@@ -35,10 +41,19 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   onMouseDown,
   isBoxSelecting,
   selectionBox,
-  regionStartBeat = 0
+  regionStartBeat = 0,
+  selectedMode,
+  keySignature,
+  chordGuide
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
   const [isModifierPressed, setIsModifierPressed] = useState(false);
+  const [selectedChordIndex, setSelectedChordIndex] = useState(0);
+
+  // Generate background with scale highlighting - only regenerate when mode or key changes
+  const backgroundImage = useMemo(() => {
+    return generatePianoGridBackground(selectedMode, keySignature);
+  }, [selectedMode, keySignature]);
 
   // Track modifier key state
   useEffect(() => {
@@ -114,11 +129,87 @@ const PianoGrid: React.FC<PianoGridProps> = ({
     setCursorPosition(null);
   };
 
+  // Get all matching chords for the current hover position
+  const matchingChords = useMemo(() => {
+    if (!cursorPosition) return [];
+
+    // If chord guide is disabled, return empty array
+    if (chordGuide === 'N') return [];
+
+    // Use the utility function to get matching chords
+    const functionType = chordGuide as 'T' | 'S' | 'D';
+    return getMatchingChordsForPitch(cursorPosition.pitch, keySignature, selectedMode, functionType);
+  }, [cursorPosition, chordGuide, keySignature, selectedMode]);
+
+  // Calculate chord highlights based on selected chord index
+  const chordHighlights = useMemo(() => {
+    if (matchingChords.length === 0) return [];
+
+    // Use the selected chord index (wrap around if needed)
+    const chordIndex = selectedChordIndex % matchingChords.length;
+    const matchedChordPitches = matchingChords[chordIndex];
+
+    // Convert pitch classes to actual pitches in the same octave as cursor
+    const highlights: Array<{ pitch: number; beat: number }> = [];
+    const cursorOctave = Math.floor(cursorPosition!.pitch / 12);
+
+    // For each pitch class in the chord, create highlights
+    for (const pitchClass of matchedChordPitches) {
+      // Calculate the actual pitch in the cursor's octave
+      const actualPitch = cursorOctave * 12 + pitchClass;
+
+      // Ensure the pitch is in valid MIDI range (0-127)
+      if (actualPitch >= 0 && actualPitch <= 127) {
+        highlights.push({ pitch: actualPitch, beat: cursorPosition!.beat });
+      }
+    }
+
+    return highlights;
+  }, [cursorPosition, matchingChords, selectedChordIndex]);
+
+  const cursorPitch = cursorPosition?.pitch ?? null;
+
+  useEffect(() => {
+    const pianoRollState = KGPianoRollState.instance();
+    pianoRollState.setCurrentMatchingChords(matchingChords);
+    pianoRollState.setCurrentChordCursorPitch(cursorPitch);
+  }, [matchingChords, cursorPitch]);
+
+  useEffect(() => {
+    KGPianoRollState.instance().setCurrentSelectedChordIndex(selectedChordIndex);
+  }, [selectedChordIndex]);
+
+  const lastEditedNoteLength = KGPianoRollState.instance().getLastEditedNoteLength();
+
+  // Reset selected chord index when cursor moves to a different pitch or beat
+  useEffect(() => {
+    setSelectedChordIndex(0);
+  }, [cursorPosition?.pitch, cursorPosition?.beat]);
+
+  // Expose switchChord function via window for hotkey handler
+  useEffect(() => {
+    const switchChord = () => {
+      if (matchingChords.length > 1) {
+        setSelectedChordIndex(prev => (prev + 1) % matchingChords.length);
+      }
+    };
+
+    // Store the function on window object so PianoRoll can call it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__pianoGridSwitchChord = switchChord;
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__pianoGridSwitchChord;
+    };
+  }, [matchingChords.length]);
+
   return (
     <div className="piano-grid-container">
-      <div 
+      <div
         className={`piano-grid ${isModifierPressed ? 'pencil-cursor' : ''}`}
         ref={gridRef}
+        style={{ backgroundImage }}
         onDoubleClick={onDoubleClick}
         onClick={onClick}
         onMouseDown={(e) => onMouseDown(e)}
@@ -138,13 +229,33 @@ const PianoGrid: React.FC<PianoGridProps> = ({
             />
             
             {/* Vertical beat column highlight */}
-            <div 
+            <div
               className="piano-grid-beat-highlight"
               style={{
                 left: cursorPosition.beat * (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40),
                 width: parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40
               }}
             />
+
+            {/* Chord highlights - render red boxes for each note in the matched chord */}
+            {chordHighlights.map((highlight, index) => {
+              const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
+              const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
+              const yPosition = (107 - highlight.pitch) * noteHeight; // B7 = 107, reverse for display
+
+              return (
+                <div
+                  key={`chord-highlight-${index}`}
+                  className="piano-grid-chord-highlight"
+                  style={{
+                    top: yPosition,
+                    left: highlight.beat * beatWidth,
+                    width: beatWidth * lastEditedNoteLength,
+                    height: noteHeight
+                  }}
+                />
+              );
+            })}
           </>
         )}
         
