@@ -18,7 +18,8 @@ export class KGCore {
   private static _instance: KGCore | null = null;
 
   // Global music data resources
-  public static FUNCTIONAL_CHORDS_DATA: Record<string, { name: string; steps: number[]; T: string[]; S: string[]; D: string[]; chords: Record<string, string[]> }> = {}; // Functional chords by mode (T/S/D) with mode-specific chord notes, and mode metadata
+  public static ORIGINAL_FUNCTIONAL_CHORDS_DATA: Record<string, { name: string; steps: number[]; T: string[]; S: string[]; D: string[]; chords: Record<string, string[]> }> = {}; // Original functional chords loaded from functional_chords.json
+  public static FUNCTIONAL_CHORDS_DATA: Record<string, { name: string; steps: number[]; T: string[]; S: string[]; D: string[]; chords: Record<string, string[]> }> = {}; // Active functional chords (either original or custom from user settings)
 
   private currentProject: KGProject = new KGProject();
 

@@ -350,3 +350,134 @@ export const generatePianoGridBackground = (
     linear-gradient(to bottom, ${horizontalLines})
   `;
 };
+
+/**
+ * Validation result for functional chords JSON
+ */
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * Validates functional chords JSON structure
+ * @param jsonString - JSON string to validate
+ * @returns Validation result with errors if any
+ */
+export const validateFunctionalChordsJSON = (jsonString: string): ValidationResult => {
+  const errors: string[] = [];
+
+  // Try to parse JSON
+  let data: unknown;
+  try {
+    data = JSON.parse(jsonString);
+  } catch (error) {
+    return { valid: false, errors: ['Invalid JSON format'] };
+  }
+
+  // Check if data is an object
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { valid: false, errors: ['Root must be an object'] };
+  }
+
+  // Type guard to treat data as a record
+  const dataRecord = data as Record<string, unknown>;
+
+  // Check if ionian mode exists
+  if (!dataRecord.ionian) {
+    errors.push('Missing required mode: "ionian"');
+  }
+
+  // Regex patterns
+  const namePattern = /^[A-Za-z0-9_\- ]+$/;
+  const romanNumeralPattern = /^♭?[ivIV]+[⁶°+0-9]*$/;
+  const notePattern = /^[A-G][b#]?$/;
+
+  // Validate each mode
+  for (const [modeId, modeData] of Object.entries(dataRecord)) {
+    const modePrefix = `Mode "${modeId}"`;
+
+    // Validate mode structure
+    if (typeof modeData !== 'object' || modeData === null || Array.isArray(modeData)) {
+      errors.push(`${modePrefix}: must be an object`);
+      continue;
+    }
+
+    // Type guard for mode object
+    const mode = modeData as Record<string, unknown>;
+
+    // Validate name
+    if (typeof mode.name !== 'string' || !namePattern.test(mode.name)) {
+      errors.push(`${modePrefix}: "name" must be a string with letters, numbers, underscores, dashes, and spaces`);
+    }
+
+    // Validate steps
+    if (!Array.isArray(mode.steps)) {
+      errors.push(`${modePrefix}: "steps" must be an array`);
+    } else {
+      if (mode.steps.length !== 7) {
+        errors.push(`${modePrefix}: "steps" must contain exactly 7 integers`);
+      }
+      if (!mode.steps.every((step: unknown) => Number.isInteger(step))) {
+        errors.push(`${modePrefix}: "steps" must contain only integers`);
+      }
+      const sum = mode.steps.reduce((acc: number, val: unknown) => acc + (typeof val === 'number' ? val : 0), 0);
+      if (sum !== 12) {
+        errors.push(`${modePrefix}: "steps" must sum to 12 (got ${sum})`);
+      }
+    }
+
+    // Collect all chord symbols from T, S, D
+    const allChordSymbols = new Set<string>();
+
+    // Validate T, S, D arrays
+    for (const functionType of ['T', 'S', 'D']) {
+      if (!Array.isArray(mode[functionType])) {
+        errors.push(`${modePrefix}: "${functionType}" must be an array`);
+        continue;
+      }
+
+      for (const chordSymbol of mode[functionType]) {
+        if (typeof chordSymbol !== 'string' || !romanNumeralPattern.test(chordSymbol)) {
+          errors.push(`${modePrefix}: Invalid chord symbol "${chordSymbol}" in "${functionType}" (must be Roman numeral I-VII with optional ♭ prefix and/or ⁶°+digit suffixes)`);
+        }
+        allChordSymbols.add(chordSymbol);
+      }
+    }
+
+    // Validate chords object
+    if (typeof mode.chords !== 'object' || mode.chords === null || Array.isArray(mode.chords)) {
+      errors.push(`${modePrefix}: "chords" must be an object`);
+      continue;
+    }
+
+    // Type guard for chords object
+    const chords = mode.chords as Record<string, unknown>;
+
+    // Check if all chord symbols are defined in chords
+    for (const chordSymbol of allChordSymbols) {
+      if (!(chordSymbol in chords)) {
+        errors.push(`${modePrefix}: Chord "${chordSymbol}" referenced in T/S/D but not defined in "chords"`);
+      }
+    }
+
+    // Validate each chord definition
+    for (const [chordSymbol, chordNotes] of Object.entries(chords)) {
+      if (!Array.isArray(chordNotes)) {
+        errors.push(`${modePrefix}: Chord "${chordSymbol}" must be an array of notes`);
+        continue;
+      }
+
+      for (const note of chordNotes) {
+        if (typeof note !== 'string' || !notePattern.test(note)) {
+          errors.push(`${modePrefix}: Invalid note "${note}" in chord "${chordSymbol}" (must be A-G with optional b or #)`);
+        }
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+};

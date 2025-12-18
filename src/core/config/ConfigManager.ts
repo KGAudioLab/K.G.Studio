@@ -73,6 +73,9 @@ interface AppConfig {
   templates: {
     custom_instructions: string;
   };
+  chord_guide: {
+    chord_definition: string;
+  };
   [key: string]: unknown;
 }
 
@@ -228,6 +231,9 @@ export class ConfigManager {
         },
         templates: {
           custom_instructions: ''
+        },
+        chord_guide: {
+          chord_definition: ''
         }
       };
       console.log('Using fallback hardcoded config due to load error');
