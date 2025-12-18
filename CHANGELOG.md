@@ -1,3 +1,9 @@
+# [0.6.2-build.20251218] (2025-12-18)
+
+* Merge pull request #22 from KGAudioLab/feat/2025-12-08-chord-assistant (22c11fd)
+* feat: implemented chord guide customization feature (5cceec0)
+* feat: merge `mode_list.json` into `functional_chords.json` (610b81e)
+
 # [0.6.1-build.20251216] (2025-12-16)
 
 * Merge pull request #21 from KGAudioLab/feat/2025-12-08-chord-assistant (2fc6e56)
