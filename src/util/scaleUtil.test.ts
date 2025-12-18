@@ -7,7 +7,8 @@ import {
   getSuitableChords,
   getChordNotesInKey,
   getMatchingChordsForPitch,
-  generatePianoGridBackground
+  generatePianoGridBackground,
+  validateFunctionalChordsJSON
 } from './scaleUtil'
 import { KGCore } from '../core/KGCore'
 import type { KeySignature } from '../core/KGProject'
@@ -16,15 +17,7 @@ import functionalChordsData from '../../public/resources/modes/functional_chords
 describe('scaleUtil', () => {
   // Setup: Mock KGCore with real chord data
   beforeEach(() => {
-    // Mock MODE_DATA with ionian for basic tests
-    KGCore.MODE_DATA = [
-      { id: 'ionian', name: 'Ionian', steps: [2, 2, 1, 2, 2, 2, 1] },
-      { id: 'dorian', name: 'Dorian', steps: [2, 1, 2, 2, 2, 1, 2] },
-      { id: 'aeolian', name: 'Aeolian', steps: [2, 1, 2, 2, 1, 2, 2] },
-      { id: 'mixolydian', name: 'Mixolydian', steps: [2, 2, 1, 2, 2, 1, 2] }
-    ]
-
-    // Use real functional chords data from JSON file
+    // Use real functional chords data from JSON file (includes name, steps, and chord data)
     KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData
   })
 
@@ -398,6 +391,324 @@ describe('scaleUtil', () => {
       const ionian = generatePianoGridBackground('ionian', 'C major')
       const dorian = generatePianoGridBackground('dorian', 'C major')
       expect(ionian).not.toBe(dorian)
+    })
+  })
+
+  describe('validateFunctionalChordsJSON', () => {
+    const validJSON = `{
+      "ionian": {
+        "name": "Ionian",
+        "steps": [2, 2, 1, 2, 2, 2, 1],
+        "T": ["I", "vi", "iii", "I⁶"],
+        "S": ["IV", "ii", "vi", "IV⁶"],
+        "D": ["V", "V7", "vii°", "♭II"],
+        "chords": {
+          "I": ["C", "E", "G"],
+          "vi": ["A", "C", "E"],
+          "iii": ["E", "G", "B"],
+          "I⁶": ["E", "G", "C"],
+          "IV": ["F", "A", "C"],
+          "ii": ["D", "F", "A"],
+          "IV⁶": ["A", "C", "F"],
+          "V": ["G", "B", "D"],
+          "V7": ["G", "B", "D", "F"],
+          "vii°": ["B", "D", "F"],
+          "♭II": ["Db", "F", "Ab"]
+        }
+      },
+      "aeolian": {
+        "name": "Aeolian",
+        "steps": [2, 1, 2, 2, 1, 2, 2],
+        "T": ["i", "VI", "III", "i⁶"],
+        "S": ["iv", "ii°", "VI", "iv⁶"],
+        "D": ["v", "♭VII"],
+        "chords": {
+          "i": ["C", "Eb", "G"],
+          "VI": ["Ab", "C", "Eb"],
+          "III": ["Eb", "G", "Bb"],
+          "i⁶": ["Eb", "G", "C"],
+          "iv": ["F", "Ab", "C"],
+          "ii°": ["D", "F", "Ab"],
+          "iv⁶": ["Ab", "C", "F"],
+          "v": ["G", "Bb", "D"],
+          "♭VII": ["Bb", "D", "F"]
+        }
+      }
+    }`
+
+    describe('valid JSON', () => {
+      it('should validate correct JSON with ionian and aeolian', () => {
+        const result = validateFunctionalChordsJSON(validJSON)
+        expect(result.valid).toBe(true)
+        expect(result.errors).toEqual([])
+      })
+
+      it('should accept empty T/S/D arrays', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test Mode",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(true)
+      })
+
+      it('should accept mode names with underscores, dashes, and spaces', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test_Mode-123 Name",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(true)
+      })
+
+      it('should accept notes with sharp and flat', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["I"],
+            "S": [],
+            "D": [],
+            "chords": {
+              "I": ["C#", "Eb", "F#"]
+            }
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(true)
+      })
+
+      it('should accept chord symbols with special characters', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["I⁶", "vii°", "III+", "♭II"],
+            "S": [],
+            "D": [],
+            "chords": {
+              "I⁶": ["C", "E", "G"],
+              "vii°": ["B", "D", "F"],
+              "III+": ["E", "G#", "B"],
+              "♭II": ["Db", "F", "Ab"]
+            }
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(true)
+      })
+    })
+
+    describe('invalid JSON', () => {
+      it('should reject malformed JSON', () => {
+        const result = validateFunctionalChordsJSON('{ invalid json }')
+        expect(result.valid).toBe(false)
+        expect(result.errors).toContain('Invalid JSON format')
+      })
+
+      it('should reject JSON array as root', () => {
+        const result = validateFunctionalChordsJSON('[]')
+        expect(result.valid).toBe(false)
+        expect(result.errors).toContain('Root must be an object')
+      })
+
+      it('should reject missing ionian mode', () => {
+        const json = `{
+          "dorian": {
+            "name": "Dorian",
+            "steps": [2, 1, 2, 2, 2, 1, 2],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors).toContain('Missing required mode: "ionian"')
+      })
+
+      it('should reject invalid mode name', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test@Mode!",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('"name" must be a string'))).toBe(true)
+      })
+
+      it('should reject steps with wrong number of elements', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('must contain exactly 7 integers'))).toBe(true)
+      })
+
+      it('should reject steps that do not sum to 12', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 2, 2, 2, 2, 2],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('must sum to 12'))).toBe(true)
+      })
+
+      it('should reject non-integer steps', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2.5, 2, 1, 2, 2, 2, 0.5],
+            "T": [],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('must contain only integers'))).toBe(true)
+      })
+
+      it('should reject invalid chord symbol in T/S/D', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["invalid123"],
+            "S": [],
+            "D": [],
+            "chords": {
+              "invalid123": ["C", "E", "G"]
+            }
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('Invalid chord symbol'))).toBe(true)
+      })
+
+      it('should reject chord referenced but not defined', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["I"],
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('referenced in T/S/D but not defined'))).toBe(true)
+      })
+
+      it('should reject invalid note name', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["I"],
+            "S": [],
+            "D": [],
+            "chords": {
+              "I": ["C", "X", "G"]
+            }
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('Invalid note'))).toBe(true)
+      })
+
+      it('should reject note with invalid accidental', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["I"],
+            "S": [],
+            "D": [],
+            "chords": {
+              "I": ["C##", "E", "G"]
+            }
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('Invalid note'))).toBe(true)
+      })
+
+      it('should reject lowercase note names', () => {
+        const json = `{
+          "ionian": {
+            "name": "Test",
+            "steps": [2, 2, 1, 2, 2, 2, 1],
+            "T": ["I"],
+            "S": [],
+            "D": [],
+            "chords": {
+              "I": ["c", "e", "g"]
+            }
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.some(e => e.includes('Invalid note'))).toBe(true)
+      })
+    })
+
+    describe('error messages', () => {
+      it('should provide descriptive error messages for multiple errors', () => {
+        const json = `{
+          "dorian": {
+            "name": "Test@",
+            "steps": [2, 2, 1],
+            "T": "not-array",
+            "S": [],
+            "D": [],
+            "chords": {}
+          }
+        }`
+        const result = validateFunctionalChordsJSON(json)
+        expect(result.valid).toBe(false)
+        expect(result.errors.length).toBeGreaterThan(1)
+      })
     })
   })
 })

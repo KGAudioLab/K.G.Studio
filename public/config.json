@@ -66,5 +66,8 @@
     },
     "templates": {
         "custom_instructions": ""
+    },
+    "chord_guide": {
+        "chord_definition": ""
     }
 }

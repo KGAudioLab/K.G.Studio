@@ -16,7 +16,8 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   const sections = [
     { id: 'general' as SettingsSection, label: 'General' },
     { id: 'behavior' as SettingsSection, label: 'Behavior' },
-    { id: 'templates' as SettingsSection, label: 'Templates' }
+    { id: 'templates' as SettingsSection, label: 'Templates' },
+    { id: 'chord_guide' as SettingsSection, label: 'Chord Guide' }
   ];
 
   return (

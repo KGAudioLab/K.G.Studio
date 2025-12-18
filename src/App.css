@@ -1751,6 +1751,50 @@ textarea {
   font-size: 12px;
 }
 
+/* Settings Help Links */
+.settings-help-links {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+button.settings-help {
+  color: #5a9fd4;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+}
+
+button.settings-help:hover {
+  color: #7bbfef;
+}
+
+/* Settings Validation Errors */
+.settings-validation-errors {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: rgba(211, 90, 90, 0.1);
+  border: 1px solid #d35a5a;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.settings-validation-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.settings-validation-error:last-child {
+  margin-bottom: 0;
+}
+
 /* Templates List */
 .templates-list {
   display: flex;

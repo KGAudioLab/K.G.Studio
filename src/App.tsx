@@ -13,6 +13,8 @@ import LoadingOverlay from './components/common/LoadingOverlay';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
 import { KGCore } from './core/KGCore';
+import { ConfigManager } from './core/config/ConfigManager';
+import { validateFunctionalChordsJSON } from './util/scaleUtil';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
@@ -40,33 +42,58 @@ function App() {
       // Load the current project from KGCore
       loadProject(null);
 
+      // Initialize ConfigManager first to load config.json and user settings
+      await ConfigManager.instance().initialize();
+
       // Initialize store from config after ConfigManager is ready
       await initializeFromConfig();
 
       // Load all mode and chord data files in parallel
       try {
-        const [modeListResponse, functionalChordsResponse] = await Promise.all([
-          fetch(`${import.meta.env.BASE_URL}resources/modes/mode_list.json`),
+        const [functionalChordsResponse] = await Promise.all([
           fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`)
         ]);
 
-        const [modeListData, functionalChordsData] = await Promise.all([
-          modeListResponse.json(),
+        const [functionalChordsData] = await Promise.all([
           functionalChordsResponse.json()
         ]);
 
-        // Store mode data with id, name, and steps
-        KGCore.MODE_DATA = modeListData.modes;
-        console.log(`Loaded ${modeListData.modes.length} modes:`, modeListData.modes.map((m: { name: string }) => m.name));
+        // Store original functional chords data
+        KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA = functionalChordsData;
+        console.log(`Loaded original functional chords for ${Object.keys(functionalChordsData).length} modes`);
 
-        // Store functional chords data (T/S/D by mode, including mode-specific chord notes)
-        KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData;
-        console.log(`Loaded functional chords for ${Object.keys(functionalChordsData).length} modes`);
+        // Check if custom chord definition exists and is valid
+        const configManager = ConfigManager.instance();
+        const customDefinition = configManager.get('chord_guide.chord_definition') as string;
+
+        if (customDefinition && customDefinition.trim()) {
+          const validationResult = validateFunctionalChordsJSON(customDefinition);
+          if (validationResult.valid) {
+            KGCore.FUNCTIONAL_CHORDS_DATA = JSON.parse(customDefinition);
+            console.log('Using custom chord definition from settings');
+          } else {
+            KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData;
+            console.log('Custom chord definition invalid, using original');
+          }
+        } else {
+          KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData;
+          console.log('No custom chord definition, using original');
+        }
       } catch (error) {
         console.error('Failed to load mode/chord data:', error);
         // Fallback to defaults
-        KGCore.MODE_DATA = [{ id: 'ionian', name: 'Ionian', steps: [2, 2, 1, 2, 2, 2, 1] }];
-        KGCore.FUNCTIONAL_CHORDS_DATA = {};
+        const fallbackData = {
+          ionian: {
+            name: 'Ionian',
+            steps: [2, 2, 1, 2, 2, 2, 1],
+            T: [],
+            S: [],
+            D: [],
+            chords: {}
+          }
+        };
+        KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA = fallbackData;
+        KGCore.FUNCTIONAL_CHORDS_DATA = fallbackData;
       }
 
       // Log maxBars after initialization completes

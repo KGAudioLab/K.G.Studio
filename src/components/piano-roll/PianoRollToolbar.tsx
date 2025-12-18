@@ -38,7 +38,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
       <div className="toolbar-left">
         {/* Left section with mode and chord guide dropdowns */}
         <KGDropdown
-          options={KGCore.MODE_DATA.map(m => ({ label: m.name, value: m.id }))}
+          options={Object.entries(KGCore.FUNCTIONAL_CHORDS_DATA).map(([id, data]) => ({ label: data.name, value: id }))}
           value={selectedMode}
           onChange={(value) => onModeChange(value)}
           label="Mode"
