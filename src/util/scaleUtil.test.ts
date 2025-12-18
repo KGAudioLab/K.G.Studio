@@ -16,15 +16,7 @@ import functionalChordsData from '../../public/resources/modes/functional_chords
 describe('scaleUtil', () => {
   // Setup: Mock KGCore with real chord data
   beforeEach(() => {
-    // Mock MODE_DATA with ionian for basic tests
-    KGCore.MODE_DATA = [
-      { id: 'ionian', name: 'Ionian', steps: [2, 2, 1, 2, 2, 2, 1] },
-      { id: 'dorian', name: 'Dorian', steps: [2, 1, 2, 2, 2, 1, 2] },
-      { id: 'aeolian', name: 'Aeolian', steps: [2, 1, 2, 2, 1, 2, 2] },
-      { id: 'mixolydian', name: 'Mixolydian', steps: [2, 2, 1, 2, 2, 1, 2] }
-    ]
-
-    // Use real functional chords data from JSON file
+    // Use real functional chords data from JSON file (includes name, steps, and chord data)
     KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData
   })
 

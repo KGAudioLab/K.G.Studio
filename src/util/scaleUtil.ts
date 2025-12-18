@@ -66,12 +66,12 @@ export const getScalePitchClasses = (rootNote: string, modeSteps: number[]): num
  * @returns Array of interval steps, or default ionian if not found
  */
 export const getModeSteps = (modeId: string): number[] => {
-  const modeData = KGCore.MODE_DATA.find(m => m.id === modeId);
-  if (!modeData) {
+  const functionalChords = KGCore.FUNCTIONAL_CHORDS_DATA[modeId];
+  if (!functionalChords || !functionalChords.steps) {
     console.warn(`Mode not found: ${modeId}, defaulting to ionian`);
     return [2, 2, 1, 2, 2, 2, 1]; // Default to ionian (major scale)
   }
-  return modeData.steps;
+  return functionalChords.steps;
 };
 
 /**

@@ -45,28 +45,30 @@ function App() {
 
       // Load all mode and chord data files in parallel
       try {
-        const [modeListResponse, functionalChordsResponse] = await Promise.all([
-          fetch(`${import.meta.env.BASE_URL}resources/modes/mode_list.json`),
+        const [functionalChordsResponse] = await Promise.all([
           fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`)
         ]);
 
-        const [modeListData, functionalChordsData] = await Promise.all([
-          modeListResponse.json(),
+        const [functionalChordsData] = await Promise.all([
           functionalChordsResponse.json()
         ]);
 
-        // Store mode data with id, name, and steps
-        KGCore.MODE_DATA = modeListData.modes;
-        console.log(`Loaded ${modeListData.modes.length} modes:`, modeListData.modes.map((m: { name: string }) => m.name));
-
-        // Store functional chords data (T/S/D by mode, including mode-specific chord notes)
+        // Store functional chords data (includes name, steps, T/S/D groups, and chord notes for each mode)
         KGCore.FUNCTIONAL_CHORDS_DATA = functionalChordsData;
         console.log(`Loaded functional chords for ${Object.keys(functionalChordsData).length} modes`);
       } catch (error) {
         console.error('Failed to load mode/chord data:', error);
         // Fallback to defaults
-        KGCore.MODE_DATA = [{ id: 'ionian', name: 'Ionian', steps: [2, 2, 1, 2, 2, 2, 1] }];
-        KGCore.FUNCTIONAL_CHORDS_DATA = {};
+        KGCore.FUNCTIONAL_CHORDS_DATA = {
+          ionian: {
+            name: 'Ionian',
+            steps: [2, 2, 1, 2, 2, 2, 1],
+            T: [],
+            S: [],
+            D: [],
+            chords: {}
+          }
+        };
       }
 
       // Log maxBars after initialization completes

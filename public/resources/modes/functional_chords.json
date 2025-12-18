@@ -1,5 +1,7 @@
 {
     "ionian": {
+        "name": "Ionian",
+        "steps": [2, 2, 1, 2, 2, 2, 1],
         "T": ["I", "vi", "iii", "I⁶"],
         "S": ["IV", "ii", "vi", "IV⁶"],
         "D": ["V", "V7", "vii°", "♭II"],
@@ -18,6 +20,8 @@
         }
     },
     "aeolian": {
+        "name": "Aeolian",
+        "steps": [2, 1, 2, 2, 1, 2, 2],
         "T": ["i", "VI", "III", "i⁶"],
         "S": ["iv", "ii°", "VI", "iv⁶"],
         "D": ["v", "♭VII"],
@@ -34,6 +38,8 @@
         }
     },
     "harmonic_minor": {
+        "name": "Harmonic Minor",
+        "steps": [2, 1, 2, 2, 1, 3, 1],
         "T": ["i", "VI", "III+", "i⁶"],
         "S": ["iv", "ii°", "VI", "iv⁶"],
         "D": ["V", "V7", "vii°", "♭II"],
@@ -52,6 +58,8 @@
         }
     },
     "melodic_minor": {
+        "name": "Melodic Minor",
+        "steps": [2, 1, 2, 2, 2, 2, 1],
         "T": ["i", "III+", "vi", "i⁶"],
         "S": ["IV", "ii"],
         "D": ["V", "vii°"],
@@ -67,6 +75,8 @@
         }
     },
     "dorian": {
+        "name": "Dorian",
+        "steps": [2, 1, 2, 2, 2, 1, 2],
         "T": ["i", "III", "i⁶"],
         "S": ["IV", "ii"],
         "D": ["v", "♭VII"],
@@ -81,6 +91,8 @@
         }
     },
     "phrygian": {
+        "name": "Phrygian",
+        "steps": [1, 2, 2, 2, 1, 2, 2], 
         "T": ["i", "i⁶"],
         "S": ["♭II", "iv"],
         "D": [],
@@ -92,6 +104,8 @@
         }
     },
     "lydian": {
+        "name": "Lydian",
+        "steps": [2, 2, 2, 1, 2, 2, 1], 
         "T": ["I", "I⁶"],
         "S": ["II"],
         "D": ["V"],
@@ -103,6 +117,8 @@
         }
     },
     "mixolydian": {
+        "name": "Mixolydian",
+        "steps": [2, 2, 1, 2, 2, 1, 2], 
         "T": ["I", "vi"],
         "S": ["IV", "ii"],
         "D": ["v", "♭VII"],
@@ -116,6 +132,8 @@
         }
     },
     "locrian": {
+        "name": "Locrian",
+        "steps": [1, 2, 2, 1, 2, 2, 2],
         "T": ["i°"],
         "S": ["♭II", "iv"],
         "D": [],
@@ -126,6 +144,8 @@
         }
     },
     "phrygian_dominant": {
+        "name": "Phrygian Dominant",
+        "steps": [1, 3, 1, 2, 1, 2, 2], 
         "T": ["I", "I⁶"],
         "S": ["♭II", "iv"],
         "D": ["v°", "vii"],
@@ -139,6 +159,8 @@
         }
     },
     "harmonic_major": {
+        "name": "Harmonic Major",
+        "steps": [2, 2, 1, 2, 1, 3, 1], 
         "T": ["I", "VI", "iii"],
         "S": ["IV", "ii"],
         "D": ["V", "V7", "vii°", "♭II"],
