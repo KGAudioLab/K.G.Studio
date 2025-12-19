@@ -93,18 +93,23 @@ export class KGCore {
       if (this.isPlaying) {
         await this.stopPlaying();
       }
-      
+
       // Dispose audio interface
       const audioInterface = KGAudioInterface.instance();
       await audioInterface.dispose();
-      
+
+      // Dispose MIDI input (dynamic import to avoid circular dependency)
+      const { KGMidiInput } = await import('./midi-input/KGMidiInput');
+      const midiInput = KGMidiInput.instance();
+      await midiInput.dispose();
+
       // Dispose config manager
       const configManager = ConfigManager.instance();
       await configManager.dispose();
-      
+
       // Clear playback timer
       this.stopPlaybackUpdates();
-      
+
       console.log("KGCore resources disposed successfully");
     } catch (error) {
       console.error("Error disposing KGCore resources:", error);

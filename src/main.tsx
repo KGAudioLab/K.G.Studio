@@ -5,10 +5,14 @@ import './index.css';
 import App from './App.tsx';
 import { KGCore } from './core/KGCore';
 import { KGAudioInterface } from './core/audio-interface/KGAudioInterface';
+import { KGMidiInput } from './core/midi-input/KGMidiInput';
 import { KGDebugger } from './core/KGDebugger';
 
 // Initialize KGCore instance
 await KGCore.instance().initialize();
+
+// Initialize KGMidiInput instance
+await KGMidiInput.instance().initialize();
 
 // Attach debugger to global window in development mode
 if (import.meta.env.DEV) {
@@ -31,17 +35,42 @@ const tryStartAudioContext = async () => {
       console.log('Audio context start failed:', error);
       audioContextStarted = false; // Allow retry
     }
-    // Remove listeners after first attempt (whether successful or not)
-    document.removeEventListener('click', tryStartAudioContext);
-    document.removeEventListener('touchstart', tryStartAudioContext);
-    document.removeEventListener('keydown', tryStartAudioContext);
   }
 };
 
+// Request MIDI access on first user interaction
+let midiAccessRequested = false;
+const tryRequestMIDIAccess = async () => {
+  if (!midiAccessRequested) {
+    midiAccessRequested = true;
+    try {
+      const midiInput = KGMidiInput.instance();
+      if (!midiInput.getMIDIAccess()) {
+        await midiInput.requestMIDIAccess();
+        console.log('MIDI access granted on first user interaction');
+      }
+    } catch (error) {
+      console.log('MIDI access failed:', error);
+      midiAccessRequested = false; // Allow retry
+    }
+  }
+};
+
+// Combined handler for first user interaction
+const handleFirstInteraction = async () => {
+  await tryStartAudioContext();
+  await tryRequestMIDIAccess();
+
+  // Remove listeners after first attempt
+  document.removeEventListener('click', handleFirstInteraction);
+  document.removeEventListener('touchstart', handleFirstInteraction);
+  document.removeEventListener('keydown', handleFirstInteraction);
+};
+
 // Listen for first user interaction
-document.addEventListener('click', tryStartAudioContext, { passive: true });
-document.addEventListener('touchstart', tryStartAudioContext, { passive: true });
-document.addEventListener('keydown', tryStartAudioContext, { passive: true });
+document.addEventListener('click', handleFirstInteraction, { passive: true });
+document.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+document.addEventListener('keydown', handleFirstInteraction, { passive: true });
 
 // Add event listener for beforeunload event
 window.addEventListener('beforeunload', (event) => {
