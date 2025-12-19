@@ -64,6 +64,9 @@ export class KGAudioInterface {
     }
 
     try {
+      // Reduce lookahead time to 0.05 seconds to improve MIDI input responsiveness
+      Tone.getContext().lookAhead = 0.05;
+
       // Set up master gain for volume control
       this.masterGain = new Tone.Gain(this.masterVolume).toDestination();
       
