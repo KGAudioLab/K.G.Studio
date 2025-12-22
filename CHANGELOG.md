@@ -1,3 +1,14 @@
+# [0.6.3-build.20251222] (2025-12-22)
+
+* Merge pull request #24 from KGAudioLab/feat/2025-12-19-midi-keyboard-support (ab8c268)
+* chore: updated README (3b2b359)
+* Merge pull request #23 from KGAudioLab/feat/2025-12-19-midi-keyboard-support (ef08ec9)
+* feat: added an option to control playhead animation fps (b44e6fb)
+* feat: added playback delay configuration (eaee036)
+* feat: added lookAhead option (aadf9e0)
+* fix: reduce Tone.js context.lookAhead to reduce MIDI input latency (4b075e8)
+* feat: added MIDI keyboard support (d3a2fe1)
+
 # [0.6.2-build.20251218] (2025-12-18)
 
 * Merge pull request #22 from KGAudioLab/feat/2025-12-08-chord-assistant (22c11fd)
