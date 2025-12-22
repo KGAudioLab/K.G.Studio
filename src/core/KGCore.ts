@@ -1,6 +1,5 @@
 import type { Selectable } from '../components/interfaces';
 import { KGProject } from './KGProject';
-import { PLAYING_CONSTANTS } from '../constants/uiConstants';
 import { KGAudioInterface } from './audio-interface/KGAudioInterface';
 import { ConfigManager } from './config/ConfigManager';
 import { KGMidiRegion } from './region/KGMidiRegion';
@@ -93,18 +92,23 @@ export class KGCore {
       if (this.isPlaying) {
         await this.stopPlaying();
       }
-      
+
       // Dispose audio interface
       const audioInterface = KGAudioInterface.instance();
       await audioInterface.dispose();
-      
+
+      // Dispose MIDI input (dynamic import to avoid circular dependency)
+      const { KGMidiInput } = await import('./midi-input/KGMidiInput');
+      const midiInput = KGMidiInput.instance();
+      await midiInput.dispose();
+
       // Dispose config manager
       const configManager = ConfigManager.instance();
       await configManager.dispose();
-      
+
       // Clear playback timer
       this.stopPlaybackUpdates();
-      
+
       console.log("KGCore resources disposed successfully");
     } catch (error) {
       console.error("Error disposing KGCore resources:", error);
@@ -293,10 +297,15 @@ export class KGCore {
     if (this.playbackIntervalId !== null) {
       this.stopPlaybackUpdates(); // Clear any existing timer
     }
-    
+
+    // Get playhead update frequency from config (in fps)
+    const configManager = ConfigManager.instance();
+    const updateFrequency = (configManager.get('editor.playhead_update_frequency') as number) ?? 10;
+    const updateIntervalMs = 1000 / updateFrequency; // Convert fps to milliseconds
+
     this.playbackIntervalId = window.setInterval(() => {
       this.onPlaybackUpdate();
-    }, PLAYING_CONSTANTS.UPDATE_INTERVAL_MS);
+    }, updateIntervalMs);
   }
 
   private stopPlaybackUpdates(): void {
@@ -315,9 +324,19 @@ export class KGCore {
 
     // Calculate current playhead position based on elapsed time
     const elapsedMs = performance.now() - this.playbackStartTime;
+
+    // Get playback delay from config
+    const configManager = ConfigManager.instance();
+    const playbackDelaySeconds = (configManager.get('audio.playback_delay') as number) ?? 0.2;
+    const playbackDelayMs = playbackDelaySeconds * 1000;
+
+    // Subtract the delay from elapsed time for visual sync
+    // During the initial delay period, playhead stays at start position
+    const adjustedElapsedMs = Math.max(0, elapsedMs - playbackDelayMs);
+
     const bpm = this.currentProject.getBpm();
     const beatsPerMs = bpm / (60 * 1000);
-    const newPosition = this.playbackStartPosition + (elapsedMs * beatsPerMs);
+    const newPosition = this.playbackStartPosition + (adjustedElapsedMs * beatsPerMs);
     
     // Stop playback at the end of project (maxBars)
     const maxBars = this.currentProject.getMaxBars();

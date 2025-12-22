@@ -64,11 +64,16 @@ interface AppConfig {
       qua_len_1_16: string;
     };
   };
+  editor: {
+    playhead_update_frequency: number;
+  };
   chatbox: {
     default_open: boolean;
   };
   audio: {
     enable_audio_capture_for_screen_sharing: boolean;
+    lookahead_time: number;
+    playback_delay: number;
   };
   templates: {
     custom_instructions: string;
@@ -223,11 +228,16 @@ export class ConfigManager {
             qua_len_1_16: '0'
           },
         },
+        editor: {
+          playhead_update_frequency: 10
+        },
         chatbox: {
           default_open: true
         },
         audio: {
-          enable_audio_capture_for_screen_sharing: false
+          enable_audio_capture_for_screen_sharing: false,
+          lookahead_time: 0.05,
+          playback_delay: 0.2
         },
         templates: {
           custom_instructions: ''
