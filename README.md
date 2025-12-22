@@ -10,6 +10,7 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2025.12.21**: Implemented MIDI keyboard support! You can now connect a MIDI keyboard and use it to play sounds. Please note that this feature may not work optimally in Safari and some other browsers that lack complete Web MIDI interface support.
 - **2025.12.15**: Added Intelligent Chord Assistant with functional harmony guidance (T/S/D). Hover over piano keys to see context-aware chord suggestions and create full chords with one click!
 
 ## Project Status
