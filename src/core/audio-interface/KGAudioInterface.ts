@@ -719,4 +719,26 @@ export class KGAudioInterface {
     console.log('Audio context sample rate:', Tone.getContext().sampleRate);
     console.log('Audio context state:', Tone.getContext().state);
   }
+
+  /**
+   * Set the audio lookahead time
+   * Lower values reduce MIDI input latency but may cause audio glitches
+   * @param seconds Lookahead time in seconds (e.g., 0.01 for 10ms, 0.1 for 100ms)
+   */
+  public setLookaheadTime(seconds: number): void {
+    try {
+      Tone.getContext().lookAhead = seconds;
+      console.log(`Audio lookahead time set to: ${seconds}s (${seconds * 1000}ms)`);
+    } catch (error) {
+      console.error('Error setting lookahead time:', error);
+    }
+  }
+
+  /**
+   * Get the current audio lookahead time
+   * @returns Lookahead time in seconds
+   */
+  public getLookaheadTime(): number {
+    return Tone.getContext().lookAhead;
+  }
 }

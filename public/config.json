@@ -62,7 +62,8 @@
         "default_open": true
     },
     "audio": {
-        "enable_audio_capture_for_screen_sharing": false
+        "enable_audio_capture_for_screen_sharing": false,
+        "lookahead_time": 0.05
     },
     "templates": {
         "custom_instructions": ""
