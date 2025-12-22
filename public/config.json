@@ -63,7 +63,8 @@
     },
     "audio": {
         "enable_audio_capture_for_screen_sharing": false,
-        "lookahead_time": 0.05
+        "lookahead_time": 0.05,
+        "playback_delay": 0.2
     },
     "templates": {
         "custom_instructions": ""

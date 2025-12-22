@@ -5,8 +5,10 @@ import { KGAudioInterface } from '../../../core/audio-interface/KGAudioInterface
 const BehaviorSettings: React.FC = () => {
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
   const [audioLookaheadTime, setAudioLookaheadTime] = useState<string>('50');
+  const [playbackDelay, setPlaybackDelay] = useState<string>('200');
   const [enableAudioCapture, setEnableAudioCapture] = useState<boolean>(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [lookaheadValidationErrors, setLookaheadValidationErrors] = useState<string[]>([]);
+  const [playbackDelayValidationErrors, setPlaybackDelayValidationErrors] = useState<string[]>([]);
 
   const configManager = ConfigManager.instance();
 
@@ -20,6 +22,8 @@ const BehaviorSettings: React.FC = () => {
       setChatboxDefaultOpen((configManager.get('chatbox.default_open') as boolean) ?? true);
       const lookaheadTimeSeconds = (configManager.get('audio.lookahead_time') as number) ?? 0.05;
       setAudioLookaheadTime(((lookaheadTimeSeconds * 1000).toFixed(0)));
+      const playbackDelaySeconds = (configManager.get('audio.playback_delay') as number) ?? 0.2;
+      setPlaybackDelay(((playbackDelaySeconds * 1000).toFixed(0)));
       setEnableAudioCapture((configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean) ?? false);
     };
 
@@ -48,7 +52,7 @@ const BehaviorSettings: React.FC = () => {
       errors.push('Lookahead time must be between 0 and 0.5 seconds (0-500ms)');
     }
 
-    setValidationErrors(errors);
+    setLookaheadValidationErrors(errors);
 
     // Only apply if valid
     if (errors.length === 0) {
@@ -60,6 +64,32 @@ const BehaviorSettings: React.FC = () => {
       audioInterface.setLookaheadTime(numValueSeconds);
 
       console.log(`Audio lookahead time changed to: ${numValueSeconds}s (${numValueMs}ms)`);
+    }
+  };
+
+  const handlePlaybackDelayChange = async (value: string) => {
+    // Allow empty string, treat as 0 ms
+    const numValueMs = value === '' ? 0 : parseFloat(value);
+    const numValueSeconds = numValueMs / 1000;
+    const errors: string[] = [];
+
+    // Validate the input
+    if (isNaN(numValueMs)) {
+      errors.push('Playback delay must be a valid number');
+    } else if (numValueSeconds < 0) {
+      errors.push('Playback delay must be between 0 and 0.5 seconds (0-500ms)');
+    } else if (numValueSeconds > 0.5) {
+      errors.push('Playback delay must be between 0 and 0.5 seconds (0-500ms)');
+    }
+
+    setPlaybackDelayValidationErrors(errors);
+
+    // Only apply if valid
+    if (errors.length === 0) {
+      setPlaybackDelay(value);
+      await configManager.set('audio.playback_delay', numValueSeconds);
+
+      console.log(`Playback delay changed to: ${numValueSeconds}s (${numValueMs}ms)`);
     }
   };
 
@@ -110,9 +140,9 @@ const BehaviorSettings: React.FC = () => {
               max="500"
               step="1"
             />
-            {validationErrors.length > 0 && (
+            {lookaheadValidationErrors.length > 0 && (
               <div className="settings-validation-errors">
-                {validationErrors.map((error, index) => (
+                {lookaheadValidationErrors.map((error, index) => (
                   <div key={index} className="settings-validation-error">
                     {error}
                   </div>
@@ -121,6 +151,33 @@ const BehaviorSettings: React.FC = () => {
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               Audio scheduling lookahead time (0-500ms). Lower values (10-20ms) reduce MIDI input latency but may cause audio glitches on slower systems. Higher values (100ms+) are better for playback stability. Changes apply immediately without restart.
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Playback Delay (ms)
+            </label>
+            <input
+              type="number"
+              className="settings-select"
+              value={playbackDelay}
+              onChange={(e) => handlePlaybackDelayChange(e.target.value)}
+              min="0"
+              max="500"
+              step="1"
+            />
+            {playbackDelayValidationErrors.length > 0 && (
+              <div className="settings-validation-errors">
+                {playbackDelayValidationErrors.map((error, index) => (
+                  <div key={index} className="settings-validation-error">
+                    {error}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Playback will start with a short delay after pressing the start button (0-500ms). Increasing this value might help stabilize playback, especially for the first few ticks if the lookahead value is too low. Changes apply immediately without restart.
             </div>
           </div>
 

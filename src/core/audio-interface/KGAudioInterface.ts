@@ -64,8 +64,10 @@ export class KGAudioInterface {
     }
 
     try {
+      const configManager = ConfigManager.instance();
+
       // Reduce lookahead time to 0.05 seconds to improve MIDI input responsiveness
-      Tone.getContext().lookAhead = 0.05;
+      Tone.getContext().lookAhead = configManager.get('audio.lookahead_time') as number;
 
       // Set up master gain for volume control
       this.masterGain = new Tone.Gain(this.masterVolume).toDestination();
@@ -75,7 +77,6 @@ export class KGAudioInterface {
       Tone.Transport.timeSignature = [TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.numerator, TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.denominator]; // Default time signature
       
       // Check config and setup audio capture if enabled
-      const configManager = ConfigManager.instance();
       const enableCapture = configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean;
       
       if (enableCapture) {
@@ -253,7 +254,11 @@ export class KGAudioInterface {
     this.clearScheduledEvents();
 
     console.log("Preparing playback");
-    
+
+    // Get playback delay from ConfigManager
+    const configManager = ConfigManager.instance();
+    const playbackDelay = (configManager.get('audio.playback_delay') as number) ?? 0.2;
+
     try {
       // Set project BPM and time signature FIRST (this affects timing calculations)
       Tone.Transport.bpm.value = project.getBpm();
@@ -295,21 +300,21 @@ export class KGAudioInterface {
                   // Convert beats to Tone.js time format for scheduling
                   const noteStartTime = this.beatsToToneTime(noteStartBeat);
                   const noteDuration = this.beatsToToneTime(noteDurationBeats);
-                  
+
                   // Convert MIDI note number to note name
                   const noteName = pitchToNoteNameString(note.getPitch());
                   const velocity = note.getVelocity() / 127; // Normalize to 0-1
-                  
+
                   console.log(
-                    `Scheduling note ${noteName} at beat ${Number(noteStartBeat.toFixed ? noteStartBeat.toFixed(3) : noteStartBeat.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDuration).toFixed(3))}`
+                    `Scheduling note ${noteName} at beat ${Number(noteStartBeat.toFixed ? noteStartBeat.toFixed(3) : noteStartBeat.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDuration).toFixed(3))}, delay: ${playbackDelay}s`
                   );
-                  
-                  // Schedule the note
+
+                  // Schedule the note with delay offset
                   const eventId = Tone.Transport.schedule((time) => {
                     // Check if track should play considering solo logic
                     const hasSoloedTracks = this.hasSoloedTracks();
                     if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                      audioBus.triggerAttackRelease(noteName, noteDuration, time, velocity);
+                      audioBus.triggerAttackRelease(noteName, noteDuration, time + playbackDelay, velocity);
                     }
                   }, noteStartTime);
                   

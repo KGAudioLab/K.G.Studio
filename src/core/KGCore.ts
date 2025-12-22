@@ -320,9 +320,19 @@ export class KGCore {
 
     // Calculate current playhead position based on elapsed time
     const elapsedMs = performance.now() - this.playbackStartTime;
+
+    // Get playback delay from config
+    const configManager = ConfigManager.instance();
+    const playbackDelaySeconds = (configManager.get('audio.playback_delay') as number) ?? 0.2;
+    const playbackDelayMs = playbackDelaySeconds * 1000;
+
+    // Subtract the delay from elapsed time for visual sync
+    // During the initial delay period, playhead stays at start position
+    const adjustedElapsedMs = Math.max(0, elapsedMs - playbackDelayMs);
+
     const bpm = this.currentProject.getBpm();
     const beatsPerMs = bpm / (60 * 1000);
-    const newPosition = this.playbackStartPosition + (elapsedMs * beatsPerMs);
+    const newPosition = this.playbackStartPosition + (adjustedElapsedMs * beatsPerMs);
     
     // Stop playback at the end of project (maxBars)
     const maxBars = this.currentProject.getMaxBars();
