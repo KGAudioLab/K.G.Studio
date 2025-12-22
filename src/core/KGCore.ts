@@ -1,6 +1,5 @@
 import type { Selectable } from '../components/interfaces';
 import { KGProject } from './KGProject';
-import { PLAYING_CONSTANTS } from '../constants/uiConstants';
 import { KGAudioInterface } from './audio-interface/KGAudioInterface';
 import { ConfigManager } from './config/ConfigManager';
 import { KGMidiRegion } from './region/KGMidiRegion';
@@ -298,10 +297,15 @@ export class KGCore {
     if (this.playbackIntervalId !== null) {
       this.stopPlaybackUpdates(); // Clear any existing timer
     }
-    
+
+    // Get playhead update frequency from config (in fps)
+    const configManager = ConfigManager.instance();
+    const updateFrequency = (configManager.get('editor.playhead_update_frequency') as number) ?? 10;
+    const updateIntervalMs = 1000 / updateFrequency; // Convert fps to milliseconds
+
     this.playbackIntervalId = window.setInterval(() => {
       this.onPlaybackUpdate();
-    }, PLAYING_CONSTANTS.UPDATE_INTERVAL_MS);
+    }, updateIntervalMs);
   }
 
   private stopPlaybackUpdates(): void {

@@ -64,6 +64,9 @@ interface AppConfig {
       qua_len_1_16: string;
     };
   };
+  editor: {
+    playhead_update_frequency: number;
+  };
   chatbox: {
     default_open: boolean;
   };
@@ -224,6 +227,9 @@ export class ConfigManager {
             qua_len_1_8: '9',
             qua_len_1_16: '0'
           },
+        },
+        editor: {
+          playhead_update_frequency: 10
         },
         chatbox: {
           default_open: true

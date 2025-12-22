@@ -3,6 +3,7 @@ import { ConfigManager } from '../../../core/config/ConfigManager';
 import { KGAudioInterface } from '../../../core/audio-interface/KGAudioInterface';
 
 const BehaviorSettings: React.FC = () => {
+  const [playheadUpdateFrequency, setPlayheadUpdateFrequency] = useState<number>(10);
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
   const [audioLookaheadTime, setAudioLookaheadTime] = useState<string>('50');
   const [playbackDelay, setPlaybackDelay] = useState<string>('200');
@@ -19,6 +20,7 @@ const BehaviorSettings: React.FC = () => {
         await configManager.initialize();
       }
 
+      setPlayheadUpdateFrequency((configManager.get('editor.playhead_update_frequency') as number) ?? 10);
       setChatboxDefaultOpen((configManager.get('chatbox.default_open') as boolean) ?? true);
       const lookaheadTimeSeconds = (configManager.get('audio.lookahead_time') as number) ?? 0.05;
       setAudioLookaheadTime(((lookaheadTimeSeconds * 1000).toFixed(0)));
@@ -31,6 +33,13 @@ const BehaviorSettings: React.FC = () => {
   }, [configManager]);
 
   // Save configuration when values change
+  const handlePlayheadUpdateFrequencyChange = async (value: string) => {
+    const numValue = parseInt(value, 10);
+    setPlayheadUpdateFrequency(numValue);
+    await configManager.set('editor.playhead_update_frequency', numValue);
+    console.log(`Playhead update frequency changed to: ${numValue} fps`);
+  };
+
   const handleChatboxDefaultOpenChange = async (value: string) => {
     const boolValue = value === 'yes';
     setChatboxDefaultOpen(boolValue);
@@ -104,8 +113,30 @@ const BehaviorSettings: React.FC = () => {
       <div className="settings-section-header">
         <h3>Behavior</h3>
       </div>
-      
+
       <div className="settings-section-content">
+        <div className="settings-group">
+          <h4>Editor</h4>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Playhead Update Frequency (fps)
+            </label>
+            <select
+              className="settings-select"
+              value={playheadUpdateFrequency}
+              onChange={(e) => handlePlayheadUpdateFrequencyChange(e.target.value)}
+            >
+              <option value="10">10</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Update frequency for the playhead animation during playback. Higher values (60 fps) provide smoother animation but use more CPU. Lower values (10 fps) are more efficient. Changes apply immediately without restart.
+            </div>
+          </div>
+        </div>
+
         <div className="settings-group">
           <h4>Chat Box</h4>
           
