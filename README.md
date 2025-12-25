@@ -201,7 +201,7 @@ Note: due to CORS limitations with some providers, Google Gemini and Anthropic C
 1. Obtain an OpenAI API Key from [**OpenAI**](https://platform.openai.com/account/api-keys). You may need to create an account and add a payment method to generate an API Key.
 2. In **Settings ⚙️ → General → LLM Provider**, select **OpenAI** as your provider.
 3. Enter your API Key in **OpenAI → Key**.
-4. Select your preferred model from the **OpenAI → Model** dropdown. For optimal performance, we recommend `gpt‑4o`. (`gpt‑5` is still being evaluated.)
+4. Select your preferred model from the **OpenAI → Model** dropdown. For a good balance between performance and cost, we recommend `gpt-5-mini`.
 5. Optionally, choose whether to enable Flex Mode in **OpenAI → Flex Mode**. Flex Mode offers discounted pricing, but may result in slower response times or server-side errors.
 
 ### Using OpenRouter

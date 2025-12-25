@@ -175,7 +175,7 @@ export class ConfigManager {
           openai: {
             api_key: '',
             flex: false,
-            model: 'gpt-4o'
+            model: 'gpt-5.2'
           },
           gemini: {
             api_key: '',
@@ -183,12 +183,12 @@ export class ConfigManager {
           },
           claude: {
             api_key: '',
-            model: 'claude-sonnet-4-0'
+            model: 'claude-sonnet-4.5'
           },
           claude_openrouter: {
             api_key: '',
             base_url: 'https://openrouter.ai/api/v1/chat/completions',
-            model: 'anthropic/claude-sonnet-4'
+            model: 'anthropic/claude-sonnet-4.5'
           },
           openai_compatible: {
             api_key: '',
