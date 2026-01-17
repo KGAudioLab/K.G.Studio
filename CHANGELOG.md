@@ -1,3 +1,10 @@
+# [0.7.1-build.20260117] (2026-01-17)
+
+* Merge pull request #26 from KGAudioLab/feat/2026-01-17-add-option-allow-persist-api-key-on-non-localhost (59faeff)
+* fix: added a warning comment (609efab)
+* docs: updated README.md (8c1ab53)
+* feat: add option to persist API keys on non-localhost (opt-in security feature) (e8b79ef)
+
 # [0.7.0-build.20260117] (2026-01-17)
 
 * Merge pull request #25 from KGAudioLab/feat/2025-12-25-more-models (6717cea)
