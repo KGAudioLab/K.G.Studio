@@ -36,7 +36,7 @@ A lightweight, browser‑based DAW with an AI Agent "K.G.Studio Musician Assista
 - K.G.Studio is fully client‑side. It connects to the network only to:
   - Download instrument soundfonts from the configured CDN
   - Communicate with your chosen LLM provider (OpenAI or OpenAI‑compatible)
-- API keys are not persisted when running from a non‑local host (to reduce XSS risk). You’ll be prompted to re‑enter them on each start in that scenario.
+- API keys are not persisted when running from a non‑local host (to reduce XSS risk). You'll be prompted to re‑enter them on each start in that scenario. To opt‑in to persistence on non‑local hosts, enable "Persist API Keys on Non-Localhost" in Settings > General (not recommended for shared/production environments).
 - Important: While K.G.Studio does not collect your data, different LLM providers may have different data‑retention policies. Review the policy of the provider you select before use.
 
 ## 5. User Interface Tour
@@ -125,10 +125,10 @@ A lightweight, browser‑based DAW with an AI Agent "K.G.Studio Musician Assista
 - If loading stalls, the overlay will time out; refresh to retry downloading.
 
 ## 13. Settings
-- General: LLM provider (OpenAI or OpenAI‑compatible), API key, model, soundfont base URL.
+- General: LLM provider (OpenAI or OpenAI‑compatible), API key, model, soundfont base URL, Persist API Keys on Non-Localhost.
 - Behavior: chatbox default open at startup.
 - Templates: custom instructions for the AI.
-- Settings persist in IndexedDB (local); API keys are not persisted on non‑local hosts.
+- Settings persist in IndexedDB (local); API keys are not persisted on non‑local hosts unless you opt‑in via the "Persist API Keys on Non-Localhost" setting (not recommended for shared/production environments).
 
 ## 14. AI Agent "K.G.Studio Musician Assistant"
 - Open the chat (toolbar). Describe goals in natural language (e.g., “Can you help me write a 4‑bar chord progression for the melody?”).

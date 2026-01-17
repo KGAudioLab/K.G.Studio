@@ -16,4 +16,8 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
+  server: {
+    // IMPORTANT: MAKE SURE TO UPDATE YOUR OS HOSTS FILE TO POINT `testlocal.com` TO YOUR LOCAL IP (e.g. 127.0.0.1).
+    allowedHosts: ['testlocal.com', '.testlocal.com', 'localhost', '127.0.0.1'],
+  },
 })

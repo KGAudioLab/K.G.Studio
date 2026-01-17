@@ -8,6 +8,7 @@ interface AppConfig {
   general: {
     language: string;
     llm_provider: 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
+    persist_api_keys_non_localhost: boolean;
     openai: {
       api_key: string;
       flex: boolean;
@@ -172,6 +173,7 @@ export class ConfigManager {
         general: {
           language: 'en_us',
           llm_provider: 'openai',
+          persist_api_keys_non_localhost: false,
           openai: {
             api_key: '',
             flex: false,
@@ -283,11 +285,11 @@ export class ConfigManager {
    */
   private async saveToStorage(): Promise<void> {
     try {
-      // For security: if not running on a local host, do not persist API keys.
-      // We still keep them in memory (this.config) for runtime usage.
-      const configToPersist = this.isRunningOnLocalhost()
-        ? this.config
-        : this.getSanitizedConfigForStorage();
+      const shouldSanitize = !this.isRunningOnLocalhost() &&
+        !this.config.general.persist_api_keys_non_localhost;
+      const configToPersist = shouldSanitize
+        ? this.getSanitizedConfigForStorage()
+        : this.config;
 
       await this.storage.save(
         DB_CONSTANTS.DB_NAME,
@@ -540,12 +542,12 @@ export class ConfigManager {
    * for persistence to storage in non-local environments.
    */
   private getSanitizedConfigForStorage(): AppConfig {
-    // Deep copy to avoid mutating in-memory config
     const copied: AppConfig = JSON.parse(JSON.stringify(this.config));
     if (copied?.general) {
       if (copied.general.openai) copied.general.openai.api_key = '';
       if (copied.general.gemini) copied.general.gemini.api_key = '';
       if (copied.general.claude) copied.general.claude.api_key = '';
+      if (copied.general.claude_openrouter) copied.general.claude_openrouter.api_key = '';
       if (copied.general.openai_compatible) copied.general.openai_compatible.api_key = '';
     }
     return copied;

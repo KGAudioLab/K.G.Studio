@@ -48,7 +48,7 @@ This project investigates how AI-human collaboration can enhance creative music-
   - Click here to start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
   - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
   - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
-  - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh the page. Keep it safe.)
+  - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn't persisted by default for security; you can enable "Persist API Keys on Non-Localhost" in Settings to persist them, though this may increase XSS risk.)
   - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free` or `qwen/qwen3-235b-a22b:free`. (Note: these are free models [qwen3-30b-a3b](https://openrouter.ai/qwen/qwen3-30b-a3b:free) and [qwen3-235b-a22b](https://openrouter.ai/qwen/qwen3-235b-a22b:free); non‑free models may require billing; some model providers may retain your data, check their privacy policies; this project is not affiliated with OpenRouter or any model provider.)
   - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1/chat/completions`.
 
@@ -110,6 +110,7 @@ K.G.Studio loads defaults from `./public/config.json` (with an internal fallback
 - **General**
   - LLM provider: OpenAI, or OpenAI‑compatible
   - API keys and models for the selected provider
+  - Persist API Keys on Non-Localhost: Enable to persist API keys on non-localhost environments (security opt-in, not recommended for shared/production environments)
   - OpenAI‑compatible base URL (for self‑hosted gateways)
   - Soundfont base URL (CDN for instrument samples)
 - **Behavior**
@@ -125,7 +126,7 @@ K.G.Studio loads defaults from `./public/config.json` (with an internal fallback
   - Downloading instrument sound samples from the configured soundfont CDN
   - Communicating with the LLM provider you select (e.g., OpenAI or OpenAI‑compatible services)
 - Outside of the two cases above, the app functions locally. If you block those endpoints, the app still loads; instrument playback and AI features will not function until network access is restored.
-- For security, when running from a non‑local host we do not persist your API key in IndexedDB (to reduce XSS risk). You’ll be prompted to enter it each time you start K.G.Studio.
+- For security, when running from a non‑local host we do not persist your API key in IndexedDB by default (to reduce XSS risk). You'll be prompted to enter it each time you start K.G.Studio. To opt‑in to persistence on non‑local hosts, enable "Persist API Keys on Non-Localhost" in Settings (not recommended for shared/production environments).
 
 ## Using the App
 
@@ -223,7 +224,7 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 
 Currently, based on our evaluation, OpenAI’s open‑source models (`gpt‑oss‑20b` and `gpt‑oss‑120b`) are not yet compatible with the current agent implementation; support is planned.
 
-For security, when using K.G.Studio from a non‑local host, API keys are not persisted in IndexedDB; you will need to input your API key each time you start K.G.Studio.
+For security, when using K.G.Studio from a non‑local host, API keys are not persisted in IndexedDB by default; you will need to input your API key each time you start K.G.Studio. To opt‑in to persistence on non‑local hosts, enable "Persist API Keys on Non-Localhost" in Settings (not recommended for shared/production environments).
 
 K.G.Studio does not provide or host any of the models listed above, nor is it affiliated with any model provider. All data is stored locally on your device; K.G.Studio does not collect or transmit your data. You are solely responsible for any data you provide to third‑party model providers.
 

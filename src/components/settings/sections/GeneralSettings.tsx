@@ -13,6 +13,7 @@ const GeneralSettings: React.FC = () => {
   const [claudeOpenRouterBaseUrl, setClaudeOpenRouterBaseUrl] = useState<string>('');
   const [claudeOpenRouterModel, setClaudeOpenRouterModel] = useState<string>('');
   const [openaiFlex, setOpenaiFlex] = useState<boolean>(false);
+  const [persistApiKeysNonLocalhost, setPersistApiKeysNonLocalhost] = useState<boolean>(false);
   const [compatibleKey, setCompatibleKey] = useState<string>('');
   const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
   const [compatibleModel, setCompatibleModel] = useState<string>('');
@@ -45,6 +46,7 @@ const GeneralSettings: React.FC = () => {
       setOpenaiKey((configManager.get('general.openai.api_key') as string) || '');
       setOpenaiModel((configManager.get('general.openai.model') as string) || '');
       setOpenaiFlex((configManager.get('general.openai.flex') as boolean) ?? false);
+      setPersistApiKeysNonLocalhost((configManager.get('general.persist_api_keys_non_localhost') as boolean) ?? false);
       setGeminiKey((configManager.get('general.gemini.api_key') as string) || '');
       setGeminiModel((configManager.get('general.gemini.model') as string) || '');
       setClaudeKey((configManager.get('general.claude.api_key') as string) || '');
@@ -104,6 +106,17 @@ const GeneralSettings: React.FC = () => {
       console.log('OpenAI Flex Mode changed to:', boolValue);
     } catch (error) {
       console.error('Failed to save OpenAI Flex Mode:', error);
+    }
+  };
+
+  const handlePersistApiKeysNonLocalhostChange = async (value: string) => {
+    const boolValue = value === 'yes';
+    setPersistApiKeysNonLocalhost(boolValue);
+    try {
+      await configManager.set('general.persist_api_keys_non_localhost', boolValue);
+      console.log('Persist API Keys Non-Localhost changed to:', boolValue);
+    } catch (error) {
+      console.error('Failed to save Persist API Keys Non-Localhost:', error);
     }
   };
 
@@ -189,6 +202,23 @@ const GeneralSettings: React.FC = () => {
               <option value="openai_compatible">OpenAI Compatible (e.g. OpenRouter, Ollama)</option>
             </select>
           </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Persist API Keys on Non-Localhost
+            </label>
+            <select
+              className="settings-select"
+              value={persistApiKeysNonLocalhost ? 'yes' : 'no'}
+              onChange={(e) => handlePersistApiKeysNonLocalhostChange(e.target.value)}
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              When enabled, API keys will be saved to browser storage even on non-localhost environments. Warning: This may increase security vulnerability to XSS attacks.
+            </div>
+          </div>
         </div>
 
         <div className="settings-group">
@@ -208,7 +238,9 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {isLocalEnvironment
                 ? 'Keys are persisted locally (the IndexedDB in your browser).'
-                : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+                : persistApiKeysNonLocalhost
+                  ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                  : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
           
@@ -323,7 +355,9 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {isLocalEnvironment
                 ? 'Keys are persisted locally (the IndexedDB in your browser).'
-                : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+                : persistApiKeysNonLocalhost
+                  ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                  : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
 
@@ -377,7 +411,9 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {isLocalEnvironment
                 ? 'Keys are persisted locally (the IndexedDB in your browser).'
-                : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+                : persistApiKeysNonLocalhost
+                  ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                  : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
           

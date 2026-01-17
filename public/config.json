@@ -2,6 +2,7 @@
     "general": {
         "language": "en_us",
         "llm_provider": "openai",
+        "persist_api_keys_non_localhost": false,
         "openai": {
             "api_key": "",
             "flex": false,
