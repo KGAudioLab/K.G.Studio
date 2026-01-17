@@ -1,3 +1,8 @@
+# [0.7.0-build.20260117] (2026-01-17)
+
+* Merge pull request #25 from KGAudioLab/feat/2025-12-25-more-models (6717cea)
+* feat: added latest (as of 2025-12-25) GPT and Claude model support (4f4e60f)
+
 # [0.6.3-build.20251222] (2025-12-22)
 
 * Merge pull request #24 from KGAudioLab/feat/2025-12-19-midi-keyboard-support (ab8c268)
