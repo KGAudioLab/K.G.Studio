@@ -16,4 +16,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
+  server: {
+    allowedHosts: ['testlocal.com', '.testlocal.com', 'localhost', '127.0.0.1'],
+  },
 })
