@@ -17,7 +17,7 @@ Navigate to **Settings ⚙️ → General → LLM Provider**. Depending on your 
 1. Obtain an OpenAI API Key from [**OpenAI**](https://platform.openai.com/account/api-keys). You may need to create an account and add a payment method to generate an API Key.
 2. In **Settings ⚙️ → General → LLM Provider**, select **OpenAI** as your provider.
 3. Enter your API Key in **OpenAI → Key**.
-4. Select your preferred model from the **OpenAI → Model** dropdown. For optimal performance, we recommend `gpt-5` or `gpt-4o`.
+4. Select your preferred model from the **OpenAI → Model** dropdown. For optimal performance, we recommend `gpt-5.2` or `gpt-5-mini`.
 5. Optionally, choose whether to enable Flex Mode in **OpenAI → Flex Mode**. Flex Mode offers discounted pricing, but may result in slower response times.
 
 ---

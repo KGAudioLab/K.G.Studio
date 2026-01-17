@@ -221,9 +221,9 @@ const GeneralSettings: React.FC = () => {
               value={openaiModel}
               onChange={(e) => handleOpenaiModelChange(e.target.value)}
             >
-              {/* <option value="gpt-5">gpt-5</option>
+              <option value="gpt-5.2">gpt-5.2</option>
               <option value="gpt-5-mini">gpt-5-mini</option>
-              <option value="gpt-5-nano">gpt-5-nano</option> */}
+              <option value="gpt-5-nano">gpt-5-nano</option>
               <option value="gpt-4o">gpt-4o</option>
             </select>
           </div>
@@ -352,6 +352,8 @@ const GeneralSettings: React.FC = () => {
               value={claudeOpenRouterModel}
               onChange={(e) => handleClaudeOpenRouterModelChange(e.target.value)}
             >
+              <option value="anthropic/claude-sonnet-4.5">claude-sonnet-4.5</option>
+              <option value="anthropic/claude-opus-4.5">claude-opus-4.5</option>
               <option value="anthropic/claude-sonnet-4">claude-sonnet-4</option>
               <option value="anthropic/claude-opus-4.1">claude-opus-4.1</option>
             </select>
