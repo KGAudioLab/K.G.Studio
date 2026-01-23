@@ -1,3 +1,15 @@
+# [0.8.0-build.20260123] (2026-01-23)
+
+* Merge pull request #27 from KGAudioLab/feat/2026-01-22-looping (5042477)
+* docs: updated README.md (8e8c557)
+* feat: implemented playback looping; fixed an linter error in Toolbar.tsx (1c8361d)
+* feat: enhanced the note scheduling logic to support loop mode (b767d21)
+* feat: added upgradeToV3 upgrader (b46442b)
+* feat: added a hotkey for loop button (78b798e)
+* feat: implemented change loop setting command (b80e7e8)
+* feat: implemented UI of looping feature (f367c84)
+* docs: updated welcome_again.md (20310cc)
+
 # [0.7.1-build.20260117] (2026-01-17)
 
 * Merge pull request #26 from KGAudioLab/feat/2026-01-17-add-option-allow-persist-api-key-on-non-localhost (59faeff)
