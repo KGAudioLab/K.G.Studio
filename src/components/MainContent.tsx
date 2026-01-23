@@ -11,6 +11,7 @@ import type { RegionUI } from './interfaces';
 import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
+import { ChangeLoopSettingsCommand } from '../core/commands';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -78,6 +79,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const isLoopDraggingRef = useRef(false);
   const loopDragStartBarRef = useRef<number | null>(null);
   const loopDragStartXRef = useRef<number | null>(null);
+  const loopDragOriginalSettingsRef = useRef<{ isLooping: boolean; loopingRange: [number, number] } | null>(null);
 
   // Effect to verify track updates
   useEffect(() => {
@@ -550,6 +552,12 @@ const MainContent: React.FC<MainContentProps> = ({
     loopDragStartBarRef.current = startBarIndex;
     loopDragStartXRef.current = e.clientX;
 
+    // Capture original loop settings for undo/redo
+    loopDragOriginalSettingsRef.current = {
+      isLooping,
+      loopingRange: [...loopingRange] as [number, number]
+    };
+
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Bar numbers mouse down - Start bar: ${startBarIndex} (displayed as bar ${startBarIndex + 1})`);
     }
@@ -599,15 +607,36 @@ const MainContent: React.FC<MainContentProps> = ({
         if (loopDragStartXRef.current !== null) {
           const distanceMoved = Math.abs(e.clientX - loopDragStartXRef.current);
 
-          // If dragged beyond threshold, enable looping
+          // If dragged beyond threshold, execute command for undo/redo support
           if (distanceMoved >= BAR_NUMBERS_CONSTANTS.DRAG_THRESHOLD) {
             const core = KGCore.instance();
-            const project = core.getCurrentProject();
-            project.setIsLooping(true);
-            useProjectStore.setState({ isLooping: true });
+            const currentIsLooping = core.getCurrentProject().getIsLooping();
+            const currentLoopingRange = core.getCurrentProject().getLoopingRange();
 
-            if (DEBUG_MODE.MAIN_CONTENT) {
-              console.log('Loop range drag ended - Looping auto-enabled');
+            // Only execute command if settings actually changed from original
+            if (loopDragOriginalSettingsRef.current) {
+              const originalSettings = loopDragOriginalSettingsRef.current;
+              const settingsChanged =
+                originalSettings.isLooping !== currentIsLooping ||
+                originalSettings.loopingRange[0] !== currentLoopingRange[0] ||
+                originalSettings.loopingRange[1] !== currentLoopingRange[1];
+
+              if (settingsChanged) {
+                // Revert to original state first (since we updated in real-time)
+                core.getCurrentProject().setIsLooping(originalSettings.isLooping);
+                core.getCurrentProject().setLoopingRange(originalSettings.loopingRange);
+
+                // Now execute command to apply new settings with undo support
+                const command = new ChangeLoopSettingsCommand({
+                  isLooping: currentIsLooping,
+                  loopingRange: currentLoopingRange
+                });
+                core.executeCommand(command);
+
+                if (DEBUG_MODE.MAIN_CONTENT) {
+                  console.log('Loop range drag ended - Command executed for undo/redo');
+                }
+              }
             }
           } else {
             // Single click (moved < threshold) - set playhead position
@@ -626,6 +655,7 @@ const MainContent: React.FC<MainContentProps> = ({
         isLoopDraggingRef.current = false;
         loopDragStartBarRef.current = null;
         loopDragStartXRef.current = null;
+        loopDragOriginalSettingsRef.current = null;
       }
     };
 

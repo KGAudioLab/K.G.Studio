@@ -14,6 +14,7 @@ import {
   FaCog
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
+import { ChangeLoopSettingsCommand } from '../core/commands';
 import { plainToInstance, instanceToPlain } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
@@ -415,7 +416,6 @@ const Toolbar: React.FC = () => {
 
   const handleLoopToggle = () => {
     const core = KGCore.instance();
-    const project = core.getCurrentProject();
     const newLoopingState = !isLooping;
     let newLoopingRange = loopingRange;
 
@@ -445,12 +445,12 @@ const Toolbar: React.FC = () => {
       }
     }
 
-    // Update project model
-    project.setIsLooping(newLoopingState);
-    project.setLoopingRange(newLoopingRange);
-
-    // Update store to trigger UI re-render
-    useProjectStore.setState({ isLooping: newLoopingState, loopingRange: newLoopingRange });
+    // Execute command for undo/redo support
+    const command = new ChangeLoopSettingsCommand({
+      isLooping: newLoopingState,
+      loopingRange: newLoopingRange
+    });
+    core.executeCommand(command);
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Loop toggle clicked, isLooping:", newLoopingState, "range:", newLoopingRange);
