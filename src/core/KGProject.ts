@@ -36,6 +36,14 @@ export class KGProject {
   private selectedMode: string = "ionian";
 
   @Expose()
+  @WithDefault(false)
+  private isLooping: boolean = false;
+
+  @Expose()
+  @WithDefault([0, 0])
+  private loopingRange: [number, number] = [0, 0]; // [startBar, endBar] - bar indices (0-based)
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
@@ -54,7 +62,7 @@ export class KGProject {
   private tracks: KGTrack[] = [];
 
   // Constructor
-  constructor(name: string = "Untitled Project", maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
+  constructor(name: string = "Untitled Project", maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
@@ -62,6 +70,8 @@ export class KGProject {
     this.timeSignature = timeSignature;
     this.keySignature = keySignature;
     this.selectedMode = selectedMode;
+    this.isLooping = isLooping;
+    this.loopingRange = loopingRange;
     this.tracks = tracks;
     this.projectStructureVersion = projectStructureVersion;
   }
@@ -138,6 +148,22 @@ export class KGProject {
 
   public getProjectStructureVersion(): number {
     return this.projectStructureVersion;
+  }
+
+  public getIsLooping(): boolean {
+    return this.isLooping;
+  }
+
+  public setIsLooping(isLooping: boolean): void {
+    this.isLooping = isLooping;
+  }
+
+  public getLoopingRange(): [number, number] {
+    return this.loopingRange;
+  }
+
+  public setLoopingRange(loopingRange: [number, number]): void {
+    this.loopingRange = loopingRange;
   }
 }
 

@@ -40,6 +40,8 @@ interface ProjectState {
   bpm: number;
   keySignature: KeySignature;
   selectedMode: string;
+  isLooping: boolean;
+  loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
   currentTime: string; // formatted time string
@@ -225,6 +227,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     bpm: currentProject.getBpm(),
     keySignature: currentProject.getKeySignature(),
     selectedMode: currentProject.getSelectedMode(),
+    isLooping: currentProject.getIsLooping(),
+    loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
@@ -519,6 +523,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           bpm,
           keySignature,
           selectedMode: projectToLoad.getSelectedMode(),
+          isLooping: projectToLoad.getIsLooping(),
+          loopingRange: projectToLoad.getLoopingRange(),
           playheadPosition: 0, // Ensure store state is also updated
           currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
         });

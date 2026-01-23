@@ -7,9 +7,9 @@ import { useProjectStore } from '../stores/projectStore';
 import { DEBUG_MODE } from '../constants/uiConstants';
 import { TIME_CONSTANTS } from '../constants/coreConstants';
 import { parseTimeSignature, getTimeSignatureErrorMessage } from '../util/timeUtil';
-import { 
-  FaUndo, FaRedo, FaMousePointer, FaStepBackward, 
-  FaPlay, FaPause, FaComments,
+import {
+  FaUndo, FaRedo, FaMousePointer, FaStepBackward,
+  FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
   FaCog
 } from 'react-icons/fa';
@@ -27,12 +27,13 @@ import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 
 const Toolbar: React.FC = () => {
-  const { 
-    projectName, setProjectName, 
+  const {
+    projectName, setProjectName,
     bpm, timeSignature, keySignature, setStatus,
     isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
+    isLooping, loopingRange,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, cleanupProjectState,
     // Piano roll state/actions
@@ -43,7 +44,7 @@ const Toolbar: React.FC = () => {
 
   // State for main content tools
   const [activeMainTool, setActiveMainTool] = React.useState<'pointer' | 'pencil'>('pointer');
-  
+
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
   
@@ -412,6 +413,50 @@ const Toolbar: React.FC = () => {
     setPlayheadPosition(0);
   };
 
+  const handleLoopToggle = () => {
+    const core = KGCore.instance();
+    const project = core.getCurrentProject();
+    const newLoopingState = !isLooping;
+    let newLoopingRange = loopingRange;
+
+    // When enabling loop, validate and set the loop range
+    if (newLoopingState) {
+      const currentRange = loopingRange;
+      const projectMaxBars = maxBars;
+
+      // If range is [0, 0], set it to the entire song
+      if (currentRange[0] === 0 && currentRange[1] === 0) {
+        newLoopingRange = [0, projectMaxBars] as [number, number];
+        if (DEBUG_MODE.TOOLBAR) {
+          console.log("Loop range auto-set to entire song:", newLoopingRange);
+        }
+      } else {
+        // Validate range is within [0, maxBars]
+        const validatedStart = Math.max(0, Math.min(currentRange[0], projectMaxBars));
+        const validatedEnd = Math.max(0, Math.min(currentRange[1], projectMaxBars));
+
+        // If range changed, update it
+        if (validatedStart !== currentRange[0] || validatedEnd !== currentRange[1]) {
+          newLoopingRange = [validatedStart, validatedEnd] as [number, number];
+          if (DEBUG_MODE.TOOLBAR) {
+            console.log("Loop range clamped to valid range:", newLoopingRange);
+          }
+        }
+      }
+    }
+
+    // Update project model
+    project.setIsLooping(newLoopingState);
+    project.setLoopingRange(newLoopingRange);
+
+    // Update store to trigger UI re-render
+    useProjectStore.setState({ isLooping: newLoopingState, loopingRange: newLoopingRange });
+
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("Loop toggle clicked, isLooping:", newLoopingState, "range:", newLoopingRange);
+    }
+  };
+
   // Prompt to change max bars when clicking on current-time display
   const handleCurrentTimeClick = () => {
     const MIN_BARS = 16;
@@ -740,6 +785,13 @@ const Toolbar: React.FC = () => {
         ) : (
           <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
         )}
+        <button
+          title="Loop"
+          className={`tool-button ${isLooping ? 'active' : ''}`}
+          onClick={handleLoopToggle}
+        >
+          <FaSync />
+        </button>
         <div className="toolbar-separator"></div>
         <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
         {/* <button title="Record"><FaCircle className="record-btn" /></button>
