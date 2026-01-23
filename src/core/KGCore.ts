@@ -270,16 +270,36 @@ export class KGCore {
 
   // High-level playback control methods
   public async startPlaying(): Promise<void> {
+    // Handle loop mode initialization
+    if (this.currentProject.getIsLooping()) {
+      const [startBar, endBar] = this.currentProject.getLoopingRange();
+
+      // Handle [0, 0] case - set to full project
+      if (startBar === 0 && endBar === 0) {
+        const maxBars = this.currentProject.getMaxBars();
+        const { ChangeLoopSettingsCommand } = await import('./commands');
+        this.executeCommand(new ChangeLoopSettingsCommand({
+          loopingRange: [0, maxBars]
+        }));
+      }
+
+      // Move playhead to loop start (use updated range if [0,0] was just set)
+      const updatedRange = this.currentProject.getLoopingRange();
+      const beatsPerBar = this.currentProject.getTimeSignature().numerator;
+      const loopStartBeats = updatedRange[0] * beatsPerBar;
+      this.setPlayheadPosition(loopStartBeats);
+    }
+
     // Prepare playback first
     await this.preparePlay();
-    
+
     // Start playing (non-blocking)
     this.play(); // Don't await this
-    
+
     // Set up the regular playback update timer
     this.playbackStartTime = performance.now();
     this.playbackStartPosition = this.playheadPosition;
-    
+
     this.startPlaybackUpdates();
 
   }
@@ -336,28 +356,52 @@ export class KGCore {
 
     const bpm = this.currentProject.getBpm();
     const beatsPerMs = bpm / (60 * 1000);
-    const newPosition = this.playbackStartPosition + (adjustedElapsedMs * beatsPerMs);
-    
-    // Stop playback at the end of project (maxBars)
-    const maxBars = this.currentProject.getMaxBars();
+    let newPosition = this.playbackStartPosition + (adjustedElapsedMs * beatsPerMs);
+
+    // Handle looping or end-of-project
     const beatsPerBar = this.currentProject.getTimeSignature().numerator;
-    const maxBeats = maxBars * beatsPerBar;
-    if (newPosition >= maxBeats) {
-      // Clamp to max and stop
-      this.setPlayheadPosition(maxBeats);
-      // Stop playback (non-blocking)
-      this.stopPlaying();
-      return;
+
+    if (this.currentProject.getIsLooping()) {
+      // Loop mode: wrap playhead when it reaches loop end
+      const [startBar, endBarOriginal] = this.currentProject.getLoopingRange();
+      const endBar = (startBar === 0 && endBarOriginal === 0) ? this.currentProject.getMaxBars() : endBarOriginal;
+
+      const loopStartBeats = startBar * beatsPerBar;
+      const loopEndBeats = (endBar + 1) * beatsPerBar; // +1 because endBar is inclusive
+      const loopLengthBeats = loopEndBeats - loopStartBeats;
+
+      // Wrap playhead position within loop range
+      if (newPosition >= loopEndBeats) {
+        // Calculate how far we've overshot and wrap back
+        const overshot = newPosition - loopEndBeats;
+        newPosition = loopStartBeats + (overshot % loopLengthBeats);
+
+        // Reset timing reference to prevent drift accumulation
+        const newElapsedBeats = newPosition - loopStartBeats;
+        this.playbackStartTime = performance.now() - (newElapsedBeats / beatsPerMs) - playbackDelayMs;
+        this.playbackStartPosition = loopStartBeats;
+      }
+    } else {
+      // Non-looping mode: stop at project end
+      const maxBars = this.currentProject.getMaxBars();
+      const maxBeats = maxBars * beatsPerBar;
+
+      if (newPosition >= maxBeats) {
+        // Clamp to max and stop
+        this.setPlayheadPosition(maxBeats);
+        // Stop playback (non-blocking)
+        this.stopPlaying();
+        return;
+      }
     }
-    
+
     // Update playhead position
     this.setPlayheadPosition(newPosition);
-    
+
     // TODO: Future enhancements
     // - Sync with Tone.Transport position for more accurate timing
     // - Handle tempo changes mid-playback
     // - Account for latency compensation
-    // - Support for loop regions
   }
 
   // selected items

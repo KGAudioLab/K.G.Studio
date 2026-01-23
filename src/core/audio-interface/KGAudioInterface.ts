@@ -264,9 +264,41 @@ export class KGAudioInterface {
       Tone.Transport.bpm.value = project.getBpm();
       const timeSignature = project.getTimeSignature();
       Tone.Transport.timeSignature = [timeSignature.numerator, timeSignature.denominator];
-      
+
       console.log(`Setting Tone.js BPM to ${project.getBpm()}, actual value: ${Tone.Transport.bpm.value}`);
-      
+
+      // Configure loop settings
+      const isLooping = project.getIsLooping();
+      let scheduleStartBeat = 0;
+      let scheduleEndBeat = Infinity;
+
+      if (isLooping) {
+        const [startBar, endBarOriginal] = project.getLoopingRange();
+        const beatsPerBar = timeSignature.numerator;
+
+        // Handle [0, 0] case - use full project
+        const endBar = (startBar === 0 && endBarOriginal === 0) ? project.getMaxBars() : endBarOriginal;
+
+        scheduleStartBeat = startBar * beatsPerBar;
+        scheduleEndBeat = (endBar + 1) * beatsPerBar; // +1 because endBar is inclusive
+
+        // Configure Tone.Transport loop boundaries
+        const loopStartTime = this.beatsToToneTime(scheduleStartBeat);
+        const loopEndTime = this.beatsToToneTime(scheduleEndBeat);
+        Tone.Transport.setLoopPoints(loopStartTime, loopEndTime);
+        Tone.Transport.loop = true;
+
+        console.log(`Loop mode enabled: bars [${startBar}, ${endBar}], beats [${scheduleStartBeat}, ${scheduleEndBeat}]`);
+
+        // Adjust start position to loop start if before loop range
+        if (startPosition < scheduleStartBeat) {
+          startPosition = scheduleStartBeat;
+        }
+      } else {
+        Tone.Transport.loop = false;
+        console.log("Loop mode disabled");
+      }
+
       // Set transport position (convert beats to Tone.js format)
       this.setTransportPosition(startPosition);
       
@@ -290,8 +322,14 @@ export class KGAudioInterface {
                   // Calculate absolute note timing in beats (note position + region start position)
                   const regionStartBeat = region.getStartFromBeat();
                   const noteStartBeat = note.getStartBeat() + regionStartBeat;
+                  const noteEndBeat = note.getEndBeat() + regionStartBeat;
                   const noteDurationBeats = note.getEndBeat() - note.getStartBeat();
-                  
+
+                  // Skip notes outside loop range when looping
+                  if (noteStartBeat >= scheduleEndBeat || noteEndBeat <= scheduleStartBeat) {
+                    return; // Skip notes outside the loop range
+                  }
+
                   // Only schedule notes that start at or after the playback start position
                   if (noteStartBeat < startPosition) {
                     return; // Skip notes that would have already finished before playback starts
