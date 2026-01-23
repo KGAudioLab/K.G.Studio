@@ -12,6 +12,7 @@ import { KGRegion } from '../core/region/KGRegion';
 import { AddTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand } from '../core/commands';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
+import { toggleLoop } from '../util/loopUtil';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -86,6 +87,7 @@ interface ProjectState {
   setPlayheadPosition: (position: number) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
+  toggleLoop: () => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
@@ -568,6 +570,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     stopPlaying: async () => {
       await KGCore.instance().stopPlaying();
       set({ isPlaying: false });
+    },
+
+    toggleLoop: () => {
+      const { isLooping, loopingRange, maxBars } = get();
+      toggleLoop(isLooping, loopingRange, maxBars);
     },
 
     setBpm: (bpm: number) => {

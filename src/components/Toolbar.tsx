@@ -14,7 +14,6 @@ import {
   FaCog
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
-import { ChangeLoopSettingsCommand } from '../core/commands';
 import { plainToInstance, instanceToPlain } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
@@ -34,7 +33,7 @@ const Toolbar: React.FC = () => {
     isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
-    isLooping, loopingRange,
+    isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, cleanupProjectState,
     // Piano roll state/actions
@@ -415,45 +414,9 @@ const Toolbar: React.FC = () => {
   };
 
   const handleLoopToggle = () => {
-    const core = KGCore.instance();
-    const newLoopingState = !isLooping;
-    let newLoopingRange = loopingRange;
-
-    // When enabling loop, validate and set the loop range
-    if (newLoopingState) {
-      const currentRange = loopingRange;
-      const projectMaxBars = maxBars;
-
-      // If range is [0, 0], set it to the entire song
-      if (currentRange[0] === 0 && currentRange[1] === 0) {
-        newLoopingRange = [0, projectMaxBars] as [number, number];
-        if (DEBUG_MODE.TOOLBAR) {
-          console.log("Loop range auto-set to entire song:", newLoopingRange);
-        }
-      } else {
-        // Validate range is within [0, maxBars]
-        const validatedStart = Math.max(0, Math.min(currentRange[0], projectMaxBars));
-        const validatedEnd = Math.max(0, Math.min(currentRange[1], projectMaxBars));
-
-        // If range changed, update it
-        if (validatedStart !== currentRange[0] || validatedEnd !== currentRange[1]) {
-          newLoopingRange = [validatedStart, validatedEnd] as [number, number];
-          if (DEBUG_MODE.TOOLBAR) {
-            console.log("Loop range clamped to valid range:", newLoopingRange);
-          }
-        }
-      }
-    }
-
-    // Execute command for undo/redo support
-    const command = new ChangeLoopSettingsCommand({
-      isLooping: newLoopingState,
-      loopingRange: newLoopingRange
-    });
-    core.executeCommand(command);
-
+    toggleLoop();
     if (DEBUG_MODE.TOOLBAR) {
-      console.log("Loop toggle clicked, isLooping:", newLoopingState, "range:", newLoopingRange);
+      console.log("Loop toggle clicked");
     }
   };
 

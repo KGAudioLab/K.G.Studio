@@ -40,6 +40,7 @@ interface AppConfig {
     main: {
       hold_to_create_region: string;
       play: string;
+      loop: string;
       undo: string;
       redo: string;
       select_all: string;
@@ -205,12 +206,13 @@ export class ConfigManager {
           main: {
             hold_to_create_region: 'ctrl',
             play: 'space',
+            loop: 'c',
             undo: 'ctrl+z',
             redo: 'ctrl+shift+z',
             select_all: 'ctrl+a',
             copy: 'ctrl+c',
             cut: 'ctrl+x',
-            paste: 'ctrl+v', 
+            paste: 'ctrl+v',
             save: 'ctrl+s'
           },
           piano_roll: {
