@@ -34,6 +34,7 @@
         "main": {
             "hold_to_create_region": "ctrl",
             "play": "space",
+            "loop": "c",
             "undo": "ctrl+z",
             "redo": "ctrl+shift+z",
             "select_all": "ctrl+a",

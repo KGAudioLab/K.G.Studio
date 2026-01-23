@@ -29,3 +29,4 @@ export { PasteNotesCommand } from './note/PasteNotesCommand';
 
 // Project commands
 export { ChangeProjectPropertyCommand, type ProjectUpdateProperties } from './project/ChangeProjectPropertyCommand';
+export { ChangeLoopSettingsCommand, type LoopSettings } from './project/ChangeLoopSettingsCommand';

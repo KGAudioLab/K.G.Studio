@@ -12,6 +12,7 @@ import { KGRegion } from '../core/region/KGRegion';
 import { AddTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand } from '../core/commands';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
+import { toggleLoop } from '../util/loopUtil';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -40,6 +41,8 @@ interface ProjectState {
   bpm: number;
   keySignature: KeySignature;
   selectedMode: string;
+  isLooping: boolean;
+  loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
   currentTime: string; // formatted time string
@@ -84,6 +87,7 @@ interface ProjectState {
   setPlayheadPosition: (position: number) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
+  toggleLoop: () => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
@@ -225,6 +229,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     bpm: currentProject.getBpm(),
     keySignature: currentProject.getKeySignature(),
     selectedMode: currentProject.getSelectedMode(),
+    isLooping: currentProject.getIsLooping(),
+    loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
@@ -519,6 +525,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           bpm,
           keySignature,
           selectedMode: projectToLoad.getSelectedMode(),
+          isLooping: projectToLoad.getIsLooping(),
+          loopingRange: projectToLoad.getLoopingRange(),
           playheadPosition: 0, // Ensure store state is also updated
           currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
         });
@@ -562,6 +570,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     stopPlaying: async () => {
       await KGCore.instance().stopPlaying();
       set({ isPlaying: false });
+    },
+
+    toggleLoop: () => {
+      const { isLooping, loopingRange, maxBars, isPlaying, stopPlaying } = get();
+
+      // Stop playback if currently playing
+      if (isPlaying) {
+        stopPlaying();
+      }
+
+      toggleLoop(isLooping, loopingRange, maxBars);
     },
 
     setBpm: (bpm: number) => {

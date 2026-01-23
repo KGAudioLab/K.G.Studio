@@ -121,8 +121,10 @@ export const createMockProject = (overrides: Partial<{
     defaults.timeSignature,
     'C major', // keySignature
     'ionian', // selectedMode
+    false, // isLooping
+    [0, 0], // loopingRange
     defaults.tracks, // tracks
-    1 // projectStructureVersion
+    3 // projectStructureVersion
   )
   
   return project

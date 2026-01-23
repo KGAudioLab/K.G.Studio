@@ -7,9 +7,9 @@ import { useProjectStore } from '../stores/projectStore';
 import { DEBUG_MODE } from '../constants/uiConstants';
 import { TIME_CONSTANTS } from '../constants/coreConstants';
 import { parseTimeSignature, getTimeSignatureErrorMessage } from '../util/timeUtil';
-import { 
-  FaUndo, FaRedo, FaMousePointer, FaStepBackward, 
-  FaPlay, FaPause, FaComments,
+import {
+  FaUndo, FaRedo, FaMousePointer, FaStepBackward,
+  FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
   FaCog
 } from 'react-icons/fa';
@@ -27,12 +27,13 @@ import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 
 const Toolbar: React.FC = () => {
-  const { 
-    projectName, setProjectName, 
+  const {
+    projectName, setProjectName,
     bpm, timeSignature, keySignature, setStatus,
     isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
+    isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, cleanupProjectState,
     // Piano roll state/actions
@@ -43,7 +44,7 @@ const Toolbar: React.FC = () => {
 
   // State for main content tools
   const [activeMainTool, setActiveMainTool] = React.useState<'pointer' | 'pencil'>('pointer');
-  
+
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
   
@@ -245,7 +246,7 @@ const Toolbar: React.FC = () => {
       const midiData = convertProjectToMidi(currentProject);
       
       // Create a downloadable blob
-      const blob = new Blob([midiData], { type: 'audio/midi' });
+      const blob = new Blob([midiData.buffer as ArrayBuffer], { type: 'audio/midi' });
       
       // Create a temporary download link
       const url = URL.createObjectURL(blob);
@@ -410,6 +411,13 @@ const Toolbar: React.FC = () => {
       console.log("Back to beginning button clicked");
     }
     setPlayheadPosition(0);
+  };
+
+  const handleLoopToggle = () => {
+    toggleLoop();
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("Loop toggle clicked");
+    }
   };
 
   // Prompt to change max bars when clicking on current-time display
@@ -740,6 +748,13 @@ const Toolbar: React.FC = () => {
         ) : (
           <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
         )}
+        <button
+          title="Loop"
+          className={`tool-button ${isLooping ? 'active' : ''}`}
+          onClick={handleLoopToggle}
+        >
+          <FaSync />
+        </button>
         <div className="toolbar-separator"></div>
         <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
         {/* <button title="Record"><FaCircle className="record-btn" /></button>

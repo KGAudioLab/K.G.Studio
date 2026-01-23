@@ -11,7 +11,7 @@ import { selectAllNotesInActiveRegion } from '../util/selectionUtil';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, projectName } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName } = useProjectStore();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -59,6 +59,7 @@ export const useGlobalKeyboardHandler = () => {
       const pasteShortcut = configManager.get('hotkeys.main.paste') as string;
       const selectAllShortcut = configManager.get('hotkeys.main.select_all') as string;
       const playShortcut = configManager.get('hotkeys.main.play') as string;
+      const loopShortcut = configManager.get('hotkeys.main.loop') as string;
       const saveShortcut = configManager.get('hotkeys.main.save') as string;
 
       // Check for undo shortcut
@@ -136,6 +137,19 @@ export const useGlobalKeyboardHandler = () => {
         return;
       }
 
+      // Check for loop toggle shortcut
+      if (loopShortcut && matchesKeyboardShortcut(event, loopShortcut)) {
+        event.preventDefault();
+        try {
+          toggleLoop();
+          setStatus('Loop toggled');
+        } catch (error) {
+          console.error('Loop toggle failed:', error);
+          setStatus('Loop toggle failed');
+        }
+        return;
+      }
+
       // Check for save shortcut
       if (saveShortcut && matchesKeyboardShortcut(event, saveShortcut)) {
         event.preventDefault();
@@ -156,5 +170,5 @@ export const useGlobalKeyboardHandler = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, projectName]); // Include dependencies for store actions
+  }, [undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName]); // Include dependencies for store actions
 };

@@ -51,3 +51,9 @@ export const PLAYING_CONSTANTS = {
   // Update rate for playback (10 FPS for performance evaluation)
   UPDATE_INTERVAL_MS: 100, // 1000ms / 10fps = 100ms
 };
+
+// Bar numbers related constants
+export const BAR_NUMBERS_CONSTANTS = {
+  // Minimum drag distance (in pixels) to consider as drag vs click
+  DRAG_THRESHOLD: 3,
+};

@@ -8,9 +8,10 @@ import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
 import type { RegionUI } from './interfaces';
-import { DEBUG_MODE } from '../constants';
+import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
+import { ChangeLoopSettingsCommand } from '../core/commands';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -19,15 +20,15 @@ interface MainContentProps {
 const MainContent: React.FC<MainContentProps> = ({
   onTrackClick = () => {} // Default to empty function if not provided
 }) => {
-  const { 
-    tracks, 
-    maxBars, 
-    reorderTracks, 
+  const {
+    tracks,
+    maxBars,
+    reorderTracks,
     updateTrack,
-    updateTrackProperties, 
-    timeSignature, 
-    setPlayheadPosition, 
-    clearAllSelections, 
+    updateTrackProperties,
+    timeSignature,
+    setPlayheadPosition,
+    clearAllSelections,
     setSelectedTrack,
     showPianoRoll,
     activeRegionId,
@@ -73,9 +74,12 @@ const MainContent: React.FC<MainContentProps> = ({
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
   
-  // Refs for bar numbers drag functionality
-  const isDraggingRef = useRef(false);
+  // Refs for bar numbers and loop range drag functionality
   const barNumbersRef = useRef<HTMLDivElement | null>(null);
+  const isLoopDraggingRef = useRef(false);
+  const loopDragStartBarRef = useRef<number | null>(null);
+  const loopDragStartXRef = useRef<number | null>(null);
+  const loopDragOriginalSettingsRef = useRef<{ isLooping: boolean; loopingRange: [number, number] } | null>(null);
 
   // Effect to verify track updates
   useEffect(() => {
@@ -444,8 +448,6 @@ const MainContent: React.FC<MainContentProps> = ({
     setActiveRegionId(null);
   };
 
-
-
   /**
    * Add keyboard event listener for region deletion
    * Handles Backspace (Windows) and Delete (Mac) keys to delete selected regions
@@ -515,75 +517,149 @@ const MainContent: React.FC<MainContentProps> = ({
     return destinationBeatPosition;
   }, [timeSignature]);
 
-  // Handle mouse down to start dragging
+  // Utility function to calculate bar index from mouse coordinates (for loop range selection)
+  const calculateBarIndexFromMouse = useCallback((clientX: number): number | null => {
+    if (!barNumbersRef.current) return null;
+
+    const rect = barNumbersRef.current.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
+
+    // Calculate the width of each bar
+    const barWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
+    ) || 40;
+
+    // Calculate bar index (using Math.floor for exact bar boundaries)
+    const barIndex = Math.floor(relativeX / barWidth);
+
+    // Clamp to valid range [0, maxBars - 1]
+    return Math.max(0, Math.min(barIndex, maxBars - 1));
+  }, [maxBars]);
+
+  // Handle mouse down to start dragging (for loop range selection)
   const handleBarNumbersMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // Only handle left mouse button
     if (e.button !== 0) return;
-    
-    isDraggingRef.current = true;
-    
-    // Calculate and set initial playhead position
-    const newPosition = calculatePlayheadFromMouse(e.clientX);
-    if (newPosition !== null) {
-      setPlayheadPosition(newPosition);
-      
-      if (DEBUG_MODE.MAIN_CONTENT) {
-        console.log(`Bar numbers drag started - Initial position: ${newPosition} (bar ${Math.floor(newPosition / timeSignature.numerator) + 1})`);
-      }
+
+    // Calculate starting bar index
+    const startBarIndex = calculateBarIndexFromMouse(e.clientX);
+    if (startBarIndex === null) return;
+
+    // Always start loop drag tracking
+    isLoopDraggingRef.current = true;
+    loopDragStartBarRef.current = startBarIndex;
+    loopDragStartXRef.current = e.clientX;
+
+    // Capture original loop settings for undo/redo
+    loopDragOriginalSettingsRef.current = {
+      isLooping,
+      loopingRange: [...loopingRange] as [number, number]
+    };
+
+    if (DEBUG_MODE.MAIN_CONTENT) {
+      console.log(`Bar numbers mouse down - Start bar: ${startBarIndex} (displayed as bar ${startBarIndex + 1})`);
     }
-    
+
     // Prevent text selection during drag
     e.preventDefault();
   };
 
-  // Handle click on bar numbers to move playhead (when not dragging)
-  const handleBarNumbersClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // If we were dragging, don't process as a click
-    if (isDraggingRef.current) {
-      return;
-    }
-    
-    const newPosition = calculatePlayheadFromMouse(e.clientX);
-    if (newPosition !== null) {
-      const core = KGCore.instance();
-      const currentPlayheadPosition = core.getPlayheadPosition();
-      const beatsPerBar = timeSignature.numerator;
-      const currentBarNumber = Math.floor(currentPlayheadPosition / beatsPerBar) + 1; // 1-indexed
-      const destinationBarNumber = Math.floor(newPosition / beatsPerBar) + 1; // 1-indexed
-      
-      // Debug logging
-      if (DEBUG_MODE.MAIN_CONTENT) {
-        console.log(`Bar numbers click - Position: ${newPosition}`);
-        console.log(`Current bar: ${currentBarNumber} (beat ${currentPlayheadPosition})`);
-        console.log(`Destination bar: ${destinationBarNumber} (beat ${newPosition})`);
-      }
-      
-      setPlayheadPosition(newPosition);
-    }
-  };
-
-  // Global mouse move and mouse up handlers for bar numbers drag functionality
+  // Global mouse move and mouse up handlers for loop range drag functionality
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      
-      const newPosition = calculatePlayheadFromMouse(e.clientX);
-      if (newPosition !== null) {
-        setPlayheadPosition(newPosition);
-        
-        if (DEBUG_MODE.MAIN_CONTENT) {
-          console.log(`Bar numbers drag - Position: ${newPosition} (bar ${Math.floor(newPosition / timeSignature.numerator) + 1})`);
-        }
+      if (!isLoopDraggingRef.current) return;
+      if (loopDragStartBarRef.current === null || loopDragStartXRef.current === null) return;
+
+      // Calculate distance moved
+      const distanceMoved = Math.abs(e.clientX - loopDragStartXRef.current);
+
+      // Only update if moved beyond threshold
+      if (distanceMoved < BAR_NUMBERS_CONSTANTS.DRAG_THRESHOLD) return;
+
+      // Calculate current bar index
+      const currentBarIndex = calculateBarIndexFromMouse(e.clientX);
+      if (currentBarIndex === null) return;
+
+      // Create loop range [min, max] regardless of drag direction
+      const startBar = loopDragStartBarRef.current;
+      const loopStart = Math.min(startBar, currentBarIndex);
+      const loopEnd = Math.max(startBar, currentBarIndex);
+      const newLoopRange: [number, number] = [loopStart, loopEnd];
+
+      // Update project model
+      const core = KGCore.instance();
+      const project = core.getCurrentProject();
+      project.setLoopingRange(newLoopRange);
+      project.setIsLooping(true); // Enable looping immediately during drag for real-time visual feedback
+
+      // Update store to trigger UI re-render
+      useProjectStore.setState({ loopingRange: newLoopRange, isLooping: true });
+
+      if (DEBUG_MODE.MAIN_CONTENT) {
+        console.log(`Loop range drag - Range: [${loopStart}, ${loopEnd}] (bars ${loopStart + 1}-${loopEnd + 1})`);
       }
     };
 
-    const handleMouseUp = () => {
-      if (isDraggingRef.current) {
-        isDraggingRef.current = false;
-        
-        if (DEBUG_MODE.MAIN_CONTENT) {
-          console.log('Bar numbers drag ended');
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isLoopDraggingRef.current) {
+        if (loopDragStartXRef.current !== null) {
+          const distanceMoved = Math.abs(e.clientX - loopDragStartXRef.current);
+
+          // If dragged beyond threshold, execute command for undo/redo support
+          if (distanceMoved >= BAR_NUMBERS_CONSTANTS.DRAG_THRESHOLD) {
+            const core = KGCore.instance();
+            const currentIsLooping = core.getCurrentProject().getIsLooping();
+            const currentLoopingRange = core.getCurrentProject().getLoopingRange();
+
+            // Only execute command if settings actually changed from original
+            if (loopDragOriginalSettingsRef.current) {
+              const originalSettings = loopDragOriginalSettingsRef.current;
+              const settingsChanged =
+                originalSettings.isLooping !== currentIsLooping ||
+                originalSettings.loopingRange[0] !== currentLoopingRange[0] ||
+                originalSettings.loopingRange[1] !== currentLoopingRange[1];
+
+              if (settingsChanged) {
+                // Stop playback if currently playing (get fresh state from store)
+                const { isPlaying: currentIsPlaying, stopPlaying: currentStopPlaying } = useProjectStore.getState();
+                if (currentIsPlaying) {
+                  currentStopPlaying();
+                }
+
+                // Revert to original state first (since we updated in real-time)
+                core.getCurrentProject().setIsLooping(originalSettings.isLooping);
+                core.getCurrentProject().setLoopingRange(originalSettings.loopingRange);
+
+                // Now execute command to apply new settings with undo support
+                const command = new ChangeLoopSettingsCommand({
+                  isLooping: currentIsLooping,
+                  loopingRange: currentLoopingRange
+                });
+                core.executeCommand(command);
+
+                if (DEBUG_MODE.MAIN_CONTENT) {
+                  console.log('Loop range drag ended - Command executed for undo/redo');
+                }
+              }
+            }
+          } else {
+            // Single click (moved < threshold) - set playhead position
+            const clickPosition = calculatePlayheadFromMouse(e.clientX);
+            if (clickPosition !== null) {
+              setPlayheadPosition(clickPosition);
+
+              if (DEBUG_MODE.MAIN_CONTENT) {
+                console.log(`Single click on bar numbers - Set playhead to: ${clickPosition}`);
+              }
+            }
+          }
         }
+
+        // Reset drag state
+        isLoopDraggingRef.current = false;
+        loopDragStartBarRef.current = null;
+        loopDragStartXRef.current = null;
+        loopDragOriginalSettingsRef.current = null;
       }
     };
 
@@ -596,25 +672,37 @@ const MainContent: React.FC<MainContentProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [calculatePlayheadFromMouse, setPlayheadPosition, timeSignature]);
+  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, setPlayheadPosition]);
 
-  const { showInstrumentSelection } = useProjectStore();
+  const { showInstrumentSelection, isLooping, loopingRange } = useProjectStore();
+
+  // Helper function to check if a bar (0-indexed) is in the loop range
+  const isBarInLoopRange = (barIndex: number): boolean => {
+    if (!isLooping) return false;
+    // Loop range is [startBar, endBar] (0-indexed)
+    // We want to highlight bars from startBar to endBar inclusive
+    return barIndex >= loopingRange[0] && barIndex <= loopingRange[1];
+  };
 
   return (
     <div className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`}>
       <div className="main-content-wrapper">
         {/* Top-left spacer */}
         <div className="top-left-spacer"></div>
-        
+
         {/* Bar numbers at the top */}
-        <div 
-          className="bar-numbers" 
+        <div
+          className="bar-numbers"
           ref={barNumbersRef}
           onMouseDown={handleBarNumbersMouseDown}
-          onClick={handleBarNumbersClick}
         >
           {Array.from({ length: maxBars }, (_, i) => (
-            <div key={i} className="bar-number-cell">{i + 1}</div>
+            <div
+              key={i}
+              className={`bar-number-cell${isBarInLoopRange(i) ? ' looped' : ''}`}
+            >
+              {i + 1}
+            </div>
           ))}
         </div>
         
