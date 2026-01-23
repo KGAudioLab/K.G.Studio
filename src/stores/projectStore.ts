@@ -573,7 +573,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     toggleLoop: () => {
-      const { isLooping, loopingRange, maxBars } = get();
+      const { isLooping, loopingRange, maxBars, isPlaying, stopPlaying } = get();
+
+      // Stop playback if currently playing
+      if (isPlaying) {
+        stopPlaying();
+      }
+
       toggleLoop(isLooping, loopingRange, maxBars);
     },
 

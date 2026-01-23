@@ -20,15 +20,15 @@ interface MainContentProps {
 const MainContent: React.FC<MainContentProps> = ({
   onTrackClick = () => {} // Default to empty function if not provided
 }) => {
-  const { 
-    tracks, 
-    maxBars, 
-    reorderTracks, 
+  const {
+    tracks,
+    maxBars,
+    reorderTracks,
     updateTrack,
-    updateTrackProperties, 
-    timeSignature, 
-    setPlayheadPosition, 
-    clearAllSelections, 
+    updateTrackProperties,
+    timeSignature,
+    setPlayheadPosition,
+    clearAllSelections,
     setSelectedTrack,
     showPianoRoll,
     activeRegionId,
@@ -448,8 +448,6 @@ const MainContent: React.FC<MainContentProps> = ({
     setActiveRegionId(null);
   };
 
-
-
   /**
    * Add keyboard event listener for region deletion
    * Handles Backspace (Windows) and Delete (Mac) keys to delete selected regions
@@ -622,6 +620,12 @@ const MainContent: React.FC<MainContentProps> = ({
                 originalSettings.loopingRange[1] !== currentLoopingRange[1];
 
               if (settingsChanged) {
+                // Stop playback if currently playing (get fresh state from store)
+                const { isPlaying: currentIsPlaying, stopPlaying: currentStopPlaying } = useProjectStore.getState();
+                if (currentIsPlaying) {
+                  currentStopPlaying();
+                }
+
                 // Revert to original state first (since we updated in real-time)
                 core.getCurrentProject().setIsLooping(originalSettings.isLooping);
                 core.getCurrentProject().setLoopingRange(originalSettings.loopingRange);

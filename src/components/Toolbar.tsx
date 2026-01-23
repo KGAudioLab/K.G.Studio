@@ -246,7 +246,7 @@ const Toolbar: React.FC = () => {
       const midiData = convertProjectToMidi(currentProject);
       
       // Create a downloadable blob
-      const blob = new Blob([midiData], { type: 'audio/midi' });
+      const blob = new Blob([midiData.buffer as ArrayBuffer], { type: 'audio/midi' });
       
       // Create a temporary download link
       const url = URL.createObjectURL(blob);
