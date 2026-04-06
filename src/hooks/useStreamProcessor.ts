@@ -29,8 +29,9 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
     setAbortController(controller);
 
     // Track the current streaming message ID (mutable)
-    let currentStreamingId = createStreamingMessage().id;
-    onMessageAdd({ id: currentStreamingId, role: 'assistant', content: '', isStreaming: true, tokenCount: 0 } as ChatMessage);
+    const initialStreamingMsg = createStreamingMessage();
+    let currentStreamingId = initialStreamingMsg.id;
+    onMessageAdd(initialStreamingMsg);
 
     try {
       const agentCore = AgentCore.instance();
@@ -54,7 +55,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
 
           onMessageUpdate(currentStreamingId, (msg) => ({
             ...msg,
-            content: `<span class="processing-wave">Processing...</span> ${tokenCount} tokens received. click here to abort.`,
+            content: `<span class="processing-wave">Thinking...</span>${tokenCount > 0 ? ` ${tokenCount} tokens received.` : ''} click here to abort.`,
             tokenCount
           }));
         } else if (chunk.type === 'tool_call' && chunk.toolCall) {

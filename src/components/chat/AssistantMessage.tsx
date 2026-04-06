@@ -34,18 +34,18 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   const renderContent = () => {
     // Handle special abort link for streaming messages
     if (isStreaming && onAbort && content.includes('click here to abort')) {
-      const hasProcessingWave = content.includes('<span class="processing-wave">Processing...</span>');
+      const hasProcessingWave = content.includes('<span class="processing-wave">Thinking...</span>');
 
       if (hasProcessingWave) {
         const parts = content.split('click here to abort');
         const beforeAbort = parts[0].replace(
-          '<span class="processing-wave">Processing...</span>',
+          '<span class="processing-wave">Thinking...</span>',
           ''
         );
 
         return (
           <span>
-            <span className="processing-wave">Processing...</span>
+            <span className="processing-wave">Thinking...</span>
             {beforeAbort}
             <button onClick={onAbort} className="abort-link">
               click here to abort
