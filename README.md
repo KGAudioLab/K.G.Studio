@@ -10,6 +10,7 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2026.04.05**: Migrated the AI agent from XML-based tool calling to native OpenAI SDK function calling for improved reliability and compatibility. Added new LLM model options including GPT-5.4 series.
 - **2026.01.23**: Implemented seamless loop playback! Drag on the bar numbers to set loop range, or toggle loop mode with the Loop button in the toolbar. Loop playback uses `Tone.js`'s native looping for sample-accurate, gap-free looping.
 - **2025.12.21**: Implemented MIDI keyboard support! You can now connect a MIDI keyboard and use it to play sounds. Please note that this feature may not work optimally in Safari and some other browsers that lack complete Web MIDI interface support.
 - **2025.12.15**: Added Intelligent Chord Assistant with functional harmony guidance (T/S/D). Hover over piano keys to see context-aware chord suggestions and create full chords with one click!
@@ -50,7 +51,7 @@ This project investigates how AI-human collaboration can enhance creative music-
   - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
   - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
   - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn't persisted by default for security; you can enable "Persist API Keys on Non-Localhost" in Settings to persist them, though this may increase XSS risk.)
-  - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free` or `qwen/qwen3-235b-a22b:free`. (Note: these are free models [qwen3-30b-a3b](https://openrouter.ai/qwen/qwen3-30b-a3b:free) and [qwen3-235b-a22b](https://openrouter.ai/qwen/qwen3-235b-a22b:free); non‑free models may require billing; some model providers may retain your data, check their privacy policies; this project is not affiliated with OpenRouter or any model provider.)
+  - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3.6-plus:free`. (Note: this is a free model [qwen3.6-plus](https://openrouter.ai/qwen/qwen3.6-plus:free); non‑free models may require billing; free model providers may collect your data, check the model page for details; this project is not affiliated with OpenRouter or any model provider.)
   - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 (Alternatively, you can use the official OpenAI API, other OpenAI‑compatible services, or your own hosted LLM server. e.g., Ollama, vLLM)
@@ -203,7 +204,7 @@ Note: due to CORS limitations with some providers, Google Gemini and Anthropic C
 1. Obtain an OpenAI API Key from [**OpenAI**](https://platform.openai.com/account/api-keys). You may need to create an account and add a payment method to generate an API Key.
 2. In **Settings ⚙️ → General → LLM Provider**, select **OpenAI** as your provider.
 3. Enter your API Key in **OpenAI → Key**.
-4. Select your preferred model from the **OpenAI → Model** dropdown. For a good balance between performance and cost, we recommend `gpt-5-mini`.
+4. Select your preferred model from the **OpenAI → Model** dropdown. For a good balance between performance and cost, we recommend `gpt-5.4-mini`.
 5. Optionally, choose whether to enable Flex Mode in **OpenAI → Flex Mode**. Flex Mode offers discounted pricing, but may result in slower response times or server-side errors.
 
 ### Using OpenRouter
@@ -216,9 +217,9 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 4. Browse available models on the [**OpenRouter Models Page**](https://openrouter.ai/models). Use the "Prompt Pricing" filter to identify free models.  
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
 5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
-    - `Anthropic: claude-4-sonnet` (`anthropic/claude-sonnet-4`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4))
-    - `Qwen: qwen3-30b-a3b` (FREE MODEL: `qwen/qwen3-30b-a3b:free`: [Link](https://openrouter.ai/qwen/qwen3-30b-a3b:free))
-    - `Qwen: qwen3-235b-a22b` (FREE MODEL: `qwen/qwen3-235b-a22b:free`: [Link](https://openrouter.ai/qwen/qwen3-235b-a22b:free))
+    - `Anthropic: Claude Sonnet 4.5` (`anthropic/claude-sonnet-4.5`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.5)) — best balance of quality and cost for the Claude series
+    - `Qwen: Qwen3.5-35B-A3B` (`qwen/qwen3.5-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.5-35b-a3b)) — recommended open source model
+    - `Qwen: Qwen3.6 Plus` (FREE MODEL: `qwen/qwen3.6-plus:free`: [Link](https://openrouter.ai/qwen/qwen3.6-plus:free)) — recommended free model; note that free model providers may collect your data, check the model page for details
 6. Input the base URL `https://openrouter.ai/api/v1` **OpenAI Compatible Server → Base URL**.
 
 ### About the agent and LLM providers

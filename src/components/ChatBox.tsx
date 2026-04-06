@@ -36,6 +36,11 @@ const createLLMProviderFromConfig = (): LLMProvider => {
       model = configManager.get('general.openai.model') as string;
       baseURL = undefined; // Uses OpenAI default
       break;
+    case 'claude_openrouter':
+      apiKey = configManager.get('general.claude_openrouter.api_key') as string;
+      model = configManager.get('general.claude_openrouter.model') as string;
+      baseURL = configManager.get('general.claude_openrouter.base_url') as string || undefined;
+      break;
     case 'openai_compatible':
     default:
       apiKey = configManager.get('general.openai_compatible.api_key') as string;
