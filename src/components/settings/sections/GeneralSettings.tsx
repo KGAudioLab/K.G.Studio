@@ -253,6 +253,9 @@ const GeneralSettings: React.FC = () => {
               value={openaiModel}
               onChange={(e) => handleOpenaiModelChange(e.target.value)}
             >
+              <option value="gpt-5.4">gpt-5.4</option>
+              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+              <option value="gpt-5.4-nano">gpt-5.4-nano</option>
               <option value="gpt-5.2">gpt-5.2</option>
               <option value="gpt-5-mini">gpt-5-mini</option>
               <option value="gpt-5-nano">gpt-5-nano</option>

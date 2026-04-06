@@ -178,7 +178,7 @@ export class ConfigManager {
           openai: {
             api_key: '',
             flex: false,
-            model: 'gpt-5.2'
+            model: 'gpt-5.4-mini'
           },
           gemini: {
             api_key: '',
