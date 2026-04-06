@@ -14,14 +14,14 @@ export class RemoveNotesTool extends BaseTool {
   readonly description = 'Remove all MIDI notes whose start position falls within the specified beat range. Use this to clear a section before rewriting it, or to delete unwanted notes. Beat positions are absolute on the project timeline.';
 
   readonly parameters: Record<string, ToolParameter> = {
-    start_beat: {
+    start: {
       type: 'number',
-      description: 'Absolute beat position where the removal range begins (inclusive). A note starting at exactly this beat will be removed.',
+      description: 'Start beat — the absolute beat position where the removal range begins (inclusive). A note starting at exactly this beat will be removed.',
       required: true
     },
-    end_beat: {
+    end: {
       type: 'number',
-      description: 'Absolute beat position where the removal range ends (exclusive). A note starting at exactly this beat will NOT be removed. Must be greater than start_beat.',
+      description: 'End beat — the absolute beat position where the removal range ends (exclusive). A note starting at exactly this beat will NOT be removed. Must be greater than start.',
       required: true
     },
     region_id: {
@@ -36,17 +36,17 @@ export class RemoveNotesTool extends BaseTool {
       // Validate parameters
       this.validateParameters(params);
       
-      const startBeat = params.start_beat as number;
-      const endBeat = params.end_beat as number;
+      const startBeat = params.start as number;
+      const endBeat = params.end as number;
       const regionId = params.region_id as string | undefined;
       
       // Validate beat range
       if (startBeat < 0) {
-        return this.createErrorResult(`Invalid start_beat ${startBeat}. Must be >= 0.`);
+        return this.createErrorResult(`Invalid start ${startBeat}. Must be >= 0.`);
       }
-      
+
       if (endBeat <= startBeat) {
-        return this.createErrorResult(`Invalid beat range: end_beat (${endBeat}) must be greater than start_beat (${startBeat}).`);
+        return this.createErrorResult(`Invalid beat range: end (${endBeat}) must be greater than start (${startBeat}).`);
       }
       
       // Find the target region

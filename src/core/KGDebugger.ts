@@ -57,7 +57,7 @@ export class KGDebugger {
       console.log(`📝 Converting selected region to ABC notation...`);
       console.log(`📊 Selected items count: ${selectedItems.length}`);
 
-      midiRegion = selectedItems.find(item => 
+      midiRegion = selectedItems.find(item =>
         item.getCurrentType() === 'KGMidiRegion'
       ) as KGMidiRegion;
     }
@@ -65,7 +65,7 @@ export class KGDebugger {
     // If no MIDI region selected, try to use active region from piano roll
     if (!midiRegion) {
       console.log("📝 No MIDI region selected, checking for active region...");
-      
+
       const storeState = useProjectStore.getState();
       const activeRegionId = storeState.activeRegionId;
       const tracks = storeState.tracks;
@@ -75,7 +75,7 @@ export class KGDebugger {
         for (const track of tracks) {
           const regions = track.getRegions();
           const region = regions.find(r => r.getId() === activeRegionId);
-          
+
           if (region && region instanceof KGMidiRegion) {
             midiRegion = region;
             console.log(`✅ Found active region: "${region.getName()}"`);
@@ -95,7 +95,7 @@ export class KGDebugger {
 
     // Use provided startFromBeat or default to region start
     const effectiveStartBeat = startFromBeat ?? midiRegion.getStartFromBeat();
-    
+
     console.log(`🎵 Converting region: "${midiRegion.getName()}"`);
     console.log(`📍 Region starts at beat: ${midiRegion.getStartFromBeat()}`);
     console.log(`📍 Conversion starts at beat: ${effectiveStartBeat}`);
@@ -103,13 +103,13 @@ export class KGDebugger {
 
     try {
       const abcNotation = convertRegionToABCNotation(midiRegion, effectiveStartBeat);
-      
+
       console.log("✅ ABC Notation conversion successful!");
       console.log("📄 Result:");
       console.log("─".repeat(50));
       console.log(abcNotation);
       console.log("─".repeat(50));
-      
+
       // Also copy to clipboard if possible
       if (navigator.clipboard) {
         navigator.clipboard.writeText(abcNotation).then(() => {
@@ -118,7 +118,7 @@ export class KGDebugger {
           console.log("📋 Could not copy to clipboard (requires HTTPS)");
         });
       }
-      
+
     } catch (error) {
       console.error("❌ Error converting to ABC notation:", error);
     }
@@ -133,17 +133,17 @@ export class KGDebugger {
     const core = KGCore.instance();
     const project = core.getCurrentProject();
     const effectiveTimeSignature = timeSignature ?? project.getTimeSignature();
-    
+
     console.log(`🧮 Testing quantization for ${durationBeats} beats...`);
     console.log(`⏱️ Time signature: ${effectiveTimeSignature.numerator}/${effectiveTimeSignature.denominator}`);
-    
+
     // Import quantization testing (we'll need to expose some internal methods)
     // For now, let's create a simple test
     const ticksPerBeat = 480 * (4 / effectiveTimeSignature.denominator);
     const durationTicks = Math.round(durationBeats * ticksPerBeat);
-    
+
     console.log(`🎵 Input: ${durationBeats} beats = ${durationTicks} ticks`);
-    
+
     // Test different quantization values manually for demonstration
     const testValues = [
       { name: '1/1', ticks: 1920 },
@@ -155,25 +155,25 @@ export class KGDebugger {
       { name: '1/12', ticks: 160 },
       { name: '1/16', ticks: 120 }
     ];
-    
+
     console.log("📊 Quantization analysis:");
     let bestMatch = { name: '1/4', error: Infinity, ticks: 480 };
-    
+
     testValues.forEach(val => {
       const remainder = durationTicks % val.ticks;
       const error = Math.min(remainder, val.ticks - remainder);
       const errorPercent = ((error / val.ticks) * 100).toFixed(1);
-      
+
       if (error < bestMatch.error) {
         bestMatch = { name: val.name, error, ticks: val.ticks };
       }
-      
+
       console.log(`  ${val.name}: ${error} ticks error (${errorPercent}%)`);
     });
-    
+
     const quantizedTicks = Math.round(durationTicks / bestMatch.ticks) * bestMatch.ticks;
     const quantizedBeats = quantizedTicks / ticksPerBeat;
-    
+
     console.log(`✅ Best match: ${bestMatch.name} grid`);
     console.log(`🎯 Quantized: ${quantizedBeats} beats = ${quantizedTicks} ticks`);
     console.log(`📏 Difference: ${Math.abs(durationBeats - quantizedBeats).toFixed(4)} beats`);
@@ -185,20 +185,20 @@ export class KGDebugger {
   public debugSelectedItems(): void {
     const core = KGCore.instance();
     const selectedItems = core.getSelectedItems();
-    
+
     console.log(`🔍 Currently selected items: ${selectedItems.length}`);
-    
+
     if (selectedItems.length === 0) {
       console.log("📝 No items selected. Try selecting regions or notes first.");
       return;
     }
-    
+
     selectedItems.forEach((item, index) => {
       const type = item.getCurrentType();
       const id = item.getId();
-      
+
       console.log(`  ${index + 1}. ${type} (ID: ${id})`);
-      
+
       if (type === 'KGMidiRegion') {
         const region = item as KGMidiRegion;
         console.log(`     📍 Position: ${region.getStartFromBeat()} beats`);
@@ -228,12 +228,12 @@ export class KGDebugger {
     console.log("─".repeat(50));
     console.log(input);
     console.log("─".repeat(50));
-    
+
     try {
       const xmlBlocks = extractXMLFromString(input);
-      
+
       console.log(`✅ Extraction successful! Found ${xmlBlocks.length} XML block(s):`);
-      
+
       if (xmlBlocks.length === 0) {
         console.log("📭 No XML blocks found in the input string.");
         console.log("💡 Try input with XML tags like: <add_notes>...</add_notes>");
@@ -244,7 +244,7 @@ export class KGDebugger {
           console.log(block);
           console.log("─".repeat(30));
         });
-        
+
         // Copy all blocks to clipboard if possible
         if (navigator.clipboard && xmlBlocks.length > 0) {
           const allBlocks = xmlBlocks.join('\n\n');
@@ -255,7 +255,7 @@ export class KGDebugger {
           });
         }
       }
-      
+
     } catch (error) {
       console.error("❌ Error extracting XML:", error);
     }
@@ -268,13 +268,13 @@ export class KGDebugger {
    * Usage examples in browser console:
    *
    *   // Single tool call:
-   *   await KGStudio.KGDebugger.testToolCall('{"name":"read_music","arguments":{"start_beat":0,"length":8}}')
+   *   await KGStudio.KGDebugger.testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}')
    *
    *   // Multiple tool calls:
-   *   await KGStudio.KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start_beat":0,"end_beat":4}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start_beat":0,"length":1}]}}]')
+   *   await KGStudio.KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start":0,"end_beat":4}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start":0,"length":1}]}}]')
    *
    *   // Can also pass a JS object directly (no need to stringify):
-   *   await KGStudio.KGDebugger.testToolCall({name:"read_music",arguments:{start_beat:0}})
+   *   await KGStudio.KGDebugger.testToolCall({name:"read_music",arguments:{start:0}})
    *
    * @param input - JSON string, object, or array of tool call(s).
    *   Each tool call should have: { name: string, arguments: object }
@@ -352,9 +352,9 @@ export class KGDebugger {
     console.log("  - Use browser developer tools for best experience");
     console.log("");
     console.log("💡 testToolCall examples:");
-    console.log('  await KGStudio.KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start_beat":0,"length":8}}\')');
-    console.log('  await KGStudio.KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start_beat:0,length:1}]}})');
-    console.log('  await KGStudio.KGDebugger.testToolCall([{name:"remove_notes",arguments:{start_beat:0,end_beat:4}},{name:"read_music",arguments:{}}])');
+    console.log('  await KGStudio.KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":8}}\')');
+    console.log('  await KGStudio.KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:1}]}})');
+    console.log('  await KGStudio.KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end_beat:4}},{name:"read_music",arguments:{}}])');
   }
 
   /**

@@ -17,7 +17,7 @@ export class AddNotesTool extends BaseTool {
   readonly parameters: Record<string, ToolParameter> = {
     notes: {
       type: 'array',
-      description: 'List of notes to add. To create a chord, give multiple notes the same start_beat. To create a melody, use sequential start_beat values.',
+      description: 'List of notes to add. To create a chord, give multiple notes the same start beat. To create a melody, use sequential start values.',
       required: true,
       items: {
         type: 'object',
@@ -28,9 +28,9 @@ export class AddNotesTool extends BaseTool {
             description: 'Pitch in scientific notation: note name, optional accidental (# or b), and octave number. Examples: "C4" (middle C), "F#3" (F-sharp 3rd octave), "Bb2" (B-flat 2nd octave).',
             required: true
           },
-          start_beat: {
+          start: {
             type: 'number',
-            description: 'Absolute beat position on the project timeline where the note starts. This is NOT relative to the region — beat 6 means beat 6 in the project regardless of where the region begins. Fractional values are supported (e.g., 0.5 = half a beat after beat 0).',
+            description: 'Start beat — the absolute beat position on the project timeline where the note begins. This is NOT relative to the region — beat 6 means beat 6 in the project regardless of where the region begins. Fractional values are supported (e.g., 0.5 = half a beat after beat 0).',
             required: true
           },
           length: {
@@ -60,7 +60,7 @@ export class AddNotesTool extends BaseTool {
       
       const notes = params.notes as Array<{
         pitch: string;
-        start_beat: number;
+        start: number;
         length: number;
         velocity?: number;
       }>;
@@ -79,7 +79,7 @@ export class AddNotesTool extends BaseTool {
 
       // Validate and convert notes to creation data
       const noteCreationData: NoteCreationData[] = [];
-      const createdNotes: Array<{ pitch: string; start_beat: number; length: number }> = [];
+      const createdNotes: Array<{ pitch: string; start: number; length: number }> = [];
       
       for (const note of notes) {
         try {
@@ -92,8 +92,8 @@ export class AddNotesTool extends BaseTool {
           }
           
           // Validate beat positions
-          if (note.start_beat < 0) {
-            return this.createErrorResult(`Invalid start_beat ${note.start_beat}. Must be >= 0.`);
+          if (note.start < 0) {
+            return this.createErrorResult(`Invalid start ${note.start}. Must be >= 0.`);
           }
           
           if (note.length <= 0) {
@@ -102,7 +102,7 @@ export class AddNotesTool extends BaseTool {
           
           // Adjust note position relative to region's start beat
           const regionStartBeat = targetRegion.getStartFromBeat();
-          const adjustedStartBeat = note.start_beat - regionStartBeat;
+          const adjustedStartBeat = note.start - regionStartBeat;
           const adjustedEndBeat = adjustedStartBeat + note.length;
           
           // Create note creation data
@@ -116,7 +116,7 @@ export class AddNotesTool extends BaseTool {
           
           createdNotes.push({
             pitch: note.pitch,
-            start_beat: note.start_beat,
+            start: note.start,
             length: note.length
           });
           
@@ -132,7 +132,7 @@ export class AddNotesTool extends BaseTool {
       // Create success message
       const noteCount = createdNotes.length;
       const noteList = createdNotes
-        .map(note => `${note.pitch} (beat ${note.start_beat}, length ${note.length})`)
+        .map(note => `${note.pitch} (beat ${note.start}, length ${note.length})`)
         .join(', ');
       
       return this.createSuccessResult(

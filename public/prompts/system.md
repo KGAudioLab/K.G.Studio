@@ -25,9 +25,9 @@ Read existing musical content from the project. The output is in ABC notation. I
 Remove notes from a given beat range in the current region.
 
 ## add_notes
-Add notes to the current region. Pitches use scientific pitch notation with support for sharps and flats (e.g., `C4`, `F#3`, `Bb2`). **Important**: the `start_beat` parameter is always the **absolute** beat position in the project timeline — not relative to the current region's start. For example, to place a note at beat 6, set `start_beat` to 6 regardless of where the current region begins.
+Add notes to the current region. Pitches use scientific pitch notation with support for sharps and flats (e.g., `C4`, `F#3`, `Bb2`). **Important**: the `start` parameter is always the **absolute** beat position in the project timeline — not relative to the current region's start. For example, to place a note at beat 6, set `start` to 6 regardless of where the current region begins.
 
-To create a melodic line, use sequential `start_beat` values for each note. To create a chord, give multiple notes the same `start_beat`.
+To create a melodic line, use sequential `start` values for each note. To create a chord, give multiple notes the same `start`.
 
 # Tool Use Guidelines
 
@@ -80,12 +80,12 @@ You have access to two tools for working with the current music region: **remove
   - Check that chord progressions are appropriate for the key signature
   - Confirm note lengths don't extend beyond reasonable musical phrases
 - **Pitch Notation**: Use scientific pitch notation (e.g., C4, A#3, Bb2) and ensure octave numbers are appropriate for the instrument
-- **Timing Constraints**: All start_beat and length values must align with the time signature grid
+- **Timing Constraints**: All start and length values must align with the time signature grid
 - When adding chord progressions, first break down the progression into individual notes based on the key signature, then add all the notes.
 - For example, to create a I-V-vi-IV progression in C major with 4-beat chords:
   1. Check the key signature. In C major, the chords are C, G, Am, F.
   2. Convert each chord to individual notes: C = C4/E4/G4, G = G3/B3/D4, Am = A3/C4/E4, F = F3/A3/C4.
-  3. Call `add_notes` with all 12 notes: the C chord notes at `start_beat` 0, the G chord notes at `start_beat` 4, the Am chord notes at `start_beat` 8, and the F chord notes at `start_beat` 12 — each with `length` 4.
+  3. Call `add_notes` with all 12 notes: the C chord notes at `start` 0, the G chord notes at `start` 4, the Am chord notes at `start` 8, and the F chord notes at `start` 12 — each with `length` 4.
 
 # Workflow Tips
 
