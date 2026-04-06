@@ -190,7 +190,7 @@ export class ConfigManager {
           },
           claude_openrouter: {
             api_key: '',
-            base_url: 'https://openrouter.ai/api/v1/chat/completions',
+            base_url: 'https://openrouter.ai/api/v1',
             model: 'anthropic/claude-sonnet-4.5'
           },
           openai_compatible: {

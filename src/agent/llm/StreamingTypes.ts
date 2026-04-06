@@ -1,27 +1,13 @@
 /**
- * Types for streaming LLM responses and tool execution
+ * Types for streaming LLM responses
  */
 
-import type { ToolResult } from '../tools/BaseTool';
-
-// Re-export for convenience
-export type { ToolResult };
-
-export interface ToolInvocation {
-  id: string;
-  name: string;
-  parameters: Record<string, unknown>;
-}
+import type { ToolCall } from '../core/AgentState';
 
 export interface StreamChunk {
   type: 'text' | 'tool_call' | 'tool_result' | 'done';
   content: string;
-  toolCall?: ToolInvocation;
-  toolResult?: ToolResult;
-}
-
-export interface LLMResponse {
-  content: string;
-  toolCalls?: ToolInvocation[];
-  finished: boolean;
+  toolCall?: ToolCall;
+  toolResult?: { name: string; success: boolean; result: string };
+  finishReason?: string; // 'stop' | 'tool_calls' — present on 'done' chunks
 }

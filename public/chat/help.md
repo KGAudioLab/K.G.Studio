@@ -35,7 +35,7 @@ OpenRouter is a platform that provides unified access to a wide range of languag
     - `Anthropic: claude-4-sonnet` (`anthropic/claude-sonnet-4`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4))
     - `Qwen: qwen3-30b-a3b` (FREE MODEL: `qwen/qwen3-30b-a3b:free`: [Link](https://openrouter.ai/qwen/qwen3-30b-a3b:free))
     - `Qwen: qwen3-235b-a22b` (FREE MODEL: `qwen/qwen3-235b-a22b:free`: [Link](https://openrouter.ai/qwen/qwen3-235b-a22b:free))
-6. Input the base URL `https://openrouter.ai/api/v1/chat/completions` of the OpenAI Compatible Server in **OpenAI Compatible Server → Base URL**.
+6. Input the base URL `https://openrouter.ai/api/v1` of the OpenAI Compatible Server in **OpenAI Compatible Server → Base URL**.
 
 ### Basic DAW Operations
 

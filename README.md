@@ -51,7 +51,7 @@ This project investigates how AI-human collaboration can enhance creative music-
   - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
   - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn't persisted by default for security; you can enable "Persist API Keys on Non-Localhost" in Settings to persist them, though this may increase XSS risk.)
   - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free` or `qwen/qwen3-235b-a22b:free`. (Note: these are free models [qwen3-30b-a3b](https://openrouter.ai/qwen/qwen3-30b-a3b:free) and [qwen3-235b-a22b](https://openrouter.ai/qwen/qwen3-235b-a22b:free); non‑free models may require billing; some model providers may retain your data, check their privacy policies; this project is not affiliated with OpenRouter or any model provider.)
-  - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1/chat/completions`.
+  - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 (Alternatively, you can use the official OpenAI API, other OpenAI‑compatible services, or your own hosted LLM server. e.g., Ollama, vLLM)
 
@@ -219,7 +219,7 @@ OpenRouter is a platform that provides unified access to a wide range of languag
     - `Anthropic: claude-4-sonnet` (`anthropic/claude-sonnet-4`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4))
     - `Qwen: qwen3-30b-a3b` (FREE MODEL: `qwen/qwen3-30b-a3b:free`: [Link](https://openrouter.ai/qwen/qwen3-30b-a3b:free))
     - `Qwen: qwen3-235b-a22b` (FREE MODEL: `qwen/qwen3-235b-a22b:free`: [Link](https://openrouter.ai/qwen/qwen3-235b-a22b:free))
-6. Input the base URL `https://openrouter.ai/api/v1/chat/completions` **OpenAI Compatible Server → Base URL**.
+6. Input the base URL `https://openrouter.ai/api/v1` **OpenAI Compatible Server → Base URL**.
 
 ### About the agent and LLM providers
 

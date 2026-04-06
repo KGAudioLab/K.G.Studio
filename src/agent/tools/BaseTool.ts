@@ -21,7 +21,28 @@ export interface ToolParameter {
 }
 
 /**
- * Tool definition schema
+ * OpenAI-compatible JSON Schema for function parameters
+ */
+export interface OpenAIFunctionParameters {
+  type: 'object';
+  properties: Record<string, unknown>;
+  required?: string[];
+}
+
+/**
+ * OpenAI-compatible tool definition
+ */
+export interface OpenAIToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: OpenAIFunctionParameters;
+  };
+}
+
+/**
+ * Tool definition schema (internal format)
  */
 export interface ToolDefinition {
   name: string;
@@ -48,12 +69,69 @@ export abstract class BaseTool {
   /**
    * Get the tool definition in OpenAI function calling format
    */
-  getDefinition(): ToolDefinition {
+  getDefinition(): OpenAIToolDefinition {
     return {
-      name: this.name,
-      description: this.description,
-      parameters: this.parameters
+      type: 'function',
+      function: {
+        name: this.name,
+        description: this.description,
+        parameters: this.convertToJsonSchema(this.parameters)
+      }
     };
+  }
+
+  /**
+   * Convert internal ToolParameter map to OpenAI-compatible JSON Schema
+   */
+  private convertToJsonSchema(params: Record<string, ToolParameter>): OpenAIFunctionParameters {
+    const properties: Record<string, unknown> = {};
+    const required: string[] = [];
+
+    for (const [name, param] of Object.entries(params)) {
+      properties[name] = this.convertParamToJsonSchema(param);
+      if (param.required) {
+        required.push(name);
+      }
+    }
+
+    return {
+      type: 'object',
+      properties,
+      ...(required.length > 0 ? { required } : {})
+    };
+  }
+
+  /**
+   * Convert a single ToolParameter to JSON Schema format
+   */
+  private convertParamToJsonSchema(param: ToolParameter): Record<string, unknown> {
+    const schema: Record<string, unknown> = {
+      type: param.type,
+      description: param.description
+    };
+
+    if (param.type === 'array' && param.items) {
+      schema.items = this.convertParamToJsonSchema(param.items);
+    }
+
+    if (param.type === 'object' && param.properties) {
+      const properties: Record<string, unknown> = {};
+      const required: string[] = [];
+
+      for (const [name, prop] of Object.entries(param.properties)) {
+        properties[name] = this.convertParamToJsonSchema(prop);
+        if (prop.required) {
+          required.push(name);
+        }
+      }
+
+      schema.properties = properties;
+      if (required.length > 0) {
+        schema.required = required;
+      }
+    }
+
+    return schema;
   }
 
   /**

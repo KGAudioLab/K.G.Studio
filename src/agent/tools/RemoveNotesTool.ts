@@ -11,22 +11,22 @@ import { KGCore } from '../../core/KGCore';
  */
 export class RemoveNotesTool extends BaseTool {
   readonly name = 'remove_notes';
-  readonly description = 'Remove MIDI notes from the current region within a specified beat range. All notes that start within the range will be deleted.';
-  
+  readonly description = 'Remove all MIDI notes whose start position falls within the specified beat range. Use this to clear a section before rewriting it, or to delete unwanted notes. Beat positions are absolute on the project timeline.';
+
   readonly parameters: Record<string, ToolParameter> = {
     start_beat: {
       type: 'number',
-      description: 'Start of the beat range to remove notes from (inclusive)',
+      description: 'Absolute beat position where the removal range begins (inclusive). A note starting at exactly this beat will be removed.',
       required: true
     },
     end_beat: {
       type: 'number',
-      description: 'End of the beat range to remove notes from (exclusive)',
+      description: 'Absolute beat position where the removal range ends (exclusive). A note starting at exactly this beat will NOT be removed. Must be greater than start_beat.',
       required: true
     },
     region_id: {
       type: 'string',
-      description: 'ID of the region to remove notes from. If not provided, uses the currently selected region.',
+      description: 'Target region ID. If omitted, uses the currently active piano roll region or selected region.',
       required: false
     }
   };

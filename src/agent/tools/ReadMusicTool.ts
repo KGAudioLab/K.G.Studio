@@ -12,22 +12,22 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
  */
 export class ReadMusicTool extends BaseTool {
   readonly name = 'read_music';
-  readonly description = 'Read the music content from a specific track or all tracks, returning the content in ABC notation format.';
-  
+  readonly description = 'Read existing musical content from one or more tracks, returned as ABC notation. Use this to understand what notes already exist before making edits. Always call this before asking the user about their music. The output is bar-aligned and includes key/time signature headers.';
+
   readonly parameters: Record<string, ToolParameter> = {
     track_id: {
       type: 'string',
-      description: 'The track ID to read, or "all" to read all tracks. If not provided, reads the first available track.',
+      description: 'Which track to read. Pass a specific track ID, or "all" to read every track. If omitted, reads the first available track.',
       required: false
     },
     start_beat: {
       type: 'number',
-      description: 'Start beat position to read from (default: 0)',
+      description: 'Absolute beat position to start reading from. The actual output will be rounded down to the nearest bar boundary. Defaults to 0.',
       required: false
     },
     length: {
       type: 'number',
-      description: 'Length in beats to read (default: entire track/project)',
+      description: 'Number of beats to read. The actual output will be rounded up to the nearest bar boundary. If omitted, reads to the end of the track.',
       required: false
     }
   };

@@ -368,7 +368,7 @@ const GeneralSettings: React.FC = () => {
             <input 
               type="text" 
               className="settings-input"
-              placeholder="e.g. https://openrouter.ai/api/v1/chat/completions"
+              placeholder="e.g. https://openrouter.ai/api/v1"
               value={claudeOpenRouterBaseUrl}
               onChange={(e) => handleClaudeOpenRouterBaseUrlChange(e.target.value)}
             />
@@ -424,7 +424,7 @@ const GeneralSettings: React.FC = () => {
             <input 
               type="text" 
               className="settings-input"
-              placeholder="e.g. https://openrouter.ai/api/v1/chat/completions"
+              placeholder="e.g. https://openrouter.ai/api/v1"
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />
