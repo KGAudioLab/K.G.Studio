@@ -389,6 +389,8 @@ const GeneralSettings: React.FC = () => {
               value={claudeOpenRouterModel}
               onChange={(e) => handleClaudeOpenRouterModelChange(e.target.value)}
             >
+              <option value="anthropic/claude-sonnet-4.6">claude-sonnet-4.6</option>
+              <option value="anthropic/claude-opus-4.6">claude-opus-4.6</option>
               <option value="anthropic/claude-sonnet-4.5">claude-sonnet-4.5</option>
               <option value="anthropic/claude-opus-4.5">claude-opus-4.5</option>
               <option value="anthropic/claude-sonnet-4">claude-sonnet-4</option>

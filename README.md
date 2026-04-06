@@ -217,7 +217,7 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 4. Browse available models on the [**OpenRouter Models Page**](https://openrouter.ai/models). Use the "Prompt Pricing" filter to identify free models.  
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
 5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
-    - `Anthropic: Claude Sonnet 4.5` (`anthropic/claude-sonnet-4.5`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.5)) — best balance of quality and cost for the Claude series
+    - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — best balance of quality and cost for the Claude series
     - `Qwen: Qwen3.5-35B-A3B` (`qwen/qwen3.5-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.5-35b-a3b)) — recommended open source model
     - `Qwen: Qwen3.6 Plus` (FREE MODEL: `qwen/qwen3.6-plus:free`: [Link](https://openrouter.ai/qwen/qwen3.6-plus:free)) — recommended free model; note that free model providers may collect your data, check the model page for details
 6. Input the base URL `https://openrouter.ai/api/v1` **OpenAI Compatible Server → Base URL**.
