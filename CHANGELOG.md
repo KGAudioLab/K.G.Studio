@@ -1,3 +1,13 @@
+# [0.9.0-build.20260406] (2026-04-06)
+
+* Merge pull request #28 from KGAudioLab/feat/2026-04-05-refactor-tool-calling (5a863fe)
+* feat: added Claude 4.6 model series options. (63ced27)
+* feat: added OpenAI SDK with OpenRouter based Claude model support; updated recommended models in README.md (586f0f9)
+* feat: added model options for GPT-5.4 families; updated default model to gpt-5.4-mini (6c49fbf)
+* fix: rename `start_beat` to `start` and `end_beat` to `end` in 3 tools. (26b7510)
+* fix: minor UI enhancements. (ee31ca0)
+* refactor: migrate agent system from XML tool calling to OpenAI SDK with native function calling (2cd976f)
+
 # [0.8.0-build.20260123] (2026-01-23)
 
 * Merge pull request #27 from KGAudioLab/feat/2026-01-22-looping (5042477)
