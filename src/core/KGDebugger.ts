@@ -7,9 +7,8 @@ import { KGCore } from './KGCore';
 import { KGMidiRegion } from './region/KGMidiRegion';
 import { convertRegionToABCNotation } from '../util/abcNotationUtil';
 import { extractXMLFromString } from '../util/xmlUtil';
-import { XMLToolExecutor } from '../agent/core/XMLToolExecutor';
 import { AgentCore } from '../agent/core/AgentCore';
-import { AttemptCompletionTool } from '../agent/tools/AttemptCompletionTool';
+import { AVAILABLE_TOOLS } from '../agent/tools';
 import type { TimeSignature } from '../types/projectTypes';
 import { useProjectStore } from '../stores/projectStore';
 
@@ -28,8 +27,7 @@ export class KGDebugger {
       'debugSelectedItems()',
       'createTestRegion()',
       'testExtractXMLFromString(input)',
-      'testXMLToolExecution(input)',
-      'testAttemptCompletion(comment)',
+      'testToolCall(jsonInput)',
       'inputChatBox(content, interval?)'
     ]);
   }
@@ -59,7 +57,7 @@ export class KGDebugger {
       console.log(`📝 Converting selected region to ABC notation...`);
       console.log(`📊 Selected items count: ${selectedItems.length}`);
 
-      midiRegion = selectedItems.find(item => 
+      midiRegion = selectedItems.find(item =>
         item.getCurrentType() === 'KGMidiRegion'
       ) as KGMidiRegion;
     }
@@ -67,7 +65,7 @@ export class KGDebugger {
     // If no MIDI region selected, try to use active region from piano roll
     if (!midiRegion) {
       console.log("📝 No MIDI region selected, checking for active region...");
-      
+
       const storeState = useProjectStore.getState();
       const activeRegionId = storeState.activeRegionId;
       const tracks = storeState.tracks;
@@ -77,7 +75,7 @@ export class KGDebugger {
         for (const track of tracks) {
           const regions = track.getRegions();
           const region = regions.find(r => r.getId() === activeRegionId);
-          
+
           if (region && region instanceof KGMidiRegion) {
             midiRegion = region;
             console.log(`✅ Found active region: "${region.getName()}"`);
@@ -97,7 +95,7 @@ export class KGDebugger {
 
     // Use provided startFromBeat or default to region start
     const effectiveStartBeat = startFromBeat ?? midiRegion.getStartFromBeat();
-    
+
     console.log(`🎵 Converting region: "${midiRegion.getName()}"`);
     console.log(`📍 Region starts at beat: ${midiRegion.getStartFromBeat()}`);
     console.log(`📍 Conversion starts at beat: ${effectiveStartBeat}`);
@@ -105,13 +103,13 @@ export class KGDebugger {
 
     try {
       const abcNotation = convertRegionToABCNotation(midiRegion, effectiveStartBeat);
-      
+
       console.log("✅ ABC Notation conversion successful!");
       console.log("📄 Result:");
       console.log("─".repeat(50));
       console.log(abcNotation);
       console.log("─".repeat(50));
-      
+
       // Also copy to clipboard if possible
       if (navigator.clipboard) {
         navigator.clipboard.writeText(abcNotation).then(() => {
@@ -120,7 +118,7 @@ export class KGDebugger {
           console.log("📋 Could not copy to clipboard (requires HTTPS)");
         });
       }
-      
+
     } catch (error) {
       console.error("❌ Error converting to ABC notation:", error);
     }
@@ -135,17 +133,17 @@ export class KGDebugger {
     const core = KGCore.instance();
     const project = core.getCurrentProject();
     const effectiveTimeSignature = timeSignature ?? project.getTimeSignature();
-    
+
     console.log(`🧮 Testing quantization for ${durationBeats} beats...`);
     console.log(`⏱️ Time signature: ${effectiveTimeSignature.numerator}/${effectiveTimeSignature.denominator}`);
-    
+
     // Import quantization testing (we'll need to expose some internal methods)
     // For now, let's create a simple test
     const ticksPerBeat = 480 * (4 / effectiveTimeSignature.denominator);
     const durationTicks = Math.round(durationBeats * ticksPerBeat);
-    
+
     console.log(`🎵 Input: ${durationBeats} beats = ${durationTicks} ticks`);
-    
+
     // Test different quantization values manually for demonstration
     const testValues = [
       { name: '1/1', ticks: 1920 },
@@ -157,25 +155,25 @@ export class KGDebugger {
       { name: '1/12', ticks: 160 },
       { name: '1/16', ticks: 120 }
     ];
-    
+
     console.log("📊 Quantization analysis:");
     let bestMatch = { name: '1/4', error: Infinity, ticks: 480 };
-    
+
     testValues.forEach(val => {
       const remainder = durationTicks % val.ticks;
       const error = Math.min(remainder, val.ticks - remainder);
       const errorPercent = ((error / val.ticks) * 100).toFixed(1);
-      
+
       if (error < bestMatch.error) {
         bestMatch = { name: val.name, error, ticks: val.ticks };
       }
-      
+
       console.log(`  ${val.name}: ${error} ticks error (${errorPercent}%)`);
     });
-    
+
     const quantizedTicks = Math.round(durationTicks / bestMatch.ticks) * bestMatch.ticks;
     const quantizedBeats = quantizedTicks / ticksPerBeat;
-    
+
     console.log(`✅ Best match: ${bestMatch.name} grid`);
     console.log(`🎯 Quantized: ${quantizedBeats} beats = ${quantizedTicks} ticks`);
     console.log(`📏 Difference: ${Math.abs(durationBeats - quantizedBeats).toFixed(4)} beats`);
@@ -187,20 +185,20 @@ export class KGDebugger {
   public debugSelectedItems(): void {
     const core = KGCore.instance();
     const selectedItems = core.getSelectedItems();
-    
+
     console.log(`🔍 Currently selected items: ${selectedItems.length}`);
-    
+
     if (selectedItems.length === 0) {
       console.log("📝 No items selected. Try selecting regions or notes first.");
       return;
     }
-    
+
     selectedItems.forEach((item, index) => {
       const type = item.getCurrentType();
       const id = item.getId();
-      
+
       console.log(`  ${index + 1}. ${type} (ID: ${id})`);
-      
+
       if (type === 'KGMidiRegion') {
         const region = item as KGMidiRegion;
         console.log(`     📍 Position: ${region.getStartFromBeat()} beats`);
@@ -230,12 +228,12 @@ export class KGDebugger {
     console.log("─".repeat(50));
     console.log(input);
     console.log("─".repeat(50));
-    
+
     try {
       const xmlBlocks = extractXMLFromString(input);
-      
+
       console.log(`✅ Extraction successful! Found ${xmlBlocks.length} XML block(s):`);
-      
+
       if (xmlBlocks.length === 0) {
         console.log("📭 No XML blocks found in the input string.");
         console.log("💡 Try input with XML tags like: <add_notes>...</add_notes>");
@@ -246,7 +244,7 @@ export class KGDebugger {
           console.log(block);
           console.log("─".repeat(30));
         });
-        
+
         // Copy all blocks to clipboard if possible
         if (navigator.clipboard && xmlBlocks.length > 0) {
           const allBlocks = xmlBlocks.join('\n\n');
@@ -257,136 +255,79 @@ export class KGDebugger {
           });
         }
       }
-      
+
     } catch (error) {
       console.error("❌ Error extracting XML:", error);
     }
   }
 
   /**
-   * Test the complete XML tool execution pipeline
-   * @param input - String containing XML tool invocations to execute
+   * Test native tool calling by executing tool calls from a JSON string.
+   * Accepts a single tool call object or an array of tool call objects.
+   *
+   * Usage examples in browser console:
+   *
+   *   // Single tool call:
+   *   await KGStudio.KGDebugger.testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}')
+   *
+   *   // Multiple tool calls:
+   *   await KGStudio.KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start":0,"end_beat":4}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start":0,"length":1}]}}]')
+   *
+   *   // Can also pass a JS object directly (no need to stringify):
+   *   await KGStudio.KGDebugger.testToolCall({name:"read_music",arguments:{start:0}})
+   *
+   * @param input - JSON string, object, or array of tool call(s).
+   *   Each tool call should have: { name: string, arguments: object }
    */
-  public async testXMLToolExecution(input: string): Promise<void> {
-    console.log('------------ ASSISTANT ------------');
-    console.log(input);
-    console.log('-----------------------------------');
-    
+  public async testToolCall(input: string | Record<string, unknown> | Record<string, unknown>[]): Promise<void> {
     try {
-      // Extract XML blocks first to get tool names (same logic as ChatBox)
-      const xmlBlocks = extractXMLFromString(input);
-      
-      if (xmlBlocks.length === 0) {
-        console.log('------------ USER ------------');
-        console.log('No XML tool invocations found in the input string.');
-        console.log('------------------------------');
-        return;
-      }
+      // Parse input
+      let calls: Array<{ name: string; arguments: Record<string, unknown> }>;
 
-      const executor = XMLToolExecutor.instance();
-      let accumulatedResults = '';
-
-      // Execute tools sequentially and format like ChatBox
-      for (let i = 0; i < xmlBlocks.length; i++) {
-        // Determine tool name from XML block (same as ChatBox lines 148-149)
-        const toolNameMatch = xmlBlocks[i].match(/<([a-zA-Z_][a-zA-Z0-9_-]*)/);
-        const toolName = toolNameMatch ? toolNameMatch[1] : 'unknown_tool';
-
-        try {
-          // Execute single XML block
-          const results = await executor.executeXMLTools(xmlBlocks[i]);
-          const result = results[0]; // Single block should give single result
-          
-          if (result) {
-            // Format exactly like ChatBox lines 161-162
-            const formattedResult = `tool: ${toolName}\nsuccess: ${result.success}\nresult:\n${result.result}\n------------\n`;
-            accumulatedResults += formattedResult;
-          }
-        } catch (error) {
-          // Handle individual tool error (same format)
-          const formattedResult = `tool: ${toolName}\nsuccess: false\nresult:\nTool execution failed: ${error}\n------------\n`;
-          accumulatedResults += formattedResult;
-        }
-      }
-
-      // Log accumulated results as USER (what gets sent back to LLM)
-      console.log('------------ USER ------------');
-      console.log(accumulatedResults);
-      console.log('------------------------------');
-      
-      // Copy results to clipboard if possible
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(accumulatedResults).then(() => {
-          console.log("Tool execution results copied to clipboard!");
-        }).catch(() => {
-          console.log("Could not copy to clipboard (requires HTTPS)");
-        });
-      }
-      
-    } catch (error) {
-      console.log('------------ USER ------------');
-      console.log(`Error testing XML tool execution: ${error}`);
-      console.log('------------------------------');
-    }
-  }
-
-  /**
-   * Test the AttemptCompletionTool with agent state integration
-   * @param comment - Completion comment to test with
-   */
-  public async testAttemptCompletion(comment: string): Promise<void> {
-    console.log("🎯 Testing AttemptCompletionTool...");
-    console.log(`📝 Comment: "${comment}"`);
-    
-    try {
-      // Get current agent state before test
-      const agentCore = AgentCore.instance();
-      const agentState = agentCore.getAgentState();
-      const initialTaskState = agentState.getIsWorkingOnTask();
-      
-      console.log(`📊 Initial agent state:`);
-      console.log(`  • isWorkingOnTask: ${initialTaskState}`);
-      
-      // Set to working state to test the completion properly
-      if (!initialTaskState) {
-        console.log("🔄 Setting isWorkingOnTask to true for testing...");
-        agentState.setIsWorkingOnTask(true);
-      }
-      
-      // Create and execute the tool
-      const completionTool = new AttemptCompletionTool();
-      const result = await completionTool.execute({ comment });
-      
-      console.log(`✅ Tool execution result:`);
-      console.log(`  • Success: ${result.success}`);
-      console.log(`  • Result: ${result.result}`);
-      
-      // Check final agent state
-      const finalTaskState = agentState.getIsWorkingOnTask();
-      console.log(`📊 Final agent state:`);
-      console.log(`  • isWorkingOnTask: ${finalTaskState}`);
-      
-      // Verify state change
-      if (result.success && finalTaskState === false) {
-        console.log("🎉 Success! Agent state correctly updated to not working on task.");
-      } else if (!result.success) {
-        console.log("⚠️ Tool execution failed - state may not have changed.");
+      if (typeof input === 'string') {
+        const parsed = JSON.parse(input);
+        calls = Array.isArray(parsed) ? parsed : [parsed];
+      } else if (Array.isArray(input)) {
+        calls = input as Array<{ name: string; arguments: Record<string, unknown> }>;
       } else {
-        console.log("⚠️ Warning: State did not change as expected.");
+        calls = [input as { name: string; arguments: Record<string, unknown> }];
       }
-      
-      // Copy result to clipboard if possible
-      if (navigator.clipboard) {
-        const clipboardContent = JSON.stringify(result, null, 2);
-        navigator.clipboard.writeText(clipboardContent).then(() => {
-          console.log("📋 Test results copied to clipboard!");
-        }).catch(() => {
-          console.log("📋 Could not copy to clipboard (requires HTTPS)");
-        });
+
+      console.log(`🔧 Executing ${calls.length} tool call(s)...\n`);
+
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
+        const toolName = call.name;
+        const toolArgs = call.arguments ?? {};
+
+        console.log(`── Tool call ${i + 1}/${calls.length}: ${toolName}`);
+        console.log(`   Arguments: ${JSON.stringify(toolArgs, null, 2)}`);
+
+        const ToolClass = AVAILABLE_TOOLS[toolName as keyof typeof AVAILABLE_TOOLS];
+        if (!ToolClass) {
+          console.error(`   ❌ Unknown tool: "${toolName}". Available tools: ${Object.keys(AVAILABLE_TOOLS).join(', ')}`);
+          continue;
+        }
+
+        const toolInstance = new ToolClass();
+        const result = await toolInstance.execute(toolArgs);
+
+        // Sync UI state on success
+        if (result.success) {
+          useProjectStore.getState().refreshProjectState();
+        }
+
+        const icon = result.success ? '✅' : '❌';
+        console.log(`   ${icon} Success: ${result.success}`);
+        console.log(`   Result: ${result.result}\n`);
       }
-      
+
+      console.log('🔧 Tool execution complete.');
+
     } catch (error) {
-      console.error("❌ Error testing AttemptCompletionTool:", error);
+      console.error('❌ Error in testToolCall:', error);
+      console.log('💡 Expected format: {"name":"tool_name","arguments":{...}}');
+      console.log('   Or an array: [{"name":"tool1","arguments":{...}}, ...]');
     }
   }
 
@@ -401,8 +342,7 @@ export class KGDebugger {
     console.log("  debugSelectedItems() - Show info about selected items");
     console.log("  createTestRegion() - Create test region (not implemented)");
     console.log("  testExtractXMLFromString(input) - Test XML extraction from string");
-    console.log("  testXMLToolExecution(input) - Test complete XML tool execution pipeline");
-    console.log("  testAttemptCompletion(comment) - Test AttemptCompletionTool with agent state");
+    console.log("  testToolCall(input) - Execute tool call(s) from JSON and show results");
     console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
     console.log("  help() - Show this help");
     console.log("");
@@ -410,9 +350,11 @@ export class KGDebugger {
     console.log("  - Select regions in the DAW first, then run debug methods");
     console.log("  - Results are logged to console and copied to clipboard when possible");
     console.log("  - Use browser developer tools for best experience");
-    console.log("  - For XML testing, try: testExtractXMLFromString('I will <add_notes><note>...</note></add_notes> create notes');");
-    console.log("  - For full tool execution, try: await testXMLToolExecution('Create notes: <add_notes><note><pitch>C4</pitch><start_beat>0</start_beat><length>1</length></note></add_notes>');");
-    console.log("  - For completion testing, try: await testAttemptCompletion('Successfully created a C major chord');");
+    console.log("");
+    console.log("💡 testToolCall examples:");
+    console.log('  await KGStudio.KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":8}}\')');
+    console.log('  await KGStudio.KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:1}]}})');
+    console.log('  await KGStudio.KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end_beat:4}},{name:"read_music",arguments:{}}])');
   }
 
   /**

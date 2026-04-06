@@ -253,6 +253,9 @@ const GeneralSettings: React.FC = () => {
               value={openaiModel}
               onChange={(e) => handleOpenaiModelChange(e.target.value)}
             >
+              <option value="gpt-5.4">gpt-5.4</option>
+              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+              <option value="gpt-5.4-nano">gpt-5.4-nano</option>
               <option value="gpt-5.2">gpt-5.2</option>
               <option value="gpt-5-mini">gpt-5-mini</option>
               <option value="gpt-5-nano">gpt-5-nano</option>
@@ -368,7 +371,7 @@ const GeneralSettings: React.FC = () => {
             <input 
               type="text" 
               className="settings-input"
-              placeholder="e.g. https://openrouter.ai/api/v1/chat/completions"
+              placeholder="e.g. https://openrouter.ai/api/v1"
               value={claudeOpenRouterBaseUrl}
               onChange={(e) => handleClaudeOpenRouterBaseUrlChange(e.target.value)}
             />
@@ -386,6 +389,8 @@ const GeneralSettings: React.FC = () => {
               value={claudeOpenRouterModel}
               onChange={(e) => handleClaudeOpenRouterModelChange(e.target.value)}
             >
+              <option value="anthropic/claude-sonnet-4.6">claude-sonnet-4.6</option>
+              <option value="anthropic/claude-opus-4.6">claude-opus-4.6</option>
               <option value="anthropic/claude-sonnet-4.5">claude-sonnet-4.5</option>
               <option value="anthropic/claude-opus-4.5">claude-opus-4.5</option>
               <option value="anthropic/claude-sonnet-4">claude-sonnet-4</option>
@@ -424,7 +429,7 @@ const GeneralSettings: React.FC = () => {
             <input 
               type="text" 
               className="settings-input"
-              placeholder="e.g. https://openrouter.ai/api/v1/chat/completions"
+              placeholder="e.g. https://openrouter.ai/api/v1"
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />

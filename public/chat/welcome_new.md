@@ -7,7 +7,7 @@ Welcome to **K.G.Studio Musician Assistant** — your in‑browser AI partner fo
 - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
 - In **OpenAI Compatible Server → Key**, paste your key. Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh. Keep it safe.
 - In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free`. Note: non‑free models may require billing.
-- In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1/chat/completions`.
+- In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 *(Alternatively, you can use the official OpenAI API, or any OpenAI‑compatible service)*
 

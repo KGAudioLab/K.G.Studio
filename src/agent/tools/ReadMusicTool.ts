@@ -12,22 +12,22 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
  */
 export class ReadMusicTool extends BaseTool {
   readonly name = 'read_music';
-  readonly description = 'Read the music content from a specific track or all tracks, returning the content in ABC notation format.';
-  
+  readonly description = 'Read existing musical content from one or more tracks, returned as ABC notation. Use this to understand what notes already exist before making edits. Always call this before asking the user about their music. The output is bar-aligned and includes key/time signature headers.';
+
   readonly parameters: Record<string, ToolParameter> = {
     track_id: {
       type: 'string',
-      description: 'The track ID to read, or "all" to read all tracks. If not provided, reads the first available track.',
+      description: 'Which track to read. Pass a specific track ID, or "all" to read every track. If omitted, reads the first available track.',
       required: false
     },
-    start_beat: {
+    start: {
       type: 'number',
-      description: 'Start beat position to read from (default: 0)',
+      description: 'Start beat — the absolute beat position to start reading from. The actual output will be rounded down to the nearest bar boundary. Defaults to 0.',
       required: false
     },
     length: {
       type: 'number',
-      description: 'Length in beats to read (default: entire track/project)',
+      description: 'Number of beats to read. The actual output will be rounded up to the nearest bar boundary. If omitted, reads to the end of the track.',
       required: false
     }
   };
@@ -39,11 +39,11 @@ export class ReadMusicTool extends BaseTool {
     try {
       const instrument = track.getInstrument();
       const instrumentInfo = FLUIDR3_INSTRUMENT_MAP[instrument];
-      
+
       if (instrumentInfo && instrumentInfo.group === 'PERCUSSION_KIT') {
         return instrumentInfo.displayName;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error getting percussion display name:', error);
@@ -55,23 +55,23 @@ export class ReadMusicTool extends BaseTool {
     try {
       // Validate parameters
       this.validateParameters(params);
-      
+
       const trackId = params.track_id as string | undefined;
-      const startBeat = (params.start_beat as number) || 0;
+      const startBeat = (params.start as number) || 0;
       const length = params.length as number | undefined;
-      
+
       const project = this.getCurrentProject();
       const tracks = project.getTracks();
-      
+
       if (tracks.length === 0) {
         return this.createErrorResult('No tracks found in the project');
       }
-      
-      // Validate start_beat
+
+      // Validate start
       if (startBeat < 0) {
-        return this.createErrorResult(`Invalid start_beat ${startBeat}. Must be >= 0.`);
+        return this.createErrorResult(`Invalid start ${startBeat}. Must be >= 0.`);
       }
-      
+
       // Validate length
       if (length !== undefined && length <= 0) {
         return this.createErrorResult(`Invalid length ${length}. Must be > 0.`);
@@ -80,7 +80,7 @@ export class ReadMusicTool extends BaseTool {
       // Get project settings for bar rounding
       const timeSignature = project.getTimeSignature();
       const beatsPerBar = timeSignature.numerator;
-      
+
       // Round startBeat to floor bar beats and calculate endBeat
       const roundedStartBeat = Math.floor(startBeat / beatsPerBar) * beatsPerBar;
       const rawEndBeat = length !== undefined ? startBeat + length : undefined;
@@ -94,27 +94,27 @@ export class ReadMusicTool extends BaseTool {
         abcOutput = this.generateAllTracksABC(midiTracks, roundedStartBeat, roundedEndBeat);
       } else {
         // Read specific track or first available track
-        const targetTrack = trackId 
+        const targetTrack = trackId
           ? tracks.find(t => t.getId().toString() === trackId)
           : tracks[0];
-          
+
         if (!targetTrack) {
           return this.createErrorResult(
-            trackId 
+            trackId
               ? `Track with ID "${trackId}" not found`
               : 'No tracks available'
           );
         }
-        
+
         if (!(targetTrack instanceof KGMidiTrack)) {
           return this.createErrorResult(`Track "${targetTrack.getName()}" is not a MIDI track`);
         }
-        
+
         abcOutput = this.generateSingleTrackABC(targetTrack, roundedStartBeat, roundedEndBeat);
       }
-      
+
       return this.createSuccessResult(abcOutput);
-      
+
     } catch (error) {
       return this.createErrorResult(`Failed to read music: ${error}`);
     }
@@ -127,16 +127,16 @@ export class ReadMusicTool extends BaseTool {
   private findTracksToSkip(tracks: KGMidiTrack[]): KGMidiTrack[] {
     try {
       const tracksToSkip: KGMidiTrack[] = [];
-      
+
       for (const track of tracks) {
         const regions = track.getRegions();
-        
+
         // Skip tracks with no regions
         if (regions.length === 0) {
           tracksToSkip.push(track);
           continue;
         }
-        
+
         // Check if all regions in this track are empty (have no notes)
         const hasAnyNotes = regions.some(region => {
           if (region.getCurrentType() === 'KGMidiRegion') {
@@ -144,42 +144,42 @@ export class ReadMusicTool extends BaseTool {
           }
           return false;
         });
-        
+
         // Skip tracks where no regions have notes
         if (!hasAnyNotes) {
           tracksToSkip.push(track);
         }
       }
-      
+
       return tracksToSkip;
     } catch (error) {
       console.error('Error finding tracks to skip:', error);
       return [];
     }
   }
-  
+
 
   /**
    * Generate ABC notation for all tracks
    */
   private generateAllTracksABC(tracks: KGMidiTrack[], startBeat: number, endBeat?: number): string {
     const midiTracks = tracks.filter(track => track instanceof KGMidiTrack);
-    
+
     if (midiTracks.length === 0) {
       return 'No MIDI tracks found in the project.';
     }
-    
+
     // Find tracks to skip (tracks with no content)
     const tracksToSkip = this.findTracksToSkip(midiTracks);
-    
+
     // Get project settings for proper notation
     const project = this.getCurrentProject();
     const timeSignature = project.getTimeSignature();
     const keySignature = project.getKeySignature();
     const abcKeySignature = KEY_SIGNATURE_MAP[keySignature]?.abcNotationKeySignature || 'C';
-    
+
     let output = `All Tracks (beats ${startBeat}-${endBeat || 'end'}):\n\n`;
-    
+
     midiTracks.forEach((track, index) => {
       // Skip tracks that have no musical content
       if (tracksToSkip.includes(track)) {
@@ -187,10 +187,10 @@ export class ReadMusicTool extends BaseTool {
       }
       const trackNumber = index + 1;
       const trackName = track.getName() || `Track ${trackNumber}`;
-      
+
       // Check if this track uses a percussion instrument
       const percussionDisplayName = this.getPercussionDisplayName(track);
-      
+
       let displayTrackName: string;
       if (percussionDisplayName) {
         // Use percussion instrument display name for all percussion tracks
@@ -202,12 +202,12 @@ export class ReadMusicTool extends BaseTool {
         // Use original track name for other non-percussion tracks
         displayTrackName = trackName;
       }
-      
+
       output += `Track ${trackNumber} - ${displayTrackName}:\n`;
-      
+
       // Get all regions from the track and convert each one
       const regions = track.getRegions().filter(region => region instanceof KGMidiRegion) as KGMidiRegion[];
-      
+
       if (regions.length === 0) {
         output += 'X:' + trackNumber + '\n';
         output += `M:${timeSignature.numerator}/${timeSignature.denominator}\n`;
@@ -219,11 +219,11 @@ export class ReadMusicTool extends BaseTool {
         regions.forEach((region) => {
           const regionStart = region.getStartFromBeat();
           const regionEnd = regionStart + region.getLength();
-          
+
           // Check if region overlaps with requested range
           if (regionStart < (endBeat || Infinity) && regionEnd > startBeat) {
             const abcNotation = convertRegionToABCNotation(region, startBeat, endBeat);
-            
+
             // Update the X: line to include track number
             const lines = abcNotation.split('\n');
             lines[0] = `X:${trackNumber}`;
@@ -231,7 +231,7 @@ export class ReadMusicTool extends BaseTool {
             hasContent = true;
           }
         });
-        
+
         if (!hasContent) {
           output += 'X:' + trackNumber + '\n';
           output += `M:${timeSignature.numerator}/${timeSignature.denominator}\n`;
@@ -240,7 +240,7 @@ export class ReadMusicTool extends BaseTool {
         }
       }
     });
-    
+
     return output.trim();
   }
 
@@ -251,20 +251,20 @@ export class ReadMusicTool extends BaseTool {
     if (!(track instanceof KGMidiTrack)) {
       return `Track is not a MIDI track.`;
     }
-    
+
     // Get project settings for proper notation
     const project = this.getCurrentProject();
     const timeSignature = project.getTimeSignature();
     const keySignature = project.getKeySignature();
     const abcKeySignature = KEY_SIGNATURE_MAP[keySignature]?.abcNotationKeySignature || 'C';
-    
+
     const trackName = track.getName() || 'Unnamed Track';
-    
+
     let output = `Track "${trackName}" (beats ${startBeat}-${endBeat || 'end'}):\n`;
-    
+
     // Get all regions from the track and convert each one
     const regions = track.getRegions().filter(region => region instanceof KGMidiRegion) as KGMidiRegion[];
-    
+
     if (regions.length === 0) {
       output += 'X:1\n';
       output += `T:${trackName}\n`;
@@ -278,11 +278,11 @@ export class ReadMusicTool extends BaseTool {
       regions.forEach((region) => {
         const regionStart = region.getStartFromBeat();
         const regionEnd = regionStart + region.getLength();
-        
+
         // Check if region overlaps with requested range
         if (regionStart < (endBeat || Infinity) && regionEnd > startBeat) {
           const abcNotation = convertRegionToABCNotation(region, startBeat, endBeat);
-          
+
           // Update the title to include track name
           const lines = abcNotation.split('\n');
           lines[1] = `T:${trackName}`;
@@ -290,7 +290,7 @@ export class ReadMusicTool extends BaseTool {
           hasContent = true;
         }
       });
-      
+
       if (!hasContent) {
         output += 'X:1\n';
         output += `T:${trackName}\n`;
@@ -300,7 +300,7 @@ export class ReadMusicTool extends BaseTool {
         output += 'z4 | // No content in specified range';
       }
     }
-    
+
     return output;
   }
 

@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
 import { AgentCore } from '../agent/core/AgentCore';
-import { createStreamingMessage } from '../utils/chatMessageUtils';
+import { createStreamingMessage, createMessage } from '../utils/chatMessageUtils';
 import type { ChatMessage } from '../types/projectTypes';
 
 interface StreamProcessorOptions {
   onMessageUpdate: (messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   onMessageAdd: (message: ChatMessage) => void;
+  onMessageRemove: (messageId: string) => void;
   onProcessingChange: (isProcessing: boolean) => void;
 }
 
@@ -16,7 +17,7 @@ interface StreamProcessorResult {
 }
 
 export const useStreamProcessor = (options: StreamProcessorOptions): StreamProcessorResult => {
-  const { onMessageUpdate, onMessageAdd, onProcessingChange } = options;
+  const { onMessageUpdate, onMessageAdd, onMessageRemove, onProcessingChange } = options;
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -24,27 +25,25 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
     setIsProcessing(true);
     onProcessingChange(true);
 
-    // Create abort controller for this request
     const controller = new AbortController();
     setAbortController(controller);
 
-    // Add streaming assistant message
-    const streamingMessage = createStreamingMessage();
-    onMessageAdd(streamingMessage);
+    // Track the current streaming message ID (mutable)
+    const initialStreamingMsg = createStreamingMessage();
+    let currentStreamingId = initialStreamingMsg.id;
+    onMessageAdd(initialStreamingMsg);
 
     try {
       const agentCore = AgentCore.instance();
       let assistantResponse = '';
       let tokenCount = 0;
-      let streamCompleted = false;
+      let hasTextContent = false;
 
-      // Log the input being sent to LLM
       console.log(`------------ ${logPrefix} ------------`);
       console.log(input);
       console.log('------------------------------');
 
       for await (const chunk of agentCore.processUserInput(input)) {
-        // Check if request was aborted
         if (controller.signal.aborted) {
           return '';
         }
@@ -52,54 +51,89 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
         if (chunk.type === 'text') {
           assistantResponse += chunk.content;
           tokenCount++;
-          
-          // Update streaming message with token count and abort link
-          onMessageUpdate(streamingMessage.id, (msg) => ({
+          hasTextContent = true;
+
+          onMessageUpdate(currentStreamingId, (msg) => ({
             ...msg,
-            content: `<span class="processing-wave">Processing...</span> ${tokenCount} tokens received. click here to abort.`,
+            content: `<span class="processing-wave">Thinking...</span>${tokenCount > 0 ? ` ${tokenCount} tokens received.` : ''} click here to abort.`,
             tokenCount
           }));
+        } else if (chunk.type === 'tool_call' && chunk.toolCall) {
+          // Finalize or remove the current streaming message
+          if (hasTextContent) {
+            onMessageUpdate(currentStreamingId, (msg) => ({
+              ...msg,
+              content: assistantResponse,
+              isStreaming: false,
+              tokenCount: undefined
+            }));
+
+            console.log('------------ ASSISTANT ------------');
+            console.log(assistantResponse);
+            console.log('-----------------------------------');
+          } else {
+            // No text before this tool call — remove the empty streaming placeholder
+            onMessageRemove(currentStreamingId);
+          }
+
+          // Show tool call in UI
+          const toolName = chunk.toolCall.function.name;
+          let argsDisplay = '';
+          try {
+            const args = JSON.parse(chunk.toolCall.function.arguments);
+            argsDisplay = JSON.stringify(args, null, 2);
+          } catch {
+            argsDisplay = chunk.toolCall.function.arguments;
+          }
+          const toolCallMsg = createMessage('assistant', `🔧 **Calling tool: ${toolName}**\n\n\`\`\`json\n${argsDisplay}\n\`\`\``);
+          onMessageAdd(toolCallMsg);
+        } else if (chunk.type === 'tool_result' && chunk.toolResult) {
+          // Show tool result in UI
+          const { name, success, result } = chunk.toolResult;
+          const icon = success ? '✅' : '❌';
+          const toolResultMsg = createMessage('assistant', `${icon} **${name}**\n\n └── ${result}`);
+          onMessageAdd(toolResultMsg);
+
+          // Reset for the next LLM turn in the agentic loop
+          assistantResponse = '';
+          tokenCount = 0;
+          hasTextContent = false;
+
+          // Create a fresh streaming placeholder for the next LLM response
+          const nextMsg = createStreamingMessage();
+          currentStreamingId = nextMsg.id;
+          onMessageAdd(nextMsg);
         } else if (chunk.type === 'done') {
-          streamCompleted = true;
-          // Replace with final response
-          onMessageUpdate(streamingMessage.id, (msg) => ({
-            ...msg,
-            content: assistantResponse,
-            isStreaming: false,
-            tokenCount: undefined
-          }));
-          
-          // Log the complete assistant response
+          // Finalize the streaming message
+          if (hasTextContent) {
+            onMessageUpdate(currentStreamingId, (msg) => ({
+              ...msg,
+              content: assistantResponse,
+              isStreaming: false,
+              tokenCount: undefined
+            }));
+          } else {
+            // No text in final response — remove empty placeholder
+            onMessageRemove(currentStreamingId);
+          }
+
           console.log('------------ ASSISTANT ------------');
           console.log(assistantResponse);
           console.log('-----------------------------------');
-          
           break;
         }
-      }
-
-      // If stream didn't complete normally, finalize the message
-      if (!streamCompleted && !controller.signal.aborted) {
-        onMessageUpdate(streamingMessage.id, (msg) => ({
-          ...msg,
-          content: assistantResponse || 'Stream was interrupted unexpectedly',
-          isStreaming: false,
-          tokenCount: undefined
-        }));
       }
 
       return assistantResponse;
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        // Request was aborted, don't show error
         return '';
       }
-      
+
       console.error('Error processing stream:', error);
-      // Update with error message
-      onMessageUpdate(streamingMessage.id, (msg) => ({
+      onMessageUpdate(currentStreamingId, (msg) => ({
         ...msg,
-        content: 'Error: Failed to process message',
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to process message'}`,
         isStreaming: false,
         tokenCount: undefined
       }));
@@ -109,7 +143,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       setIsProcessing(false);
       onProcessingChange(false);
     }
-  }, [onMessageUpdate, onMessageAdd, onProcessingChange]);
+  }, [onMessageUpdate, onMessageAdd, onMessageRemove, onProcessingChange]);
 
   return {
     processStream,

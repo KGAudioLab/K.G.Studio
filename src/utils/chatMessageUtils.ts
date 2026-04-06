@@ -13,7 +13,7 @@ export const createMessage = (role: 'user' | 'assistant', content: string): Chat
   };
 };
 
-export const createStreamingMessage = (content: string = '<span class="processing-wave">Processing...</span> 0 tokens received. click here to abort.'): ChatMessage => {
+export const createStreamingMessage = (content: string = '<span class="processing-wave">Thinking...</span> click here to abort.'): ChatMessage => {
   return {
     id: generateMessageId(),
     role: 'assistant',
