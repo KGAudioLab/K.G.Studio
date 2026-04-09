@@ -325,24 +325,27 @@ body {
   cursor: crosshair;
 }
 
-.track-control {
-  padding: 5px;
-  background-color: #2d2d2d;
-  border-top: 1px solid #3a3a3a;
-}
-
-.track-control button {
+.add-track-btn {
   background: transparent;
   border: none;
+  outline: none;
   color: #999;
   cursor: pointer;
-  padding: 5px;
-  width: 100%;
-  text-align: left;
   font-size: 12px;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.track-control button:hover {
+.add-track-btn:focus,
+.add-track-btn:focus-visible {
+  outline: none;
+}
+
+.add-track-btn:hover {
   color: #e0e0e0;
 }
 

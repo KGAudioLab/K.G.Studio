@@ -4,7 +4,6 @@ import { useProjectStore } from './stores/projectStore';
 import { useGlobalKeyboardHandler } from './hooks/useGlobalKeyboardHandler';
 import Toolbar from './components/Toolbar';
 import StatusBar from './components/StatusBar';
-import TrackControl from './components/TrackControl';
 import MainContent from './components/MainContent';
 import InstrumentSelection from './components/InstrumentSelection';
 import ChatBox from './components/ChatBox';
@@ -135,8 +134,6 @@ function App() {
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 
-      {/* Track Control */}
-      <TrackControl />
 
       {/* Status Bar */}
       <StatusBar />
