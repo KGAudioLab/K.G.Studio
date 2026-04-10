@@ -345,7 +345,7 @@ export class KGDebugger {
     console.log("  testExtractXMLFromString(input) - Test XML extraction from string");
     console.log("  testToolCall(input) - Execute tool call(s) from JSON and show results");
     console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
-    console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl)");
+    console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl, rm)");
     console.log("  help() - Show this help");
     console.log("");
     console.log("💡 Usage tips:");
@@ -463,6 +463,7 @@ export class KGDebugger {
    *   cd <path>        — change directory (supports .., /, relative, and quoted paths)
    *   cat <file>       — print file contents
    *   dl <file>        — download a file to your local machine
+   *   rm <name>        — remove a file or directory (recursive)
    *
    * Usage in console:
    *   await KGDebugger.opfs('pwd')
@@ -498,9 +499,13 @@ export class KGDebugger {
           await this.opfsDl(arg)
           break
 
+        case 'rm':
+          await this.opfsRm(arg)
+          break
+
         default:
           console.log(`opfs: command not found: ${cmd}`)
-          console.log('Available commands: pwd, ls, cd <path>, cat <file>, dl <file>')
+          console.log('Available commands: pwd, ls, cd <path>, cat <file>, dl <file>, rm <name>')
       }
     } catch (error) {
       console.error(`opfs: ${error}`)
@@ -658,6 +663,21 @@ export class KGDebugger {
       console.log(`downloaded: ${fileName} (${file.size} bytes)`)
     } catch {
       console.error(`opfs: dl: ${fileName}: No such file`)
+    }
+  }
+
+  private async opfsRm(name: string): Promise<void> {
+    if (!name) {
+      console.error('opfs: rm: missing file or directory name')
+      return
+    }
+
+    const dir = await this.opfsResolveCwd()
+    try {
+      await dir.removeEntry(name, { recursive: true })
+      console.log(`removed: ${name}`)
+    } catch {
+      console.error(`opfs: rm: ${name}: No such file or directory`)
     }
   }
 }
