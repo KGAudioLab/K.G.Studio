@@ -5,7 +5,9 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { pitchToNoteNameString } from '../../util/midiUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
+import { KGAudioPlayerBus } from './KGAudioPlayerBus';
 import type { InstrumentType } from '../track/KGMidiTrack';
+import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 
@@ -15,6 +17,13 @@ import { ConfigManager } from '../config/ConfigManager';
  * Abstracts audio engine implementation (Tone.js) for potential future replacement
  */
 export class KGAudioInterface {
+  /**
+   * Avoid scheduling audio-region resume callbacks exactly on the current
+   * transport boundary. Tone.Transport can miss those edge-triggered events,
+   * which leaves the playhead moving but the resumed clip silent.
+   */
+  private static readonly AUDIO_RESUME_SAFETY_OFFSET_SECONDS = 0.005;
+
   // Private static instance for singleton pattern
   private static _instance: KGAudioInterface | null = null;
 
@@ -24,6 +33,9 @@ export class KGAudioInterface {
 
   // Track management - now using KGAudioBus
   private trackAudioBuses: Map<string, KGAudioBus> = new Map();
+
+  // Audio player buses for audio/wav tracks
+  private trackAudioPlayerBuses: Map<string, KGAudioPlayerBus> = new Map();
 
   // Playback state
   private isPlaying: boolean = false;
@@ -125,6 +137,12 @@ export class KGAudioInterface {
         audioBus.dispose();
       });
       this.trackAudioBuses.clear();
+
+      // Dispose of all audio player buses
+      this.trackAudioPlayerBuses.forEach(playerBus => {
+        playerBus.dispose();
+      });
+      this.trackAudioPlayerBuses.clear();
       
       // Dispose master gain
       if (this.masterGain) {
@@ -217,6 +235,113 @@ export class KGAudioInterface {
     }
   }
 
+  // ===== AUDIO PLAYER BUS MANAGEMENT (for audio/wav tracks) =====
+
+  /**
+   * Create an audio player bus for an audio track
+   */
+  public async createTrackAudioPlayerBus(
+    trackId: string,
+    volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME
+  ): Promise<void> {
+    // Remove existing player bus if it exists
+    await this.removeTrackAudioPlayerBus(trackId);
+
+    try {
+      console.log(`Creating audio player bus for track ${trackId}`);
+      const playerBus = await KGAudioPlayerBus.create(volume);
+
+      if (this.masterGain) {
+        playerBus.connect(this.masterGain);
+      }
+
+      this.trackAudioPlayerBuses.set(trackId, playerBus);
+      console.log(`Created audio player bus for track ${trackId}`);
+    } catch (error) {
+      console.error(`Failed to create audio player bus for track ${trackId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove an audio player bus
+   */
+  public async removeTrackAudioPlayerBus(trackId: string): Promise<void> {
+    try {
+      const playerBus = this.trackAudioPlayerBuses.get(trackId);
+      if (playerBus) {
+        playerBus.dispose();
+        this.trackAudioPlayerBuses.delete(trackId);
+        console.log(`Removed audio player bus for track ${trackId}`);
+      }
+    } catch (error) {
+      console.error(`Error removing audio player bus for track ${trackId}:`, error);
+    }
+  }
+
+  /**
+   * Load an audio buffer into a track's player bus
+   */
+  public loadAudioBufferForTrack(
+    trackId: string,
+    audioFileId: string,
+    buffer: Tone.ToneAudioBuffer
+  ): void {
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    if (playerBus) {
+      playerBus.loadBuffer(audioFileId, buffer);
+    } else {
+      console.warn(`No audio player bus found for track ${trackId}`);
+    }
+  }
+
+  /**
+   * Get the raw AudioBuffer for waveform rendering
+   */
+  public getAudioBuffer(trackId: string, audioFileId: string): AudioBuffer | undefined {
+    // Try the specified track first
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    const buffer = playerBus?.getAudioBuffer(audioFileId);
+    if (buffer) return buffer;
+
+    // Fallback: search all player buses (handles region moved to a different track)
+    for (const bus of this.trackAudioPlayerBuses.values()) {
+      const found = bus.getAudioBuffer(audioFileId);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  /**
+   * Copy an audio buffer from one track's player bus to another.
+   * Used when an audio region is moved between tracks.
+   */
+  public copyAudioBufferBetweenTracks(
+    sourceTrackId: string,
+    targetTrackId: string,
+    audioFileId: string
+  ): void {
+    // Use the raw AudioBuffer approach: get from any bus, wrap in ToneAudioBuffer, load into target
+    const rawBuffer = this.getAudioBuffer(sourceTrackId, audioFileId);
+    if (!rawBuffer) return;
+
+    const targetBus = this.trackAudioPlayerBuses.get(targetTrackId);
+    if (!targetBus) return;
+
+    if (!targetBus.hasBuffer(audioFileId)) {
+      const newToneBuffer = new Tone.ToneAudioBuffer(rawBuffer);
+      targetBus.loadBuffer(audioFileId, newToneBuffer);
+
+      // Remove the buffer from the source bus to free memory
+      const sBus = this.trackAudioPlayerBuses.get(sourceTrackId);
+      if (sBus && sBus !== targetBus) {
+        sBus.removeBuffer(audioFileId);
+      }
+
+      console.log(`Moved audio buffer ${audioFileId} from track ${sourceTrackId} to track ${targetTrackId}`);
+    }
+  }
+
   /**
    * Change instrument type for a track (replaces setTrackInstrument)
    */
@@ -263,6 +388,9 @@ export class KGAudioInterface {
       // Set project BPM and time signature FIRST (this affects timing calculations)
       Tone.Transport.bpm.value = project.getBpm();
       const timeSignature = project.getTimeSignature();
+      const secondsPerBeat = 60 / project.getBpm();
+      const resumeSafetyOffsetBeats =
+        KGAudioInterface.AUDIO_RESUME_SAFETY_OFFSET_SECONDS / secondsPerBeat;
       Tone.Transport.timeSignature = [timeSignature.numerator, timeSignature.denominator];
 
       console.log(`Setting Tone.js BPM to ${project.getBpm()}, actual value: ${Tone.Transport.bpm.value}`);
@@ -309,13 +437,14 @@ export class KGAudioInterface {
 
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
+        // Schedule MIDI track events
         if (audioBus && track.getType() === 'MIDI') {
           track.getRegions().forEach(region => {
             console.log(`Region ${region.getId().toString()}: type: ${region.getCurrentType()}`);
 
             if (region.getCurrentType() === 'KGMidiRegion') {
               const midiRegion = region as unknown as { getNotes: () => KGMidiNote[] };
-              
+
               // Get notes from region (assuming it has a getNotes method)
               if (midiRegion.getNotes) {
                 midiRegion.getNotes().forEach((note: KGMidiNote) => {
@@ -334,7 +463,7 @@ export class KGAudioInterface {
                   if (noteStartBeat < startPosition) {
                     return; // Skip notes that would have already finished before playback starts
                   }
-                  
+
                   // Convert beats to Tone.js time format for scheduling
                   const noteStartTime = this.beatsToToneTime(noteStartBeat);
                   const noteDuration = this.beatsToToneTime(noteDurationBeats);
@@ -355,10 +484,112 @@ export class KGAudioInterface {
                       audioBus.triggerAttackRelease(noteName, noteDuration, time + playbackDelay, velocity);
                     }
                   }, noteStartTime);
-                  
+
                   this.scheduledEvents.add(eventId);
                 });
               }
+            }
+          });
+        }
+
+        // Schedule audio/wav track events
+        const playerBus = this.trackAudioPlayerBuses.get(trackId);
+        if (playerBus && track.getType() === 'Wave') {
+          track.getRegions().forEach(region => {
+            if (region.getCurrentType() === 'KGAudioRegion') {
+              const audioRegion = region as unknown as KGAudioRegion;
+              const regionStartBeat = region.getStartFromBeat();
+              const regionEndBeat = regionStartBeat + region.getLength();
+
+              // Skip regions outside loop range when looping
+              if (regionStartBeat >= scheduleEndBeat || regionEndBeat <= scheduleStartBeat) {
+                return;
+              }
+
+              // Skip regions that start before playback start position
+              if (regionStartBeat < startPosition) {
+                // Region starts before playhead — calculate offset into the audio file
+                const offsetBeats = startPosition - regionStartBeat;
+                const offsetSeconds = offsetBeats * secondsPerBeat;
+                const remainingBeats = regionEndBeat - startPosition;
+                const remainingSeconds = remainingBeats * secondsPerBeat;
+                const audioFileId = audioRegion.getAudioFileId();
+
+                // Cap duration at loop boundary to prevent overlap on loop re-trigger
+                let effectiveRemainingSeconds = remainingSeconds;
+                if (isLooping) {
+                  const maxDurationBeats = scheduleEndBeat - startPosition;
+                  const maxDurationSeconds = maxDurationBeats * secondsPerBeat;
+                  effectiveRemainingSeconds = Math.min(remainingSeconds, maxDurationSeconds);
+                }
+
+                if (effectiveRemainingSeconds > 0 && playerBus.hasBuffer(audioFileId)) {
+                  // Resume slightly after the current transport boundary and
+                  // compensate the source offset/duration. Scheduling exactly
+                  // at the playhead here can intermittently miss the callback,
+                  // which leaves the playhead moving but the clip silent.
+                  const safeResumeBeat = Math.min(
+                    startPosition + resumeSafetyOffsetBeats,
+                    regionEndBeat
+                  );
+                  const extraOffsetSeconds = (safeResumeBeat - startPosition) * secondsPerBeat;
+                  const adjustedOffsetSeconds = offsetSeconds + extraOffsetSeconds;
+                  const adjustedRemainingSeconds = Math.max(
+                    0,
+                    effectiveRemainingSeconds - extraOffsetSeconds
+                  );
+
+                  if (adjustedRemainingSeconds <= 0) {
+                    return;
+                  }
+
+                  const regionStartTime = this.beatsToToneTime(safeResumeBeat);
+
+                  const eventId = Tone.Transport.schedule((time) => {
+                    const hasSoloedTracks = this.hasSoloedTracks();
+                    if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
+                      playerBus.schedulePlayback(
+                        time + playbackDelay,
+                        audioFileId,
+                        adjustedOffsetSeconds,
+                        adjustedRemainingSeconds
+                      );
+                    }
+                  }, regionStartTime);
+                  this.scheduledEvents.add(eventId);
+                }
+                return;
+              }
+
+              const audioFileId = audioRegion.getAudioFileId();
+              let effectiveDurationSeconds = audioRegion.getAudioDurationSeconds();
+
+              if (!playerBus.hasBuffer(audioFileId)) {
+                console.warn(`No audio buffer loaded for ${audioFileId}`);
+                return;
+              }
+
+              // Cap duration at loop boundary to prevent overlap on loop re-trigger
+              if (isLooping) {
+                const maxDurationBeats = scheduleEndBeat - regionStartBeat;
+                const maxDurationSeconds = maxDurationBeats * secondsPerBeat;
+                effectiveDurationSeconds = Math.min(effectiveDurationSeconds, maxDurationSeconds);
+              }
+
+              const regionStartTime = this.beatsToToneTime(regionStartBeat);
+
+              console.log(
+                `Scheduling audio region "${region.getName()}" at beat ${regionStartBeat}, duration: ${effectiveDurationSeconds}s`
+              );
+
+              const eventId = Tone.Transport.schedule((time) => {
+                const hasSoloedTracks = this.hasSoloedTracks();
+                if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
+                  playerBus.schedulePlayback(time + playbackDelay, audioFileId, 0, effectiveDurationSeconds);
+                }
+              }, regionStartTime);
+
+              this.scheduledEvents.add(eventId);
             }
           });
         }
@@ -404,7 +635,12 @@ export class KGAudioInterface {
       this.trackAudioBuses.forEach(audioBus => {
         audioBus.releaseAll();
       });
-      
+
+      // Stop all audio player buses
+      this.trackAudioPlayerBuses.forEach(playerBus => {
+        playerBus.stopAll();
+      });
+
       this.isPlaying = false;
       
       console.log('Audio playback stopped');
@@ -560,10 +796,14 @@ export class KGAudioInterface {
   public setTrackVolume(trackId: string, volume: number): void {
     try {
       const audioBus = this.trackAudioBuses.get(trackId);
+      const playerBus = this.trackAudioPlayerBuses.get(trackId);
       if (audioBus) {
         audioBus.setVolume(volume);
-        console.log(`Set track ${trackId} volume to ${volume}`);
-      } else {
+      }
+      if (playerBus) {
+        playerBus.setVolume(volume);
+      }
+      if (!audioBus && !playerBus) {
         console.warn(`No audio bus found for track ${trackId}`);
       }
     } catch (error) {
@@ -577,14 +817,18 @@ export class KGAudioInterface {
   public setTrackMute(trackId: string, muted: boolean): void {
     try {
       const audioBus = this.trackAudioBuses.get(trackId);
+      const playerBus = this.trackAudioPlayerBuses.get(trackId);
       if (audioBus) {
         audioBus.setMuted(muted);
-        console.log(`Set track ${trackId} mute to ${muted}`);
-        // Recompute effective volumes across all buses (solo logic)
-        this.updateAllEffectiveVolumes();
-      } else {
+      }
+      if (playerBus) {
+        playerBus.setMuted(muted);
+      }
+      if (!audioBus && !playerBus) {
         console.warn(`No audio bus found for track ${trackId}`);
       }
+      // Recompute effective volumes across all buses (solo logic)
+      this.updateAllEffectiveVolumes();
     } catch (error) {
       console.error(`Error setting track ${trackId} mute:`, error);
     }
@@ -596,14 +840,18 @@ export class KGAudioInterface {
   public setTrackSolo(trackId: string, solo: boolean): void {
     try {
       const audioBus = this.trackAudioBuses.get(trackId);
+      const playerBus = this.trackAudioPlayerBuses.get(trackId);
       if (audioBus) {
         audioBus.setSolo(solo);
-        console.log(`Set track ${trackId} solo to ${solo}`);
-        // Recompute effective volumes across all buses (solo logic)
-        this.updateAllEffectiveVolumes();
-      } else {
+      }
+      if (playerBus) {
+        playerBus.setSolo(solo);
+      }
+      if (!audioBus && !playerBus) {
         console.warn(`No audio bus found for track ${trackId}`);
       }
+      // Recompute effective volumes across all buses (solo logic)
+      this.updateAllEffectiveVolumes();
     } catch (error) {
       console.error(`Error setting track ${trackId} solo:`, error);
     }
@@ -646,17 +894,20 @@ export class KGAudioInterface {
 
   public getTrackVolume(trackId: string): number {
     const audioBus = this.trackAudioBuses.get(trackId);
-    return audioBus?.getVolume() ?? AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    return audioBus?.getVolume() ?? playerBus?.getVolume() ?? AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
   }
 
   public getTrackMuted(trackId: string): boolean {
     const audioBus = this.trackAudioBuses.get(trackId);
-    return audioBus?.getMuted() ?? false;
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    return audioBus?.getMuted() ?? playerBus?.getMuted() ?? false;
   }
 
   public getTrackSolo(trackId: string): boolean {
     const audioBus = this.trackAudioBuses.get(trackId);
-    return audioBus?.getSolo() ?? false;
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    return audioBus?.getSolo() ?? playerBus?.getSolo() ?? false;
   }
 
   public getMasterVolume(): number {
@@ -692,7 +943,8 @@ export class KGAudioInterface {
    * Check if any tracks are currently soloed
    */
   private hasSoloedTracks(): boolean {
-    return Array.from(this.trackAudioBuses.values()).some(audioBus => audioBus.getSolo());
+    return Array.from(this.trackAudioBuses.values()).some(bus => bus.getSolo()) ||
+           Array.from(this.trackAudioPlayerBuses.values()).some(bus => bus.getSolo());
   }
 
   /**
@@ -702,6 +954,7 @@ export class KGAudioInterface {
     try {
       const hasSoloedTracks = this.hasSoloedTracks();
       this.trackAudioBuses.forEach(bus => bus.applyEffectiveVolume(hasSoloedTracks));
+      this.trackAudioPlayerBuses.forEach(bus => bus.applyEffectiveVolume(hasSoloedTracks));
     } catch (error) {
       console.error('Error updating effective volumes:', error);
     }

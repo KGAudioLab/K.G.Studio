@@ -71,6 +71,28 @@
   position: relative; /* Allow overlayed controls */
 }
 
+.region-content.audio-region-content {
+  background-color: #90EE90; /* Light green for audio regions */
+}
+
+/* Audio region overrides */
+.track-region.audio-region {
+  background-color: #3a6b4a;
+  border-color: #4a8b5a;
+}
+
+.track-region.audio-region:hover {
+  box-shadow: 0 0 0 1px #6aab7a;
+}
+
+.track-region.audio-region .region-header {
+  background-color: #4a8b5a;
+}
+
+.track-region.audio-region:hover .region-header {
+  background-color: #5a9b6a;
+}
+
 /* Region pencil trigger inside content */
 .region-pencil-btn {
   position: absolute;

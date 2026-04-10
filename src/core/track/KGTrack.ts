@@ -1,6 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { KGRegion } from '../region/KGRegion';
 import { KGMidiRegion } from '../region/KGMidiRegion';
+import { KGAudioRegion } from '../region/KGAudioRegion';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { WithDefault } from '../../types/projectTypes';
 
@@ -42,6 +43,7 @@ export class KGTrack {
       subTypes: [
         { value: KGRegion, name: 'KGRegion' },
         { value: KGMidiRegion, name: 'KGMidiRegion' },
+        { value: KGAudioRegion, name: 'KGAudioRegion' },
       ],
     },
   })

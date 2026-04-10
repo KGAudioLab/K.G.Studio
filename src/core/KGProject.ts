@@ -1,6 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { KGTrack } from './track/KGTrack';
 import { KGMidiTrack } from './track/KGMidiTrack';
+import { KGAudioTrack } from './track/KGAudioTrack';
 import { type TimeSignature, WithDefault } from '../types/projectTypes';
 import { TIME_CONSTANTS, KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 
@@ -47,7 +48,7 @@ export class KGProject {
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 3;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 4;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -56,6 +57,7 @@ export class KGProject {
       subTypes: [
         { value: KGTrack, name: 'KGTrack' },
         { value: KGMidiTrack, name: 'KGMidiTrack' },
+        { value: KGAudioTrack, name: 'KGAudioTrack' },
       ],
     },
   })

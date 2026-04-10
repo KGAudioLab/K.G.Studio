@@ -4,6 +4,7 @@ import { FaPencilAlt } from 'react-icons/fa';
 import type { ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 
@@ -28,6 +29,9 @@ interface RegionItemProps {
   onOpenPianoRoll?: (regionId: string) => void;
   // MIDI region data for rendering notes
   midiRegion?: KGMidiRegion;
+  // Audio region data for rendering waveform
+  audioRegion?: KGAudioRegion;
+  audioBuffer?: AudioBuffer;
 }
 
 const RegionItem: React.FC<RegionItemProps> = ({
@@ -45,7 +49,9 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onDragEnd,
   onClick,
   onOpenPianoRoll,
-  midiRegion
+  midiRegion,
+  audioRegion,
+  audioBuffer
 }) => {
   // Get selection state and time signature from store
   const { selectedRegionIds, timeSignature } = useProjectStore();
@@ -204,6 +210,58 @@ const RegionItem: React.FC<RegionItemProps> = ({
     }
   };
 
+  // Function to render audio waveform on canvas
+  const renderWaveformOnCanvas = () => {
+    if (!canvasRef.current || !regionContentRef.current || !audioBuffer) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const contentRect = regionContentRef.current.getBoundingClientRect();
+    const width = contentRect.width;
+    const height = contentRect.height;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Get channel data (use first channel)
+    const channelData = audioBuffer.getChannelData(0);
+    const samples = channelData.length;
+
+    // Downsample to canvas width
+    const samplesPerPixel = Math.max(1, Math.floor(samples / width));
+    const centerY = height / 2;
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (let x = 0; x < width; x++) {
+      const startSample = Math.floor(x * samplesPerPixel);
+      const endSample = Math.min(startSample + samplesPerPixel, samples);
+
+      let min = 0;
+      let max = 0;
+      for (let i = startSample; i < endSample; i++) {
+        const val = channelData[i];
+        if (val < min) min = val;
+        if (val > max) max = val;
+      }
+
+      // Draw vertical line from min to max amplitude
+      const yMin = centerY - max * centerY;
+      const yMax = centerY - min * centerY;
+
+      ctx.moveTo(x, yMin);
+      ctx.lineTo(x, yMax);
+    }
+
+    ctx.stroke();
+  };
+
   // Create a stable reference to track note changes
   const notesRef = useRef<string>('');
   const [noteUpdateTrigger, setNoteUpdateTrigger] = useState(0);
@@ -226,15 +284,23 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
   // Set up canvas when component mounts or updates
   useEffect(() => {
-    renderNotesOnCanvas();
-  }, [midiRegion, timeSignature, id, noteUpdateTrigger]);
+    if (audioRegion && audioBuffer) {
+      renderWaveformOnCanvas();
+    } else {
+      renderNotesOnCanvas();
+    }
+  }, [midiRegion, audioRegion, audioBuffer, timeSignature, id, noteUpdateTrigger]);
 
   // Re-render canvas when region content size changes
   useEffect(() => {
     if (!regionContentRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      renderNotesOnCanvas();
+      if (audioRegion && audioBuffer) {
+        renderWaveformOnCanvas();
+      } else {
+        renderNotesOnCanvas();
+      }
     });
 
     resizeObserver.observe(regionContentRef.current);
@@ -244,7 +310,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         resizeObserver.unobserve(regionContentRef.current);
       }
     };
-  }, [midiRegion, timeSignature]);
+  }, [midiRegion, audioRegion, audioBuffer, timeSignature]);
 
   // Handle mouse movement to detect edge proximity
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -255,6 +321,13 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const activeTool = KGMainContentState.instance().getActiveTool();
     if (activeTool === 'pencil') {
       setCursor('pointer');
+      setResizeEdge('none');
+      return;
+    }
+
+    // Audio regions: move only, no resize
+    if (audioRegion) {
+      setCursor('grab');
       setResizeEdge('none');
       return;
     }
@@ -453,7 +526,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   return (
     <div
       key={id}
-      className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''}`}
+      className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''} ${audioRegion ? 'audio-region' : ''}`}
       style={{ ...style, cursor }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -464,32 +537,34 @@ const RegionItem: React.FC<RegionItemProps> = ({
       data-is-dragging={isDragging}
     >
       <div className="region-header">
-        {name}
+        {audioRegion ? audioRegion.getAudioFileName() : name}
       </div>
-      <div className="region-content" ref={regionContentRef}>
-        <button
-          className="region-pencil-btn"
-          title="Edit notes"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (DEBUG_MODE.REGION_ITEM) {
-              console.log(`Pencil clicked: open piano roll for region ${id}`);
-            }
-            if (onOpenPianoRoll) {
-              onOpenPianoRoll(id);
-            } else if (onClick) {
-              onClick(id);
-            }
-          }}
-          aria-label="Open piano roll"
-        >
-          <FaPencilAlt size={10} />
-        </button>
+      <div className={`region-content${audioRegion ? ' audio-region-content' : ''}`} ref={regionContentRef}>
+        {!audioRegion && (
+          <button
+            className="region-pencil-btn"
+            title="Edit notes"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (DEBUG_MODE.REGION_ITEM) {
+                console.log(`Pencil clicked: open piano roll for region ${id}`);
+              }
+              if (onOpenPianoRoll) {
+                onOpenPianoRoll(id);
+              } else if (onClick) {
+                onClick(id);
+              }
+            }}
+            aria-label="Open piano roll"
+          >
+            <FaPencilAlt size={10} />
+          </button>
+        )}
         <canvas ref={canvasRef} />
       </div>
     </div>

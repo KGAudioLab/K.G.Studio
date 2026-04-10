@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { KGTrack } from '../../core/track/KGTrack';
+import { KGTrack, TrackType } from '../../core/track/KGTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import TrackGridItem from './TrackGridItem';
 import { Playhead } from '../common';
@@ -9,6 +9,8 @@ import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand } from '../../core/commands';
 import { KGCore } from '../../core/KGCore';
+import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
+import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { generateNewRegionName } from '../../util/miscUtil';
 
 interface TrackGridPanelProps {
@@ -64,7 +66,12 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Get the track and its ID
     const track = tracks[trackIndex];
     const trackId = track.getId().toString();
-    
+
+    // Don't allow manual region creation on audio tracks
+    if (track.getType() === TrackType.Wave) {
+      return;
+    }
+
     if (DEBUG_MODE.TRACK_GRID_PANEL) {
       console.log(`Creating region on track ${trackIndex + 1}, bar ${barNumber}`);
     }
@@ -238,7 +245,19 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Get the target track
     const targetTrack = tracks[finalTrackIndex];
     if (!targetTrack) return;
-    
+
+    // Block cross-type region moves (MIDI <-> Audio)
+    const sourceTrack = tracks.find(t => {
+      return t.getRegions().some(r => r.getId() === regionId);
+    });
+    if (sourceTrack && sourceTrack.getType() !== targetTrack.getType()) {
+      // Snap back — don't execute the move
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`Blocked cross-type move: ${sourceTrack.getType()} region cannot move to ${targetTrack.getType()} track`);
+      }
+      return;
+    }
+
     // Use command pattern to move the region
     try {
       const command = MoveRegionCommand.fromBarCoordinates(
@@ -251,9 +270,22 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       
       KGCore.instance().executeCommand(command);
 
+      // Copy audio buffer to target track if this is a cross-track audio region move
+      if (sourceTrack && targetTrack && sourceTrack.getId() !== targetTrack.getId()) {
+        const coreRegion = targetTrack.getRegions().find(r => r.getId() === regionId);
+        if (coreRegion?.getCurrentType() === 'KGAudioRegion') {
+          const audioRegion = coreRegion as unknown as KGAudioRegion;
+          KGAudioInterface.instance().copyAudioBufferBetweenTracks(
+            sourceTrack.getId().toString(),
+            targetTrack.getId().toString(),
+            audioRegion.getAudioFileId()
+          );
+        }
+      }
+
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`Executed MoveRegionCommand: region ${regionId} moved using command pattern`);
-        
+
         // Verify the command worked
         const movedRegion = command.getTargetRegion();
         console.log(`Verified region: ${movedRegion ? 'found' : 'not found'}, startBeat=${movedRegion?.getStartFromBeat()}, trackId=${movedRegion?.getTrackId()}`);

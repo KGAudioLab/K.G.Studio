@@ -5,6 +5,7 @@ import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
@@ -35,7 +36,8 @@ const MainContent: React.FC<MainContentProps> = ({
     activeRegionId,
     setShowPianoRoll,
     setActiveRegionId,
-    addTrack
+    addTrack,
+    addAudioTrack
   } = useProjectStore();
 
   // State to store regions
@@ -130,7 +132,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
       // Iterate through all regions in the track
       track.getRegions().forEach(region => {
-        if (region instanceof KGMidiRegion) {
+        if (region instanceof KGMidiRegion || region instanceof KGAudioRegion) {
           // Calculate bar number and length from beats
           const beatsPerBar = timeSignature.numerator;
           const barNumber = Math.floor(region.getStartFromBeat() / beatsPerBar) + 1;
@@ -432,6 +434,15 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Handle explicit pencil action: select region and open piano roll
   const handleOpenPianoRoll = (regionId: string) => {
+    // Don't open piano roll for audio regions
+    const project = KGCore.instance().getCurrentProject();
+    for (const track of project.getTracks()) {
+      const region = track.getRegions().find(r => r.getId() === regionId);
+      if (region && region.getCurrentType() === 'KGAudioRegion') {
+        return;
+      }
+    }
+
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Open piano roll via pencil for region: ${regionId}`);
     }
@@ -691,7 +702,8 @@ const MainContent: React.FC<MainContentProps> = ({
       <div className="main-content-wrapper">
         {/* Top-left spacer */}
         <div className="top-left-spacer">
-          <button className="add-track-btn" onClick={() => addTrack()}>+ Add track</button>
+          <button className="add-track-btn" onClick={() => addTrack()}>+ MIDI</button>
+          <button className="add-track-btn" onClick={() => addAudioTrack()}>+ Audio</button>
         </div>
 
         {/* Bar numbers at the top */}

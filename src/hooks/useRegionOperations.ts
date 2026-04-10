@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { DEBUG_MODE } from '../constants';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGCore } from '../core/KGCore';
 import type { RegionUI } from '../components/interfaces';
@@ -46,9 +47,9 @@ export const useRegionOperations = ({
   const deleteSelectedRegions = useCallback(() => {
     // Get all selected regions from KGCore
     const selectedItems = core.getSelectedItems();
-    const selectedRegions = selectedItems.filter(item => 
-      item instanceof KGMidiRegion
-    ) as KGMidiRegion[];
+    const selectedRegions = selectedItems.filter(item =>
+      item instanceof KGMidiRegion || item instanceof KGAudioRegion
+    );
     
     if (selectedRegions.length === 0) {
       if (DEBUG_MODE.MAIN_CONTENT) {
