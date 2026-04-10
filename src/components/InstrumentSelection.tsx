@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import './InstrumentSelection.css';
 import { useProjectStore } from '../stores/projectStore';
 import { INSTRUMENT_GROUPS, FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';

@@ -1,0 +1,105 @@
+/* Main content */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: auto; /* Main scrollable container */
+  position: relative;
+}
+
+.main-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: calc(200px + var(--max-number-of-bars) * var(--track-grid-bar-width)); /* info width + grid width */
+  min-height: fit-content;
+  position: relative;
+}
+
+.top-left-spacer {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  width: 200px;
+  height: 20px;
+  background-color: #2d2d2d;
+  border-bottom: 1px solid #3a3a3a;
+  border-right: 1px solid #3a3a3a;
+  z-index: 1002; /* Higher than other elements to ensure it's always visible */
+}
+
+/* Offset spacer when instrument selection panel is visible on the left */
+.main-content.has-left-instrument .top-left-spacer {
+  left: 300px;
+}
+
+.bar-numbers {
+  position: sticky;
+  top: 0;
+  height: 20px;
+  display: flex;
+  border-bottom: 1px solid #3a3a3a;
+  background-color: #2d2d2d;
+  z-index: 20;
+  margin-left: 200px; /* Offset for info-container */
+  width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* Exact width for 32 bars */
+  cursor: pointer; /* Show pointer cursor on hover to indicate interactivity */
+}
+
+.bar-numbers:hover {
+  cursor: url("data:image/svg+xml,%3csvg width='16' height='16' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M4 6h8l-4 4-4-4z' fill='%23e0e0e0'/%3e%3c/svg%3e") 8 8, pointer;
+}
+
+.bar-number-cell {
+  min-width: var(--track-grid-bar-width);
+  width: var(--track-grid-bar-width);
+  flex-shrink: 0;
+  flex-grow: 0;
+  height: 20px;
+  text-align: center;
+  font-size: 12px;
+  border-right: 1px solid #3a3a3a;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.bar-number-cell.looped {
+  background-color: #e1ae01;
+  color: #1e1e1e;
+}
+
+.main-content-body {
+  display: flex;
+  min-height: fit-content;
+}
+
+.info-container {
+  position: sticky;
+  left: 0;
+  width: 200px;
+  z-index: 1002;
+  background-color: #2d2d2d;
+  align-self: flex-start;
+}
+
+/* Shift the bar numbers and info panel when instrument selection is present */
+/* No need to shift bar numbers or info container; they live inside main content.
+   Only shift the fixed spacer when the left panel is present. */
+
+.track-top-spacer {
+  height: 20px;
+  border-bottom: 1px solid #3a3a3a;
+  background-color: #2d2d2d;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+}
+
+.grid-container {
+  margin-left: 0; /* No need for margin since we're using flex */
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* Ensure minimum width */
+  min-height: fit-content;
+  position: relative; /* Required for absolute positioned playhead */
+}

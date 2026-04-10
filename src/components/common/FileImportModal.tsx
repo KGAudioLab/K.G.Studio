@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import './FileImportModal.css';
 import { FaTimes } from 'react-icons/fa';
 
 interface FileImportModalProps {

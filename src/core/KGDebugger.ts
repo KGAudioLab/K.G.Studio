@@ -28,7 +28,8 @@ export class KGDebugger {
       'createTestRegion()',
       'testExtractXMLFromString(input)',
       'testToolCall(jsonInput)',
-      'inputChatBox(content, interval?)'
+      'inputChatBox(content, interval?)',
+      'opfs(command)',
     ]);
   }
 
@@ -344,6 +345,7 @@ export class KGDebugger {
     console.log("  testExtractXMLFromString(input) - Test XML extraction from string");
     console.log("  testToolCall(input) - Execute tool call(s) from JSON and show results");
     console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
+    console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl)");
     console.log("  help() - Show this help");
     console.log("");
     console.log("💡 Usage tips:");
@@ -444,6 +446,218 @@ export class KGDebugger {
       textarea.dispatchEvent(keyupEvent);
     } catch (error) {
       console.error('❌ Error in inputChatBox:', error);
+    }
+  }
+
+  // --- OPFS Shell ---
+
+  /** Current working directory path segments (relative to OPFS root) */
+  private opfsCwd: string[] = [];
+
+  /**
+   * Simplified bash-like shell for browsing the OPFS filesystem.
+   *
+   * Supported commands:
+   *   pwd              — print current directory
+   *   ls               — list files/folders (like ls -lla)
+   *   cd <path>        — change directory (supports .., /, relative, and quoted paths)
+   *   cat <file>       — print file contents
+   *   dl <file>        — download a file to your local machine
+   *
+   * Usage in console:
+   *   await KGDebugger.opfs('pwd')
+   *   await KGDebugger.opfs('ls')
+   *   await KGDebugger.opfs('cd projects')
+   *   await KGDebugger.opfs('cat project.json')
+   */
+  public async opfs(command: string): Promise<void> {
+    const parts = command.trim().match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []
+    const cmd = parts[0]
+    // Strip surrounding quotes from arguments
+    const arg = parts.slice(1).map(p => p.replace(/^["']|["']$/g, '')).join(' ')
+
+    try {
+      switch (cmd) {
+        case 'pwd':
+          console.log('/' + this.opfsCwd.join('/'))
+          break
+
+        case 'ls':
+          await this.opfsLs()
+          break
+
+        case 'cd':
+          await this.opfsCd(arg)
+          break
+
+        case 'cat':
+          await this.opfsCat(arg)
+          break
+
+        case 'dl':
+          await this.opfsDl(arg)
+          break
+
+        default:
+          console.log(`opfs: command not found: ${cmd}`)
+          console.log('Available commands: pwd, ls, cd <path>, cat <file>, dl <file>')
+      }
+    } catch (error) {
+      console.error(`opfs: ${error}`)
+    }
+  }
+
+  private async opfsResolveCwd(): Promise<FileSystemDirectoryHandle> {
+    let dir = await navigator.storage.getDirectory()
+    for (const segment of this.opfsCwd) {
+      dir = await dir.getDirectoryHandle(segment)
+    }
+    return dir
+  }
+
+  private async opfsLs(): Promise<void> {
+    const dir = await this.opfsResolveCwd()
+    const entries: Array<{ kind: string; name: string; size: number; modified: string }> = []
+
+    for await (const entry of dir.values()) {
+      if (entry.kind === 'file') {
+        const fileHandle = entry as FileSystemFileHandle
+        const file = await fileHandle.getFile()
+        entries.push({
+          kind: 'file',
+          name: entry.name,
+          size: file.size,
+          modified: new Date(file.lastModified).toISOString().replace('T', ' ').slice(0, 19),
+        })
+      } else {
+        entries.push({
+          kind: 'dir',
+          name: entry.name + '/',
+          size: 0,
+          modified: '-',
+        })
+      }
+    }
+
+    // Sort: directories first, then files, alphabetically within each group
+    entries.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+
+    if (entries.length === 0) {
+      console.log('(empty directory)')
+      return
+    }
+
+    // Print header
+    const cwdPath = '/' + this.opfsCwd.join('/')
+    console.log(`total ${entries.length}  (${cwdPath})`)
+
+    // Format like ls -lla
+    const maxSizeLen = Math.max(...entries.map(e => String(e.size).length), 4)
+    for (const e of entries) {
+      const typeChar = e.kind === 'dir' ? 'd' : '-'
+      const perms = e.kind === 'dir' ? 'rwxr-xr-x' : 'rw-r--r--'
+      const sizeStr = e.kind === 'dir' ? '-'.padStart(maxSizeLen) : String(e.size).padStart(maxSizeLen)
+      console.log(`${typeChar}${perms}  ${sizeStr}  ${e.modified}  ${e.name}`)
+    }
+  }
+
+  private async opfsCd(path: string): Promise<void> {
+    if (!path || path === '') {
+      // cd with no args goes to root
+      this.opfsCwd = []
+      return
+    }
+
+    let segments: string[]
+
+    if (path === '/') {
+      this.opfsCwd = []
+      return
+    } else if (path.startsWith('/')) {
+      // Absolute path
+      segments = path.split('/').filter(Boolean)
+    } else {
+      // Relative path
+      segments = [...this.opfsCwd, ...path.split('/').filter(Boolean)]
+    }
+
+    // Resolve . and ..
+    const resolved: string[] = []
+    for (const seg of segments) {
+      if (seg === '.') continue
+      if (seg === '..') {
+        resolved.pop()
+      } else {
+        resolved.push(seg)
+      }
+    }
+
+    // Verify the path exists
+    let dir = await navigator.storage.getDirectory()
+    for (const seg of resolved) {
+      try {
+        dir = await dir.getDirectoryHandle(seg)
+      } catch {
+        console.error(`opfs: cd: no such directory: ${path}`)
+        return
+      }
+    }
+
+    this.opfsCwd = resolved
+  }
+
+  private async opfsCat(fileName: string): Promise<void> {
+    if (!fileName) {
+      console.error('opfs: cat: missing file name')
+      return
+    }
+
+    const dir = await this.opfsResolveCwd()
+    try {
+      const fileHandle = await dir.getFileHandle(fileName)
+      const file = await fileHandle.getFile()
+      const text = await file.text()
+
+      // Pretty-print JSON files
+      if (fileName.endsWith('.json')) {
+        try {
+          const parsed = JSON.parse(text)
+          console.log(JSON.stringify(parsed, null, 2))
+        } catch {
+          console.log(text)
+        }
+      } else {
+        console.log(text)
+      }
+    } catch {
+      console.error(`opfs: cat: ${fileName}: No such file`)
+    }
+  }
+
+  private async opfsDl(fileName: string): Promise<void> {
+    if (!fileName) {
+      console.error('opfs: dl: missing file name')
+      return
+    }
+
+    const dir = await this.opfsResolveCwd()
+    try {
+      const fileHandle = await dir.getFileHandle(fileName)
+      const file = await fileHandle.getFile()
+      const url = URL.createObjectURL(file)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      console.log(`downloaded: ${fileName} (${file.size} bytes)`)
+    } catch {
+      console.error(`opfs: dl: ${fileName}: No such file`)
     }
   }
 }

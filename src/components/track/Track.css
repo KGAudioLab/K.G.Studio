@@ -1,0 +1,207 @@
+/* Track grid */
+.track-grid {
+  display: block;
+  height: 120px;
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* 32 bars * --track-grid-bar-width */
+  background-size: var(--track-grid-bar-width) 120px;
+  background-image:
+    /* Vertical lines for bars */
+    linear-gradient(to right,
+      transparent calc(var(--track-grid-bar-width) - 1px), #3a3a3a calc(var(--track-grid-bar-width) - 1px), #3a3a3a var(--track-grid-bar-width)
+    );
+  position: relative;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.track-grid.pencil-cursor {
+  cursor: crosshair;
+}
+
+.add-track-btn {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-track-btn:focus,
+.add-track-btn:focus-visible {
+  outline: none;
+}
+
+.add-track-btn:hover {
+  color: #e0e0e0;
+}
+
+.track {
+  display: flex;
+  height: 120px;
+  position: relative;
+  border-bottom: none;
+}
+
+.track-info {
+  width: 200px;
+  height: 120px;
+  padding: 15px;
+  background-color: #2d2d2d;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #3a3a3a;
+  border-bottom: 1px solid #3a3a3a;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  cursor: grab;
+  position: relative;
+}
+
+.track-info:active {
+  cursor: grabbing;
+}
+
+.track-info.selected {
+  background-color: #363636;
+}
+
+/* Drag and drop styles */
+.track-info.drag-over {
+  border-top: 2px solid #7b68ee;
+}
+
+.track-grid.drag-over {
+  border-top: 2px solid #7b68ee;
+}
+
+/* Dragging state */
+.track-info.dragging {
+  opacity: 0.5;
+  background-color: #444;
+}
+
+.track-grid.dragging {
+  opacity: 0.5;
+  background-color: #333;
+}
+
+/* Remove drag indicator since hover cursor is sufficient */
+
+.track-name {
+  font-size: 12px;
+  cursor: pointer;
+  position: relative;
+}
+
+.track-name:hover {
+  color: #7b68ee;
+}
+
+.track-name:hover::before {
+  content: "\270E";
+  position: absolute;
+  right: 0px;
+  font-size: 16px;
+  opacity: 1;
+}
+
+.track-controls {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.track-name-and-volume {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.instrument-image {
+  flex-shrink: 0;
+  margin-top: -10px;
+  margin-left: -10px;
+}
+
+.instrument-image img {
+  display: block;
+  border-radius: 4px;
+}
+
+.track-name-and-controls {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.volume-slider {
+  margin-bottom: 15px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.volume-slider input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+}
+
+.volume-slider .reset-volume {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: #3a3a3a;
+  color: #e0e0e0;
+  /* border: 1px solid #444; */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.volume-slider .reset-volume:hover {
+  background: #4a4a4a;
+}
+
+.pan-controls {
+  display: flex;
+}
+
+.pan-controls button {
+  background: #3a3a3a;
+  border: none;
+  color: #e0e0e0;
+  margin-right: 5px;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pan-controls button.solo.active {
+  background: #c8a400; /* yellow */
+  color: #101010;
+}
+
+.pan-controls button.mute.active {
+  background: #d32f2f; /* red */
+  color: #ffffff;
+}

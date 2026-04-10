@@ -1,5 +1,4 @@
-import { KGStorage } from '../io/KGStorage';
-import { DB_CONSTANTS } from '../../constants/coreConstants';
+import { KGConfigStorage } from '../io/KGConfigStorage';
 
 /**
  * Application configuration interface
@@ -99,7 +98,7 @@ export class ConfigManager {
 
   // Configuration state
   private config: AppConfig;
-  private storage: KGStorage;
+  private storage: KGConfigStorage;
   private isInitialized: boolean = false;
   private defaultConfig: AppConfig | null = null;
   private changeListeners: Set<(changedKeys: string[]) => void> = new Set();
@@ -108,7 +107,7 @@ export class ConfigManager {
   private constructor() {
     // Initialize with empty config, will be loaded during initialize()
     this.config = {} as AppConfig;
-    this.storage = KGStorage.getInstance();
+    this.storage = KGConfigStorage.getInstance();
     console.log('ConfigManager initialized');
   }
 
@@ -262,11 +261,8 @@ export class ConfigManager {
       // For config, we don't use class-transformer since it's plain objects
       // So we'll use a simple object approach and handle it directly with KGStorage
       const savedConfigData = await this.storage.load(
-        DB_CONSTANTS.DB_NAME,
-        DB_CONSTANTS.CONFIG_STORE_NAME,
         ConfigManager.CONFIG_KEY,
         Object, // Simple object class
-        DB_CONSTANTS.DB_VERSION
       );
       
       if (savedConfigData) {
@@ -294,12 +290,9 @@ export class ConfigManager {
         : this.config;
 
       await this.storage.save(
-        DB_CONSTANTS.DB_NAME,
-        DB_CONSTANTS.CONFIG_STORE_NAME,
         ConfigManager.CONFIG_KEY,
         configToPersist,
         true, // Always overwrite config
-        DB_CONSTANTS.DB_VERSION
       );
       console.log('Saved config to storage:', configToPersist);
     } catch (error) {

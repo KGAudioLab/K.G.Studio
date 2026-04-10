@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './Settings.css';
 import SettingsSidebar from './SettingsSidebar';
 import GeneralSettings from './sections/GeneralSettings';
 import BehaviorSettings from './sections/BehaviorSettings';

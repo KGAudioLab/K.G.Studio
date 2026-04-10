@@ -93,6 +93,18 @@ export const SAMPLER_CONSTANTS = {
   }, 
 };
 
+export const OPFS_CONSTANTS = {
+  ROOT_DIR: 'projects',
+  PROJECT_FILE: 'project.json',
+  METADATA_FILE: 'meta.json',
+  MEDIA_DIR: 'media',
+};
+
+export const CONFIG_UPGRADER_CONSTANTS = {
+  VERSION_KEY: '__config_version',
+  CURRENT_VERSION: 1,
+};
+
 export const URL_CONSTANTS = {
   DEFAULT_OPENAI_BASE_URL: 'https://api.openai.com/v1',
 };

@@ -21,7 +21,8 @@ export default tseslint.config([
     },
     rules: {
       '@typescript-eslint/no-unused-vars': 'warn', // Downgrade from error to warning
-      'no-unused-vars': 'warn' // Also set the base rule to warn
+      'no-unused-vars': 'warn', // Also set the base rule to warn
+      'semi': ['error', 'always'],
     }
   },
 ])

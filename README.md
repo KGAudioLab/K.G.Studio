@@ -242,7 +242,7 @@ Feature priorities might change.
 - [ ] Support WAV audio tracks
 - [ ] Filters and effects
 - [ ] MCP Support
-- [ ] Add support for OpenAI's open source models (`gpt-oss-20b` and `gpt-oss-120b`)
+- [X] Add support for OpenAI's open source models (`gpt-oss-20b` and `gpt-oss-120b`)
 - [ ] Automatically compact conversations when the context window runs low on space
 
 ## Help Needed

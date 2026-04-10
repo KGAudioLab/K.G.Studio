@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import './Region.css';
 import { FaPencilAlt } from 'react-icons/fa';
 import type { ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';

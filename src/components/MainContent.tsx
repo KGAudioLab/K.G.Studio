@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import './MainContent.css';
 import { createPortal } from 'react-dom';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
@@ -18,7 +19,7 @@ interface MainContentProps {
 }
 
 const MainContent: React.FC<MainContentProps> = ({
-  onTrackClick = () => {} // Default to empty function if not provided
+  onTrackClick = () => { } // Default to empty function if not provided
 }) => {
   const {
     tracks,
@@ -33,18 +34,19 @@ const MainContent: React.FC<MainContentProps> = ({
     showPianoRoll,
     activeRegionId,
     setShowPianoRoll,
-    setActiveRegionId
+    setActiveRegionId,
+    addTrack
   } = useProjectStore();
-  
+
   // State to store regions
   const [regions, setRegions] = useState<RegionUI[]>([]);
-  
+
   // Drag state for track grid highlighting
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dragOverTrackIndex, setDragOverTrackIndex] = useState<number | null>(null);
-  
+
   // Piano roll state is now managed by the store - removed local state
-  
+
   // Region selection state
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
 
@@ -64,16 +66,16 @@ const MainContent: React.FC<MainContentProps> = ({
   // Register the delete function with the global manager
   useEffect(() => {
     regionDeleteManager.registerDeleteCallback(deleteSelectedRegions);
-    
+
     // Cleanup on unmount
     return () => {
       regionDeleteManager.unregisterDeleteCallback();
     };
   }, [deleteSelectedRegions]);
-  
+
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
-  
+
   // Refs for bar numbers and loop range drag functionality
   const barNumbersRef = useRef<HTMLDivElement | null>(null);
   const isLoopDraggingRef = useRef(false);
@@ -87,26 +89,26 @@ const MainContent: React.FC<MainContentProps> = ({
     if (pendingUpdates.current.size > 0) {
       // Create a copy of the pending updates
       const updates = new Map(pendingUpdates.current);
-      
+
       // Clear pending updates
       pendingUpdates.current.clear();
-      
+
       // Check each update
       updates.forEach((update, key) => {
         const { trackId, regionId, startBeat, length } = update;
-        
+
         // Find the track
         const track = tracks.find(t => t.getId().toString() === trackId);
         if (track) {
           // Find the region
           const regions = track.getRegions();
           const region = regions.find(r => r.getId() === regionId);
-          
+
           if (region && DEBUG_MODE.MAIN_CONTENT) {
             console.log(`Verification - Region ${regionId} in track ${trackId}:`);
             console.log(`  Expected: startBeat=${startBeat}, length=${length}`);
             console.log(`  Actual: startBeat=${region.getStartFromBeat()}, length=${region.getLength()}, trackId=${region.getTrackId()}, trackIndex=${region.getTrackIndex()}`);
-            
+
             // Check if the update was successful
             const success = region.getStartFromBeat() === startBeat && region.getLength() === length && region.getTrackId() === trackId;
             console.log(`  Update successful: ${success}`);
@@ -120,12 +122,12 @@ const MainContent: React.FC<MainContentProps> = ({
   useEffect(() => {
     // Create a new array of RegionUI objects based on the current tracks
     const updatedRegions: RegionUI[] = [];
-    
+
     // Iterate through all tracks
     tracks.forEach(track => {
       const trackId = track.getId().toString();
       const trackIndex = track.getTrackIndex();
-      
+
       // Iterate through all regions in the track
       track.getRegions().forEach(region => {
         if (region instanceof KGMidiRegion) {
@@ -133,7 +135,7 @@ const MainContent: React.FC<MainContentProps> = ({
           const beatsPerBar = timeSignature.numerator;
           const barNumber = Math.floor(region.getStartFromBeat() / beatsPerBar) + 1;
           const length = region.getLength() / beatsPerBar;
-          
+
           // Create a RegionUI object
           updatedRegions.push({
             id: region.getId(),
@@ -146,7 +148,7 @@ const MainContent: React.FC<MainContentProps> = ({
         }
       });
     });
-    
+
     // Update the regions state
     setRegions(updatedRegions);
   }, [tracks, timeSignature]);
@@ -161,7 +163,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const handleTracksReordered = (fromIndex: number, toIndex: number) => {
     // Reorder tracks in the store - this will also update trackIndex in each KGTrack
     reorderTracks(fromIndex, toIndex);
-    
+
     // Update regions to match the new track order
     setRegions(prevRegions => {
       return prevRegions.map(region => {
@@ -171,17 +173,17 @@ const MainContent: React.FC<MainContentProps> = ({
         }
         // If the region belongs to a track that was shifted due to the drag operation
         else if (
-          (fromIndex < toIndex && 
-           region.trackIndex > fromIndex && 
-           region.trackIndex <= toIndex) 
+          (fromIndex < toIndex &&
+            region.trackIndex > fromIndex &&
+            region.trackIndex <= toIndex)
         ) {
           // Shift up by 1
           return { ...region, trackIndex: region.trackIndex - 1 };
         }
         else if (
-          (fromIndex > toIndex && 
-           region.trackIndex < fromIndex && 
-           region.trackIndex >= toIndex)
+          (fromIndex > toIndex &&
+            region.trackIndex < fromIndex &&
+            region.trackIndex >= toIndex)
         ) {
           // Shift down by 1
           return { ...region, trackIndex: region.trackIndex + 1 };
@@ -190,7 +192,7 @@ const MainContent: React.FC<MainContentProps> = ({
         return region;
       });
     });
-    
+
     // Update the grid drag state to match
     setDraggedTrackIndex(null);
     setDragOverTrackIndex(null);
@@ -200,53 +202,53 @@ const MainContent: React.FC<MainContentProps> = ({
   const handleRegionCreated = (trackIndex: number, regionUI: RegionUI, midiRegion: KGMidiRegion) => {
     // Note: The region model is already created by the CreateRegionCommand
     // We just need to update the UI state and handle selection
-    
+
     // Get the track for store updates
     const track = tracks[trackIndex];
-    
+
     // Update the track in the store to reflect the command changes
     updateTrack(track);
-    
+
     // Select the track that contains the new region
     setSelectedTrack(track.getId().toString());
-    
+
     // Add the new region to the UI state and select it immediately
     setRegions(prevRegions => {
       const updatedRegions = [...prevRegions, regionUI];
-      
+
       // Select the region using the updated regions array
       selectRegion(regionUI.id, updatedRegions);
-      
+
       // Manually trigger selection sync to ensure UI updates immediately
       const { syncSelectionFromCore } = useProjectStore.getState();
       syncSelectionFromCore();
-      
+
       // If piano roll is visible, set this region as the active region
       if (showPianoRoll) {
         setActiveRegionId(regionUI.id);
-        
+
         if (DEBUG_MODE.MAIN_CONTENT) {
           console.log(`Newly created region ${regionUI.id} set as active region in piano roll`);
         }
       }
-      
+
       return updatedRegions;
     });
   };
-  
+
   // Handle region updates (resize, move, etc.)
   const handleRegionUpdated = (
-    regionId: string, 
-    updates: Partial<RegionUI>, 
+    regionId: string,
+    updates: Partial<RegionUI>,
     expectedModelUpdates?: { startBeat: number, length: number }
   ) => {
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Updating region ${regionId} with:`, updates);
     }
-    
+
     // Select the region when it's being updated (resize or move)
     selectRegion(regionId);
-    
+
     // Find the region to determine which track to select
     const updatedRegion = regions.find(r => r.id === regionId);
     if (updatedRegion) {
@@ -257,7 +259,7 @@ const MainContent: React.FC<MainContentProps> = ({
         setSelectedTrack(track.getId().toString());
       }
     }
-    
+
     // Update the region in the UI state
     setRegions(prevRegions => {
       return prevRegions.map(region => {
@@ -267,31 +269,31 @@ const MainContent: React.FC<MainContentProps> = ({
         return region;
       });
     });
-    
+
     // Find the region that was updated
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
-    
+
     // Check if the track ID is being updated (region moved to different track)
     if (updates.trackId && updates.trackId !== region.trackId) {
       if (DEBUG_MODE.MAIN_CONTENT) {
         console.log(`Region ${regionId} moved from track ${region.trackId} to track ${updates.trackId}`);
       }
-      
+
       // Get the original track
       const originalTrack = tracks.find(t => t.getId().toString() === region.trackId);
-      
+
       // Get the target track
       const targetTrack = tracks.find(t => t.getId().toString() === updates.trackId);
-      
+
       if (originalTrack && targetTrack) {
         // Select the target track that now contains the region
         setSelectedTrack(targetTrack.getId().toString());
-        
+
         // Update both tracks in the store
         updateTrack(originalTrack);
         updateTrack(targetTrack);
-        
+
         // Add to pending updates for verification
         if (expectedModelUpdates) {
           const key = `${updates.trackId}-${regionId}-${Date.now()}`;
@@ -310,14 +312,14 @@ const MainContent: React.FC<MainContentProps> = ({
         // Log the track's regions before updating the store
         const trackRegions = track.getRegions();
         const midiRegion = trackRegions.find(r => r.getId() === regionId) as KGMidiRegion | undefined;
-        
+
         if (midiRegion) {
           // If we have expected model updates, use those
           if (expectedModelUpdates) {
             if (DEBUG_MODE.MAIN_CONTENT) {
               console.log(`MainContent - Expected model updates: startBeat=${expectedModelUpdates.startBeat}, length=${expectedModelUpdates.length}`);
             }
-            
+
             // Add to pending updates for verification
             const key = `${track.getId()}-${regionId}-${Date.now()}`;
             pendingUpdates.current.set(key, {
@@ -330,11 +332,11 @@ const MainContent: React.FC<MainContentProps> = ({
             // Otherwise use the current values (for backward compatibility)
             const startBeat = midiRegion.getStartFromBeat();
             const length = midiRegion.getLength();
-            
+
             if (DEBUG_MODE.MAIN_CONTENT) {
               console.log(`MainContent - Region before store update: startBeat=${startBeat}, length=${length}`);
             }
-            
+
             // Add to pending updates for verification
             const key = `${track.getId()}-${regionId}-${Date.now()}`;
             pendingUpdates.current.set(key, {
@@ -345,16 +347,16 @@ const MainContent: React.FC<MainContentProps> = ({
             });
           }
         }
-        
+
         // Update the track in the store to persist changes
         updateTrack(track);
       }
     }
-    
+
     // If piano roll is visible, set this region as the active region
     if (showPianoRoll) {
       setActiveRegionId(regionId);
-      
+
       if (DEBUG_MODE.MAIN_CONTENT) {
         console.log(`Updated region ${regionId} set as active region in piano roll`);
       }
@@ -365,7 +367,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const selectRegion = (regionId: string, regionsToSearch?: RegionUI[]) => {
     // Clear any existing selections using store method
     clearAllSelections();
-    
+
     // Find the region in the UI state (use provided regions or current state)
     const regionsToUse = regionsToSearch || regions;
     const region = regionsToUse.find(r => r.id === regionId);
@@ -375,7 +377,7 @@ const MainContent: React.FC<MainContentProps> = ({
       }
       return;
     }
-    
+
     // Find the track that contains this region
     const track = tracks.find(t => t.getId().toString() === region.trackId);
     if (!track) {
@@ -384,28 +386,28 @@ const MainContent: React.FC<MainContentProps> = ({
       }
       return;
     }
-    
+
     // Find the region in the track's model
     const trackRegions = track.getRegions();
     const midiRegion = trackRegions.find(r => r.getId() === regionId) as KGMidiRegion | undefined;
-    
+
     if (!midiRegion) {
       if (DEBUG_MODE.MAIN_CONTENT) {
         console.log(`MIDI region not found in track model: ${regionId}`);
       }
       return;
     }
-    
+
     // Add the region to KGCore's selection
     const core = KGCore.instance();
     core.addSelectedItem(midiRegion);
-    
+
     // Update the region's internal selection state
     midiRegion.select();
-    
+
     // Set the selected region (this might be redundant now, but keeping for compatibility)
     setSelectedRegionId(regionId);
-    
+
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Selected region: ${regionId} (added to KGCore selection)`);
     }
@@ -416,10 +418,10 @@ const MainContent: React.FC<MainContentProps> = ({
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Region clicked in MainContent (selection only): ${regionId}`);
     }
-    
+
     // Select the region
     selectRegion(regionId);
-    
+
     // Also select the containing track
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
@@ -433,10 +435,10 @@ const MainContent: React.FC<MainContentProps> = ({
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Open piano roll via pencil for region: ${regionId}`);
     }
-    
+
     // Reuse selection logic
     handleRegionClick(regionId);
-    
+
     // Activate and show piano roll
     setActiveRegionId(regionId);
     setShowPianoRoll(true);
@@ -458,8 +460,8 @@ const MainContent: React.FC<MainContentProps> = ({
       // Skip if user is typing in an input field (including ChatBox)
       const target = event.target as HTMLElement;
       if (target && (
-        target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
         target.contentEditable === 'true' ||
         target.hasAttribute('data-chatbox-input') ||
         target.closest('.chatbox-input')
@@ -472,7 +474,7 @@ const MainContent: React.FC<MainContentProps> = ({
         // Only handle if we're not in the piano roll (piano roll has its own delete handler)
         const isInPianoRoll = document.querySelector('.piano-roll')?.contains(event.target as Node);
         const isPianoRollOpen = showPianoRoll;
-        
+
         if (!isInPianoRoll && !isPianoRollOpen) {
           const deleted = deleteSelectedRegions();
           if (deleted) {
@@ -482,10 +484,10 @@ const MainContent: React.FC<MainContentProps> = ({
         }
       }
     };
-    
+
     // Add event listener
     window.addEventListener('keydown', handleKeyDown);
-    
+
     // Remove event listener on cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
@@ -495,25 +497,25 @@ const MainContent: React.FC<MainContentProps> = ({
   // Utility function to calculate playhead position from mouse coordinates (bar-level snapping)
   const calculatePlayheadFromMouse = useCallback((clientX: number): number | null => {
     if (!barNumbersRef.current) return null;
-    
+
     const rect = barNumbersRef.current.getBoundingClientRect();
     const relativeX = clientX - rect.left;
-    
+
     // Calculate the width of each bar
     const barWidth = parseInt(
       getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
     ) || 40;
-    
+
     // Find the closest bar start (using Math.round for nearest bar)
     const barIndex = Math.round(relativeX / barWidth);
-    
+
     // Ensure we don't go below 0
     const clampedBarIndex = Math.max(0, barIndex);
-    
+
     // Calculate destination beat position (start of the bar)
     const beatsPerBar = timeSignature.numerator;
     const destinationBeatPosition = clampedBarIndex * beatsPerBar;
-    
+
     return destinationBeatPosition;
   }, [timeSignature]);
 
@@ -688,7 +690,9 @@ const MainContent: React.FC<MainContentProps> = ({
     <div className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`}>
       <div className="main-content-wrapper">
         {/* Top-left spacer */}
-        <div className="top-left-spacer"></div>
+        <div className="top-left-spacer">
+          <button className="add-track-btn" onClick={() => addTrack()}>+ Add track</button>
+        </div>
 
         {/* Bar numbers at the top */}
         <div
@@ -705,7 +709,7 @@ const MainContent: React.FC<MainContentProps> = ({
             </div>
           ))}
         </div>
-        
+
         <div className="main-content-body">
           {/* Fixed left panel with track info */}
           <TrackInfoPanel
@@ -714,7 +718,7 @@ const MainContent: React.FC<MainContentProps> = ({
             onTrackNameEdit={handleTrackNameEdit}
             onTracksReordered={handleTracksReordered}
           />
-          
+
           {/* Scrollable grid area */}
           <TrackGridPanel
             tracks={tracks}
@@ -731,10 +735,10 @@ const MainContent: React.FC<MainContentProps> = ({
           />
         </div>
       </div>
-      
+
       {/* Piano Roll - render using portal */}
       {showPianoRoll && createPortal(
-        <PianoRoll 
+        <PianoRoll
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
         />,

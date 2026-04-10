@@ -1,7 +1,8 @@
 import React from 'react';
+import './Toolbar.css';
 import { saveProject } from '../util/saveUtil';
-import { KGStorage } from '../core/io/KGStorage';
-import { DB_CONSTANTS } from '../constants/coreConstants';
+import { KGProjectStorage } from '../core/io/KGProjectStorage';
+import { isValidProjectName } from '../util/projectNameUtil';
 import { KGCore } from '../core/KGCore';
 import { useProjectStore } from '../stores/projectStore';
 import { DEBUG_MODE } from '../constants/uiConstants';
@@ -14,7 +15,7 @@ import {
   FaCog
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
-import { plainToInstance, instanceToPlain } from 'class-transformer';
+import { plainToInstance } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
@@ -58,11 +59,17 @@ const Toolbar: React.FC = () => {
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
   
   // Export options
-  const exportOptions = ["Export to KGStudio JSON file", "Export to MIDI file"];
+  const exportOptions = ["Export to KGStudio file", "Export to MIDI file"];
 
   const handleProjectNameClick = () => {
     const newName = prompt("Enter project name:", projectName);
-    if (newName) setProjectName(newName);
+    if (newName) {
+      if (!isValidProjectName(newName)) {
+        window.alert("Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.");
+        return;
+      }
+      setProjectName(newName);
+    }
   };
 
   // Common project loading logic extracted for reuse
@@ -144,14 +151,8 @@ const Toolbar: React.FC = () => {
       
       try {
         // Try to load the project from storage
-        const storage = KGStorage.getInstance();
-        const loadedProject = await storage.load(
-          DB_CONSTANTS.DB_NAME,
-          DB_CONSTANTS.PROJECTS_STORE_NAME,
-          projectNameToLoad.trim(),
-          KGProject,
-          DB_CONSTANTS.DB_VERSION
-        );
+        const storage = KGProjectStorage.getInstance();
+        const loadedProject = await storage.load(projectNameToLoad.trim());
         
         if (!loadedProject) {
           window.alert(`Project "${projectNameToLoad}" not found. Please check the project name and try again.`);
@@ -181,8 +182,8 @@ const Toolbar: React.FC = () => {
       console.log("user selected export option:", exportType);
     }
     
-    if (exportType === "Export to KGStudio JSON file") {
-      handleExportKGStudioJSON();
+    if (exportType === "Export to KGStudio file") {
+      handleExportKGStudio();
     } else if (exportType === "Export to MIDI file") {
       handleExportMIDI();
     }
@@ -190,46 +191,39 @@ const Toolbar: React.FC = () => {
     setShowExportDropdown(false);
   };
 
-  const handleExportKGStudioJSON = () => {
+  const handleExportKGStudio = async () => {
     if (DEBUG_MODE.TOOLBAR) {
-      console.log("exporting to KGStudio JSON file");
+      console.log("exporting to KGStudio file");
     }
-    
+
     try {
-      // Get the current project from KGCore
-      const currentProject = KGCore.instance().getCurrentProject();
-      
-      // Serialize the project to JSON (same format as saved to IndexedDB)
-      // Use instanceToPlain to include type information for class-transformer
-      const projectData = JSON.stringify(instanceToPlain(currentProject), null, 2);
-      
-      // Create a downloadable blob
-      const blob = new Blob([projectData], { type: 'application/json' });
-      
-      // Create a temporary download link
+      // First save the current project to OPFS so the export reflects the latest state
+      const storage = KGProjectStorage.getInstance();
+      await storage.save(projectName, KGCore.instance().getCurrentProject(), true);
+
+      // Bundle the project folder into a zip
+      const blob = await storage.exportAsZip(projectName);
+
+      // Trigger download
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${projectName}.json`;
-      
-      // Trigger download
+      link.download = `${projectName}.kgstudio`;
       document.body.appendChild(link);
       link.click();
-      
-      // Cleanup
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
-      setStatus(`Project "${projectName}" exported as JSON file`);
-      
+
+      setStatus(`Project "${projectName}" exported as KGStudio file`);
+
       if (DEBUG_MODE.TOOLBAR) {
-        console.log("KGStudio JSON export completed successfully");
+        console.log("KGStudio export completed successfully");
       }
-      
+
     } catch (error) {
-      console.error("Error exporting KGStudio JSON:", error);
+      console.error("Error exporting KGStudio file:", error);
       setStatus(`Error exporting project: ${error}`);
-      window.alert(`Failed to export project as JSON: ${error}`);
+      window.alert(`Failed to export project: ${error}`);
     }
   };
 
@@ -291,8 +285,11 @@ const Toolbar: React.FC = () => {
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
     try {
-      if (fileExtension === '.json') {
-        // Handle KGStudio JSON import
+      if (fileExtension === '.kgstudio') {
+        // Handle KGStudio bundle import
+        await handleKGStudioFileImport(file);
+      } else if (fileExtension === '.json') {
+        // Handle legacy KGStudio JSON import
         await handleKGStudioJSONImport(file);
       } else if (fileExtension === '.mid' || fileExtension === '.midi') {
         // Handle MIDI import
@@ -308,32 +305,64 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  const handleKGStudioFileImport = async (file: File) => {
+    const storage = KGProjectStorage.getInstance();
+
+    try {
+      const projectName = await storage.importFromZip(file);
+
+      // Load the project from OPFS (this runs the upgrader)
+      const loaded = await storage.load(projectName);
+      if (!loaded) {
+        throw new Error('Failed to load imported project');
+      }
+
+      await loadProjectFromData(loaded, `KGStudio file "${file.name}"`);
+
+      if (DEBUG_MODE.TOOLBAR) {
+        console.log("KGStudio file imported successfully:", projectName);
+      }
+    } catch (error) {
+      window.alert(`The .kgstudio file is corrupted or invalid: ${error}`);
+      throw error;
+    }
+  };
+
   const handleKGStudioJSONImport = async (file: File) => {
     try {
-      // Read the file content
       const fileContent = await file.text();
-      
       const projectData = JSON.parse(fileContent);
-      
-      // Deserialize the project data using class-transformer (same as KGStorage)
+
+      // Deserialize and handle potential array return
       const deserializedResult = plainToInstance(KGProject, projectData);
-      
-      // Handle case where plainToInstance might return an array
-      const deserializedProject = Array.isArray(deserializedResult) 
-        ? deserializedResult[0] || null 
+      const project = Array.isArray(deserializedResult)
+        ? deserializedResult[0] || null
         : deserializedResult;
-      
-      if (!deserializedProject) {
+
+      if (!project) {
         throw new Error("Failed to deserialize project data");
       }
-      
-      // Load the project using common loading logic
-      await loadProjectFromData(deserializedProject, `File "${file.name}"`);
-      
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("KGStudio JSON project imported successfully:", deserializedProject);
+
+      // Use the project's name for the OPFS folder, auto-rename if it already exists
+      const storage = KGProjectStorage.getInstance();
+      const importedName = await storage.resolveUniqueName(project.getName() || 'Imported Project');
+
+      // Save to OPFS as a proper folder-based project
+      project.setName(importedName);
+      await storage.save(importedName, project, false);
+
+      // Load back from OPFS so the upgrader runs
+      const loaded = await storage.load(importedName);
+      if (!loaded) {
+        throw new Error('Failed to load imported project from storage');
       }
-      
+
+      await loadProjectFromData(loaded, `JSON file "${file.name}"`);
+
+      if (DEBUG_MODE.TOOLBAR) {
+        console.log("KGStudio JSON project imported and saved to OPFS:", importedName);
+      }
+
     } catch (error) {
       throw new Error(`Invalid KGStudio JSON file: ${error}`);
     }
@@ -803,7 +832,7 @@ const Toolbar: React.FC = () => {
       isVisible={showImportModal}
       onClose={() => setShowImportModal(false)}
       onFileImport={handleFileImport}
-      acceptedTypes={['.json', '.mid', '.midi']}
+      acceptedTypes={['.kgstudio', '.json', '.mid', '.midi']}
       title="Import Project"
       description="Drag and drop your project file here"
     />

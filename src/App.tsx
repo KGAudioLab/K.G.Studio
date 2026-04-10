@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import './App.css';
+import './styles/shared.css';
 import { useProjectStore } from './stores/projectStore';
 import { useGlobalKeyboardHandler } from './hooks/useGlobalKeyboardHandler';
 import Toolbar from './components/Toolbar';
 import StatusBar from './components/StatusBar';
-import TrackControl from './components/TrackControl';
 import MainContent from './components/MainContent';
 import InstrumentSelection from './components/InstrumentSelection';
 import ChatBox from './components/ChatBox';
@@ -135,14 +135,15 @@ function App() {
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 
-      {/* Track Control */}
-      <TrackControl />
 
       {/* Status Bar */}
       <StatusBar />
 
       {/* Global Loading Overlay for instrument buffer loading */}
       <GlobalLoadingOverlayContainer />
+
+      {/* Migration Loading Overlay */}
+      <MigrationOverlayContainer />
     </div>
   );
 }
@@ -209,6 +210,25 @@ const GlobalLoadingOverlayContainer: React.FC = () => {
     <LoadingOverlay
       visible={loadingCount > 0 && !overdue}
       message={loadingCount > 1 ? `Loading ... (${loadingCount})` : 'Loading ...'}
+    />
+  );
+};
+
+// Migration overlay — shown during one-time IndexedDB -> OPFS migration
+const MigrationOverlayContainer: React.FC = () => {
+  const [isMigrating, setIsMigrating] = useState<boolean>(() => KGCore.instance().getIsMigrating());
+
+  useEffectReact(() => {
+    KGCore.instance().setMigrationStateChangeCallback(setIsMigrating);
+    return () => {
+      KGCore.instance().setMigrationStateChangeCallback(() => {});
+    };
+  }, []);
+
+  return (
+    <LoadingOverlay
+      visible={isMigrating}
+      message="Migrating projects to new storage..."
     />
   );
 };
