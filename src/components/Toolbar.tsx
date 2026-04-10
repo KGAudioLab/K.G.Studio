@@ -24,6 +24,7 @@ import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import KGDropdown from './common/KGDropdown';
 import FileImportModal from './common/FileImportModal';
+import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 
@@ -55,6 +56,9 @@ const Toolbar: React.FC = () => {
   
   // State for import modal
   const [showImportModal, setShowImportModal] = React.useState(false);
+
+  // State for open project modal
+  const [showOpenProject, setShowOpenProject] = React.useState(false);
   
   // Key signature options
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
@@ -86,6 +90,12 @@ const Toolbar: React.FC = () => {
       const { loadProject: storeLoadProject } = useProjectStore.getState();
       await storeLoadProject(project, savedName);
 
+      // Clean up orphan media files (only on open, not on save)
+      if (savedName) {
+        const storage = KGProjectStorage.getInstance();
+        await storage.cleanupOrphanMedia(savedName, project);
+      }
+
       // Update status to indicate project loaded
       setStatus(`${sourceDescription} loaded successfully`);
 
@@ -100,73 +110,55 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  // Core logic for creating a new project (no confirmation dialog)
+  const createNewProject = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("creating new project");
+    }
+
+    cleanupProjectState();
+    clearChatHistoryAndUI();
+
+    const newProject = new KGProject();
+    const { loadProject: storeLoadProject } = useProjectStore.getState();
+    storeLoadProject(newProject);
+
+    setStatus(`New project "${newProject.getName()}" created`);
+
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("new project created successfully");
+    }
+  };
+
   // Handler functions for file operations
   const handleNewProject = () => {
     const confirmed = window.confirm("Are you sure you want to create a new project? Any unsaved changes will be lost.");
     if (confirmed) {
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("user clicked new button");
-      }
-      
-      // Clean up UI state first
-      cleanupProjectState();
-      
-      // Automatically clear chat history when creating a new project
-      clearChatHistoryAndUI();
-      
-      // Create a new project with default parameters
-      const newProject = new KGProject();
-      
-      // Load the new project using the store's loadProject method
-      const { loadProject: storeLoadProject } = useProjectStore.getState();
-      storeLoadProject(newProject);
-      
-      // Default track creation is handled centrally in the store's loadProject
-      
-      // Update status to indicate new project created
-      setStatus(`New project "${newProject.getName()}" created`);
-      
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("new project created successfully");
-      }
+      createNewProject();
     }
   };
 
-  const handleLoadProject = async () => {
-    const confirmed = window.confirm("Are you sure you want to load another project? Any unsaved changes will be lost.");
-    if (confirmed) {
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("user clicked load button");
-      }
-      
-      // Ask user for project name
-      const projectNameToLoad = window.prompt("Enter the project name to load:");
-      
-      // Check if user input is empty or null (user cancelled)
-      if (!projectNameToLoad || projectNameToLoad.trim() === '') {
-        if (projectNameToLoad !== null) { // Only show error if user didn't cancel
-          window.alert("Project name cannot be empty. Please enter a valid project name.");
-        }
+  const handleLoadProject = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("user clicked load button");
+    }
+    setShowOpenProject(true);
+  };
+
+  const handleOpenProjectSelect = async (projectNameToLoad: string) => {
+    try {
+      const storage = KGProjectStorage.getInstance();
+      const loadedProject = await storage.load(projectNameToLoad);
+
+      if (!loadedProject) {
+        window.alert(`Project "${projectNameToLoad}" not found.`);
         return;
       }
-      
-      try {
-        // Try to load the project from storage
-        const storage = KGProjectStorage.getInstance();
-        const loadedProject = await storage.load(projectNameToLoad.trim());
-        
-        if (!loadedProject) {
-          window.alert(`Project "${projectNameToLoad}" not found. Please check the project name and try again.`);
-          return;
-        }
-        
-        // Use common loading logic — pass the OPFS folder name so savedProjectName is set correctly
-        await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad.trim());
-        
-      } catch (error) {
-        console.error("Error loading project:", error);
-        window.alert(`An error occurred while loading the project: ${error}`);
-      }
+
+      await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
+    } catch (error) {
+      console.error("Error loading project:", error);
+      window.alert(`An error occurred while loading the project: ${error}`);
     }
   };
 
@@ -842,6 +834,15 @@ const Toolbar: React.FC = () => {
       title="Import Project"
       description="Drag and drop your project file here"
     />
+
+    {showOpenProject && (
+      <OpenProjectModal
+        onClose={() => setShowOpenProject(false)}
+        onOpenProject={handleOpenProjectSelect}
+        currentProjectName={savedProjectName}
+        onCreateNewProject={createNewProject}
+      />
+    )}
     </>
   );
 };
