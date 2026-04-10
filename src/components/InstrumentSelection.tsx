@@ -3,6 +3,7 @@ import './InstrumentSelection.css';
 import { useProjectStore } from '../stores/projectStore';
 import { INSTRUMENT_GROUPS, FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
+import { KGAudioTrack } from '../core/track/KGAudioTrack';
 
 const InstrumentSelection: React.FC = () => {
   const {
@@ -53,14 +54,15 @@ const InstrumentSelection: React.FC = () => {
     }
   };
 
-  const previewImage = FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.image || 'piano.png';
-  const previewAlt = FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.displayName || currentInstrumentKey;
+  const isAudioTrack = targetTrack instanceof KGAudioTrack;
+  const previewImage = isAudioTrack ? 'speaker.png' : (FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.image || 'piano.png');
+  const previewAlt = isAudioTrack ? 'Audio Track' : (FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.displayName || currentInstrumentKey);
   const hasTargetTrack = !!targetTrack;
 
   return (
       <div className="instrument-selection">
       <div className="instrument-selection-header">
-        <h3>{hasTargetTrack ? `${previewAlt.toString()}` : ''}</h3>
+        <h3>{hasTargetTrack ? previewAlt : ''}</h3>
         <button className="instrument-selection-close-btn" onClick={closeInstrumentSelection}>✕</button>
       </div>
       <div className="instrument-selection-top">
@@ -76,6 +78,7 @@ const InstrumentSelection: React.FC = () => {
           )}
           <div className="instrument-name-overlay">{hasTargetTrack ? targetTrack.getName() : ''}</div>
       </div>
+      {!isAudioTrack && (
       <div className="instrument-selection-bottom">
         <div className="instrument-groups">
           <div className="instrument-groups-list">
@@ -104,6 +107,7 @@ const InstrumentSelection: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

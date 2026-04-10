@@ -273,9 +273,12 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
         <div className="track-name-and-volume">
           <div className="instrument-image">
             {isAudioTrack ? (
-              <div style={{ width: 64, height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', color: 'var(--text-secondary, #999)' }}>
-                <FaFileAudio />
-              </div>
+              <img
+                src={`${import.meta.env.BASE_URL}resources/instruments/speaker.png`}
+                alt="Audio Track"
+                width="64"
+                height="64"
+              />
             ) : (
               <img
                 src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`}
