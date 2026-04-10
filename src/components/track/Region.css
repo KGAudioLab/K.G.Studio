@@ -85,6 +85,10 @@
   box-shadow: 0 0 0 1px #6aab7a;
 }
 
+.track-region.audio-region.selected {
+  border-color: #ffffff;
+}
+
 .track-region.audio-region .region-header {
   background-color: #4a8b5a;
 }

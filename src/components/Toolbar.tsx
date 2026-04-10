@@ -30,6 +30,7 @@ import PianoIcon from './common/icons/PianoIcon';
 const Toolbar: React.FC = () => {
   const {
     projectName, setProjectName,
+    savedProjectName, setSavedProjectName,
     bpm, timeSignature, keySignature, setStatus,
     isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
@@ -73,25 +74,25 @@ const Toolbar: React.FC = () => {
   };
 
   // Common project loading logic extracted for reuse
-  const loadProjectFromData = async (project: KGProject, sourceDescription: string) => {
+  const loadProjectFromData = async (project: KGProject, sourceDescription: string, savedName?: string) => {
     try {
       // Clean up UI state first
       cleanupProjectState();
-      
+
       // Automatically clear chat history when loading a project
       clearChatHistoryAndUI();
-      
+
       // Load the project using the store's loadProject method
       const { loadProject: storeLoadProject } = useProjectStore.getState();
-      await storeLoadProject(project);
-      
+      await storeLoadProject(project, savedName);
+
       // Update status to indicate project loaded
       setStatus(`${sourceDescription} loaded successfully`);
-      
+
       if (DEBUG_MODE.TOOLBAR) {
         console.log(`project loaded successfully from ${sourceDescription}`);
       }
-      
+
     } catch (error) {
       console.error(`Error loading project from ${sourceDescription}:`, error);
       setStatus(`Failed to load project: ${error}`);
@@ -159,8 +160,8 @@ const Toolbar: React.FC = () => {
           return;
         }
         
-        // Use common loading logic
-        await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`);
+        // Use common loading logic — pass the OPFS folder name so savedProjectName is set correctly
+        await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad.trim());
         
       } catch (error) {
         console.error("Error loading project:", error);
@@ -174,7 +175,12 @@ const Toolbar: React.FC = () => {
       console.log("user clicked save button");
     }
 
-    await saveProject(projectName, setStatus);
+    await saveProject(projectName, savedProjectName, setStatus, (finalName) => {
+      setSavedProjectName(finalName);
+      if (finalName !== projectName) {
+        setProjectName(finalName);
+      }
+    });
   };
 
   const handleExportProject = (exportType: string) => {
@@ -317,7 +323,7 @@ const Toolbar: React.FC = () => {
         throw new Error('Failed to load imported project');
       }
 
-      await loadProjectFromData(loaded, `KGStudio file "${file.name}"`);
+      await loadProjectFromData(loaded, `KGStudio file "${file.name}"`, projectName);
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log("KGStudio file imported successfully:", projectName);
@@ -357,7 +363,7 @@ const Toolbar: React.FC = () => {
         throw new Error('Failed to load imported project from storage');
       }
 
-      await loadProjectFromData(loaded, `JSON file "${file.name}"`);
+      await loadProjectFromData(loaded, `JSON file "${file.name}"`, importedName);
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log("KGStudio JSON project imported and saved to OPFS:", importedName);

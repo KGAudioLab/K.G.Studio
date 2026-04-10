@@ -11,7 +11,7 @@ import { selectAllNotesInActiveRegion } from '../util/selectionUtil';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName } = useProjectStore();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -39,7 +39,10 @@ export const useGlobalKeyboardHandler = () => {
         
         // Early return to handle save immediately
         try {
-          saveProject(projectName, setStatus);
+          saveProject(projectName, savedProjectName, setStatus, (finalName) => {
+            setSavedProjectName(finalName);
+            if (finalName !== projectName) setProjectName(finalName);
+          });
         } catch (error) {
           console.error('Save failed:', error);
           setStatus('Save failed');
@@ -154,7 +157,10 @@ export const useGlobalKeyboardHandler = () => {
       if (saveShortcut && matchesKeyboardShortcut(event, saveShortcut)) {
         event.preventDefault();
         try {
-          saveProject(projectName, setStatus);
+          saveProject(projectName, savedProjectName, setStatus, (finalName) => {
+            setSavedProjectName(finalName);
+            if (finalName !== projectName) setProjectName(finalName);
+          });
         } catch (error) {
           console.error('Save failed:', error);
           setStatus('Save failed');

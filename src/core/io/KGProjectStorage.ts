@@ -206,8 +206,29 @@ export class KGProjectStorage {
     project.setName(newName);
     await this.save(newName, project, false);
 
+    // Copy media files from old to new location
+    await this.copyMediaFiles(oldName, newName);
+
     // Delete old location
     await this.delete(oldName);
+  }
+
+  /**
+   * Save a project under a new name, migrating media files from the old folder.
+   * Used when the user renames the project and saves. Handles the case where the
+   * old folder doesn't exist yet (new project never saved).
+   */
+  public async saveWithRename(oldName: string, newName: string, data: KGProject): Promise<void> {
+    this.ensureInitialized();
+
+    // Save project JSON to the new folder
+    await this.save(newName, data, false);
+
+    // Migrate media files only if the old folder exists
+    if (await this.exists(oldName)) {
+      await this.copyMediaFiles(oldName, newName);
+      await this.delete(oldName);
+    }
   }
 
   /**
@@ -372,6 +393,42 @@ export class KGProjectStorage {
     } while (await this.exists(candidate));
 
     return candidate;
+  }
+
+  // --- Media migration ---
+
+  /**
+   * Copy all files from projects/<fromName>/media/ to projects/<toName>/media/.
+   * If the source media directory doesn't exist, returns without error.
+   */
+  private async copyMediaFiles(fromName: string, toName: string): Promise<void> {
+    try {
+      const fromDir = await this.projectsDirHandle!.getDirectoryHandle(fromName);
+      let fromMedia: FileSystemDirectoryHandle;
+      try {
+        fromMedia = await fromDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR);
+      } catch {
+        // No media directory in source — nothing to copy
+        return;
+      }
+
+      const toDir = await this.projectsDirHandle!.getDirectoryHandle(toName);
+      const toMedia = await toDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR, { create: true });
+
+      for await (const entry of fromMedia.values()) {
+        if (entry.kind === 'file') {
+          const fileHandle = entry as FileSystemFileHandle;
+          const file = await fileHandle.getFile();
+          const newHandle = await toMedia.getFileHandle(entry.name, { create: true });
+          const writable = await newHandle.createWritable();
+          await writable.write(await file.arrayBuffer());
+          await writable.close();
+        }
+      }
+    } catch (error) {
+      console.error(`Error copying media files from "${fromName}" to "${toName}":`, error);
+      throw error;
+    }
   }
 
   // --- File I/O helpers ---

@@ -38,6 +38,7 @@ function updateMaxBarsCSS(maxBars: number): void {
 interface ProjectState {
   // State
   projectName: string;
+  savedProjectName: string; // OPFS folder name where the project is currently saved
   tracks: KGTrack[];
   currentStatus: string;
   maxBars: number;
@@ -82,6 +83,7 @@ interface ProjectState {
   
   // Actions
   setProjectName: (name: string) => void;
+  setSavedProjectName: (name: string) => void;
   addTrack: () => Promise<void>;
   addAudioTrack: () => Promise<void>;
   importAudioToTrack: (trackId: string, file: File) => Promise<void>;
@@ -95,7 +97,7 @@ interface ProjectState {
   setStatus: (status: string) => void;
   removeStatus: () => void;
   refreshStatus: () => void;
-  loadProject: (project: KGProject | null) => Promise<void>;
+  loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
   setPlayheadPosition: (position: number) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
@@ -234,6 +236,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   return {
     // Initial state
     projectName: currentProject.getName(),
+    savedProjectName: currentProject.getName(),
     tracks: currentProject.getTracks() as KGTrack[],
     currentStatus: KGCore.instance().getStatus() || 'Unknown',
     maxBars: currentProject.getMaxBars(),
@@ -281,15 +284,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ name });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ projectName: name });
-        
+
         console.log(`Set project name to "${name}"`);
       } catch (error) {
         console.error('Error setting project name:', error);
         get().setStatus('Failed to set project name');
       }
+    },
+
+    setSavedProjectName: (name: string) => {
+      set({ savedProjectName: name });
     },
 
     addTrack: async () => {
@@ -579,7 +586,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ currentStatus: KGCore.instance().getStatus() || 'Unknown' });
     },
     
-    loadProject: async (project: KGProject | null = null) => {
+    loadProject: async (project: KGProject | null = null, savedName?: string) => {
       try {
         const { setPlayheadPosition } = get();
         
@@ -675,6 +682,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Force a new array reference for tracks to trigger React/Zustand re-render
         set({
           projectName: projectToLoad.getName(),
+          savedProjectName: savedName ?? projectToLoad.getName(),
           tracks: [...tracks],
           maxBars,
           timeSignature,
