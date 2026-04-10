@@ -30,6 +30,7 @@ export class KGDebugger {
       'testToolCall(jsonInput)',
       'inputChatBox(content, interval?)',
       'opfs(command)',
+      'startShell()',
     ]);
   }
 
@@ -346,6 +347,7 @@ export class KGDebugger {
     console.log("  testToolCall(input) - Execute tool call(s) from JSON and show results");
     console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
     console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl, rm)");
+    console.log("  startShell() - Start interactive OPFS shell (prompt-based loop)");
     console.log("  help() - Show this help");
     console.log("");
     console.log("💡 Usage tips:");
@@ -447,6 +449,57 @@ export class KGDebugger {
     } catch (error) {
       console.error('❌ Error in inputChatBox:', error);
     }
+  }
+
+  /**
+   * Start an interactive OPFS shell using browser prompt() dialogs.
+   * Each prompt shows the current working directory. Type commands and click OK.
+   * Click Cancel or type 'exit'/'quit' to end the session.
+   */
+  public async startShell(): Promise<void> {
+    console.log('📟 OPFS Interactive Shell');
+    console.log('   Commands: pwd, ls, cd <path>, cat <file>, dl <file>, rm <name>');
+    console.log('   Type "exit" or click Cancel to quit.\n');
+
+    let lastOutput = '';
+
+    while (true) {
+      const cwd = '/' + this.opfsCwd.join('/');
+      const promptText = lastOutput
+        ? `${lastOutput}\n\nopfs:${cwd}$ `
+        : `opfs:${cwd}$ `;
+      const input = prompt(promptText);
+
+      if (input === null) break;
+
+      const trimmed = input.trim();
+      if (trimmed === '') continue;
+      if (trimmed === 'exit' || trimmed === 'quit') break;
+
+      // Capture console output during command execution
+      const captured: string[] = [];
+      const origLog = console.log;
+      const origError = console.error;
+      console.log = (...args: unknown[]) => {
+        origLog(...args);
+        captured.push(args.map(String).join(' '));
+      };
+      console.error = (...args: unknown[]) => {
+        origError(...args);
+        captured.push(args.map(String).join(' '));
+      };
+
+      try {
+        await this.opfs(trimmed);
+      } finally {
+        console.log = origLog;
+        console.error = origError;
+      }
+
+      lastOutput = captured.join('\n');
+    }
+
+    console.log('📟 Shell exited.');
   }
 
   // --- OPFS Shell ---
