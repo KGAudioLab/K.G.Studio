@@ -2,6 +2,8 @@ import type { Selectable } from '../components/interfaces';
 import { KGProject } from './KGProject';
 import { KGAudioInterface } from './audio-interface/KGAudioInterface';
 import { ConfigManager } from './config/ConfigManager';
+import { KGProjectStorage } from './io/KGProjectStorage';
+import { KGConfigUpgrader } from './config-upgrader/KGConfigUpgrader';
 import { KGMidiRegion } from './region/KGMidiRegion';
 import { KGMidiNote } from './midi/KGMidiNote';
 import { KGRegion } from './region/KGRegion';
@@ -30,6 +32,8 @@ export class KGCore {
   private copiedItems: Selectable[] = [];
 
   private isPlaying: boolean = false;
+  private isMigrating: boolean = false;
+  private migrationStateChangeCallback: ((isMigrating: boolean) => void) | null = null;
 
   // Timer management for playback
   private playbackIntervalId: number | null = null;
@@ -71,11 +75,23 @@ export class KGCore {
       // Initialize configuration manager
       const configManager = ConfigManager.instance();
       await configManager.initialize();
-      
+
+      // Initialize OPFS project storage
+      const projectStorage = KGProjectStorage.getInstance();
+      await projectStorage.initialize();
+
+      // Run app-level migrations (e.g., IndexedDB -> OPFS project migration)
+      this.setMigrating(true);
+      try {
+        await KGConfigUpgrader.upgradeToLatest();
+      } finally {
+        this.setMigrating(false);
+      }
+
       // Initialize audio interface
       const audioInterface = KGAudioInterface.instance();
       await audioInterface.initialize();
-      
+
       console.log("KGCore components initialized successfully");
     } catch (error) {
       console.error("Failed to initialize KGCore:", error);
@@ -194,7 +210,23 @@ export class KGCore {
     this.selectionChangeCallbacks.forEach(callback => callback());
   }
 
-  // play 
+  // Migration state
+  public getIsMigrating(): boolean {
+    return this.isMigrating;
+  }
+
+  private setMigrating(value: boolean): void {
+    this.isMigrating = value;
+    if (this.migrationStateChangeCallback) {
+      this.migrationStateChangeCallback(value);
+    }
+  }
+
+  public setMigrationStateChangeCallback(callback: (isMigrating: boolean) => void): void {
+    this.migrationStateChangeCallback = callback;
+  }
+
+  // play
   public getIsPlaying(): boolean {
     return this.isPlaying;
   }

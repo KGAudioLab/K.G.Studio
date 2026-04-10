@@ -1,5 +1,4 @@
-import { KGStorage, DuplicateEntryError } from '../core/io/KGStorage';
-import { DB_CONSTANTS } from '../constants/coreConstants';
+import { KGProjectStorage, DuplicateEntryError } from '../core/io/KGProjectStorage';
 import { KGCore } from '../core/KGCore';
 
 /**
@@ -13,43 +12,37 @@ export const saveProject = async (
   projectName: string,
   setStatus: (status: string) => void
 ): Promise<boolean> => {
-  const storage = KGStorage.getInstance();
-  
+  const storage = KGProjectStorage.getInstance();
+
   try {
     await storage.save(
-      DB_CONSTANTS.DB_NAME,
-      DB_CONSTANTS.PROJECTS_STORE_NAME,
       projectName,
       KGCore.instance().getCurrentProject(),
       false,
-      DB_CONSTANTS.DB_VERSION
     );
-    
+
     setStatus(`Project "${projectName}" has been saved`);
     console.log("project saved successfully");
     return true;
-    
+
   } catch (error) {
     console.error("Error saving project:", error);
-    
+
     if (error instanceof DuplicateEntryError) {
       const confirmed = window.confirm(`Project "${projectName}" already exists. Do you want to overwrite it?`);
-      
+
       if (confirmed) {
         try {
           await storage.save(
-            DB_CONSTANTS.DB_NAME,
-            DB_CONSTANTS.PROJECTS_STORE_NAME,
             projectName,
             KGCore.instance().getCurrentProject(),
             true,
-            DB_CONSTANTS.DB_VERSION
           );
-          
+
           setStatus(`Project "${projectName}" has been saved`);
           console.log("project saved successfully after overwrite");
           return true;
-          
+
         } catch (overwriteError) {
           console.error("Error overwriting project:", overwriteError);
           window.alert(`An error occurred while overwriting the project: ${overwriteError}`);

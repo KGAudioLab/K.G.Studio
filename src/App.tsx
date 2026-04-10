@@ -141,6 +141,9 @@ function App() {
 
       {/* Global Loading Overlay for instrument buffer loading */}
       <GlobalLoadingOverlayContainer />
+
+      {/* Migration Loading Overlay */}
+      <MigrationOverlayContainer />
     </div>
   );
 }
@@ -207,6 +210,25 @@ const GlobalLoadingOverlayContainer: React.FC = () => {
     <LoadingOverlay
       visible={loadingCount > 0 && !overdue}
       message={loadingCount > 1 ? `Loading ... (${loadingCount})` : 'Loading ...'}
+    />
+  );
+};
+
+// Migration overlay — shown during one-time IndexedDB -> OPFS migration
+const MigrationOverlayContainer: React.FC = () => {
+  const [isMigrating, setIsMigrating] = useState<boolean>(() => KGCore.instance().getIsMigrating());
+
+  useEffectReact(() => {
+    KGCore.instance().setMigrationStateChangeCallback(setIsMigrating);
+    return () => {
+      KGCore.instance().setMigrationStateChangeCallback(() => {});
+    };
+  }, []);
+
+  return (
+    <LoadingOverlay
+      visible={isMigrating}
+      message="Migrating projects to new storage..."
     />
   );
 };
