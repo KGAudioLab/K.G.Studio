@@ -1,4 +1,5 @@
 import React from 'react';
+import './Toolbar.css';
 import { saveProject } from '../util/saveUtil';
 import { KGStorage } from '../core/io/KGStorage';
 import { DB_CONSTANTS } from '../constants/coreConstants';

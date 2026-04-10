@@ -1,0 +1,155 @@
+/* Toolbar */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #2d2d2d;
+  height: 50px;
+  padding: 0 10px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.toolbar-left, .toolbar-center, .toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.logo-container {
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  height: 30px;
+  width: auto;
+}
+
+.project-name {
+  font-size: 14px;
+  color: #e0e0e0;
+  margin-right: 20px;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.toolbar button {
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  margin: 0 5px;
+  padding: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 14px;
+  pointer-events: auto;
+}
+
+.toolbar button:hover {
+  background-color: #3a3a3a;
+}
+
+.toolbar button:disabled {
+  color: #666;
+  cursor: not-allowed;
+}
+
+.record-btn {
+  color: #ff4444;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background-color: #555;
+  margin: 0 10px;
+}
+
+.transport-control {
+  display: flex;
+  align-items: center;
+  margin: 0 10px;
+  pointer-events: auto;
+}
+
+.transport-item {
+  margin: 0 5px;
+  padding: 2px 2px;
+  background-color: #3a3a3a;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* Fixed-width font for time display to prevent layout shifts */
+.current-time {
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  padding: 2px 4px;
+}
+
+/* Clickable BPM styling */
+.current-bpm {
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.current-bpm:hover {
+  background-color: #4a4a4a;
+  color: #fff;
+}
+
+/* Clickable time signature styling */
+.current-time-signature {
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.current-time-signature:hover {
+  background-color: #4a4a4a;
+  color: #fff;
+}
+
+.current-key-signature {
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.current-key-signature:hover {
+  background-color: #4a4a4a;
+  color: #fff;
+}
+
+.export-dropdown .quant-dropdown {
+  width: 250px;
+  left: 0;
+}
+
+.key-signature-dropdown .quant-dropdown {
+  width: 100px;
+  left: 0;
+}

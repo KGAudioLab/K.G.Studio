@@ -1,4 +1,5 @@
 import React from 'react';
+import './LoadingOverlay.css';
 
 interface LoadingOverlayProps {
   visible: boolean;

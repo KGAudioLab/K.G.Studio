@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './Track.css';
 import { KGTrack } from '../../core/track/KGTrack';
 import { useProjectStore } from '../../stores/projectStore';
 import TrackInfoItem from './TrackInfoItem';

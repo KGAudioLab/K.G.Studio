@@ -58,6 +58,12 @@ button:focus-visible {
   outline: 2px auto rgba(100, 108, 255, 0.5);
 }
 
+textarea {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;

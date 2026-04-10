@@ -1,0 +1,123 @@
+/* Instrument Selection Panel */
+.instrument-selection {
+  display: flex;
+  flex-direction: column;
+  width: var(--instrument-selection-width);
+  background-color: #2d2d2d;
+  border-right: 1px solid #3a3a3a;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.instrument-selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 12px;
+  background-color: transparent;
+  border: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+}
+
+.instrument-selection-header h3 {
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.instrument-selection-close-btn {
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+}
+
+.instrument-selection-close-btn:hover {
+  background-color: #4a4a4a;
+}
+
+.instrument-selection-top {
+  height: 300px;
+  position: relative;
+  border-bottom: 1px solid #3a3a3a;
+  overflow: hidden;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)),
+    url('/resources/instrument_bg.png');
+  background-size: cover; /* fill while keeping aspect ratio */
+  background-position: center;
+}
+
+.instrument-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.instrument-preview img {
+  width: 256px;
+  height: 256px;
+  object-fit: contain;
+  border-radius: 6px;
+  opacity: 1;
+}
+
+.instrument-name-overlay {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 16px;
+  color: #e0e0e0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  z-index: 1;
+  font-weight: bold;
+}
+
+.instrument-selection-bottom {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0; /* allow children to scroll */
+}
+
+.instrument-groups, .instrument-list {
+  overflow: hidden;
+}
+
+/* vertical divider between groups and instruments */
+.instrument-groups {
+  border-right: 1px solid #3a3a3a;
+}
+
+.instrument-groups-list, .instrument-instruments-list {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.instrument-group-item, .instrument-instrument-item {
+  padding: 8px 12px;
+  /* remove per-item separators */
+  border-bottom: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #e0e0e0;
+}
+
+.instrument-group-item:hover, .instrument-instrument-item:hover {
+  background-color: #3a3a3a;
+}
+
+.instrument-group-item.active, .instrument-instrument-item.active {
+  background-color: #4a4a4a;
+}

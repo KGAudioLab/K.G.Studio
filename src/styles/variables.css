@@ -1,0 +1,11 @@
+:root {
+  --time-signature-numerator: 4;
+  --max-number-of-bars: 32;
+  --track-grid-bar-width: 40px;
+  --region-piano-key-width: 60px;
+  --region-piano-key-height: 20px;
+  --region-grid-beat-width: 40px;
+  --region-grid-bar-width: calc(var(--region-grid-beat-width) * var(--time-signature-numerator));
+  --chat-box-width: 350px;
+  --instrument-selection-width: 300px;
+}

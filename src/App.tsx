@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import './App.css';
+import './styles/shared.css';
 import { useProjectStore } from './stores/projectStore';
 import { useGlobalKeyboardHandler } from './hooks/useGlobalKeyboardHandler';
 import Toolbar from './components/Toolbar';

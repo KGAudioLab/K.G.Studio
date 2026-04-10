@@ -1,4 +1,5 @@
 import React from 'react';
+import './StatusBar.css';
 import { useProjectStore } from '../stores/projectStore';
 
 const StatusBar: React.FC = () => {
