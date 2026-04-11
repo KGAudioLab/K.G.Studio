@@ -238,14 +238,14 @@ const MigrationOverlayContainer: React.FC = () => {
   );
 };
 
-// Bounce/render overlay — shown during offline WAV rendering
+// Bounce/render overlay — shown during offline WAV/MP3 rendering
 const BounceOverlayContainer: React.FC = () => {
-  const [isRendering, setIsRendering] = useState<boolean>(false);
+  const [renderMessage, setRenderMessage] = useState<string | null>(null);
 
   useEffectReact(() => {
     const renderer = KGOfflineRenderer.instance();
     const listener = (evt: RenderingEvent) => {
-      setIsRendering(evt.type === 'start');
+      setRenderMessage(evt.type === 'start' ? (evt.message ?? 'Rendering...') : null);
     };
     renderer.addRenderingListener(listener);
     return () => {
@@ -255,8 +255,8 @@ const BounceOverlayContainer: React.FC = () => {
 
   return (
     <LoadingOverlay
-      visible={isRendering}
-      message="Bouncing to WAV..."
+      visible={renderMessage !== null}
+      message={renderMessage ?? 'Rendering...'}
     />
   );
 };

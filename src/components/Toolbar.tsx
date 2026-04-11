@@ -83,7 +83,7 @@ const Toolbar: React.FC = () => {
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
   
   // Export options
-  const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV"];
+  const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
 
   const handleProjectNameClick = () => {
     const newName = prompt("Enter project name:", projectName);
@@ -205,6 +205,8 @@ const Toolbar: React.FC = () => {
       handleExportMIDI();
     } else if (exportType === "Export to WAV") {
       handleBounceToWav();
+    } else if (exportType === "Export to MP3") {
+      handleBounceToMp3();
     }
     
     setShowExportDropdown(false);
@@ -301,6 +303,22 @@ const Toolbar: React.FC = () => {
       console.error("Error bouncing to WAV:", error);
       setStatus(`Error exporting WAV: ${error}`);
       window.alert(`Failed to export project as WAV: ${error}`);
+    }
+  };
+
+  const handleBounceToMp3 = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("bouncing to MP3");
+    }
+
+    try {
+      const currentProject = KGCore.instance().getCurrentProject();
+      await KGOfflineRenderer.instance().bounceToMp3(currentProject, projectName);
+      setStatus(`Project "${projectName}" exported as MP3 file`);
+    } catch (error) {
+      console.error("Error bouncing to MP3:", error);
+      setStatus(`Error exporting MP3: ${error}`);
+      window.alert(`Failed to export project as MP3: ${error}`);
     }
   };
 

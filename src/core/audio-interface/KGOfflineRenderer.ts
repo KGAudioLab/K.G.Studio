@@ -7,11 +7,13 @@ import { pitchToNoteNameString } from '../../util/midiUtil';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { KGAudioInterface } from './KGAudioInterface';
+import { Mp3Encoder } from '@breezystack/lamejs';
 
 export interface RenderOptions {
   sampleRate?: number;  // default 44100
   channels?: number;    // default 2 (stereo)
   tailSeconds?: number; // extra seconds after last note for release/reverb (default 2)
+  mp3Kbps?: number;     // MP3 bitrate in kbps (default 192)
 }
 
 export interface RenderingEvent {
@@ -368,6 +370,44 @@ export class KGOfflineRenderer {
       this._isRendering = false;
     }
   }
+  /**
+   * Render the project and download as an MP3 file.
+   */
+  public async bounceToMp3(project: KGProject, fileName?: string, options?: RenderOptions): Promise<void> {
+    if (this._isRendering) {
+      console.warn('Already rendering, ignoring bounce request');
+      return;
+    }
+
+    this._isRendering = true;
+    this.emitRenderingEvent({ type: 'start', message: 'Bouncing to MP3...' });
+
+    try {
+      const toneBuffer = await this.renderToBuffer(project, options);
+      const audioBuffer = toneBuffer.get() as AudioBuffer;
+      const mp3Data = encodeMp3(audioBuffer, options?.mp3Kbps ?? 192);
+
+      // Trigger download
+      const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName ?? 'bounce'}.mp3`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      this.emitRenderingEvent({ type: 'end', message: 'Bounce complete' });
+      console.log('MP3 bounce complete');
+    } catch (error) {
+      console.error('Bounce to MP3 failed:', error);
+      this.emitRenderingEvent({ type: 'error', message: String(error) });
+      throw error;
+    } finally {
+      this._isRendering = false;
+    }
+  }
 }
 
 // ===== HELPERS =====
@@ -443,4 +483,55 @@ function writeString(view: DataView, offset: number, str: string): void {
   for (let i = 0; i < str.length; i++) {
     view.setUint8(offset + i, str.charCodeAt(i));
   }
+}
+
+// ===== MP3 ENCODER =====
+
+/**
+ * Convert float32 sample to Int16.
+ */
+function floatToInt16(sample: number): number {
+  const clamped = Math.max(-1, Math.min(1, sample));
+  return clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+}
+
+/**
+ * Encode an AudioBuffer as MP3 using lamejs.
+ * Returns an array of Int8Array chunks (suitable for Blob constructor).
+ */
+export function encodeMp3(audioBuffer: AudioBuffer, kbps: number = 192): Uint8Array[] {
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const numFrames = audioBuffer.length;
+  const encoder = new Mp3Encoder(numChannels, sampleRate, kbps);
+
+  const chunkSize = 1152; // MPEG frame size
+  const mp3Chunks: Uint8Array[] = [];
+
+  const leftFloat = audioBuffer.getChannelData(0);
+  const rightFloat = numChannels > 1 ? audioBuffer.getChannelData(1) : leftFloat;
+
+  for (let i = 0; i < numFrames; i += chunkSize) {
+    const end = Math.min(i + chunkSize, numFrames);
+    const leftChunk = new Int16Array(end - i);
+    const rightChunk = new Int16Array(end - i);
+
+    for (let j = 0; j < leftChunk.length; j++) {
+      leftChunk[j] = floatToInt16(leftFloat[i + j]);
+      rightChunk[j] = floatToInt16(rightFloat[i + j]);
+    }
+
+    const mp3buf = encoder.encodeBuffer(leftChunk, rightChunk);
+    if (mp3buf.length > 0) {
+      mp3Chunks.push(mp3buf);
+    }
+  }
+
+  // Flush remaining data
+  const tail = encoder.flush();
+  if (tail.length > 0) {
+    mp3Chunks.push(tail);
+  }
+
+  return mp3Chunks;
 }
