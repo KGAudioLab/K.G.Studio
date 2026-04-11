@@ -2,6 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
+import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 
 /**
@@ -15,7 +16,7 @@ export class ResizeRegionCommand extends KGCommand {
   private originalStartFromBeat: number = 0;
   private originalLength: number = 0;
   private targetRegion: KGRegion | null = null;
-  
+
   // Store note adjustments for undo
   private noteAdjustments: Array<{
     noteId: string;
@@ -23,11 +24,16 @@ export class ResizeRegionCommand extends KGCommand {
     originalEndBeat: number;
   }> = [];
 
-  constructor(regionId: string, newStartFromBeat: number, newLength: number) {
+  // Audio region clip offset support
+  private newClipStartOffsetSeconds?: number;
+  private originalClipStartOffsetSeconds: number = 0;
+
+  constructor(regionId: string, newStartFromBeat: number, newLength: number, newClipStartOffsetSeconds?: number) {
     super();
     this.regionId = regionId;
     this.newStartFromBeat = newStartFromBeat;
     this.newLength = newLength;
+    this.newClipStartOffsetSeconds = newClipStartOffsetSeconds;
   }
 
   execute(): void {
@@ -57,10 +63,10 @@ export class ResizeRegionCommand extends KGCommand {
     this.originalStartFromBeat = targetRegion.getStartFromBeat();
     this.originalLength = targetRegion.getLength();
 
-    // Handle note adjustments if start position changes (left-edge resize)
+    // Handle note adjustments if start position changes (left-edge resize) for MIDI regions
     if (this.newStartFromBeat !== this.originalStartFromBeat && targetRegion instanceof KGMidiRegion) {
       const beatOffset = this.newStartFromBeat - this.originalStartFromBeat;
-      
+
       // Store original note positions and adjust notes to maintain absolute positions
       const notes = targetRegion.getNotes();
       notes.forEach(note => {
@@ -70,13 +76,22 @@ export class ResizeRegionCommand extends KGCommand {
           originalStartBeat: note.getStartBeat(),
           originalEndBeat: note.getEndBeat()
         });
-        
+
         // Adjust note positions to maintain absolute position
         note.setStartBeat(note.getStartBeat() - beatOffset);
         note.setEndBeat(note.getEndBeat() - beatOffset);
       });
-      
+
       console.log(`Adjusted ${notes.length} notes by offset ${-beatOffset} beats to maintain absolute positions`);
+    }
+
+    // Handle clip offset for audio regions
+    if (targetRegion instanceof KGAudioRegion) {
+      this.originalClipStartOffsetSeconds = targetRegion.getClipStartOffsetSeconds();
+      if (this.newClipStartOffsetSeconds !== undefined) {
+        targetRegion.setClipStartOffsetSeconds(this.newClipStartOffsetSeconds);
+        console.log(`Updated audio clip offset: ${this.originalClipStartOffsetSeconds} → ${this.newClipStartOffsetSeconds}`);
+      }
     }
 
     // Apply the resize
@@ -95,7 +110,7 @@ export class ResizeRegionCommand extends KGCommand {
     // Restore note positions if they were adjusted
     if (this.noteAdjustments.length > 0 && this.targetRegion instanceof KGMidiRegion) {
       const notes = this.targetRegion.getNotes();
-      
+
       // Restore each note to its original position
       this.noteAdjustments.forEach(adjustment => {
         const note = notes.find(n => n.getId() === adjustment.noteId);
@@ -104,8 +119,14 @@ export class ResizeRegionCommand extends KGCommand {
           note.setEndBeat(adjustment.originalEndBeat);
         }
       });
-      
+
       console.log(`Restored ${this.noteAdjustments.length} notes to their original positions`);
+    }
+
+    // Restore clip offset for audio regions
+    if (this.targetRegion instanceof KGAudioRegion && this.newClipStartOffsetSeconds !== undefined) {
+      this.targetRegion.setClipStartOffsetSeconds(this.originalClipStartOffsetSeconds);
+      console.log(`Restored audio clip offset: ${this.newClipStartOffsetSeconds} → ${this.originalClipStartOffsetSeconds}`);
     }
 
     // Restore original region values
@@ -184,12 +205,13 @@ export class ResizeRegionCommand extends KGCommand {
     regionId: string,
     newBarNumber: number,
     newLengthInBars: number,
-    timeSignature: { numerator: number; denominator: number }
+    timeSignature: { numerator: number; denominator: number },
+    newClipStartOffsetSeconds?: number
   ): ResizeRegionCommand {
     const beatsPerBar = timeSignature.numerator;
     const newStartFromBeat = (newBarNumber - 1) * beatsPerBar;
     const newLength = newLengthInBars * beatsPerBar;
-    
-    return new ResizeRegionCommand(regionId, newStartFromBeat, newLength);
+
+    return new ResizeRegionCommand(regionId, newStartFromBeat, newLength, newClipStartOffsetSeconds);
   }
 }

@@ -506,6 +506,10 @@ export class KGAudioInterface {
                 return;
               }
 
+              // Clip offset: where playback starts within the audio file
+              const clipStartOffsetSeconds = audioRegion.getClipStartOffsetSeconds();
+              const audioDurationSeconds = audioRegion.getAudioDurationSeconds();
+
               // Skip regions that start before playback start position
               if (regionStartBeat < startPosition) {
                 // Region starts before playhead — calculate offset into the audio file
@@ -523,6 +527,12 @@ export class KGAudioInterface {
                   effectiveRemainingSeconds = Math.min(remainingSeconds, maxDurationSeconds);
                 }
 
+                // Cap at available audio after clip offset
+                effectiveRemainingSeconds = Math.min(
+                  effectiveRemainingSeconds,
+                  audioDurationSeconds - clipStartOffsetSeconds - offsetSeconds
+                );
+
                 if (effectiveRemainingSeconds > 0 && playerBus.hasBuffer(audioFileId)) {
                   // Resume slightly after the current transport boundary and
                   // compensate the source offset/duration. Scheduling exactly
@@ -533,7 +543,7 @@ export class KGAudioInterface {
                     regionEndBeat
                   );
                   const extraOffsetSeconds = (safeResumeBeat - startPosition) * secondsPerBeat;
-                  const adjustedOffsetSeconds = offsetSeconds + extraOffsetSeconds;
+                  const adjustedOffsetSeconds = clipStartOffsetSeconds + offsetSeconds + extraOffsetSeconds;
                   const adjustedRemainingSeconds = Math.max(
                     0,
                     effectiveRemainingSeconds - extraOffsetSeconds
@@ -562,7 +572,12 @@ export class KGAudioInterface {
               }
 
               const audioFileId = audioRegion.getAudioFileId();
-              let effectiveDurationSeconds = audioRegion.getAudioDurationSeconds();
+              // Effective duration: region length in seconds, capped at available audio after clip offset
+              const regionLengthSeconds = region.getLength() * secondsPerBeat;
+              let effectiveDurationSeconds = Math.min(
+                regionLengthSeconds,
+                audioDurationSeconds - clipStartOffsetSeconds
+              );
 
               if (!playerBus.hasBuffer(audioFileId)) {
                 console.warn(`No audio buffer loaded for ${audioFileId}`);
@@ -579,13 +594,13 @@ export class KGAudioInterface {
               const regionStartTime = this.beatsToToneTime(regionStartBeat);
 
               console.log(
-                `Scheduling audio region "${region.getName()}" at beat ${regionStartBeat}, duration: ${effectiveDurationSeconds}s`
+                `Scheduling audio region "${region.getName()}" at beat ${regionStartBeat}, clipOffset: ${clipStartOffsetSeconds}s, duration: ${effectiveDurationSeconds}s`
               );
 
               const eventId = Tone.Transport.schedule((time) => {
                 const hasSoloedTracks = this.hasSoloedTracks();
                 if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                  playerBus.schedulePlayback(time + playbackDelay, audioFileId, 0, effectiveDurationSeconds);
+                  playerBus.schedulePlayback(time + playbackDelay, audioFileId, clipStartOffsetSeconds, effectiveDurationSeconds);
                 }
               }, regionStartTime);
 

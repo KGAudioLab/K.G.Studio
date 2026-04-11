@@ -54,7 +54,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   audioBuffer
 }) => {
   // Get selection state and time signature from store
-  const { selectedRegionIds, timeSignature } = useProjectStore();
+  const { selectedRegionIds, timeSignature, bpm } = useProjectStore();
   const isSelected = selectedRegionIds.includes(id);
   const [cursor, setCursor] = useState<string>('pointer');
   const [resizeEdge, setResizeEdge] = useState<ResizeAction>('none');
@@ -229,10 +229,28 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
     // Get channel data (use first channel)
     const channelData = audioBuffer.getChannelData(0);
-    const samples = channelData.length;
+    const totalSamples = channelData.length;
+    const sampleRate = audioBuffer.sampleRate;
 
-    // Downsample to canvas width
-    const samplesPerPixel = Math.max(1, Math.floor(samples / width));
+    // Calculate visible portion based on clip offset
+    const clipStartOffsetSeconds = audioRegion ? audioRegion.getClipStartOffsetSeconds() : 0;
+    const clipStartSample = Math.floor(clipStartOffsetSeconds * sampleRate);
+
+    // Calculate visible duration from region length in beats
+    const secondsPerBeat = 60 / bpm;
+    const regionLengthBeats = audioRegion ? audioRegion.getLength() : 0;
+    const visibleDurationSeconds = regionLengthBeats * secondsPerBeat;
+    const visibleSamples = Math.floor(visibleDurationSeconds * sampleRate);
+
+    // Clamp to buffer boundaries
+    const renderStartSample = Math.max(0, Math.min(clipStartSample, totalSamples));
+    const renderEndSample = Math.min(renderStartSample + visibleSamples, totalSamples);
+    const renderSampleCount = renderEndSample - renderStartSample;
+
+    if (renderSampleCount <= 0) return;
+
+    // Downsample visible portion to canvas width
+    const samplesPerPixel = Math.max(1, Math.floor(renderSampleCount / width));
     const centerY = height / 2;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
@@ -240,8 +258,8 @@ const RegionItem: React.FC<RegionItemProps> = ({
     ctx.beginPath();
 
     for (let x = 0; x < width; x++) {
-      const startSample = Math.floor(x * samplesPerPixel);
-      const endSample = Math.min(startSample + samplesPerPixel, samples);
+      const startSample = renderStartSample + Math.floor(x * samplesPerPixel);
+      const endSample = Math.min(startSample + samplesPerPixel, renderEndSample);
 
       let min = 0;
       let max = 0;
@@ -289,7 +307,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     } else {
       renderNotesOnCanvas();
     }
-  }, [midiRegion, audioRegion, audioBuffer, timeSignature, id, noteUpdateTrigger]);
+  }, [midiRegion, audioRegion, audioBuffer, timeSignature, bpm, id, noteUpdateTrigger]);
 
   // Re-render canvas when region content size changes
   useEffect(() => {
@@ -310,7 +328,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         resizeObserver.unobserve(regionContentRef.current);
       }
     };
-  }, [midiRegion, audioRegion, audioBuffer, timeSignature]);
+  }, [midiRegion, audioRegion, audioBuffer, timeSignature, bpm]);
 
   // Handle mouse movement to detect edge proximity
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -321,13 +339,6 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const activeTool = KGMainContentState.instance().getActiveTool();
     if (activeTool === 'pencil') {
       setCursor('pointer');
-      setResizeEdge('none');
-      return;
-    }
-
-    // Audio regions: move only, no resize
-    if (audioRegion) {
-      setCursor('grab');
       setResizeEdge('none');
       return;
     }

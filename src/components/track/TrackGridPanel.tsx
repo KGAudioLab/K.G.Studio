@@ -4,7 +4,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import TrackGridItem from './TrackGridItem';
 import { Playhead } from '../common';
 import type { RegionUI } from '../interfaces';
-import { DEBUG_MODE } from '../../constants';
+import { DEBUG_MODE, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand } from '../../core/commands';
@@ -159,47 +159,91 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     if (DEBUG_MODE.TRACK_GRID_PANEL) {
       console.log(`Finished resizing region ${regionId} to barNumber ${finalBarNumber}, length ${finalLength}`);
     }
-    
+
     // Find the region
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
-    
+
     // Calculate new start and length in beats
     const beatsPerBar = timeSignature.numerator;
-    const newStartBeat = (finalBarNumber - 1) * beatsPerBar;
-    const newLengthInBeats = finalLength * beatsPerBar;
-    
+    let clampedBarNumber = finalBarNumber;
+    let clampedLength = finalLength;
+
     // Find the track that contains this region
     const track = tracks.find(t => t.getId().toString() === region.trackId);
     if (!track) return;
-    
+
     // Update the region in the track's model
     const trackRegions = track.getRegions();
-    const midiRegion = trackRegions.find(r => r.getId() === regionId) as KGMidiRegion | undefined;
-    
-    if (midiRegion) {
-      const oldStartBeat = midiRegion.getStartFromBeat();
+    const coreRegion = trackRegions.find(r => r.getId() === regionId);
+
+    if (coreRegion) {
+      const oldStartBeat = coreRegion.getStartFromBeat();
       const oldBarNumber = region.barNumber;
-      
+
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
-        console.log(`Updating KGRegion model - Before: startBeat=${oldStartBeat}, length=${midiRegion.getLength()}`);
+        console.log(`Updating KGRegion model - Before: startBeat=${oldStartBeat}, length=${coreRegion.getLength()}`);
         console.log(`Bar numbers - old: ${oldBarNumber}, new: ${finalBarNumber}`);
       }
-      
+
+      // Clamp audio region resize to audio file boundaries
+      let newClipStartOffsetSeconds: number | undefined;
+      if (coreRegion instanceof KGAudioRegion) {
+        const bpm = KGCore.instance().getCurrentProject().getBpm();
+        const secondsPerBeat = 60 / bpm;
+        const clipOffset = coreRegion.getClipStartOffsetSeconds();
+        const audioDuration = coreRegion.getAudioDurationSeconds();
+
+        // Left edge changed — calculate new clip offset
+        if (clampedBarNumber !== oldBarNumber) {
+          const newStartBeat = (clampedBarNumber - 1) * beatsPerBar;
+          const beatDelta = newStartBeat - oldStartBeat;
+          const secondsDelta = beatDelta * secondsPerBeat;
+          const unclampedClipOffset = clipOffset + secondsDelta;
+
+          if (unclampedClipOffset < 0) {
+            // Dragged past audio start — snap to earliest allowed position
+            const maxLeftExtensionBeats = clipOffset / secondsPerBeat;
+            const minStartBeat = oldStartBeat - maxLeftExtensionBeats;
+            clampedBarNumber = Math.ceil(minStartBeat / beatsPerBar) + 1;
+            const oldEndBarNumber = oldBarNumber + (coreRegion.getLength() / beatsPerBar);
+            clampedLength = oldEndBarNumber - clampedBarNumber;
+            newClipStartOffsetSeconds = 0;
+          } else {
+            newClipStartOffsetSeconds = Math.min(unclampedClipOffset, audioDuration);
+          }
+        }
+
+        // Right edge — clamp length so it doesn't exceed remaining audio
+        const effectiveClipOffset = newClipStartOffsetSeconds ?? clipOffset;
+        const maxDurationSeconds = audioDuration - effectiveClipOffset;
+        const maxLengthBars = (maxDurationSeconds / secondsPerBeat) / beatsPerBar;
+        if (clampedLength > maxLengthBars) {
+          clampedLength = Math.floor(maxLengthBars);
+          if (clampedLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
+            clampedLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
+          }
+        }
+      }
+
+      const newStartBeat = (clampedBarNumber - 1) * beatsPerBar;
+      const newLengthInBeats = clampedLength * beatsPerBar;
+
       // Use command pattern to update the region position and length (note adjustments handled inside command)
       try {
         const command = ResizeRegionCommand.fromBarCoordinates(
           regionId,
-          finalBarNumber,
-          finalLength,
-          timeSignature
+          clampedBarNumber,
+          clampedLength,
+          timeSignature,
+          newClipStartOffsetSeconds
         );
-        
+
         KGCore.instance().executeCommand(command);
 
         if (DEBUG_MODE.TRACK_GRID_PANEL) {
           console.log(`Executed ResizeRegionCommand: region ${regionId} resized using command pattern`);
-          
+
           // Verify the command worked
           const updatedRegion = track.getRegions().find(r => r.getId() === regionId);
           console.log(`Verified region in track: ${updatedRegion ? 'found' : 'not found'}, startBeat=${updatedRegion?.getStartFromBeat()}, length=${updatedRegion?.getLength()}`);
@@ -208,15 +252,15 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         console.error('Error resizing region:', error);
         return;
       }
-    }
-    
-    // Update the region in the parent component with expected model values
-    if (onRegionUpdated) {
-      onRegionUpdated(
-        regionId, 
-        { barNumber: finalBarNumber, length: finalLength },
-        { startBeat: newStartBeat, length: newLengthInBeats }
-      );
+
+      // Update the region in the parent component with expected model values
+      if (onRegionUpdated) {
+        onRegionUpdated(
+          regionId,
+          { barNumber: clampedBarNumber, length: clampedLength },
+          { startBeat: newStartBeat, length: newLengthInBeats }
+        );
+      }
     }
   };
 

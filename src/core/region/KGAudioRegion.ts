@@ -22,6 +22,10 @@ export class KGAudioRegion extends KGRegion {
   @WithDefault(0)
   protected audioDurationSeconds: number = 0;
 
+  @Expose()
+  @WithDefault(0)
+  protected clipStartOffsetSeconds: number = 0;
+
   constructor(
     id: string,
     trackId: string,
@@ -31,13 +35,15 @@ export class KGAudioRegion extends KGRegion {
     length: number = 0,
     audioFileId: string = '',
     audioFileName: string = '',
-    audioDurationSeconds: number = 0
+    audioDurationSeconds: number = 0,
+    clipStartOffsetSeconds: number = 0
   ) {
     super(id, trackId, trackIndex, name, startFromBeat, length);
     this.__type = 'KGAudioRegion';
     this.audioFileId = audioFileId;
     this.audioFileName = audioFileName;
     this.audioDurationSeconds = audioDurationSeconds;
+    this.clipStartOffsetSeconds = clipStartOffsetSeconds;
   }
 
   // Getters
@@ -64,6 +70,14 @@ export class KGAudioRegion extends KGRegion {
 
   public setAudioDurationSeconds(audioDurationSeconds: number): void {
     this.audioDurationSeconds = audioDurationSeconds;
+  }
+
+  public getClipStartOffsetSeconds(): number {
+    return this.clipStartOffsetSeconds;
+  }
+
+  public setClipStartOffsetSeconds(clipStartOffsetSeconds: number): void {
+    this.clipStartOffsetSeconds = clipStartOffsetSeconds;
   }
 
   // Override getCurrentType to return specific subclass type
