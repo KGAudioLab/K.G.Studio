@@ -12,6 +12,8 @@ import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
+import { KGOfflineRenderer } from './core/audio-interface/KGOfflineRenderer';
+import type { RenderingEvent } from './core/audio-interface/KGOfflineRenderer';
 import { KGCore } from './core/KGCore';
 import { ConfigManager } from './core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from './util/scaleUtil';
@@ -144,6 +146,9 @@ function App() {
 
       {/* Migration Loading Overlay */}
       <MigrationOverlayContainer />
+
+      {/* Bounce/Render Overlay */}
+      <BounceOverlayContainer />
     </div>
   );
 }
@@ -229,6 +234,29 @@ const MigrationOverlayContainer: React.FC = () => {
     <LoadingOverlay
       visible={isMigrating}
       message="Migrating projects to new storage..."
+    />
+  );
+};
+
+// Bounce/render overlay — shown during offline WAV rendering
+const BounceOverlayContainer: React.FC = () => {
+  const [isRendering, setIsRendering] = useState<boolean>(false);
+
+  useEffectReact(() => {
+    const renderer = KGOfflineRenderer.instance();
+    const listener = (evt: RenderingEvent) => {
+      setIsRendering(evt.type === 'start');
+    };
+    renderer.addRenderingListener(listener);
+    return () => {
+      renderer.removeRenderingListener(listener);
+    };
+  }, []);
+
+  return (
+    <LoadingOverlay
+      visible={isRendering}
+      message="Bouncing to WAV..."
     />
   );
 };

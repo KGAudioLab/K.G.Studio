@@ -22,6 +22,7 @@ import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
+import { KGOfflineRenderer } from '../core/audio-interface/KGOfflineRenderer';
 import KGDropdown from './common/KGDropdown';
 import FileImportModal from './common/FileImportModal';
 import OpenProjectModal from './common/OpenProjectModal';
@@ -82,7 +83,7 @@ const Toolbar: React.FC = () => {
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
   
   // Export options
-  const exportOptions = ["Export to KGStudio file", "Export to MIDI file"];
+  const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV"];
 
   const handleProjectNameClick = () => {
     const newName = prompt("Enter project name:", projectName);
@@ -202,6 +203,8 @@ const Toolbar: React.FC = () => {
       handleExportKGStudio();
     } else if (exportType === "Export to MIDI file") {
       handleExportMIDI();
+    } else if (exportType === "Export to WAV") {
+      handleBounceToWav();
     }
     
     setShowExportDropdown(false);
@@ -282,6 +285,22 @@ const Toolbar: React.FC = () => {
       console.error("Error exporting MIDI:", error);
       setStatus(`Error exporting MIDI: ${error}`);
       window.alert(`Failed to export project as MIDI: ${error}`);
+    }
+  };
+
+  const handleBounceToWav = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("bouncing to WAV");
+    }
+
+    try {
+      const currentProject = KGCore.instance().getCurrentProject();
+      await KGOfflineRenderer.instance().bounceToWav(currentProject, projectName);
+      setStatus(`Project "${projectName}" exported as WAV file`);
+    } catch (error) {
+      console.error("Error bouncing to WAV:", error);
+      setStatus(`Error exporting WAV: ${error}`);
+      window.alert(`Failed to export project as WAV: ${error}`);
     }
   };
 

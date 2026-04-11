@@ -78,7 +78,7 @@ export class KGToneSamplerFactory {
      * Convert ToneAudioBuffers to the URL format expected by Tone.Sampler
      * This creates a mapping from note names to the actual audio buffers
      */
-    private convertBuffersToUrls(audioBuffers: Tone.ToneAudioBuffers, range: number[] = [21, 118]): { [key: string]: Tone.ToneAudioBuffer } {
+    public convertBuffersToUrls(audioBuffers: Tone.ToneAudioBuffers, range: number[] = [21, 118]): { [key: string]: Tone.ToneAudioBuffer } {
         const urls: { [key: string]: Tone.ToneAudioBuffer } = {};
 
         // Note names in order (using flats instead of sharps where applicable)
