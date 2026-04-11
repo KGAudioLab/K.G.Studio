@@ -16,6 +16,7 @@ import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
 import { toggleLoop } from '../util/loopUtil';
+import { TOOLBAR_CONSTANTS } from '../constants/uiConstants';
 import * as Tone from 'tone';
 
 /**
@@ -34,6 +35,16 @@ function updateMaxBarsCSS(maxBars: number): void {
   document.documentElement.style.setProperty('--max-number-of-bars', maxBars.toString());
 }
 
+/**
+ * Update CSS custom property for track grid bar width based on multiplier
+ */
+function updateBarWidthMultiplierCSS(multiplier: number): void {
+  document.documentElement.style.setProperty(
+    '--track-grid-bar-width',
+    `${TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * multiplier}px`
+  );
+}
+
 // Define the store state interface
 interface ProjectState {
   // State
@@ -42,6 +53,7 @@ interface ProjectState {
   tracks: KGTrack[];
   currentStatus: string;
   maxBars: number;
+  barWidthMultiplier: number;
   timeSignature: TimeSignature;
   bpm: number;
   keySignature: KeySignature;
@@ -104,6 +116,7 @@ interface ProjectState {
   toggleLoop: () => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
+  setBarWidthMultiplier: (multiplier: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
   setKeySignature: (keySignature: KeySignature) => void;
   setSelectedMode: (selectedMode: string) => void;
@@ -157,6 +170,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   updateTimeSignatureCSS(currentProject.getTimeSignature());
   // Initialize CSS variable for max bars on store creation
   updateMaxBarsCSS(currentProject.getMaxBars());
+  // Initialize CSS variable for bar width multiplier on store creation
+  updateBarWidthMultiplierCSS(currentProject.getBarWidthMultiplier());
   
   // Get initial ChatBox state from config
   const configManager = ConfigManager.instance();
@@ -240,6 +255,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     tracks: currentProject.getTracks() as KGTrack[],
     currentStatus: KGCore.instance().getStatus() || 'Unknown',
     maxBars: currentProject.getMaxBars(),
+    barWidthMultiplier: currentProject.getBarWidthMultiplier(),
     timeSignature: currentProject.getTimeSignature(),
     bpm: currentProject.getBpm(),
     keySignature: currentProject.getKeySignature(),
@@ -669,11 +685,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           }
         }
         
-        // Update CSS variable for time signature numerator
+        // Update CSS variables
         updateTimeSignatureCSS(timeSignature);
-        // Update CSS variable for max bars
         updateMaxBarsCSS(maxBars);
-        
+        updateBarWidthMultiplierCSS(projectToLoad.getBarWidthMultiplier());
+
         // Log project loading info
         console.log(`Project max bars: ${maxBars}`);
         console.log(`Setup audio synths for ${tracks.length} tracks`);
@@ -685,6 +701,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           savedProjectName: savedName ?? projectToLoad.getName(),
           tracks: [...tracks],
           maxBars,
+          barWidthMultiplier: projectToLoad.getBarWidthMultiplier(),
           timeSignature,
           bpm,
           keySignature,
@@ -781,16 +798,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
+    setBarWidthMultiplier: (multiplier: number) => {
+      const project = KGCore.instance().getCurrentProject();
+      project.setBarWidthMultiplier(multiplier);
+      set({ barWidthMultiplier: multiplier });
+      updateBarWidthMultiplierCSS(multiplier);
+    },
+
     setTimeSignature: (timeSignature: TimeSignature) => {
       try {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ timeSignature });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ timeSignature });
         updateTimeSignatureCSS(timeSignature);
-        
+
         console.log(`Set time signature to ${timeSignature.numerator}/${timeSignature.denominator}`);
       } catch (error) {
         console.error('Error setting time signature:', error);
@@ -985,15 +1009,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         projectName: project.getName(),
         tracks: [...project.getTracks()] as KGTrack[], // Force new array reference - key for re-rendering!
         maxBars: project.getMaxBars(),
+        barWidthMultiplier: project.getBarWidthMultiplier(),
         timeSignature: project.getTimeSignature(),
         bpm: project.getBpm(),
         keySignature: project.getKeySignature(),
         selectedMode: project.getSelectedMode()
       });
-      
+
       // Sync CSS variables that affect layout
       updateTimeSignatureCSS(project.getTimeSignature());
       updateMaxBarsCSS(project.getMaxBars());
+      updateBarWidthMultiplierCSS(project.getBarWidthMultiplier());
 
       // Sync all related state
       const actions = get();

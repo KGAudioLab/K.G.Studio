@@ -36,6 +36,7 @@ const Toolbar: React.FC = () => {
     isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
+    barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, cleanupProjectState,
@@ -57,9 +58,25 @@ const Toolbar: React.FC = () => {
   // State for import modal
   const [showImportModal, setShowImportModal] = React.useState(false);
 
+  // State for zoom slider popup
+  const [showZoomSlider, setShowZoomSlider] = React.useState(false);
+  const zoomSliderRef = React.useRef<HTMLDivElement>(null);
+
   // State for open project modal
   const [showOpenProject, setShowOpenProject] = React.useState(false);
   
+  // Close zoom slider on click outside
+  React.useEffect(() => {
+    if (!showZoomSlider) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (zoomSliderRef.current && !zoomSliderRef.current.contains(e.target as Node)) {
+        setShowZoomSlider(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showZoomSlider]);
+
   // Key signature options
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
   
@@ -790,6 +807,28 @@ const Toolbar: React.FC = () => {
       
       <div className="toolbar-right">
         <div className="transport-control">
+          <div className="transport-item" style={{ position: 'relative' }} ref={zoomSliderRef}>
+            <span
+              className='current-zoom'
+              onClick={() => setShowZoomSlider(!showZoomSlider)}
+              style={{ cursor: 'pointer' }}
+            >
+              {barWidthMultiplier}x
+            </span>
+            {showZoomSlider && (
+              <div className="zoom-slider-popup">
+                <input
+                  type="range"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value={barWidthMultiplier}
+                  onChange={(e) => setBarWidthMultiplier(parseInt(e.target.value))}
+                />
+                <span className="zoom-slider-label">{barWidthMultiplier}x</span>
+              </div>
+            )}
+          </div>
           <div className="transport-item">
             <span className='current-time' onClick={handleCurrentTimeClick} style={{ cursor: 'pointer' }}>{currentTime}</span>
           </div>

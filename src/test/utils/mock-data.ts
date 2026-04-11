@@ -123,8 +123,9 @@ export const createMockProject = (overrides: Partial<{
     'ionian', // selectedMode
     false, // isLooping
     [0, 0], // loopingRange
+    1, // barWidthMultiplier
     defaults.tracks, // tracks
-    3 // projectStructureVersion
+    5 // projectStructureVersion
   )
   
   return project
