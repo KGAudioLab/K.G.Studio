@@ -12,7 +12,7 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog
+  FaCog, FaMagnet
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { plainToInstance } from 'class-transformer';
@@ -48,6 +48,7 @@ const Toolbar: React.FC = () => {
 
   // State for main content tools
   const [activeMainTool, setActiveMainTool] = React.useState<'pointer' | 'pencil'>('pointer');
+  const [isSnapping, setIsSnapping] = React.useState(true);
 
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
@@ -569,6 +570,16 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  // Handle snapping toggle
+  const handleSnappingToggle = () => {
+    const newValue = !isSnapping;
+    setIsSnapping(newValue);
+    KGMainContentState.instance().setSnapping(newValue);
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log(`Snapping ${newValue ? 'enabled' : 'disabled'}`);
+    }
+  };
+
   // Handle copy button click
   const handleCopyClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
@@ -774,12 +785,19 @@ const Toolbar: React.FC = () => {
         >
           <FaMousePointer />
         </button>
-        <button 
-          title="Pencil" 
+        <button
+          title="Pencil"
           className={`tool-button ${activeMainTool === 'pencil' ? 'active' : ''}`}
           onClick={() => handleMainToolSelect('pencil')}
         >
           <FaPencil />
+        </button>
+        <button
+          title="Snap to Grid"
+          className={`tool-button ${isSnapping ? 'active' : ''}`}
+          onClick={handleSnappingToggle}
+        >
+          <FaMagnet />
         </button>
         <div className="toolbar-separator"></div>
         <button title="Copy" onClick={handleCopyClick}><FaCopy /></button>

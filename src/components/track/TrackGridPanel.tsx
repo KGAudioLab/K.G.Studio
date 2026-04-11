@@ -193,6 +193,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const secondsPerBeat = 60 / bpm;
         const clipOffset = coreRegion.getClipStartOffsetSeconds();
         const audioDuration = coreRegion.getAudioDurationSeconds();
+        const snap = KGMainContentState.instance().isSnappingEnabled();
 
         // Left edge changed — calculate new clip offset
         if (clampedBarNumber !== oldBarNumber) {
@@ -205,7 +206,9 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
             // Dragged past audio start — snap to earliest allowed position
             const maxLeftExtensionBeats = clipOffset / secondsPerBeat;
             const minStartBeat = oldStartBeat - maxLeftExtensionBeats;
-            clampedBarNumber = Math.ceil(minStartBeat / beatsPerBar) + 1;
+            clampedBarNumber = snap
+              ? Math.ceil(minStartBeat / beatsPerBar) + 1
+              : (minStartBeat / beatsPerBar) + 1;
             const oldEndBarNumber = oldBarNumber + (coreRegion.getLength() / beatsPerBar);
             clampedLength = oldEndBarNumber - clampedBarNumber;
             newClipStartOffsetSeconds = 0;
@@ -219,7 +222,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const maxDurationSeconds = audioDuration - effectiveClipOffset;
         const maxLengthBars = (maxDurationSeconds / secondsPerBeat) / beatsPerBar;
         if (clampedLength > maxLengthBars) {
-          clampedLength = Math.floor(maxLengthBars);
+          clampedLength = snap ? Math.floor(maxLengthBars) : maxLengthBars;
           if (clampedLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
             clampedLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
           }

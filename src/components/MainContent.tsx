@@ -13,6 +13,7 @@ import type { RegionUI } from './interfaces';
 import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
+import { KGMainContentState } from '../core/state/KGMainContentState';
 import { ChangeLoopSettingsCommand } from '../core/commands';
 
 interface MainContentProps {
@@ -135,7 +136,7 @@ const MainContent: React.FC<MainContentProps> = ({
         if (region instanceof KGMidiRegion || region instanceof KGAudioRegion) {
           // Calculate bar number and length from beats
           const beatsPerBar = timeSignature.numerator;
-          const barNumber = Math.floor(region.getStartFromBeat() / beatsPerBar) + 1;
+          const barNumber = (region.getStartFromBeat() / beatsPerBar) + 1;
           const length = region.getLength() / beatsPerBar;
 
           // Create a RegionUI object
@@ -517,8 +518,9 @@ const MainContent: React.FC<MainContentProps> = ({
       getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
     ) || 40;
 
-    // Find the closest bar start (using Math.round for nearest bar)
-    const barIndex = Math.round(relativeX / barWidth);
+    // Find the closest bar start; honor snapping toggle
+    const snap = KGMainContentState.instance().isSnappingEnabled();
+    const barIndex = snap ? Math.round(relativeX / barWidth) : relativeX / barWidth;
 
     // Ensure we don't go below 0
     const clampedBarIndex = Math.max(0, barIndex);

@@ -307,7 +307,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     } else {
       renderNotesOnCanvas();
     }
-  }, [midiRegion, audioRegion, audioBuffer, timeSignature, bpm, id, noteUpdateTrigger]);
+  }, [midiRegion, audioRegion, audioBuffer, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length]);
 
   // Re-render canvas when region content size changes
   useEffect(() => {
