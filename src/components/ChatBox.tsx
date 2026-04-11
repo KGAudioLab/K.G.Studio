@@ -83,6 +83,8 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
           id: m.id,
           role: m.role,
           content: m.content,
+          ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
           timestamp: formatLocalDateTime(new Date(m.timestamp))
         }));
         const json = JSON.stringify(exportMessages, null, 2);
@@ -99,15 +101,27 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
           const res = await fetch(templateUrl);
           const template = await res.text();
 
-          const sections = agentMessages
-            .filter(m => m.role === 'user' || m.role === 'assistant')
-            .map((m) => {
-              const roleLabel = m.role === 'assistant' ? 'Assistant' : 'User';
+          const sections = agentMessages.map((m) => {
+              let roleLabel: string;
+              if (m.role === 'assistant') roleLabel = 'Assistant';
+              else if (m.role === 'tool') roleLabel = 'Tool Result';
+              else roleLabel = 'User';
+
               const ts = formatLocalDateTime(new Date(m.timestamp));
+
+              let content = m.content ?? '';
+              // For assistant messages with tool_calls but no text, show tool call info
+              if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) {
+                const toolCallsText = m.tool_calls.map(tc =>
+                  `**Tool call: ${tc.function.name}**\n\`\`\`json\n${tc.function.arguments}\n\`\`\``
+                ).join('\n\n');
+                content = content ? `${content}\n\n${toolCallsText}` : toolCallsText;
+              }
+
               return template
                 .replace('{role}', roleLabel)
                 .replace('{timestamp}', ts)
-                .replace('{content}', m.content ?? '');
+                .replace('{content}', content);
             });
 
           const markdown = sections.join('\n');
