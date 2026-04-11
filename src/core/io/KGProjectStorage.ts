@@ -4,6 +4,7 @@ import { KGProject } from '../KGProject';
 import { upgradeProjectToLatest } from '../project-upgrader/KGProjectUpgrader';
 import { isValidProjectName } from '../../util/projectNameUtil';
 import { OPFS_CONSTANTS } from '../../constants/coreConstants';
+import { KGAudioRegion } from '../region/KGAudioRegion';
 
 export class DuplicateEntryError extends Error {
   constructor(name: string) {
@@ -12,10 +13,11 @@ export class DuplicateEntryError extends Error {
   }
 }
 
-interface ProjectMeta {
+export interface ProjectMeta {
   name: string;
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number | null;
 }
 
 /**
@@ -155,6 +157,137 @@ export class KGProjectStorage {
   }
 
   /**
+   * List all projects with metadata (name, createdAt, updatedAt).
+   * Reads each project's meta.json without loading the full project data.
+   * @param deleted - if true, return only soft-deleted projects; if false (default), return only non-deleted projects.
+   */
+  public async listWithMeta(deleted: boolean = false): Promise<ProjectMeta[]> {
+    this.ensureInitialized();
+
+    const results: ProjectMeta[] = [];
+    for await (const entry of this.projectsDirHandle!.values()) {
+      if (entry.kind === 'directory') {
+        try {
+          const dirHandle = await this.projectsDirHandle!.getDirectoryHandle(entry.name);
+          const metaJson = await this.readFile(dirHandle, OPFS_CONSTANTS.METADATA_FILE);
+          const meta = JSON.parse(metaJson) as ProjectMeta;
+          const isDeleted = !!meta.deletedAt;
+          if (isDeleted === deleted) {
+            results.push(meta);
+          }
+        } catch {
+          // Skip folders without a valid meta.json (e.g. temporary unsaved projects)
+        }
+      }
+    }
+    return results.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * Soft-delete a project by setting deletedAt in its meta.json.
+   */
+  public async softDelete(name: string): Promise<void> {
+    this.ensureInitialized();
+    const projectDir = await this.projectsDirHandle!.getDirectoryHandle(name);
+    const meta = await this.readMeta(projectDir, name);
+    meta.deletedAt = Date.now();
+    await this.writeFile(projectDir, OPFS_CONSTANTS.METADATA_FILE, JSON.stringify(meta, null, 2));
+  }
+
+  /**
+   * Restore a soft-deleted project by removing deletedAt from its meta.json.
+   */
+  public async restore(name: string): Promise<void> {
+    this.ensureInitialized();
+    const projectDir = await this.projectsDirHandle!.getDirectoryHandle(name);
+    const meta = await this.readMeta(projectDir, name);
+    delete meta.deletedAt;
+    await this.writeFile(projectDir, OPFS_CONSTANTS.METADATA_FILE, JSON.stringify(meta, null, 2));
+  }
+
+  /**
+   * Duplicate a project under a new name, copying all files including media.
+   */
+  public async duplicate(sourceName: string, targetName: string): Promise<void> {
+    this.ensureInitialized();
+
+    if (!isValidProjectName(targetName)) {
+      throw new Error(`Invalid project name "${targetName}".`);
+    }
+
+    // Load the source project
+    const project = await this.load(sourceName);
+    if (!project) {
+      throw new Error(`Project "${sourceName}" not found.`);
+    }
+
+    // Save to new location with fresh timestamps
+    project.setName(targetName);
+    await this.save(targetName, project, false);
+
+    // Copy media files
+    await this.copyMediaFiles(sourceName, targetName);
+  }
+
+  /**
+   * Permanently delete all soft-deleted projects older than the given age in milliseconds.
+   */
+  public async purgeDeletedOlderThan(ageMs: number): Promise<void> {
+    this.ensureInitialized();
+    const cutoff = Date.now() - ageMs;
+    const deleted = await this.listWithMeta(true);
+    for (const meta of deleted) {
+      if (meta.deletedAt && meta.deletedAt < cutoff) {
+        await this.delete(meta.name);
+      }
+    }
+  }
+
+  /**
+   * Remove orphan media files that are not referenced by any track in the project.
+   */
+  public async cleanupOrphanMedia(name: string, project: KGProject): Promise<void> {
+    this.ensureInitialized();
+
+    try {
+      const projectDir = await this.projectsDirHandle!.getDirectoryHandle(name);
+      let mediaDir: FileSystemDirectoryHandle;
+      try {
+        mediaDir = await projectDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR);
+      } catch {
+        return; // No media directory — nothing to clean up
+      }
+
+      // Collect all referenced audio file IDs from the project
+      const referencedIds = new Set<string>();
+      for (const track of project.getTracks()) {
+        for (const region of track.getRegions()) {
+          if (region instanceof KGAudioRegion) {
+            const fileId = region.getAudioFileId();
+            if (fileId) referencedIds.add(fileId);
+          }
+        }
+      }
+
+      // Iterate media files and remove orphans
+      const orphans: string[] = [];
+      for await (const entry of mediaDir.values()) {
+        if (entry.kind === 'file' && !referencedIds.has(entry.name)) {
+          orphans.push(entry.name);
+        }
+      }
+
+      for (const orphan of orphans) {
+        await mediaDir.removeEntry(orphan);
+        console.log(`Removed orphan media file "${orphan}" from project "${name}"`);
+      }
+    } catch (error) {
+      // Non-critical — log but don't throw
+      console.warn(`Error cleaning up orphan media for project "${name}":`, error);
+    }
+  }
+
+  /**
    * Delete a project and all its files.
    */
   public async delete(name: string): Promise<void> {
@@ -206,8 +339,29 @@ export class KGProjectStorage {
     project.setName(newName);
     await this.save(newName, project, false);
 
+    // Copy media files from old to new location
+    await this.copyMediaFiles(oldName, newName);
+
     // Delete old location
     await this.delete(oldName);
+  }
+
+  /**
+   * Save a project under a new name, migrating media files from the old folder.
+   * Used when the user renames the project and saves. Handles the case where the
+   * old folder doesn't exist yet (new project never saved).
+   */
+  public async saveWithRename(oldName: string, newName: string, data: KGProject): Promise<void> {
+    this.ensureInitialized();
+
+    // Save project JSON to the new folder
+    await this.save(newName, data, false);
+
+    // Migrate media files only if the old folder exists
+    if (await this.exists(oldName)) {
+      await this.copyMediaFiles(oldName, newName);
+      await this.delete(oldName);
+    }
   }
 
   /**
@@ -374,6 +528,42 @@ export class KGProjectStorage {
     return candidate;
   }
 
+  // --- Media migration ---
+
+  /**
+   * Copy all files from projects/<fromName>/media/ to projects/<toName>/media/.
+   * If the source media directory doesn't exist, returns without error.
+   */
+  private async copyMediaFiles(fromName: string, toName: string): Promise<void> {
+    try {
+      const fromDir = await this.projectsDirHandle!.getDirectoryHandle(fromName);
+      let fromMedia: FileSystemDirectoryHandle;
+      try {
+        fromMedia = await fromDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR);
+      } catch {
+        // No media directory in source — nothing to copy
+        return;
+      }
+
+      const toDir = await this.projectsDirHandle!.getDirectoryHandle(toName);
+      const toMedia = await toDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR, { create: true });
+
+      for await (const entry of fromMedia.values()) {
+        if (entry.kind === 'file') {
+          const fileHandle = entry as FileSystemFileHandle;
+          const file = await fileHandle.getFile();
+          const newHandle = await toMedia.getFileHandle(entry.name, { create: true });
+          const writable = await newHandle.createWritable();
+          await writable.write(await file.arrayBuffer());
+          await writable.close();
+        }
+      }
+    } catch (error) {
+      console.error(`Error copying media files from "${fromName}" to "${toName}":`, error);
+      throw error;
+    }
+  }
+
   // --- File I/O helpers ---
 
   private async writeFile(
@@ -394,5 +584,17 @@ export class KGProjectStorage {
     const fileHandle = await dirHandle.getFileHandle(fileName);
     const file = await fileHandle.getFile();
     return file.text();
+  }
+
+  private async readMeta(
+    projectDir: FileSystemDirectoryHandle,
+    name: string,
+  ): Promise<ProjectMeta> {
+    try {
+      const raw = await this.readFile(projectDir, OPFS_CONSTANTS.METADATA_FILE);
+      return JSON.parse(raw) as ProjectMeta;
+    } catch {
+      return { name, createdAt: 0, updatedAt: 0 };
+    }
   }
 }

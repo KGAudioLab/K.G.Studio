@@ -1,0 +1,285 @@
+/* Overlay — blocks and blurs content below */
+.open-project-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 2000;
+}
+
+/* Open Project Panel — follows PianoRoll panel pattern */
+.open-project-panel {
+  position: fixed;
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header — draggable */
+.open-project-header {
+  height: 30px;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #3a3a3a;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  cursor: move;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.open-project-title {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  color: #e0e0e0;
+  text-transform: uppercase;
+}
+
+/* Filter bar — sticky at top */
+.open-project-filter {
+  padding: 10px 12px;
+  background-color: #252525;
+  border-bottom: 1px solid #3a3a3a;
+  flex-shrink: 0;
+}
+
+.open-project-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.open-project-filter input {
+  flex: 1;
+  padding: 6px 10px;
+  background-color: #1e1e1e;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.open-project-filter input:focus {
+  border-color: #7b68ee;
+}
+
+.open-project-filter input::placeholder {
+  color: #777;
+}
+
+/* View toggle (Projects / Trash) */
+.open-project-view-toggle {
+  display: flex;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.open-project-toggle-btn {
+  background-color: #1e1e1e;
+  color: #999;
+  border: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.open-project-toggle-btn:not(:last-child) {
+  border-right: 1px solid #3a3a3a;
+}
+
+.open-project-toggle-btn:hover {
+  color: #e0e0e0;
+}
+
+.open-project-toggle-btn.active {
+  background-color: #7b68ee;
+  color: #fff;
+}
+
+/* Trash hint banner */
+.open-project-trash-hint {
+  padding: 6px 12px;
+  background-color: #3a2a1a;
+  border-bottom: 1px solid #5a3a1a;
+  color: #d4a054;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* Sort header row */
+.open-project-sort-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: #252525;
+  border-bottom: 1px solid #3a3a3a;
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.open-project-sort-col {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.open-project-sort-col:hover {
+  color: #e0e0e0;
+  background-color: #3a3a3a;
+}
+
+.open-project-sort-col.active {
+  color: #7b68ee;
+}
+
+.open-project-sort-col-name {
+  flex: 1;
+}
+
+.open-project-sort-col-created,
+.open-project-sort-col-updated {
+  width: 160px;
+  text-align: left;
+}
+
+/* Scrollable project list */
+.open-project-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Individual project row */
+.open-project-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.open-project-item:hover {
+  background-color: #353535;
+}
+
+.open-project-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.open-project-item-name {
+  font-size: 14px;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.open-project-item-meta {
+  font-size: 11px;
+  color: #888;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Action buttons container */
+.open-project-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+/* Open button */
+.open-project-item-open-btn {
+  background-color: #7b68ee;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.open-project-item-open-btn:hover {
+  background-color: #6a58d6;
+}
+
+/* Icon action buttons (duplicate, delete, restore, perm-delete) */
+.open-project-item-action-btn {
+  background: transparent;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #bbb;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.open-project-item-action-btn:hover {
+  background-color: #444;
+  color: #e0e0e0;
+  border-color: #777;
+}
+
+.open-project-item-permdelete-btn:hover {
+  background-color: #5a2020;
+  color: #ff6666;
+  border-color: #ff4444;
+}
+
+.open-project-item-restore-btn:hover {
+  background-color: #1a3a2a;
+  color: #66cc88;
+  border-color: #44aa66;
+}
+
+/* Loading and empty states */
+.open-project-loading,
+.open-project-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: #888;
+  font-size: 14px;
+  padding: 40px;
+}
+
+/* Resize handle — same as PianoRoll */
+.open-project-panel .resize-handle {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}

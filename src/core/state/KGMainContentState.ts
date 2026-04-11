@@ -6,6 +6,7 @@ export class KGMainContentState {
   private static _instance: KGMainContentState | null = null;
 
   private activeTool: string = "pointer";
+  private snapping: boolean = true;
 
   private constructor() {
     console.log("KGMainContentState initialized");
@@ -25,5 +26,13 @@ export class KGMainContentState {
 
   public setActiveTool(tool: string): void {
     this.activeTool = tool;
+  }
+
+  public isSnappingEnabled(): boolean {
+    return this.snapping;
+  }
+
+  public setSnapping(enabled: boolean): void {
+    this.snapping = enabled;
   }
 }

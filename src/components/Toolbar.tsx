@@ -12,7 +12,7 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog
+  FaCog, FaMagnet
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { plainToInstance } from 'class-transformer';
@@ -22,18 +22,22 @@ import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
+import { KGOfflineRenderer } from '../core/audio-interface/KGOfflineRenderer';
 import KGDropdown from './common/KGDropdown';
 import FileImportModal from './common/FileImportModal';
+import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 
 const Toolbar: React.FC = () => {
   const {
     projectName, setProjectName,
+    savedProjectName, setSavedProjectName,
     bpm, timeSignature, keySignature, setStatus,
     isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
+    barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, cleanupProjectState,
@@ -45,6 +49,7 @@ const Toolbar: React.FC = () => {
 
   // State for main content tools
   const [activeMainTool, setActiveMainTool] = React.useState<'pointer' | 'pencil'>('pointer');
+  const [isSnapping, setIsSnapping] = React.useState(true);
 
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
@@ -54,12 +59,31 @@ const Toolbar: React.FC = () => {
   
   // State for import modal
   const [showImportModal, setShowImportModal] = React.useState(false);
+
+  // State for zoom slider popup
+  const [showZoomSlider, setShowZoomSlider] = React.useState(false);
+  const zoomSliderRef = React.useRef<HTMLDivElement>(null);
+
+  // State for open project modal
+  const [showOpenProject, setShowOpenProject] = React.useState(false);
   
+  // Close zoom slider on click outside
+  React.useEffect(() => {
+    if (!showZoomSlider) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (zoomSliderRef.current && !zoomSliderRef.current.contains(e.target as Node)) {
+        setShowZoomSlider(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showZoomSlider]);
+
   // Key signature options
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
   
   // Export options
-  const exportOptions = ["Export to KGStudio file", "Export to MIDI file"];
+  const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
 
   const handleProjectNameClick = () => {
     const newName = prompt("Enter project name:", projectName);
@@ -73,25 +97,31 @@ const Toolbar: React.FC = () => {
   };
 
   // Common project loading logic extracted for reuse
-  const loadProjectFromData = async (project: KGProject, sourceDescription: string) => {
+  const loadProjectFromData = async (project: KGProject, sourceDescription: string, savedName?: string) => {
     try {
       // Clean up UI state first
       cleanupProjectState();
-      
+
       // Automatically clear chat history when loading a project
       clearChatHistoryAndUI();
-      
+
       // Load the project using the store's loadProject method
       const { loadProject: storeLoadProject } = useProjectStore.getState();
-      await storeLoadProject(project);
-      
+      await storeLoadProject(project, savedName);
+
+      // Clean up orphan media files (only on open, not on save)
+      if (savedName) {
+        const storage = KGProjectStorage.getInstance();
+        await storage.cleanupOrphanMedia(savedName, project);
+      }
+
       // Update status to indicate project loaded
       setStatus(`${sourceDescription} loaded successfully`);
-      
+
       if (DEBUG_MODE.TOOLBAR) {
         console.log(`project loaded successfully from ${sourceDescription}`);
       }
-      
+
     } catch (error) {
       console.error(`Error loading project from ${sourceDescription}:`, error);
       setStatus(`Failed to load project: ${error}`);
@@ -99,73 +129,55 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  // Core logic for creating a new project (no confirmation dialog)
+  const createNewProject = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("creating new project");
+    }
+
+    cleanupProjectState();
+    clearChatHistoryAndUI();
+
+    const newProject = new KGProject();
+    const { loadProject: storeLoadProject } = useProjectStore.getState();
+    storeLoadProject(newProject);
+
+    setStatus(`New project "${newProject.getName()}" created`);
+
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("new project created successfully");
+    }
+  };
+
   // Handler functions for file operations
   const handleNewProject = () => {
     const confirmed = window.confirm("Are you sure you want to create a new project? Any unsaved changes will be lost.");
     if (confirmed) {
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("user clicked new button");
-      }
-      
-      // Clean up UI state first
-      cleanupProjectState();
-      
-      // Automatically clear chat history when creating a new project
-      clearChatHistoryAndUI();
-      
-      // Create a new project with default parameters
-      const newProject = new KGProject();
-      
-      // Load the new project using the store's loadProject method
-      const { loadProject: storeLoadProject } = useProjectStore.getState();
-      storeLoadProject(newProject);
-      
-      // Default track creation is handled centrally in the store's loadProject
-      
-      // Update status to indicate new project created
-      setStatus(`New project "${newProject.getName()}" created`);
-      
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("new project created successfully");
-      }
+      createNewProject();
     }
   };
 
-  const handleLoadProject = async () => {
-    const confirmed = window.confirm("Are you sure you want to load another project? Any unsaved changes will be lost.");
-    if (confirmed) {
-      if (DEBUG_MODE.TOOLBAR) {
-        console.log("user clicked load button");
-      }
-      
-      // Ask user for project name
-      const projectNameToLoad = window.prompt("Enter the project name to load:");
-      
-      // Check if user input is empty or null (user cancelled)
-      if (!projectNameToLoad || projectNameToLoad.trim() === '') {
-        if (projectNameToLoad !== null) { // Only show error if user didn't cancel
-          window.alert("Project name cannot be empty. Please enter a valid project name.");
-        }
+  const handleLoadProject = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("user clicked load button");
+    }
+    setShowOpenProject(true);
+  };
+
+  const handleOpenProjectSelect = async (projectNameToLoad: string) => {
+    try {
+      const storage = KGProjectStorage.getInstance();
+      const loadedProject = await storage.load(projectNameToLoad);
+
+      if (!loadedProject) {
+        window.alert(`Project "${projectNameToLoad}" not found.`);
         return;
       }
-      
-      try {
-        // Try to load the project from storage
-        const storage = KGProjectStorage.getInstance();
-        const loadedProject = await storage.load(projectNameToLoad.trim());
-        
-        if (!loadedProject) {
-          window.alert(`Project "${projectNameToLoad}" not found. Please check the project name and try again.`);
-          return;
-        }
-        
-        // Use common loading logic
-        await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`);
-        
-      } catch (error) {
-        console.error("Error loading project:", error);
-        window.alert(`An error occurred while loading the project: ${error}`);
-      }
+
+      await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
+    } catch (error) {
+      console.error("Error loading project:", error);
+      window.alert(`An error occurred while loading the project: ${error}`);
     }
   };
 
@@ -174,7 +186,12 @@ const Toolbar: React.FC = () => {
       console.log("user clicked save button");
     }
 
-    await saveProject(projectName, setStatus);
+    await saveProject(projectName, savedProjectName, setStatus, (finalName) => {
+      setSavedProjectName(finalName);
+      if (finalName !== projectName) {
+        setProjectName(finalName);
+      }
+    });
   };
 
   const handleExportProject = (exportType: string) => {
@@ -186,6 +203,10 @@ const Toolbar: React.FC = () => {
       handleExportKGStudio();
     } else if (exportType === "Export to MIDI file") {
       handleExportMIDI();
+    } else if (exportType === "Export to WAV") {
+      handleBounceToWav();
+    } else if (exportType === "Export to MP3") {
+      handleBounceToMp3();
     }
     
     setShowExportDropdown(false);
@@ -269,6 +290,38 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  const handleBounceToWav = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("bouncing to WAV");
+    }
+
+    try {
+      const currentProject = KGCore.instance().getCurrentProject();
+      await KGOfflineRenderer.instance().bounceToWav(currentProject, projectName);
+      setStatus(`Project "${projectName}" exported as WAV file`);
+    } catch (error) {
+      console.error("Error bouncing to WAV:", error);
+      setStatus(`Error exporting WAV: ${error}`);
+      window.alert(`Failed to export project as WAV: ${error}`);
+    }
+  };
+
+  const handleBounceToMp3 = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("bouncing to MP3");
+    }
+
+    try {
+      const currentProject = KGCore.instance().getCurrentProject();
+      await KGOfflineRenderer.instance().bounceToMp3(currentProject, projectName);
+      setStatus(`Project "${projectName}" exported as MP3 file`);
+    } catch (error) {
+      console.error("Error bouncing to MP3:", error);
+      setStatus(`Error exporting MP3: ${error}`);
+      window.alert(`Failed to export project as MP3: ${error}`);
+    }
+  };
+
   const handleImportProject = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("user clicked import button");
@@ -317,7 +370,7 @@ const Toolbar: React.FC = () => {
         throw new Error('Failed to load imported project');
       }
 
-      await loadProjectFromData(loaded, `KGStudio file "${file.name}"`);
+      await loadProjectFromData(loaded, `KGStudio file "${file.name}"`, projectName);
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log("KGStudio file imported successfully:", projectName);
@@ -357,7 +410,7 @@ const Toolbar: React.FC = () => {
         throw new Error('Failed to load imported project from storage');
       }
 
-      await loadProjectFromData(loaded, `JSON file "${file.name}"`);
+      await loadProjectFromData(loaded, `JSON file "${file.name}"`, importedName);
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log("KGStudio JSON project imported and saved to OPFS:", importedName);
@@ -551,6 +604,16 @@ const Toolbar: React.FC = () => {
     KGMainContentState.instance().setActiveTool(tool);
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Selected main content tool: ${tool}`);
+    }
+  };
+
+  // Handle snapping toggle
+  const handleSnappingToggle = () => {
+    const newValue = !isSnapping;
+    setIsSnapping(newValue);
+    KGMainContentState.instance().setSnapping(newValue);
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log(`Snapping ${newValue ? 'enabled' : 'disabled'}`);
     }
   };
 
@@ -759,12 +822,19 @@ const Toolbar: React.FC = () => {
         >
           <FaMousePointer />
         </button>
-        <button 
-          title="Pencil" 
+        <button
+          title="Pencil"
           className={`tool-button ${activeMainTool === 'pencil' ? 'active' : ''}`}
           onClick={() => handleMainToolSelect('pencil')}
         >
           <FaPencil />
+        </button>
+        <button
+          title="Snap to Grid"
+          className={`tool-button ${isSnapping ? 'active' : ''}`}
+          onClick={handleSnappingToggle}
+        >
+          <FaMagnet />
         </button>
         <div className="toolbar-separator"></div>
         <button title="Copy" onClick={handleCopyClick}><FaCopy /></button>
@@ -792,6 +862,28 @@ const Toolbar: React.FC = () => {
       
       <div className="toolbar-right">
         <div className="transport-control">
+          <div className="transport-item" style={{ position: 'relative' }} ref={zoomSliderRef}>
+            <span
+              className='current-zoom'
+              onClick={() => setShowZoomSlider(!showZoomSlider)}
+              style={{ cursor: 'pointer' }}
+            >
+              {barWidthMultiplier}x
+            </span>
+            {showZoomSlider && (
+              <div className="zoom-slider-popup">
+                <input
+                  type="range"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value={barWidthMultiplier}
+                  onChange={(e) => setBarWidthMultiplier(parseInt(e.target.value))}
+                />
+                <span className="zoom-slider-label">{barWidthMultiplier}x</span>
+              </div>
+            )}
+          </div>
           <div className="transport-item">
             <span className='current-time' onClick={handleCurrentTimeClick} style={{ cursor: 'pointer' }}>{currentTime}</span>
           </div>
@@ -836,6 +928,15 @@ const Toolbar: React.FC = () => {
       title="Import Project"
       description="Drag and drop your project file here"
     />
+
+    {showOpenProject && (
+      <OpenProjectModal
+        onClose={() => setShowOpenProject(false)}
+        onOpenProject={handleOpenProjectSelect}
+        currentProjectName={savedProjectName}
+        onCreateNewProject={createNewProject}
+      />
+    )}
     </>
   );
 };

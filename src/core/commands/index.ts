@@ -8,6 +8,7 @@ export { KGCommandHistory } from './KGCommandHistory';
 
 // Track commands
 export { AddTrackCommand } from './track/AddTrackCommand';
+export { AddAudioTrackCommand } from './track/AddAudioTrackCommand';
 export { RemoveTrackCommand } from './track/RemoveTrackCommand';
 export { ReorderTracksCommand } from './track/ReorderTracksCommand';
 export { UpdateTrackCommand, type TrackUpdateProperties } from './track/UpdateTrackCommand';
@@ -19,6 +20,7 @@ export { ResizeRegionCommand } from './region/ResizeRegionCommand';
 export { MoveRegionCommand } from './region/MoveRegionCommand';
 export { PasteRegionsCommand } from './region/PasteRegionsCommand';
 export { UpdateRegionCommand, type RegionUpdateProperties } from './region/UpdateRegionCommand';
+export { ImportAudioCommand } from './region/ImportAudioCommand';
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';

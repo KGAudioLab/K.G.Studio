@@ -9,10 +9,15 @@ import { KGAudioInterface } from '../core/audio-interface/KGAudioInterface';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGRegion } from '../core/region/KGRegion';
-import { AddTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand } from '../core/commands';
+import { AddTrackCommand, AddAudioTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand } from '../core/commands';
+import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
 import { toggleLoop } from '../util/loopUtil';
+import { TOOLBAR_CONSTANTS } from '../constants/uiConstants';
+import * as Tone from 'tone';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -30,13 +35,25 @@ function updateMaxBarsCSS(maxBars: number): void {
   document.documentElement.style.setProperty('--max-number-of-bars', maxBars.toString());
 }
 
+/**
+ * Update CSS custom property for track grid bar width based on multiplier
+ */
+function updateBarWidthMultiplierCSS(multiplier: number): void {
+  document.documentElement.style.setProperty(
+    '--track-grid-bar-width',
+    `${TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * multiplier}px`
+  );
+}
+
 // Define the store state interface
 interface ProjectState {
   // State
   projectName: string;
+  savedProjectName: string; // OPFS folder name where the project is currently saved
   tracks: KGTrack[];
   currentStatus: string;
   maxBars: number;
+  barWidthMultiplier: number;
   timeSignature: TimeSignature;
   bpm: number;
   keySignature: KeySignature;
@@ -63,9 +80,13 @@ interface ProjectState {
   showInstrumentSelection: boolean;
   // instrumentSelectionTrackId removed; panel now follows selectedTrackId
   
+  // Audio import modal state
+  showAudioImportModal: boolean;
+  audioImportTargetTrackId: string | null;
+
   // Settings state
   showSettings: boolean;
-  
+
   // Undo/redo state
   canUndo: boolean;
   canRedo: boolean;
@@ -74,7 +95,12 @@ interface ProjectState {
   
   // Actions
   setProjectName: (name: string) => void;
+  setSavedProjectName: (name: string) => void;
   addTrack: () => Promise<void>;
+  addAudioTrack: () => Promise<void>;
+  importAudioToTrack: (trackId: string, file: File) => Promise<void>;
+  openAudioImportModal: (trackId: string) => void;
+  closeAudioImportModal: () => void;
   removeTrack: (id: number) => Promise<void>;
   updateTrack: (track: KGTrack) => Promise<void>;
   updateTrackProperties: (trackId: number, properties: TrackUpdateProperties) => Promise<void>;
@@ -83,13 +109,14 @@ interface ProjectState {
   setStatus: (status: string) => void;
   removeStatus: () => void;
   refreshStatus: () => void;
-  loadProject: (project: KGProject | null) => Promise<void>;
+  loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
   setPlayheadPosition: (position: number) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
   toggleLoop: () => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
+  setBarWidthMultiplier: (multiplier: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
   setKeySignature: (keySignature: KeySignature) => void;
   setSelectedMode: (selectedMode: string) => void;
@@ -143,6 +170,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   updateTimeSignatureCSS(currentProject.getTimeSignature());
   // Initialize CSS variable for max bars on store creation
   updateMaxBarsCSS(currentProject.getMaxBars());
+  // Initialize CSS variable for bar width multiplier on store creation
+  updateBarWidthMultiplierCSS(currentProject.getBarWidthMultiplier());
   
   // Get initial ChatBox state from config
   const configManager = ConfigManager.instance();
@@ -222,9 +251,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   return {
     // Initial state
     projectName: currentProject.getName(),
+    savedProjectName: currentProject.getName(),
     tracks: currentProject.getTracks() as KGTrack[],
     currentStatus: KGCore.instance().getStatus() || 'Unknown',
     maxBars: currentProject.getMaxBars(),
+    barWidthMultiplier: currentProject.getBarWidthMultiplier(),
     timeSignature: currentProject.getTimeSignature(),
     bpm: currentProject.getBpm(),
     keySignature: currentProject.getKeySignature(),
@@ -250,6 +281,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
     
+    // Initial audio import modal state
+    showAudioImportModal: false,
+    audioImportTargetTrackId: null,
+
     // Initial Settings state
     showSettings: false,
     
@@ -265,15 +300,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ name });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ projectName: name });
-        
+
         console.log(`Set project name to "${name}"`);
       } catch (error) {
         console.error('Error setting project name:', error);
         get().setStatus('Failed to set project name');
       }
+    },
+
+    setSavedProjectName: (name: string) => {
+      set({ savedProjectName: name });
     },
 
     addTrack: async () => {
@@ -298,6 +337,117 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         console.error('Error adding track:', error);
         get().setStatus('Failed to add track');
       }
+    },
+
+    addAudioTrack: async () => {
+      try {
+        const command = new AddAudioTrackCommand();
+        KGCore.instance().executeCommand(command);
+
+        const project = KGCore.instance().getCurrentProject();
+        set({ tracks: [...project.getTracks()] as KGTrack[] });
+
+        const newTrackId = command.getTrackId().toString();
+        set({
+          selectedTrackId: newTrackId,
+          showAudioImportModal: true,
+          audioImportTargetTrackId: newTrackId,
+        });
+
+        console.log(`Added audio track ${command.getTrackId()}`);
+      } catch (error) {
+        console.error('Error adding audio track:', error);
+        get().setStatus('Failed to add audio track');
+      }
+    },
+
+    importAudioToTrack: async (trackId: string, file: File) => {
+      try {
+        get().setStatus(`Importing "${file.name}"...`);
+
+        // Decode the audio file to get duration
+        const arrayBuffer = await file.arrayBuffer();
+        const toneBuffer = new Tone.ToneAudioBuffer();
+        await new Promise<void>((resolve, reject) => {
+          toneBuffer.onload = () => resolve();
+          // Set buffer from array buffer
+          const audioContext = Tone.getContext().rawContext as AudioContext;
+          audioContext.decodeAudioData(
+            arrayBuffer.slice(0),  // slice to avoid detached buffer
+            (decoded) => {
+              toneBuffer.set(decoded);
+              resolve();
+            },
+            (err) => reject(err)
+          );
+        });
+
+        const audioDurationSeconds = toneBuffer.duration;
+        const { bpm, timeSignature, playheadPosition, maxBars } = get();
+
+        // Calculate duration in beats
+        const durationInBeats = audioDurationSeconds * (bpm / 60);
+
+        // Calculate if we need to expand maxBars
+        const beatsPerBar = timeSignature.numerator;
+        const endBeat = playheadPosition + durationInBeats;
+        const requiredBars = Math.ceil(endBeat / beatsPerBar);
+        const newMaxBars = Math.max(maxBars, requiredBars);
+
+        // Store audio file in OPFS
+        const projectName = get().projectName;
+        const audioFileId = KGAudioFileStorage.generateAudioFileId(file.name);
+        await KGAudioFileStorage.storeAudioFile(projectName, audioFileId, file);
+
+        // Load buffer into the audio player bus
+        const audioInterface = KGAudioInterface.instance();
+        audioInterface.loadAudioBufferForTrack(trackId, audioFileId, toneBuffer);
+
+        // Find the track to get trackIndex
+        const project = KGCore.instance().getCurrentProject();
+        const track = project.getTracks().find(t => t.getId().toString() === trackId);
+        if (!track) {
+          throw new Error(`Track ${trackId} not found`);
+        }
+
+        // Execute the import command
+        const command = new ImportAudioCommand(
+          track.getId(),
+          track.getTrackIndex(),
+          audioFileId,
+          file.name,
+          audioDurationSeconds,
+          playheadPosition,
+          durationInBeats,
+          maxBars,
+          newMaxBars
+        );
+        KGCore.instance().executeCommand(command);
+
+        // Update store state
+        const updatedState: Partial<ProjectState> = {
+          tracks: [...project.getTracks()] as KGTrack[],
+        };
+        if (newMaxBars > maxBars) {
+          updatedState.maxBars = newMaxBars;
+          updateMaxBarsCSS(newMaxBars);
+        }
+        set(updatedState);
+
+        get().setStatus(`Imported "${file.name}" successfully`);
+        console.log(`Imported audio "${file.name}" to track ${trackId}`);
+      } catch (error) {
+        console.error('Error importing audio:', error);
+        get().setStatus(`Failed to import audio: ${error}`);
+      }
+    },
+
+    openAudioImportModal: (trackId: string) => {
+      set({ showAudioImportModal: true, audioImportTargetTrackId: trackId });
+    },
+
+    closeAudioImportModal: () => {
+      set({ showAudioImportModal: false, audioImportTargetTrackId: null });
     },
 
     removeTrack: async (id: number) => {
@@ -452,7 +602,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ currentStatus: KGCore.instance().getStatus() || 'Unknown' });
     },
     
-    loadProject: async (project: KGProject | null = null) => {
+    loadProject: async (project: KGProject | null = null, savedName?: string) => {
       try {
         const { setPlayheadPosition } = get();
         
@@ -488,29 +638,58 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Setup audio synths for all tracks
         const audioInterface = KGAudioInterface.instance();
         
-        // Clear any existing synths first
-        tracks.forEach(track => {
-          audioInterface.removeTrackSynth(track.getId().toString());
-        });
-        
-        // Create synths for all tracks (with their stored volumes)
+        // Clear any existing synths/buses first
         tracks.forEach(track => {
           const trackId = track.getId().toString();
-          // Get instrument from track model if it's a MIDI track
-          let instrument: InstrumentType = 'acoustic_grand_piano'; // Default fallback
-          if (track.getCurrentType() === 'KGMidiTrack' && 'getInstrument' in track) {
-            instrument = (track as KGMidiTrack).getInstrument();
-          }
-          audioInterface.createTrackSynth(trackId, instrument);
-          // Volume is applied during bus creation; ensure sync if bus already existed
-          audioInterface.setTrackVolume(trackId, track.getVolume());
+          audioInterface.removeTrackSynth(trackId);
+          audioInterface.removeTrackAudioPlayerBus(trackId);
         });
+
+        // Create synths/buses for all tracks (with their stored volumes)
+        const projectName = projectToLoad.getName();
+        for (const track of tracks) {
+          const trackId = track.getId().toString();
+
+          if (track.getCurrentType() === 'KGAudioTrack') {
+            // Audio track: create player bus and load audio buffers
+            await audioInterface.createTrackAudioPlayerBus(trackId, track.getVolume());
+
+            // Load audio buffers for all regions in this audio track
+            const audioTrack = track as KGAudioTrack;
+            for (const region of audioTrack.getRegions()) {
+              if (region.getCurrentType() === 'KGAudioRegion') {
+                const audioRegion = region as KGAudioRegion;
+                const audioFileId = audioRegion.getAudioFileId();
+                if (audioFileId) {
+                  try {
+                    const arrayBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
+                    const audioContext = Tone.getContext().rawContext as AudioContext;
+                    const decoded = await audioContext.decodeAudioData(arrayBuffer);
+                    const toneBuffer = new Tone.ToneAudioBuffer();
+                    toneBuffer.set(decoded);
+                    audioInterface.loadAudioBufferForTrack(trackId, audioFileId, toneBuffer);
+                  } catch (err) {
+                    console.error(`Failed to load audio file ${audioFileId}:`, err);
+                  }
+                }
+              }
+            }
+          } else {
+            // MIDI track: create sampler-based audio bus
+            let instrument: InstrumentType = 'acoustic_grand_piano';
+            if (track.getCurrentType() === 'KGMidiTrack' && 'getInstrument' in track) {
+              instrument = (track as KGMidiTrack).getInstrument();
+            }
+            audioInterface.createTrackSynth(trackId, instrument);
+            audioInterface.setTrackVolume(trackId, track.getVolume());
+          }
+        }
         
-        // Update CSS variable for time signature numerator
+        // Update CSS variables
         updateTimeSignatureCSS(timeSignature);
-        // Update CSS variable for max bars
         updateMaxBarsCSS(maxBars);
-        
+        updateBarWidthMultiplierCSS(projectToLoad.getBarWidthMultiplier());
+
         // Log project loading info
         console.log(`Project max bars: ${maxBars}`);
         console.log(`Setup audio synths for ${tracks.length} tracks`);
@@ -519,8 +698,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Force a new array reference for tracks to trigger React/Zustand re-render
         set({
           projectName: projectToLoad.getName(),
+          savedProjectName: savedName ?? projectToLoad.getName(),
           tracks: [...tracks],
           maxBars,
+          barWidthMultiplier: projectToLoad.getBarWidthMultiplier(),
           timeSignature,
           bpm,
           keySignature,
@@ -617,16 +798,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
+    setBarWidthMultiplier: (multiplier: number) => {
+      const project = KGCore.instance().getCurrentProject();
+      project.setBarWidthMultiplier(multiplier);
+      set({ barWidthMultiplier: multiplier });
+      updateBarWidthMultiplierCSS(multiplier);
+    },
+
     setTimeSignature: (timeSignature: TimeSignature) => {
       try {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ timeSignature });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ timeSignature });
         updateTimeSignatureCSS(timeSignature);
-        
+
         console.log(`Set time signature to ${timeSignature.numerator}/${timeSignature.denominator}`);
       } catch (error) {
         console.error('Error setting time signature:', error);
@@ -821,15 +1009,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         projectName: project.getName(),
         tracks: [...project.getTracks()] as KGTrack[], // Force new array reference - key for re-rendering!
         maxBars: project.getMaxBars(),
+        barWidthMultiplier: project.getBarWidthMultiplier(),
         timeSignature: project.getTimeSignature(),
         bpm: project.getBpm(),
         keySignature: project.getKeySignature(),
         selectedMode: project.getSelectedMode()
       });
-      
+
       // Sync CSS variables that affect layout
       updateTimeSignatureCSS(project.getTimeSignature());
       updateMaxBarsCSS(project.getMaxBars());
+      updateBarWidthMultiplierCSS(project.getBarWidthMultiplier());
 
       // Sync all related state
       const actions = get();

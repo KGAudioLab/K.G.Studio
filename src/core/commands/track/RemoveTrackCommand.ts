@@ -39,9 +39,10 @@ export class RemoveTrackCommand extends KGCommand {
       this.originalInstrument = (trackToRemove as KGMidiTrack).getInstrument();
     }
     
-    // Remove audio synth for the track
+    // Remove audio bus for the track (handles both MIDI synth and audio player bus)
     const audioInterface = KGAudioInterface.instance();
     audioInterface.removeTrackSynth(this.trackId.toString());
+    audioInterface.removeTrackAudioPlayerBus(this.trackId.toString());
     
     // Remove the track from the core model
     const updatedTracks = tracks.filter(track => track.getId() !== this.trackId);
@@ -85,11 +86,15 @@ export class RemoveTrackCommand extends KGCommand {
     // Update the core model
     currentProject.setTracks(updatedTracks);
     
-    // Recreate audio synth for the track
+    // Recreate audio bus for the track
     const audioInterface = KGAudioInterface.instance();
-    audioInterface.createTrackSynth(this.trackId.toString(), this.originalInstrument);
-    
-    console.log(`Restored track ${this.trackId} with ${this.originalInstrument} instrument`);
+    if (this.removedTrack.getCurrentType() === 'KGAudioTrack') {
+      audioInterface.createTrackAudioPlayerBus(this.trackId.toString());
+    } else {
+      audioInterface.createTrackSynth(this.trackId.toString(), this.originalInstrument);
+    }
+
+    console.log(`Restored track ${this.trackId}`);
   }
 
   getDescription(): string {

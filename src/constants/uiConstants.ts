@@ -18,6 +18,7 @@ export const DEBUG_MODE = {
 
 // Toolbar related constants
 export const TOOLBAR_CONSTANTS = {
+  BASE_BAR_WIDTH: 40, // matches --track-grid-bar-width default in variables.css
 };
 
 // Region related constants

@@ -1,6 +1,7 @@
 import { Expose, Type } from 'class-transformer';
 import { KGTrack } from './track/KGTrack';
 import { KGMidiTrack } from './track/KGMidiTrack';
+import { KGAudioTrack } from './track/KGAudioTrack';
 import { type TimeSignature, WithDefault } from '../types/projectTypes';
 import { TIME_CONSTANTS, KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 
@@ -44,10 +45,14 @@ export class KGProject {
   private loopingRange: [number, number] = [0, 0]; // [startBar, endBar] - bar indices (0-based)
 
   @Expose()
+  @WithDefault(1)
+  private barWidthMultiplier: number = 1;
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 3;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 6;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -56,13 +61,14 @@ export class KGProject {
       subTypes: [
         { value: KGTrack, name: 'KGTrack' },
         { value: KGMidiTrack, name: 'KGMidiTrack' },
+        { value: KGAudioTrack, name: 'KGAudioTrack' },
       ],
     },
   })
   private tracks: KGTrack[] = [];
 
   // Constructor
-  constructor(name: string = "Untitled Project", maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
+  constructor(name: string = "Untitled Project", maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 1, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
@@ -72,6 +78,7 @@ export class KGProject {
     this.selectedMode = selectedMode;
     this.isLooping = isLooping;
     this.loopingRange = loopingRange;
+    this.barWidthMultiplier = barWidthMultiplier;
     this.tracks = tracks;
     this.projectStructureVersion = projectStructureVersion;
   }
@@ -164,6 +171,14 @@ export class KGProject {
 
   public setLoopingRange(loopingRange: [number, number]): void {
     this.loopingRange = loopingRange;
+  }
+
+  public getBarWidthMultiplier(): number {
+    return this.barWidthMultiplier;
+  }
+
+  public setBarWidthMultiplier(barWidthMultiplier: number): void {
+    this.barWidthMultiplier = barWidthMultiplier;
   }
 }
 

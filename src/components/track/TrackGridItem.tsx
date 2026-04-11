@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { KGTrack } from '../../core/track/KGTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import RegionItem from './RegionItem';
 import type { RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
@@ -266,20 +268,23 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // If the mouse was moved and we have current values, calculate the new values
     if (mouseMoved.current && currentResizeWidth.current !== null && currentResizeLeft.current !== null) {
+      const snap = KGMainContentState.instance().isSnappingEnabled();
+
       if (resizeAction === 'end') {
-        // End resize: round length to nearest bar
-        newLength = Math.max(REGION_CONSTANTS.MIN_REGION_LENGTH, Math.round(currentResizeWidth.current / barWidth));
+        // End resize: snap length to nearest bar, or use raw value
+        const rawLength = currentResizeWidth.current / barWidth;
+        newLength = Math.max(REGION_CONSTANTS.MIN_REGION_LENGTH, snap ? Math.round(rawLength) : rawLength);
       } else if (resizeAction === 'start') {
-        // Start resize: round bar number and adjust length accordingly
+        // Start resize: snap bar number, or use raw value
         const rawBarNumber = currentResizeLeft.current / barWidth + 1;
-        newBarNumber = Math.max(1, Math.round(rawBarNumber));
-        
+        newBarNumber = Math.max(1, snap ? Math.round(rawBarNumber) : rawBarNumber);
+
         // Calculate the difference from the initial position
         const barDiff = initialBarNumberRef.current! - newBarNumber;
-        
+
         // Adjust length to maintain the end position
         newLength = initialLengthRef.current! + barDiff;
-        
+
         // Ensure minimum length
         if (newLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
           newLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
@@ -432,9 +437,10 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // If the mouse was moved, calculate the final position
     if (mouseMoved.current && currentDragLeft.current !== null && currentDragTop.current !== null) {
-      // Calculate the new bar number and round to nearest integer
+      // Calculate the new bar number; snap to nearest integer when snapping is on
+      const snap = KGMainContentState.instance().isSnappingEnabled();
       const rawBarNumber = (currentDragLeft.current / barWidth) + 1;
-      finalBarNumber = Math.max(1, Math.round(rawBarNumber));
+      finalBarNumber = Math.max(1, snap ? Math.round(rawBarNumber) : rawBarNumber);
       
       // Calculate the closest track based on vertical position
       if (allTracks && allTracks.length > 0 && gridContainerRef.current) {
@@ -506,11 +512,22 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     >
       {/* Render regions for this track */}
       {trackRegions.map(region => {
-        // Find the corresponding KGMidiRegion in the track
-        const midiRegion = track.getRegions().find(r => r.getId() === region.id) as KGMidiRegion | undefined;
-        
+        // Find the corresponding region in the track
+        const coreRegion = track.getRegions().find(r => r.getId() === region.id);
+        const midiRegion = coreRegion?.getCurrentType() === 'KGMidiRegion' ? coreRegion as unknown as KGMidiRegion : undefined;
+        const audioRegion = coreRegion?.getCurrentType() === 'KGAudioRegion' ? coreRegion as unknown as KGAudioRegion : undefined;
+
+        // Get audio buffer for waveform rendering
+        let audioBuffer: AudioBuffer | undefined;
+        if (audioRegion) {
+          audioBuffer = KGAudioInterface.instance().getAudioBuffer(
+            track.getId().toString(),
+            audioRegion.getAudioFileId()
+          );
+        }
+
         return (
-          <RegionItem 
+          <RegionItem
             key={region.id}
             id={region.id}
             name={region.name}
@@ -526,8 +543,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             onDragEnd={handleRegionDragEnd}
             // Keep onClick for selection-only logic if needed by parent
             onClick={handleRegionClick}
-            // New explicit pencil action
-            onOpenPianoRoll={(regionId) => {
+            // New explicit pencil action — disabled for audio regions
+            onOpenPianoRoll={audioRegion ? undefined : (regionId) => {
               if (onOpenPianoRoll) {
                 onOpenPianoRoll(regionId);
               } else if (onRegionClick) {
@@ -536,6 +553,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
               }
             }}
             midiRegion={midiRegion}
+            audioRegion={audioRegion}
+            audioBuffer={audioBuffer}
           />
         );
       })}

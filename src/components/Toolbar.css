@@ -153,3 +153,49 @@
   width: 100px;
   left: 0;
 }
+
+/* Clickable zoom styling */
+.current-zoom {
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.current-zoom:hover {
+  background-color: #4a4a4a;
+  color: #fff;
+}
+
+.zoom-slider-popup {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 8px 12px;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.zoom-slider-popup input[type="range"] {
+  width: 120px;
+}
+
+.zoom-slider-label {
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: #e0e0e0;
+  min-width: 20px;
+  text-align: center;
+}

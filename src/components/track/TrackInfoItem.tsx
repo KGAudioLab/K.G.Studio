@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { KGTrack } from '../../core/track/KGTrack';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { KGAudioTrack } from '../../core/track/KGAudioTrack';
 import { useProjectStore } from '../../stores/projectStore';
 import { TbPiano } from 'react-icons/tb';
 import { TbSettings } from 'react-icons/tb';
+import { FaFileAudio } from 'react-icons/fa';
 import KGDropdown from '../common/KGDropdown';
+import FileImportModal from '../common/FileImportModal';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
@@ -34,7 +37,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDrop,
   onDragEnd
 }) => {
-  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, tracks: allTracks } = useProjectStore();
+  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks } = useProjectStore();
   const isSelected = selectedTrackId === track.getId().toString();
   // Inline instrument dropdown removed; use InstrumentSelection panel instead
   
@@ -48,6 +51,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   
   const [currentInstrument, setCurrentInstrument] = useState(getTrackInstrument());
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const suppressDragRef = useRef(false);
   const [volume, setVolume] = useState(track.getVolume());
@@ -195,6 +199,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
 
   // Inline instrument change removed; handled by InstrumentSelection panel
 
+  const isAudioTrack = track instanceof KGAudioTrack;
+
   // Handle piano button click
   const handlePianoButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -202,6 +208,19 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     setSelectedTrack(track.getId().toString());
     // Toggle global InstrumentSelection panel (it follows selectedTrackId)
     toggleInstrumentSelectionForTrack();
+  };
+
+  // Handle audio import button click
+  const handleAudioImportClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedTrack(track.getId().toString());
+    setShowAudioImportModal(true);
+  };
+
+  // Handle audio file import
+  const handleAudioFileImport = (file: File) => {
+    importAudioToTrack(track.getId().toString(), file);
+    setShowAudioImportModal(false);
   };
 
   // Handle settings button click
@@ -253,12 +272,21 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
       <div className="track-controls">
         <div className="track-name-and-volume">
           <div className="instrument-image">
-            <img 
-              src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`} 
-              alt={String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.displayName || currentInstrument)}
-              width="64"
-              height="64"
-            />
+            {isAudioTrack ? (
+              <img
+                src={`${import.meta.env.BASE_URL}resources/instruments/speaker.png`}
+                alt="Audio Track"
+                width="64"
+                height="64"
+              />
+            ) : (
+              <img
+                src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`}
+                alt={String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.displayName || currentInstrument)}
+                width="64"
+                height="64"
+              />
+            )}
           </div>
           <div className="track-name-and-controls">
             <div 
@@ -296,9 +324,15 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           <button className={`solo${solo ? ' active' : ''}`} onClick={handleToggleSolo}>S</button>
           <button className={`mute${muted ? ' active' : ''}`} onClick={handleToggleMute}>M</button>
           <div>
-            <button className="instrument" onClick={handlePianoButtonClick}>
-              <TbPiano />
-            </button>
+            {isAudioTrack ? (
+              <button className="instrument" onClick={handleAudioImportClick} title="Import Audio">
+                <FaFileAudio />
+              </button>
+            ) : (
+              <button className="instrument" onClick={handlePianoButtonClick}>
+                <TbPiano />
+              </button>
+            )}
           </div>
           <div style={{ position: 'relative' }} ref={settingsDropdownRef}>
             <button className="settings" onClick={handleSettingsButtonClick}>
@@ -319,8 +353,18 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           </div>
         </div>
       </div>
+      {isAudioTrack && (
+        <FileImportModal
+          isVisible={showAudioImportModal}
+          onClose={() => setShowAudioImportModal(false)}
+          onFileImport={handleAudioFileImport}
+          acceptedTypes={['.wav', '.mp3', '.ogg', '.flac', '.aac']}
+          title="Import Audio"
+          description="Drag and drop your audio file here"
+        />
+      )}
     </div>
   );
 };
 
-export default TrackInfoItem; 
+export default TrackInfoItem;

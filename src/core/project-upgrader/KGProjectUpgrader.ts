@@ -2,6 +2,9 @@ import { KGProject } from '../KGProject';
 import { upgradeToV1 } from './upgradeToV1';
 import { upgradeToV2 } from './upgradeToV2';
 import { upgradeToV3 } from './upgradeToV3';
+import { upgradeToV4 } from './upgradeToV4';
+import { upgradeToV5 } from './upgradeToV5';
+import { upgradeToV6 } from './upgradeToV6';
 
 /**
  * Upgrade the given project to the latest structure version, one version at a time.
@@ -31,6 +34,18 @@ export function upgradeProjectToLatest(project: KGProject): KGProject {
       }
       case 3: {
         workingProject = upgradeToV3(workingProject);
+        break;
+      }
+      case 4: {
+        workingProject = upgradeToV4(workingProject);
+        break;
+      }
+      case 5: {
+        workingProject = upgradeToV5(workingProject);
+        break;
+      }
+      case 6: {
+        workingProject = upgradeToV6(workingProject);
         break;
       }
       default: {

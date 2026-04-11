@@ -25,6 +25,8 @@
   border-bottom: 1px solid #3a3a3a;
   border-right: 1px solid #3a3a3a;
   z-index: 1002; /* Higher than other elements to ensure it's always visible */
+  display: flex;
+  flex-direction: row;
 }
 
 /* Offset spacer when instrument selection panel is visible on the left */

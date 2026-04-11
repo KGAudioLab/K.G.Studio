@@ -17,8 +17,10 @@ await KGMidiInput.instance().initialize();
 
 // Attach debugger to global window in development mode
 if (import.meta.env.DEV) {
-  (window as unknown as { KGDebugger: KGDebugger }).KGDebugger = KGDebugger.instance();
-  console.log('🔧 KGDebugger attached to window - try: KGDebugger.help()');
+  const dbg = KGDebugger.instance();
+  (window as unknown as { KGDebugger: KGDebugger; sh: () => Promise<void> }).KGDebugger = dbg;
+  (window as unknown as { sh: () => Promise<void> }).sh = () => dbg.startShell();
+  console.log('🔧 KGDebugger attached to window - try: KGDebugger.help() or sh()');
 }
 
 // Start audio context on first user interaction

@@ -30,6 +30,7 @@ export class KGDebugger {
       'testToolCall(jsonInput)',
       'inputChatBox(content, interval?)',
       'opfs(command)',
+      'startShell()',
     ]);
   }
 
@@ -345,7 +346,8 @@ export class KGDebugger {
     console.log("  testExtractXMLFromString(input) - Test XML extraction from string");
     console.log("  testToolCall(input) - Execute tool call(s) from JSON and show results");
     console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
-    console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl)");
+    console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl, rm)");
+    console.log("  startShell() - Start interactive OPFS shell (prompt-based loop)");
     console.log("  help() - Show this help");
     console.log("");
     console.log("💡 Usage tips:");
@@ -449,6 +451,57 @@ export class KGDebugger {
     }
   }
 
+  /**
+   * Start an interactive OPFS shell using browser prompt() dialogs.
+   * Each prompt shows the current working directory. Type commands and click OK.
+   * Click Cancel or type 'exit'/'quit' to end the session.
+   */
+  public async startShell(): Promise<void> {
+    console.log('📟 OPFS Interactive Shell');
+    console.log('   Commands: pwd, ls, cd <path>, cat <file>, dl <file>, rm <name>');
+    console.log('   Type "exit" or click Cancel to quit.\n');
+
+    let lastOutput = '';
+
+    while (true) {
+      const cwd = '/' + this.opfsCwd.join('/');
+      const promptText = lastOutput
+        ? `${lastOutput}\n\nopfs:${cwd}$ `
+        : `opfs:${cwd}$ `;
+      const input = prompt(promptText);
+
+      if (input === null) break;
+
+      const trimmed = input.trim();
+      if (trimmed === '') continue;
+      if (trimmed === 'exit' || trimmed === 'quit') break;
+
+      // Capture console output during command execution
+      const captured: string[] = [];
+      const origLog = console.log;
+      const origError = console.error;
+      console.log = (...args: unknown[]) => {
+        origLog(...args);
+        captured.push(args.map(String).join(' '));
+      };
+      console.error = (...args: unknown[]) => {
+        origError(...args);
+        captured.push(args.map(String).join(' '));
+      };
+
+      try {
+        await this.opfs(trimmed);
+      } finally {
+        console.log = origLog;
+        console.error = origError;
+      }
+
+      lastOutput = captured.join('\n');
+    }
+
+    console.log('📟 Shell exited.');
+  }
+
   // --- OPFS Shell ---
 
   /** Current working directory path segments (relative to OPFS root) */
@@ -463,6 +516,7 @@ export class KGDebugger {
    *   cd <path>        — change directory (supports .., /, relative, and quoted paths)
    *   cat <file>       — print file contents
    *   dl <file>        — download a file to your local machine
+   *   rm <name>        — remove a file or directory (recursive)
    *
    * Usage in console:
    *   await KGDebugger.opfs('pwd')
@@ -498,9 +552,13 @@ export class KGDebugger {
           await this.opfsDl(arg)
           break
 
+        case 'rm':
+          await this.opfsRm(arg)
+          break
+
         default:
           console.log(`opfs: command not found: ${cmd}`)
-          console.log('Available commands: pwd, ls, cd <path>, cat <file>, dl <file>')
+          console.log('Available commands: pwd, ls, cd <path>, cat <file>, dl <file>, rm <name>')
       }
     } catch (error) {
       console.error(`opfs: ${error}`)
@@ -658,6 +716,21 @@ export class KGDebugger {
       console.log(`downloaded: ${fileName} (${file.size} bytes)`)
     } catch {
       console.error(`opfs: dl: ${fileName}: No such file`)
+    }
+  }
+
+  private async opfsRm(name: string): Promise<void> {
+    if (!name) {
+      console.error('opfs: rm: missing file or directory name')
+      return
+    }
+
+    const dir = await this.opfsResolveCwd()
+    try {
+      await dir.removeEntry(name, { recursive: true })
+      console.log(`removed: ${name}`)
+    } catch {
+      console.error(`opfs: rm: ${name}: No such file or directory`)
     }
   }
 }
