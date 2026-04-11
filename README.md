@@ -10,6 +10,7 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2026.04.11**: Migrated project storage from IndexedDB to OPFS (Origin Private File System) with a folder-based structure for better media file handling. Added audio track support with WAV/MP3 import, playback, looping, and non-destructive region trimming. Added bounce-to-WAV/MP3 export via offline rendering.
 - **2026.04.05**: Migrated the AI agent from XML-based tool calling to native OpenAI SDK function calling for improved reliability and compatibility. Added new LLM model options including GPT-5.4 series.
 - **2026.01.23**: Implemented seamless loop playback! Drag on the bar numbers to set loop range, or toggle loop mode with the Loop button in the toolbar. Loop playback uses `Tone.js`'s native looping for sample-accurate, gap-free looping.
 - **2025.12.21**: Implemented MIDI keyboard support! You can now connect a MIDI keyboard and use it to play sounds. Please note that this feature may not work optimally in Safari and some other browsers that lack complete Web MIDI interface support.
