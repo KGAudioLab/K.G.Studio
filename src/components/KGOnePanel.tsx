@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import './KGOnePanel.css';
-import { FaPlay, FaPause } from 'react-icons/fa';
-import { FaCircleNotch } from 'react-icons/fa6';
+import { FaPlay, FaPause, FaDownload } from 'react-icons/fa';
+import { FaCircleNotch, FaGripVertical } from 'react-icons/fa6';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
@@ -77,9 +77,14 @@ const Expander: React.FC<ExpanderProps> = ({ label, children }) => {
 
 interface AudioPlayerProps {
   src: string;
+  /** When provided, makes the player draggable (shows grip handle) and adds a download button */
+  dragData?: {
+    midiUrl?: string;      // full URL to /v1/clip/midi/{taskId}; absent = MIDI import not supported
+    audioFileName: string; // filename used for download and OPFS storage
+  };
 }
 
-const AudioPlayer: React.FC<AudioPlayerProps> = ({ src }) => {
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, dragData }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -104,10 +109,34 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src }) => {
     setCurrentTime(ratio * duration);
   };
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!dragData) return;
+    e.dataTransfer.setData('application/kgone-clip', JSON.stringify({
+      midiUrl: dragData.midiUrl,
+      audioUrl: src,
+      audioDurationSeconds: duration,
+      audioFileName: dragData.audioFileName,
+    }));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = dragData?.audioFileName ?? 'kgone_clip.wav';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="kgone-audio-player">
+    <div
+      className="kgone-audio-player"
+      draggable={!!dragData}
+      onDragStart={handleDragStart}
+    >
       <audio
         ref={audioRef}
         src={src}
@@ -117,6 +146,11 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src }) => {
         onPause={() => setIsPlaying(false)}
         onEnded={() => { setIsPlaying(false); setCurrentTime(0); }}
       />
+      {dragData && (
+        <span className="kgone-player-drag-handle" title="Drag to a track to import">
+          <FaGripVertical />
+        </span>
+      )}
       <button className="kgone-player-play-btn" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>
         {isPlaying ? <FaPause /> : <FaPlay />}
       </button>
@@ -124,6 +158,11 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src }) => {
         <div className="kgone-player-progress-fill" style={{ width: `${progress}%` }} />
       </div>
       <span className="kgone-player-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
+      {dragData && (
+        <button className="kgone-player-download-btn" onClick={handleDownload} title="Download audio">
+          <FaDownload />
+        </button>
+      )}
     </div>
   );
 };
@@ -161,6 +200,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const taskIdRef = useRef<string>('');
 
   // Revoke blob URL on unmount
   useEffect(() => {
@@ -248,6 +288,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       const genJson = (await genResp.json()) as { task_id: string };
       kgoneLog('RES', `POST /v1/clip/generate → ${genResp.status}`, genJson);
       const { task_id } = genJson;
+      taskIdRef.current = task_id;
 
       // ── 3. Poll for completion ──────────────────────────────────────────────
       setGenStatus('polling');
@@ -431,7 +472,25 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       </Expander>
 
       {/* Audio preview player — shown once generation is complete */}
-      {audioUrl && <AudioPlayer src={audioUrl} />}
+      {audioUrl && (
+        <AudioPlayer
+          src={audioUrl}
+          dragData={taskIdRef.current ? {
+            midiUrl: `${getKGOneBaseUrl()}/v1/clip/midi/${taskIdRef.current}`,
+            audioFileName: `KGOne_Clip_${taskIdRef.current}.wav`,
+          } : undefined}
+        />
+      )}
+
+      {/* Drag-to-track hint — shown after a successful generation */}
+      {genStatus === 'done' && (
+        <div className="kgone-hint">
+          Drag the player above to a track to import the clip.
+          Drop onto an <strong>audio track</strong> to import as a WAV region (recommended),
+          or onto a <strong>MIDI track</strong> to import as a MIDI region.
+          Note: MIDI is transcribed from the audio and may not be perfectly accurate.
+        </div>
+      )}
 
       {/* Error message */}
       {genStatus === 'error' && errorMsg && (
@@ -473,6 +532,7 @@ const FullSongTab: React.FC = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const taskIdRef = useRef<string>('');
 
   useEffect(() => {
     return () => {
@@ -554,6 +614,7 @@ const FullSongTab: React.FC = () => {
       const genJson = (await genResp.json()) as { data: { task_id: string }; code: number };
       kgoneLog('RES', `POST /v1/fullsong/generate → ${genResp.status}`, genJson);
       const task_id = genJson.data.task_id;
+      taskIdRef.current = task_id;
 
       // ── 3. Poll for completion ──────────────────────────────────────────────
       setGenStatus('polling');
@@ -714,7 +775,21 @@ const FullSongTab: React.FC = () => {
         </div>
       </Expander>
 
-      {audioUrl && <AudioPlayer src={audioUrl} />}
+      {audioUrl && (
+        <AudioPlayer
+          src={audioUrl}
+          dragData={taskIdRef.current ? {
+            audioFileName: `KGOne_FullSong_${taskIdRef.current}.mp3`,
+          } : undefined}
+        />
+      )}
+
+      {genStatus === 'done' && (
+        <div className="kgone-hint">
+          Drag the player above to an <strong>audio track</strong> to import the song.
+          Dropping onto a MIDI track is not supported for full song generation.
+        </div>
+      )}
 
       {genStatus === 'error' && errorMsg && (
         <div className="kgone-error-msg">{errorMsg}</div>
@@ -753,6 +828,7 @@ const SeparatorTab: React.FC = () => {
   const [stemAudioUrls, setStemAudioUrls] = useState<Array<{ name: string; url: string }>>([]);
 
   const abortRef = useRef<AbortController | null>(null);
+  const taskIdRef = useRef<string>('');
 
   // Revoke all blob URLs on unmount
   useEffect(() => {
@@ -853,6 +929,7 @@ const SeparatorTab: React.FC = () => {
       const sepJson = (await sepResp.json()) as { task_id: string };
       kgoneLog('RES', `POST /v1/separator/separate → ${sepResp.status}`, sepJson);
       const { task_id } = sepJson;
+      taskIdRef.current = task_id;
 
       // ── 3. Poll for completion ─────────────────────────────────────────────
       setGenStatus('polling');
@@ -966,9 +1043,22 @@ const SeparatorTab: React.FC = () => {
               {stemAudioUrls.map(stem => (
                 <div key={stem.name} className="kgone-stem-player">
                   <div className="kgone-label" style={{ marginBottom: 4 }}>{stem.name}</div>
-                  <AudioPlayer src={stem.url} />
+                  <AudioPlayer
+                    src={stem.url}
+                    dragData={taskIdRef.current ? {
+                      audioFileName: `KGOne_Stem_${stem.name}_${taskIdRef.current}.mp3`,
+                    } : undefined}
+                  />
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Drag-to-track hint — shown after successful separation */}
+          {genStatus === 'done' && (
+            <div className="kgone-hint">
+              Drag each stem player above to an <strong>audio track</strong> to import it.
+              Dropping onto a MIDI track is not supported for stem separation.
             </div>
           )}
 

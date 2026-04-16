@@ -21,6 +21,7 @@ export { MoveRegionCommand } from './region/MoveRegionCommand';
 export { PasteRegionsCommand } from './region/PasteRegionsCommand';
 export { UpdateRegionCommand, type RegionUpdateProperties } from './region/UpdateRegionCommand';
 export { ImportAudioCommand } from './region/ImportAudioCommand';
+export { ImportMidiClipCommand } from './region/ImportMidiClipCommand';
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';

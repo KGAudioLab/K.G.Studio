@@ -38,7 +38,8 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll,
     setActiveRegionId,
     addTrack,
-    addAudioTrack
+    addAudioTrack,
+    projectName,
   } = useProjectStore();
 
   // State to store regions
@@ -236,6 +237,19 @@ const MainContent: React.FC<MainContentProps> = ({
       }
 
       return updatedRegions;
+    });
+  };
+
+  // Handle regions dropped from K.G.One panel (external drag-and-drop)
+  const handleExternalDropComplete = (trackIndex: number, regionUI: RegionUI) => {
+    const track = tracks[trackIndex];
+    if (!track) return;
+    updateTrack(track);
+    setSelectedTrack(track.getId().toString());
+    setRegions(prev => {
+      const updated = [...prev, regionUI];
+      selectRegion(regionUI.id, updated);
+      return updated;
     });
   };
 
@@ -742,10 +756,12 @@ const MainContent: React.FC<MainContentProps> = ({
             draggedTrackIndex={draggedTrackIndex}
             dragOverTrackIndex={dragOverTrackIndex}
             selectedRegionId={selectedRegionId}
+            projectName={projectName}
             onRegionCreated={handleRegionCreated}
             onRegionUpdated={handleRegionUpdated}
             onRegionClick={handleRegionClick}
             onOpenPianoRoll={handleOpenPianoRoll}
+            onExternalDropComplete={handleExternalDropComplete}
           />
         </div>
       </div>

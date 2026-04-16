@@ -124,6 +124,11 @@
   margin-top: 2px;
 }
 
+.kgone-hint strong {
+  color: #999;
+  font-weight: 600;
+}
+
 /* Two-column row (e.g. note + scale) */
 .kgone-row {
   display: flex;
@@ -282,6 +287,36 @@
   font-size: 10px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.kgone-player-drag-handle {
+  color: #555;
+  cursor: grab;
+  font-size: 12px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.kgone-player-drag-handle:hover {
+  color: #888;
+}
+
+.kgone-player-download-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.kgone-player-download-btn:hover {
+  color: #7a9cff;
 }
 
 /* ── Generation state feedback ─────────────────────────────────────────────── */

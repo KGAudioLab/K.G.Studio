@@ -27,6 +27,7 @@ interface TrackGridItemProps {
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
+  onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
 }
 
 const TrackGridItem: React.FC<TrackGridItemProps> = ({
@@ -46,7 +47,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onRegionDragEnd,
   onRegionClick,
   onOpenPianoRoll,
-  allTracks
+  allTracks,
+  onKGOneClipDrop,
 }) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
@@ -503,12 +505,24 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const trackRegions = regions.filter(region => region.trackIndex === index);
 
   return (
-    <div 
+    <div
       className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''}`}
       data-test-id={`track-grid-${track.getId()}`}
       onDoubleClick={(e) => onDoubleClick(e, index)}
       onClick={(e) => onClick && onClick(e, index)}
       ref={trackElementRef}
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }
+      }}
+      onDrop={(e) => {
+        if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
+          e.preventDefault();
+          onKGOneClipDrop?.(e, index);
+        }
+      }}
     >
       {/* Render regions for this track */}
       {trackRegions.map(region => {
