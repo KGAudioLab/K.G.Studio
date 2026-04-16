@@ -10,6 +10,7 @@ import InstrumentSelection from './components/InstrumentSelection';
 import ChatBox from './components/ChatBox';
 import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
+import KGOnePanel from './components/KGOnePanel';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
 import { KGOfflineRenderer } from './core/audio-interface/KGOfflineRenderer';
@@ -26,7 +27,7 @@ function App() {
   const {
     refreshStatus,
     loadProject, showChatBox, showSettings, setShowSettings, initializeFromConfig,
-    showInstrumentSelection
+    showInstrumentSelection, showKGOnePanel
   } = useProjectStore();
 
   // Track if app has been initialized to prevent multiple initializations
@@ -46,6 +47,21 @@ function App() {
 
       // Initialize ConfigManager first to load config.json and user settings
       await ConfigManager.instance().initialize();
+
+      // Check for kgone-server.txt (managed deployment override)
+      try {
+        const kgoneServerResponse = await fetch(`${import.meta.env.BASE_URL}kgone-server.txt`);
+        const contentType = kgoneServerResponse.headers.get('Content-Type') ?? '';
+        if (kgoneServerResponse.ok && contentType.includes('text/plain')) {
+          const url = (await kgoneServerResponse.text()).trim();
+          if (url) {
+            ConfigManager.instance().setKGOneManagedByServer(url);
+            console.log('K.G.One: server-managed config loaded from kgone-server.txt, base URL:', url);
+          }
+        }
+      } catch {
+        // File not present — user configures manually
+      }
 
       // Initialize store from config after ConfigManager is ready
       await initializeFromConfig();
@@ -134,6 +150,7 @@ function App() {
             <MainContent />
           </>
         )}
+        <KGOnePanel isVisible={showKGOnePanel && !showSettings} />
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 

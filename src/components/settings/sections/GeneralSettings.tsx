@@ -18,6 +18,9 @@ const GeneralSettings: React.FC = () => {
   const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
   const [compatibleModel, setCompatibleModel] = useState<string>('');
   const [soundfontBaseUrl, setSoundfontBaseUrl] = useState<string>('');
+  const [kgoneEnabled, setKgoneEnabled] = useState<boolean>(false);
+  const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
+  const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
 
   const configManager = ConfigManager.instance();
 
@@ -58,6 +61,9 @@ const GeneralSettings: React.FC = () => {
       setCompatibleBaseUrl((configManager.get('general.openai_compatible.base_url') as string) || '');
       setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
       setSoundfontBaseUrl((configManager.get('general.soundfont.base_url') as string) || '');
+      setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
+      setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
+      setKgoneServerManaged(configManager.isKGOneServerManaged());
     };
 
     loadConfig();
@@ -173,6 +179,20 @@ const GeneralSettings: React.FC = () => {
   const handleSoundfontBaseUrlChange = (value: string) => {
     setSoundfontBaseUrl(value);
     debouncedSave('general.soundfont.base_url', value);
+  };
+
+  const handleKgoneEnabledChange = async (value: boolean) => {
+    setKgoneEnabled(value);
+    try {
+      await configManager.set('general.kgone.enabled', value);
+    } catch (error) {
+      console.error('Failed to save K.G.One enabled:', error);
+    }
+  };
+
+  const handleKgoneBaseUrlChange = (value: string) => {
+    setKgoneBaseUrl(value);
+    debouncedSave('general.kgone.base_url', value);
   };
 
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
@@ -465,6 +485,48 @@ const GeneralSettings: React.FC = () => {
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               Changing this URL to an incompatible soundfont source may cause some instruments to sound wrong or not play.
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>K.G.One Settings</h4>
+
+          {kgoneServerManaged && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+              K.G.One configuration is managed by the server (kgone-server.txt). Settings are read-only.
+            </div>
+          )}
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Enable K.G.One Integration
+            </label>
+            <select
+              className="settings-select"
+              value={kgoneEnabled ? 'true' : 'false'}
+              onChange={(e) => handleKgoneEnabledChange(e.target.value === 'true')}
+              disabled={kgoneServerManaged}
+            >
+              <option value="false">Disabled</option>
+              <option value="true">Enabled</option>
+            </select>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Server Base URL
+            </label>
+            <input
+              type="text"
+              className="settings-input"
+              placeholder="e.g. http://127.0.0.1:8000"
+              value={kgoneBaseUrl}
+              onChange={(e) => handleKgoneBaseUrlChange(e.target.value)}
+              disabled={kgoneServerManaged}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Base URL of a running K.G.One server. Used for full-song generation, clip generation, and stem separation.
             </div>
           </div>
         </div>

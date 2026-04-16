@@ -76,6 +76,9 @@ interface ProjectState {
   // ChatBox state
   showChatBox: boolean;
 
+  // K.G.One panel state
+  showKGOnePanel: boolean;
+
   // Instrument selection panel state
   showInstrumentSelection: boolean;
   // instrumentSelectionTrackId removed; panel now follows selectedTrackId
@@ -136,6 +139,9 @@ interface ProjectState {
   // ChatBox actions
   setShowChatBox: (show: boolean) => void;
   toggleChatBox: () => void;
+
+  // K.G.One panel actions
+  toggleKGOnePanel: () => void;
 
   // Instrument selection panel actions
   openInstrumentSelectionForTrack: () => void;
@@ -277,6 +283,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
+
+    // Initial K.G.One panel state
+    showKGOnePanel: false,
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
@@ -898,7 +907,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     toggleChatBox: () => {
       const { showChatBox } = get();
-      set({ showChatBox: !showChatBox });
+      set({ showChatBox: !showChatBox, showKGOnePanel: false });
+    },
+
+    toggleKGOnePanel: () => {
+      const { showKGOnePanel } = get();
+      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false });
     },
 
     // Instrument selection panel actions

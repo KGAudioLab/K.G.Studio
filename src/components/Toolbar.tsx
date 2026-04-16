@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { plainToInstance } from 'class-transformer';
-import { FaPencil, FaCopy, FaPaste, FaTrash } from 'react-icons/fa6';
+import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
@@ -28,6 +28,7 @@ import FileImportModal from './common/FileImportModal';
 import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
+import { ConfigManager } from '../core/config/ConfigManager';
 
 const Toolbar: React.FC = () => {
   const {
@@ -40,7 +41,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, cleanupProjectState,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
@@ -740,6 +741,16 @@ const Toolbar: React.FC = () => {
     setStatus("Settings toggled");
   };
 
+  // K.G.One panel toggle
+  const isKGOneEnabled = ConfigManager.instance().get('general.kgone.enabled') as boolean ?? false;
+
+  const handleKGOneClick = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("K.G.One button clicked");
+    }
+    toggleKGOnePanel();
+  };
+
   // Handle Piano button click: open piano roll if closed, targeting active or selected region
   const handlePianoButtonClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
@@ -916,6 +927,15 @@ const Toolbar: React.FC = () => {
           </div>
         </div>
         <button title="Settings" onClick={handleSettingsClick}><FaCog /></button>
+        <button
+          title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
+          onClick={handleKGOneClick}
+          disabled={!isKGOneEnabled}
+          className={showKGOnePanel ? 'active' : ''}
+          style={!isKGOneEnabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+        >
+          <FaWandMagicSparkles />
+        </button>
         <button title="Chat" onClick={handleChatClick}><FaComments /></button>
       </div>
     </div>

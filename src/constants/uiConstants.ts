@@ -14,6 +14,7 @@ export const DEBUG_MODE = {
   REGION_ITEM: true,
   PIANO_ROLL: true,
   MIDI_IMPORT: true,
+  KGONE: true,
 };
 
 // Toolbar related constants
@@ -39,9 +40,9 @@ export const PIANO_ROLL_CONSTANTS = {
 
   // notes
   NOTE_EDGE_OFFSET: 5,
-  
+
   // Minimum note length in beats (1/64 beat)
-  MIN_NOTE_LENGTH: 1/64,
+  MIN_NOTE_LENGTH: 1 / 64,
 
   // Dragging threshold for note selection
   DRAG_THRESHOLD: 5,
