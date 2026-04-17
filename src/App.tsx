@@ -18,6 +18,8 @@ import type { RenderingEvent } from './core/audio-interface/KGOfflineRenderer';
 import { KGCore } from './core/KGCore';
 import { ConfigManager } from './core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from './util/scaleUtil';
+import { KGProjectStorage } from './core/io/KGProjectStorage';
+import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
@@ -42,6 +44,16 @@ function App() {
     hasInitialized.current = true;
 
     const initializeApp = async () => {
+      // Wipe the reserved "Untitled Project" OPFS folder on every startup so it stays ephemeral
+      try {
+        const storage = KGProjectStorage.getInstance();
+        if (await storage.exists(RESERVED_PROJECT_NAME)) {
+          await storage.delete(RESERVED_PROJECT_NAME);
+        }
+      } catch (error) {
+        console.warn('Could not clear Untitled Project folder on startup:', error);
+      }
+
       // Load the current project from KGCore
       loadProject(null);
 

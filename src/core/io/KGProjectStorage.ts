@@ -351,11 +351,11 @@ export class KGProjectStorage {
    * Used when the user renames the project and saves. Handles the case where the
    * old folder doesn't exist yet (new project never saved).
    */
-  public async saveWithRename(oldName: string, newName: string, data: KGProject): Promise<void> {
+  public async saveWithRename(oldName: string, newName: string, data: KGProject, overwrite: boolean = false): Promise<void> {
     this.ensureInitialized();
 
     // Save project JSON to the new folder
-    await this.save(newName, data, false);
+    await this.save(newName, data, overwrite);
 
     // Migrate media files only if the old folder exists
     if (await this.exists(oldName)) {

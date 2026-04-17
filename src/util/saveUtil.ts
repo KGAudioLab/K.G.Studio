@@ -1,5 +1,6 @@
 import { KGProjectStorage, DuplicateEntryError } from '../core/io/KGProjectStorage';
 import { KGCore } from '../core/KGCore';
+import { RESERVED_PROJECT_NAME } from './projectNameUtil';
 
 /**
  * Save project utility function.
@@ -17,14 +18,27 @@ export const saveProject = async (
   savedProjectName: string,
   setStatus: (status: string) => void,
   onSaveSuccess: (finalName: string) => void,
+  forceOverwrite: boolean = false,
 ): Promise<boolean> => {
   const storage = KGProjectStorage.getInstance();
+
+  // Auto-rename reserved "Untitled Project" to "Untitled Project (1)", "(2)", etc.
+  if (projectName === RESERVED_PROJECT_NAME) {
+    let counter = 1;
+    let autoName = `${RESERVED_PROJECT_NAME} (${counter})`;
+    while (await storage.exists(autoName)) {
+      counter++;
+      autoName = `${RESERVED_PROJECT_NAME} (${counter})`;
+    }
+    projectName = autoName;
+  }
+
   const isRename = savedProjectName !== projectName;
 
   if (isRename) {
-    // Determine the target name, resolving conflicts automatically
+    // Determine the target name; skip conflict resolution when caller already confirmed overwrite
     let targetName = projectName;
-    if (await storage.exists(projectName)) {
+    if (!forceOverwrite && await storage.exists(projectName)) {
       targetName = await storage.resolveUniqueName(projectName);
     }
 
@@ -33,6 +47,7 @@ export const saveProject = async (
         savedProjectName,
         targetName,
         KGCore.instance().getCurrentProject(),
+        forceOverwrite,
       );
 
       const statusMsg =

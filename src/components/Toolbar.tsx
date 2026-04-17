@@ -2,7 +2,7 @@ import React from 'react';
 import './Toolbar.css';
 import { saveProject } from '../util/saveUtil';
 import { KGProjectStorage } from '../core/io/KGProjectStorage';
-import { isValidProjectName } from '../util/projectNameUtil';
+import { isValidProjectName, isReservedProjectName, RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 import { KGCore } from '../core/KGCore';
 import { useProjectStore } from '../stores/projectStore';
 import { DEBUG_MODE } from '../constants/uiConstants';
@@ -86,15 +86,43 @@ const Toolbar: React.FC = () => {
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
 
-  const handleProjectNameClick = () => {
+  const handleProjectNameClick = async () => {
     const newName = prompt("Enter project name:", projectName);
-    if (newName) {
-      if (!isValidProjectName(newName)) {
-        window.alert("Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.");
+    if (!newName) return;
+    if (!isValidProjectName(newName)) {
+      window.alert("Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.");
+      return;
+    }
+    if (isReservedProjectName(newName)) {
+      window.alert(`"${RESERVED_PROJECT_NAME}" is a reserved project name. Please choose a different name.`);
+      return;
+    }
+
+    // Conflict check: only relevant when targeting a different OPFS folder
+    if (newName !== savedProjectName) {
+      const storage = KGProjectStorage.getInstance();
+      const exists = await storage.exists(newName);
+      if (exists) {
+        const confirmed = window.confirm(
+          `Project "${newName}" already exists. Do you want to overwrite it?`
+        );
+        if (!confirmed) return;
+        // Confirmed: update in-memory name then save immediately, overwriting the existing project
+        setProjectName(newName);
+        await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+          setSavedProjectName(finalName);
+          if (finalName !== newName) setProjectName(finalName);
+        }, true /* forceOverwrite */);
         return;
       }
-      setProjectName(newName);
     }
+
+    // Name is available — update and save immediately
+    setProjectName(newName);
+    await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+      setSavedProjectName(finalName);
+      if (finalName !== newName) setProjectName(finalName);
+    });
   };
 
   // Common project loading logic extracted for reuse
