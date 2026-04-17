@@ -97,6 +97,9 @@
   font-size: 12px;
   cursor: pointer;
   position: relative;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .track-name:hover {

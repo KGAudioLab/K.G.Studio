@@ -246,6 +246,14 @@ const MainContent: React.FC<MainContentProps> = ({
     if (!track) return;
     updateTrack(track);
     setSelectedTrack(track.getId().toString());
+
+    // Sync maxBars from core model — ImportAudioCommand may have expanded it
+    const coreMaxBars = KGCore.instance().getCurrentProject().getMaxBars();
+    if (coreMaxBars > maxBars) {
+      useProjectStore.setState({ maxBars: coreMaxBars });
+      document.documentElement.style.setProperty('--max-number-of-bars', coreMaxBars.toString());
+    }
+
     setRegions(prev => {
       const updated = [...prev, regionUI];
       selectRegion(regionUI.id, updated);

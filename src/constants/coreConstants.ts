@@ -108,3 +108,9 @@ export const CONFIG_UPGRADER_CONSTANTS = {
 export const URL_CONSTANTS = {
   DEFAULT_OPENAI_BASE_URL: 'https://api.openai.com/v1',
 };
+
+export const KGONE_CONSTANTS = {
+  MAX_RETRY_ATTEMPTS: 3,        // max retries for polling & download calls
+  RETRY_INITIAL_DELAY_MS: 1000, // first wait before retry (ms)
+  RETRY_BACKOFF_MULTIPLIER: 2,  // doubles each attempt: 1 s → 2 s → 4 s
+};

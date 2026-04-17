@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import * as Tone from 'tone';
 import './KGOnePanel.css';
 import { FaPlay, FaPause, FaDownload } from 'react-icons/fa';
 import { FaCircleNotch, FaGripVertical } from 'react-icons/fa6';
@@ -8,7 +9,10 @@ import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { DEBUG_MODE } from '../constants/uiConstants';
+import { fetchWithRetry } from '../util/retryUtil';
 import type { KeySignature } from '../core/KGProject';
+import { ImportStemsCommand } from '../core/commands';
+import type { StemImportEntry } from '../core/commands';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,8 +21,8 @@ type Tab = 'clip' | 'fullsong' | 'separator';
 type GenStatus = 'idle' | 'loading-model' | 'generating' | 'polling' | 'downloading' | 'done' | 'error';
 
 const SEPARATOR_MODELS = [
-  { label: 'Vocal and Instrument (High Accuracy)', value: 'UVR-MDX-NET-Inst_HQ_3.onnx' },
-  { label: 'Vocal and Instrument (Medium Accuracy)', value: 'MDX23C-8KFFT-InstVoc_HQ.ckpt' },
+  { label: 'Vocal and Instrument (Medium Accuracy)', value: 'UVR-MDX-NET-Inst_HQ_3.onnx' },
+  { label: 'Vocal and Instrument (High Accuracy)', value: 'MDX23C-8KFFT-InstVoc_HQ.ckpt' },
   { label: 'Vocal, Drums, Bass, Guitar, Piano, and Others', value: 'htdemucs_6s.yaml' },
 ] as const;
 
@@ -94,7 +98,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, dragData }) => {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
     } else {
       audio.pause();
     }
@@ -306,12 +310,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
         if (signal.aborted) return;
 
         kgoneLog('REQ', `GET /v1/clip/result/${task_id}`, null);
-        const resultResp = await fetch(`${baseUrl}/v1/clip/result/${task_id}`, { signal });
-        if (!resultResp.ok) {
-          const body = await resultResp.text().catch(() => '');
-          kgoneLog('RES', `GET /v1/clip/result/${task_id} → ${resultResp.status}`, body);
-          throw new Error(`Poll failed (${resultResp.status}): ${body}`);
-        }
+        const resultResp = await fetchWithRetry(`${baseUrl}/v1/clip/result/${task_id}`, { signal });
 
         const result = (await resultResp.json()) as { task_id: string; status: string; error?: string };
         kgoneLog('RES', `GET /v1/clip/result/${task_id} → ${resultResp.status}`, result);
@@ -328,11 +327,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       setGenHint('Downloading audio...');
 
       kgoneLog('REQ', `GET /v1/clip/audio/${task_id}`, null);
-      const audioResp = await fetch(`${baseUrl}/v1/clip/audio/${task_id}`, { signal });
-      if (!audioResp.ok) {
-        kgoneLog('RES', `GET /v1/clip/audio/${task_id} → ${audioResp.status}`, '(error)');
-        throw new Error(`Audio download failed (${audioResp.status})`);
-      }
+      const audioResp = await fetchWithRetry(`${baseUrl}/v1/clip/audio/${task_id}`, { signal });
 
       const blob = await audioResp.blob();
       const url = URL.createObjectURL(blob);
@@ -357,10 +352,10 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
   const btnLabel = () => {
     switch (genStatus) {
       case 'loading-model': return 'Loading model...';
-      case 'generating':    return 'Generating...';
-      case 'polling':       return 'Processing...';
-      case 'downloading':   return 'Downloading...';
-      default:              return 'Generate Clip';
+      case 'generating': return 'Generating...';
+      case 'polling': return 'Processing...';
+      case 'downloading': return 'Downloading...';
+      default: return 'Generate Clip';
     }
   };
 
@@ -636,12 +631,7 @@ const FullSongTab: React.FC = () => {
         if (signal.aborted) return;
 
         kgoneLog('REQ', `GET /v1/fullsong/result/${task_id}`, null);
-        const resultResp = await fetch(`${baseUrl}/v1/fullsong/result/${task_id}`, { signal });
-        if (!resultResp.ok) {
-          const body = await resultResp.text().catch(() => '');
-          kgoneLog('RES', `GET /v1/fullsong/result/${task_id} → ${resultResp.status}`, body);
-          throw new Error(`Poll failed (${resultResp.status}): ${body}`);
-        }
+        const resultResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/result/${task_id}`, { signal });
 
         const pollJson = (await resultResp.json()) as PollResponse;
         kgoneLog('RES', `GET /v1/fullsong/result/${task_id} → ${resultResp.status}`, pollJson);
@@ -671,11 +661,7 @@ const FullSongTab: React.FC = () => {
       setGenHint('Downloading audio...');
 
       kgoneLog('REQ', `GET /v1/fullsong/audio/${task_id}?index=0`, null);
-      const audioResp = await fetch(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
-      if (!audioResp.ok) {
-        kgoneLog('RES', `GET /v1/fullsong/audio/${task_id}?index=0 → ${audioResp.status}`, '(error)');
-        throw new Error(`Audio download failed (${audioResp.status})`);
-      }
+      const audioResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
 
       const blob = await audioResp.blob();
       const url = URL.createObjectURL(blob);
@@ -696,10 +682,10 @@ const FullSongTab: React.FC = () => {
   const btnLabel = () => {
     switch (genStatus) {
       case 'loading-model': return 'Loading model...';
-      case 'generating':    return 'Generating...';
-      case 'polling':       return 'Processing...';
-      case 'downloading':   return 'Downloading...';
-      default:              return 'Generate Song';
+      case 'generating': return 'Generating...';
+      case 'polling': return 'Processing...';
+      case 'downloading': return 'Downloading...';
+      default: return 'Generate Song';
     }
   };
 
@@ -818,8 +804,8 @@ function extractStemName(filename: string): string {
 }
 
 const SeparatorTab: React.FC = () => {
-  const { selectedRegionIds, projectName } = useProjectStore();
-  const [model, setModel] = useState(SEPARATOR_MODELS[0].value);
+  const { selectedRegionIds, projectName, bpm, timeSignature, maxBars, refreshProjectState } = useProjectStore();
+  const [model, setModel] = useState<typeof SEPARATOR_MODELS[number]['value']>(SEPARATOR_MODELS[0].value);
 
   // Generation state
   const [genStatus, setGenStatus] = useState<GenStatus>('idle');
@@ -829,6 +815,14 @@ const SeparatorTab: React.FC = () => {
 
   const abortRef = useRef<AbortController | null>(null);
   const taskIdRef = useRef<string>('');
+  const originalRegionRef = useRef<{
+    regionName: string;
+    startFromBeat: number;
+    trackIndex: number;
+  } | null>(null);
+
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
 
   // Revoke all blob URLs on unmount
   useEffect(() => {
@@ -848,7 +842,7 @@ const SeparatorTab: React.FC = () => {
           selectedRegionIds.includes(region.getId()) &&
           region.getCurrentType() === 'KGAudioRegion'
         ) {
-          return { region: region as KGAudioRegion, trackName: track.getName() };
+          return { region: region as KGAudioRegion, trackName: track.getName(), trackIndex: track.getTrackIndex() };
         }
       }
     }
@@ -859,6 +853,14 @@ const SeparatorTab: React.FC = () => {
 
   const handleSeparate = useCallback(async () => {
     if (!selectedAudioRegion) return;
+
+    // Capture snapshot before anything changes — selection may shift during generation
+    originalRegionRef.current = {
+      regionName: selectedAudioRegion.region.getName(),
+      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      trackIndex: selectedAudioRegion.trackIndex,
+    };
+    setImportError('');
 
     // Abort any in-flight request
     abortRef.current?.abort();
@@ -956,12 +958,7 @@ const SeparatorTab: React.FC = () => {
         if (signal.aborted) return;
 
         kgoneLog('REQ', `GET /v1/separator/result/${task_id}`, null);
-        const resultResp = await fetch(`${baseUrl}/v1/separator/result/${task_id}`, { signal });
-        if (!resultResp.ok) {
-          const body = await resultResp.text().catch(() => '');
-          kgoneLog('RES', `GET /v1/separator/result/${task_id} → ${resultResp.status}`, body);
-          throw new Error(`Poll failed (${resultResp.status}): ${body}`);
-        }
+        const resultResp = await fetchWithRetry(`${baseUrl}/v1/separator/result/${task_id}`, { signal });
 
         const pollJson = (await resultResp.json()) as SepPollResponse;
         kgoneLog('RES', `GET /v1/separator/result/${task_id} → ${resultResp.status}`, pollJson);
@@ -983,11 +980,10 @@ const SeparatorTab: React.FC = () => {
       const stemResults = await Promise.all(
         files.map(async (filename) => {
           kgoneLog('REQ', `GET /v1/separator/download/${filename}`, null);
-          const dlResp = await fetch(`${baseUrl}/v1/separator/download/${encodeURIComponent(filename)}`, { signal });
-          if (!dlResp.ok) {
-            kgoneLog('RES', `GET /v1/separator/download/${filename} → ${dlResp.status}`, '(error)');
-            throw new Error(`Stem download failed (${dlResp.status}): ${filename}`);
-          }
+          const dlResp = await fetchWithRetry(
+            `${baseUrl}/v1/separator/download/${encodeURIComponent(filename)}`,
+            { signal }
+          );
           const blob = await dlResp.blob();
           const url = URL.createObjectURL(blob);
           kgoneLog('RES', `GET /v1/separator/download/${filename} → ${dlResp.status} (binary MP3)`, url);
@@ -1007,13 +1003,74 @@ const SeparatorTab: React.FC = () => {
     }
   }, [selectedAudioRegion, projectName, model, stemAudioUrls]);
 
+  const handleImportAll = useCallback(async () => {
+    const snap = originalRegionRef.current;
+    if (!snap || stemAudioUrls.length === 0) return;
+
+    setIsImporting(true);
+    setImportError('');
+
+    try {
+      const audioContext = Tone.getContext().rawContext as AudioContext;
+
+      // Decode and store every stem before touching the core model
+      const stems: StemImportEntry[] = await Promise.all(
+        stemAudioUrls.map(async (stem) => {
+          const blob = await fetch(stem.url).then(r => r.blob());
+          const fileName = `KGOne_Stem_${stem.name}_${taskIdRef.current}.mp3`;
+          const fileId = `kgone_stem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          const audioFile = new File([blob], fileName, { type: 'audio/mpeg' });
+
+          const arrayBuffer = await blob.arrayBuffer();
+          const toneBuffer = new Tone.ToneAudioBuffer();
+          await new Promise<void>((resolve, reject) => {
+            audioContext.decodeAudioData(
+              arrayBuffer.slice(0),
+              decoded => { toneBuffer.set(decoded); resolve(); },
+              reject,
+            );
+          });
+
+          await KGAudioFileStorage.storeAudioFile(projectName, fileId, audioFile);
+
+          return {
+            trackName: `${snap.regionName} (${stem.name})`,
+            audioFileId: fileId,
+            audioFileName: fileName,
+            audioDurationSeconds: toneBuffer.duration,
+            toneBuffer,
+          };
+        })
+      );
+
+      // Execute composite command (single undo step)
+      const project = KGCore.instance().getCurrentProject();
+      const cmd = new ImportStemsCommand(
+        project.getTracks().length,
+        snap.trackIndex,
+        snap.startFromBeat,
+        stems,
+        maxBars,
+      );
+      KGCore.instance().executeCommand(cmd);
+
+      // Sync store — triggers MainContent's useEffect to rebuild tracks + regions
+      refreshProjectState();
+
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsImporting(false);
+    }
+  }, [stemAudioUrls, projectName, maxBars, refreshProjectState]);
+
   const btnLabel = () => {
     switch (genStatus) {
       case 'loading-model': return 'Loading model...';
-      case 'generating':    return 'Preparing upload...';
-      case 'polling':       return 'Separating stems...';
-      case 'downloading':   return 'Downloading...';
-      default:              return 'Separate Stems';
+      case 'generating': return 'Preparing upload...';
+      case 'polling': return 'Separating stems...';
+      case 'downloading': return 'Downloading...';
+      default: return 'Separate Stems';
     }
   };
 
@@ -1030,7 +1087,8 @@ const SeparatorTab: React.FC = () => {
 
           <div className="kgone-field">
             <label className="kgone-label">Separation Model</label>
-            <select className="kgone-select" value={model} onChange={e => setModel(e.target.value)}>
+            <select className="kgone-select" value={model} onChange={e => setModel(e.target.value as typeof SEPARATOR_MODELS[number]['value'])}>
+
               {SEPARATOR_MODELS.map(m => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
@@ -1062,7 +1120,23 @@ const SeparatorTab: React.FC = () => {
             </div>
           )}
 
-          {/* Error message */}
+          {/* Bulk import button — shown after successful separation */}
+          {genStatus === 'done' && stemAudioUrls.length > 0 && (
+            <>
+              <button
+                className="kgone-btn-generate"
+                disabled={isImporting}
+                onClick={handleImportAll}
+                style={{ marginTop: 0 }}
+              >
+                {isImporting && <FaCircleNotch className="kgone-spinner" />}
+                {isImporting ? 'Importing...' : 'Import All Stems to Timeline'}
+              </button>
+              {importError && <div className="kgone-error-msg">{importError}</div>}
+            </>
+          )}
+
+          {/* Separation error message */}
           {genStatus === 'error' && errorMsg && (
             <div className="kgone-error-msg">{errorMsg}</div>
           )}

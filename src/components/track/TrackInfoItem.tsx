@@ -289,9 +289,10 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             )}
           </div>
           <div className="track-name-and-controls">
-            <div 
+            <div
               className="track-name"
               onClick={handleTrackNameClick}
+              title={track.getName()}
             >
               {track.getName()}
             </div>
