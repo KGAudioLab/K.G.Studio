@@ -1170,7 +1170,7 @@ interface KGOnePanelProps {
 }
 
 const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('clip');
+  const [activeTab, setActiveTab] = useState<Tab>('fullsong');
   const { bpm, keySignature } = useProjectStore();
 
   return (
