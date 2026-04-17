@@ -60,15 +60,19 @@ function App() {
       // Initialize ConfigManager first to load config.json and user settings
       await ConfigManager.instance().initialize();
 
-      // Check for kgone-server.txt (managed deployment override)
+      // Check for kgone-server.json (managed deployment override)
       try {
-        const kgoneServerResponse = await fetch(`${import.meta.env.BASE_URL}kgone-server.txt`);
+        const kgoneServerResponse = await fetch(`${import.meta.env.BASE_URL}kgone-server.json?ts=${Date.now()}`);
         const contentType = kgoneServerResponse.headers.get('Content-Type') ?? '';
-        if (kgoneServerResponse.ok && contentType.includes('text/plain')) {
-          const url = (await kgoneServerResponse.text()).trim();
-          if (url) {
-            ConfigManager.instance().setKGOneManagedByServer(url);
-            console.log('K.G.One: server-managed config loaded from kgone-server.txt, base URL:', url);
+        if (kgoneServerResponse.ok && contentType.includes('application/json')) {
+          const data = await kgoneServerResponse.json();
+          if (data.base_url) {
+            ConfigManager.instance().setKGOneManagedByServer(data.base_url);
+            console.log('K.G.One: server-managed config loaded from kgone-server.json, base URL:', data.base_url);
+          }
+          if (data.soundfont) {
+            ConfigManager.instance().setSoundfontManagedByServer(data.soundfont);
+            console.log('Soundfont: server-managed config loaded from kgone-server.json, base URL:', data.soundfont);
           }
         }
       } catch {

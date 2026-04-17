@@ -21,6 +21,7 @@ const GeneralSettings: React.FC = () => {
   const [kgoneEnabled, setKgoneEnabled] = useState<boolean>(false);
   const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
   const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
+  const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
 
   const configManager = ConfigManager.instance();
 
@@ -64,6 +65,7 @@ const GeneralSettings: React.FC = () => {
       setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
       setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
       setKgoneServerManaged(configManager.isKGOneServerManaged());
+      setSoundfontServerManaged(configManager.isSoundfontServerManaged());
     };
 
     loadConfig();
@@ -472,6 +474,12 @@ const GeneralSettings: React.FC = () => {
         <div className="settings-group">
           <h4>Soundfont Settings</h4>
 
+          {soundfontServerManaged && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+              Soundfont configuration is managed by the server (kgone-server.json). Settings are read-only.
+            </div>
+          )}
+
           <div className="settings-item">
             <label className="settings-label">
               Base URL
@@ -482,9 +490,20 @@ const GeneralSettings: React.FC = () => {
               placeholder="e.g. https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/"
               value={soundfontBaseUrl}
               onChange={(e) => handleSoundfontBaseUrlChange(e.target.value)}
+              disabled={soundfontServerManaged}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changing this URL to an incompatible soundfont source may cause some instruments to sound wrong or not play.
+              Changing this URL to an incompatible soundfont source may cause some instruments to sound wrong or not play.{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSoundfontBaseUrlChange('https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/');
+                }}
+                style={{ color: '#646cff', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Restore default
+              </a>
             </div>
           </div>
         </div>
@@ -494,7 +513,7 @@ const GeneralSettings: React.FC = () => {
 
           {kgoneServerManaged && (
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
-              K.G.One configuration is managed by the server (kgone-server.txt). Settings are read-only.
+              K.G.One configuration is managed by the server (kgone-server.json). Settings are read-only.
             </div>
           )}
 

@@ -105,6 +105,7 @@ export class ConfigManager {
   private storage: KGConfigStorage;
   private isInitialized: boolean = false;
   private kgoneServerManaged: boolean = false;
+  private soundfontServerManaged: boolean = false;
   private defaultConfig: AppConfig | null = null;
   private changeListeners: Set<(changedKeys: string[]) => void> = new Set();
 
@@ -558,7 +559,7 @@ export class ConfigManager {
   }
 
   /**
-   * Called at startup when kgone-server.txt is found.
+   * Called at startup when kgone-server.json contains a base_url field.
    * Forces enabled=true and overrides base_url in-memory only (not persisted).
    */
   public setKGOneManagedByServer(url: string): void {
@@ -570,6 +571,20 @@ export class ConfigManager {
 
   public isKGOneServerManaged(): boolean {
     return this.kgoneServerManaged;
+  }
+
+  /**
+   * Called at startup when kgone-server.json contains a soundfont field.
+   * Overrides general.soundfont.base_url in-memory only (not persisted).
+   */
+  public setSoundfontManagedByServer(url: string): void {
+    this.soundfontServerManaged = true;
+    this.setInObject(this.config as Record<string, unknown>, 'general.soundfont.base_url', url);
+    this.notifyChangeListeners(['general.soundfont.base_url']);
+  }
+
+  public isSoundfontServerManaged(): boolean {
+    return this.soundfontServerManaged;
   }
 
   /**
