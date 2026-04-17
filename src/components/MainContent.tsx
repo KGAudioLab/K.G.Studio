@@ -33,6 +33,8 @@ const MainContent: React.FC<MainContentProps> = ({
     setPlayheadPosition,
     playheadPosition,
     isPlaying,
+    autoScrollEnabled,
+    setAutoScrollEnabled,
     clearAllSelections,
     setSelectedTrack,
     showPianoRoll,
@@ -84,7 +86,6 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Refs for auto-scroll during playback
   const mainContentRef = useRef<HTMLDivElement | null>(null);
-  const userManuallyScrolledRef = useRef(false);
   const expectedScrollLeftRef = useRef<number>(-1);
   const isPlayingRef = useRef(false);
 
@@ -95,11 +96,8 @@ const MainContent: React.FC<MainContentProps> = ({
   const loopDragStartXRef = useRef<number | null>(null);
   const loopDragOriginalSettingsRef = useRef<{ isLooping: boolean; loopingRange: [number, number] } | null>(null);
 
-  // Sync isPlayingRef and reset manual-scroll flag when playback starts
+  // Sync isPlayingRef for use inside scroll event closure
   useEffect(() => {
-    if (isPlaying && !isPlayingRef.current) {
-      userManuallyScrolledRef.current = false;
-    }
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
@@ -110,9 +108,8 @@ const MainContent: React.FC<MainContentProps> = ({
 
     const handleScroll = () => {
       if (!isPlayingRef.current) return;
-      // If scrollLeft matches what we programmatically set (within 1px), it's our scroll — ignore
       if (Math.abs(container.scrollLeft - expectedScrollLeftRef.current) < 1) return;
-      userManuallyScrolledRef.current = true;
+      useProjectStore.getState().setAutoScrollEnabled(false);
     };
 
     container.addEventListener('scroll', handleScroll);
@@ -121,7 +118,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Auto-scroll to keep playhead centered during playback
   useEffect(() => {
-    if (!isPlaying || userManuallyScrolledRef.current) return;
+    if (!isPlaying || !autoScrollEnabled) return;
 
     const container = mainContentRef.current;
     if (!container) return;
@@ -143,7 +140,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     expectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
-  }, [playheadPosition, isPlaying, timeSignature]);
+  }, [playheadPosition, isPlaying, autoScrollEnabled, timeSignature]);
 
   // Effect to verify track updates
   useEffect(() => {

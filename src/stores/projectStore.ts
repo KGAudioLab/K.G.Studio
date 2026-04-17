@@ -62,6 +62,7 @@ interface ProjectState {
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
+  autoScrollEnabled: boolean;
   currentTime: string; // formatted time string
   
   // Selection state for UI reactivity
@@ -114,6 +115,7 @@ interface ProjectState {
   refreshStatus: () => void;
   loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
   setPlayheadPosition: (position: number) => void;
+  setAutoScrollEnabled: (enabled: boolean) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
   toggleLoop: () => void;
@@ -270,6 +272,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
+    autoScrollEnabled: true,
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
     
     // Initial selection state
@@ -752,9 +755,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
     },
 
+    setAutoScrollEnabled: (enabled: boolean) => {
+      set({ autoScrollEnabled: enabled });
+    },
+
     startPlaying: async () => {
       await KGCore.instance().startPlaying();
-      set({ isPlaying: true });
+      set({ isPlaying: true, autoScrollEnabled: true });
     },
 
     stopPlaying: async () => {
