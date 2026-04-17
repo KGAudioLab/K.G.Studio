@@ -24,6 +24,7 @@ export { ImportAudioCommand } from './region/ImportAudioCommand';
 export { ImportMidiClipCommand } from './region/ImportMidiClipCommand';
 export { ImportStemsCommand } from './region/ImportStemsCommand';
 export type { StemImportEntry } from './region/ImportStemsCommand';
+export { SplitRegionCommand } from './region/SplitRegionCommand';
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';

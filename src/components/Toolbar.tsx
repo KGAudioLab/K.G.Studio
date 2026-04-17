@@ -12,13 +12,14 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog, FaMagnet
+  FaCog, FaMagnet, FaCut
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { plainToInstance } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
+import { SplitRegionCommand } from '../core/commands/region/SplitRegionCommand';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
@@ -45,7 +46,9 @@ const Toolbar: React.FC = () => {
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
-    selectedRegionIds
+    selectedRegionIds,
+    // Playhead and refresh
+    playheadPosition, refreshProjectState
   } = useProjectStore();
 
   // State for main content tools
@@ -709,6 +712,52 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  // Handle split region button click
+  const handleSplitClick = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("Split button clicked");
+    }
+
+    if (selectedRegionIds.length === 0) {
+      alert("Please select a region to split.");
+      return;
+    }
+    if (selectedRegionIds.length > 1) {
+      alert("Please select exactly one region to split.");
+      return;
+    }
+
+    const regionId = selectedRegionIds[0];
+    const tracks = KGCore.instance().getCurrentProject().getTracks();
+    let targetRegion = null;
+    for (const track of tracks) {
+      const found = track.getRegions().find(r => r.getId() === regionId);
+      if (found) { targetRegion = found; break; }
+    }
+
+    if (!targetRegion) {
+      alert("Selected region not found.");
+      return;
+    }
+
+    const regionStart = targetRegion.getStartFromBeat();
+    const regionEnd = regionStart + targetRegion.getLength();
+
+    if (playheadPosition <= regionStart || playheadPosition >= regionEnd) {
+      alert("The playhead is not inside the selected region. Move the playhead inside the region before splitting.");
+      return;
+    }
+
+    const command = new SplitRegionCommand(regionId, playheadPosition);
+    KGCore.instance().executeCommand(command);
+    refreshProjectState();
+    setStatus(`Split region at beat ${playheadPosition.toFixed(2)}`);
+
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log(`Split region ${regionId} at beat ${playheadPosition}`);
+    }
+  };
+
   // Handle undo button click
   const handleUndoClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
@@ -867,6 +916,12 @@ const Toolbar: React.FC = () => {
           onClick={() => handleMainToolSelect('pencil')}
         >
           <FaPencil />
+        </button>
+        <button
+          title="Split Region at Playhead"
+          onClick={handleSplitClick}
+        >
+          <FaCut />
         </button>
         <button
           title="Snap to Grid"
