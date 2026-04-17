@@ -1,4 +1,4 @@
-import { KGProjectStorage, DuplicateEntryError } from '../core/io/KGProjectStorage';
+import { KGProjectStorage } from '../core/io/KGProjectStorage';
 import { KGCore } from '../core/KGCore';
 import { RESERVED_PROJECT_NAME } from './projectNameUtil';
 
@@ -64,34 +64,15 @@ export const saveProject = async (
     }
   }
 
-  // Same name — existing overwrite logic
+  // Same name — overwrite silently (user hasn't changed the name, so no confirmation needed)
   try {
-    await storage.save(projectName, KGCore.instance().getCurrentProject(), false);
+    await storage.save(projectName, KGCore.instance().getCurrentProject(), true);
     setStatus(`Project "${projectName}" has been saved`);
     onSaveSuccess(projectName);
     return true;
   } catch (error) {
-    if (error instanceof DuplicateEntryError) {
-      const confirmed = window.confirm(
-        `Project "${projectName}" already exists. Do you want to overwrite it?`,
-      );
-      if (confirmed) {
-        try {
-          await storage.save(projectName, KGCore.instance().getCurrentProject(), true);
-          setStatus(`Project "${projectName}" has been saved`);
-          onSaveSuccess(projectName);
-          return true;
-        } catch (overwriteError) {
-          console.error('Error overwriting project:', overwriteError);
-          window.alert(`An error occurred while overwriting the project: ${overwriteError}`);
-          return false;
-        }
-      }
-      return false;
-    } else {
-      console.error('Error saving project:', error);
-      window.alert(`An unknown error ${error} occurred. Please try again.`);
-      return false;
-    }
+    console.error('Error saving project:', error);
+    window.alert(`An error occurred while saving: ${error}`);
+    return false;
   }
 };
