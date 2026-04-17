@@ -91,8 +91,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
 
   // Sync mute/solo UI with audio interface state on track/project changes
   useEffect(() => {
-    setMuted(false);
-    setSolo(false);
+    const audioInterface = KGAudioInterface.instance();
+    setMuted(audioInterface.getTrackMuted(track.getId().toString()));
+    setSolo(audioInterface.getTrackSolo(track.getId().toString()));
   }, [allTracks, track]);
   
   // Handle track name edit within the component
