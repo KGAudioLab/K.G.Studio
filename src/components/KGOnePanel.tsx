@@ -592,7 +592,7 @@ const FullSongTab: React.FC = () => {
         seed,
         thinking,
         // Hardcoded — not exposed in UI
-        lm_model_path: "acestep-5Hz-lm-0.6B",
+        // lm_model_path: "acestep-5Hz-lm-0.6B",
         batch_size: 1,
         audio_format: 'mp3',
       };
