@@ -520,7 +520,7 @@ const FullSongTab: React.FC = () => {
   const [instrumental, setInstrumental] = useState(false);
   const [inferenceSteps, setInferenceSteps] = useState(8);
   const [guidanceScale, setGuidanceScale] = useState(7.0);
-  const [useRandomSeed, setUseRandomSeed] = useState(false);
+  const [useRandomSeed, setUseRandomSeed] = useState(true);
   const [seed, setSeed] = useState(-1);
   const [thinking, setThinking] = useState(true);
 
@@ -592,6 +592,7 @@ const FullSongTab: React.FC = () => {
         seed,
         thinking,
         // Hardcoded — not exposed in UI
+        lm_model_path: "acestep-5Hz-lm-0.6B",
         batch_size: 1,
         audio_format: 'mp3',
       };
