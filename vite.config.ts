@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import mkcert from 'vite-plugin-mkcert';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
@@ -12,7 +11,7 @@ const version = packageJson.version;
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), mkcert()],
+  plugins: [react()],
   base: '/kgstudio/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
