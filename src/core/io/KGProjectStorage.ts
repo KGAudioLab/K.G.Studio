@@ -51,6 +51,13 @@ export class KGProjectStorage {
   public async initialize(): Promise<void> {
     if (this._initialized) return;
 
+    if (!navigator.storage?.getDirectory) {
+      throw new Error(
+        'OPFS is unavailable. K.G.Studio requires a secure context (HTTPS or localhost). ' +
+        'Access via https:// or use localhost/127.0.0.1 instead of an IP address.',
+      );
+    }
+
     this.rootDirHandle = await navigator.storage.getDirectory();
     this.projectsDirHandle = await this.rootDirHandle.getDirectoryHandle(
       OPFS_CONSTANTS.ROOT_DIR,

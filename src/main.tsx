@@ -9,6 +9,51 @@ import { KGAudioInterface } from './core/audio-interface/KGAudioInterface';
 import { KGMidiInput } from './core/midi-input/KGMidiInput';
 import { KGDebugger } from './core/KGDebugger';
 
+const root = createRoot(document.getElementById('root')!);
+
+// OPFS requires a secure context (HTTPS or localhost). Show a clear error instead of crashing.
+if (!window.isSecureContext) {
+  root.render(
+    <StrictMode>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          gap: '16px',
+          padding: '32px',
+          textAlign: 'center',
+          color: 'rgba(255,255,255,0.87)',
+          background: '#1e1e1e',
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        }}
+      >
+        <div style={{ fontSize: '48px' }}>🔒</div>
+        <h1 style={{ fontSize: '22px', fontWeight: 600, margin: 0 }}>Secure Context Required</h1>
+        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', maxWidth: '480px', lineHeight: 1.6 }}>
+          K.G.Studio uses the browser&apos;s Origin Private File System (OPFS) to store projects,
+          which requires a <strong style={{ color: 'rgba(255,255,255,0.8)' }}>secure context</strong>.
+        </p>
+        <div
+          style={{
+            background: '#2a2a2a',
+            border: '1px solid #444',
+            borderRadius: '8px',
+            padding: '16px 24px',
+            fontSize: '13px',
+            lineHeight: 2,
+            color: 'rgba(255,255,255,0.7)',
+          }}
+        >
+          <div>Use <code style={{ color: '#7cb8ff' }}>https://</code> instead of <code style={{ color: '#f28b82' }}>http://</code></div>
+          <div>or access via <code style={{ color: '#7cb8ff' }}>localhost</code> / <code style={{ color: '#7cb8ff' }}>127.0.0.1</code></div>
+        </div>
+      </div>
+    </StrictMode>,
+  );
+} else {
 // Initialize KGCore instance
 await KGCore.instance().initialize();
 
@@ -87,8 +132,9 @@ window.addEventListener('beforeunload', (event) => {
   // Note: Custom messages are no longer supported in modern browsers for security reasons
 });
 
-createRoot(document.getElementById('root')!).render(
+root.render(
   <StrictMode>
     <App />
   </StrictMode>,
 );
+} // end isSecureContext else
