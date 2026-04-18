@@ -129,6 +129,26 @@
   font-weight: 600;
 }
 
+.kgone-powered-by {
+  color: #666;
+  font-size: 10px;
+  text-align: center;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #333;
+}
+
+.kgone-powered-by a {
+  color: #888;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.kgone-powered-by a:hover {
+  color: #aaa;
+  text-decoration: underline;
+}
+
 /* Two-column row (e.g. note + scale) */
 .kgone-row {
   display: flex;

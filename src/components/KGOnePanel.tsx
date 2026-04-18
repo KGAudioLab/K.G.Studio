@@ -503,6 +503,10 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
 
       {/* Status hint below button */}
       {genHint && <div className="kgone-gen-hint">{genHint}</div>}
+
+      <div className="kgone-powered-by">
+        Powered by <a href="https://huggingface.co/RoyalCities/Foundation-1" target="_blank" rel="noopener noreferrer">Foundation-1</a>
+      </div>
     </>
   );
 };
@@ -791,6 +795,10 @@ const FullSongTab: React.FC = () => {
       </button>
 
       {genHint && <div className="kgone-gen-hint">{genHint}</div>}
+
+      <div className="kgone-powered-by">
+        Powered by <a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">ACE-Step 1.5</a>
+      </div>
     </>
   );
 };
@@ -1159,6 +1167,10 @@ const SeparatorTab: React.FC = () => {
           Only audio regions are supported — MIDI regions cannot be separated.
         </div>
       )}
+
+      <div className="kgone-powered-by">
+        Powered by <a href="https://github.com/nomadkaraoke/python-audio-separator" target="_blank" rel="noopener noreferrer">UVR5 CLI</a>
+      </div>
     </>
   );
 };
