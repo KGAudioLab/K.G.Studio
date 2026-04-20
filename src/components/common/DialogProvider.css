@@ -35,6 +35,31 @@
   }
 }
 
+@keyframes dialogFadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+}
+
+@keyframes overlayFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.dialog-overlay-closing {
+  animation: overlayFadeOut 0.15s ease-in forwards;
+}
+
+.dialog-modal-closing {
+  animation: dialogFadeOut 0.15s ease-in forwards;
+}
+
 .dialog-header {
   display: flex;
   justify-content: space-between;

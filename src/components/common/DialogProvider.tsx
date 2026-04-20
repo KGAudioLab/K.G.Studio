@@ -66,11 +66,13 @@ interface DialogInfo {
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [timeSigNumerator, setTimeSigNumerator] = useState('');
   const [timeSigDenominator, setTimeSigDenominator] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
+  const pendingValueRef = useRef<unknown>(undefined);
 
   const openAlert = useCallback((message: string): Promise<void> => {
     return new Promise<void>((resolve) => {
@@ -104,15 +106,23 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }, []);
 
   const close = useCallback((value: unknown) => {
+    pendingValueRef.current = value;
+    setIsClosing(true);
+  }, []);
+
+  const handleAnimationEnd = useCallback((e: React.AnimationEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (!isClosing) return;
+    setIsClosing(false);
     setDialog(null);
     setInputValue('');
     setTimeSigNumerator('');
     setTimeSigDenominator('');
     if (resolveRef.current) {
-      resolveRef.current(value);
+      resolveRef.current(pendingValueRef.current);
       resolveRef.current = null;
     }
-  }, []);
+  }, [isClosing]);
 
   const mouseDownOnOverlay = useRef(false);
 
@@ -161,8 +171,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return (
     <>
       {children}
-      <div className="dialog-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
-        <div className="dialog-modal">
+      <div className={`dialog-overlay${isClosing ? ' dialog-overlay-closing' : ''}`} onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick} onAnimationEnd={handleAnimationEnd}>
+        <div className={`dialog-modal${isClosing ? ' dialog-modal-closing' : ''}`}>
           <div className="dialog-header">
             <h3 className="dialog-title">{title}</h3>
             <button

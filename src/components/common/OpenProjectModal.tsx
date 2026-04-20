@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaTimes, FaSortUp, FaSortDown, FaCopy, FaTrash, FaUndo } from 'react-icons/fa';
 import { KGProjectStorage, type ProjectMeta } from '../../core/io/KGProjectStorage';
 import { isValidProjectName } from '../../util/projectNameUtil';
@@ -48,11 +48,22 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [isClosing, setIsClosing] = useState(false);
+  const mouseDownOnOverlay = useRef(false);
 
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const [viewMode, setViewMode] = useState<ViewMode>('projects');
+
+  const startClose = useCallback(() => setIsClosing(true), []);
+
+  const handleAnimationEnd = useCallback((e: React.AnimationEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (!isClosing) return;
+    setIsClosing(false);
+    onClose();
+  }, [isClosing, onClose]);
 
   const fetchProjects = useCallback(async (mode: ViewMode) => {
     setIsLoading(true);
@@ -78,11 +89,11 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') startClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [startClose]);
 
   const handleSortClick = useCallback((field: SortField) => {
     if (field === sortField) {
@@ -111,7 +122,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
 
   const handleOpen = async (projectName: string) => {
     await onOpenProject(projectName);
-    onClose();
+    startClose();
   };
 
   const handleDuplicate = async (e: React.MouseEvent, projectName: string) => {
@@ -130,7 +141,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
       const finalName = await storage.resolveUniqueName(trimmed);
       await storage.duplicate(projectName, finalName);
       await onOpenProject(finalName);
-      onClose();
+      startClose();
     } catch (error) {
       console.error('Error duplicating project:', error);
       await showAlert(`Failed to duplicate project: ${error}`);
@@ -187,11 +198,15 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
     setFilter('');
   };
 
+  const handleOverlayMouseDown = useCallback((e: React.MouseEvent) => {
+    mouseDownOnOverlay.current = e.target === e.currentTarget;
+  }, []);
+
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      startClose();
     }
-  }, [onClose]);
+  }, [startClose]);
 
   const SortIcon: React.FC<{ field: SortField }> = ({ field }) => {
     if (sortField !== field) return null;
@@ -199,11 +214,16 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
   };
 
   return (
-    <div className="open-project-overlay" onClick={handleOverlayClick}>
-      <div className="open-project-panel">
+    <div
+      className={`open-project-overlay${isClosing ? ' open-project-overlay-closing' : ''}`}
+      onMouseDown={handleOverlayMouseDown}
+      onClick={handleOverlayClick}
+      onAnimationEnd={handleAnimationEnd}
+    >
+      <div className={`open-project-panel${isClosing ? ' open-project-panel-closing' : ''}`}>
         <div className="open-project-header">
           <h3 className="open-project-title">Open Project</h3>
-          <button className="open-project-close-btn" onClick={onClose} aria-label="Close">
+          <button className="open-project-close-btn" onClick={startClose} aria-label="Close">
             <FaTimes />
           </button>
         </div>

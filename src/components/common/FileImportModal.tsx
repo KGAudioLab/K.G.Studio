@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import './FileImportModal.css';
 import { FaTimes } from 'react-icons/fa';
 import { showAlert } from './DialogProvider';
@@ -21,6 +21,17 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
   description = 'Drag and drop your project file here'
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const mouseDownOnOverlay = useRef(false);
+
+  const startClose = useCallback(() => setIsClosing(true), []);
+
+  const handleAnimationEnd = useCallback((e: React.AnimationEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (!isClosing) return;
+    setIsClosing(false);
+    onClose();
+  }, [isClosing, onClose]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -31,7 +42,6 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set drag over to false if we're leaving the drop zone entirely
     if (e.currentTarget === e.target) {
       setIsDragOver(false);
     }
@@ -50,51 +60,57 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       const file = files[0];
-      
-      // Check if file type is accepted
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
       if (acceptedTypes.includes(fileExtension)) {
         onFileImport(file);
-        onClose();
+        startClose();
       } else {
         await showAlert(`Invalid file type. Please select a file with one of these extensions: ${acceptedTypes.join(', ')}`);
       }
     }
-  }, [acceptedTypes, onFileImport, onClose]);
+  }, [acceptedTypes, onFileImport, startClose]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       onFileImport(files[0]);
-      onClose();
+      startClose();
     }
-  }, [onFileImport, onClose]);
+  }, [onFileImport, startClose]);
+
+  const handleOverlayMouseDown = useCallback((e: React.MouseEvent) => {
+    mouseDownOnOverlay.current = e.target === e.currentTarget;
+  }, []);
 
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {
-    // Only close if clicking on the overlay itself, not the modal content
-    if (e.target === e.currentTarget) {
-      onClose();
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      startClose();
     }
-  }, [onClose]);
+  }, [startClose]);
 
-  if (!isVisible) {
+  if (!isVisible && !isClosing) {
     return null;
   }
 
   return (
-    <div className="file-import-overlay" onClick={handleOverlayClick}>
-      <div className="file-import-modal">
+    <div
+      className={`file-import-overlay${isClosing ? ' file-import-overlay-closing' : ''}`}
+      onMouseDown={handleOverlayMouseDown}
+      onClick={handleOverlayClick}
+      onAnimationEnd={handleAnimationEnd}
+    >
+      <div className={`file-import-modal${isClosing ? ' file-import-modal-closing' : ''}`}>
         <div className="file-import-header">
           <h3 className="file-import-title">{title}</h3>
           <button
             className="file-import-close-btn"
-            onClick={onClose}
+            onClick={startClose}
             aria-label="Close import modal"
           >
             <FaTimes />
           </button>
         </div>
-        
+
         <div
           className={`file-import-drop-zone ${isDragOver ? 'drag-over' : ''}`}
           onDragEnter={handleDragEnter}
@@ -108,11 +124,11 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
             <p className="file-import-formats">
               Supported formats: {acceptedTypes.join(', ')}
             </p>
-            
+
             <div className="file-import-divider">
               <span>or</span>
             </div>
-            
+
             <label className="file-import-browse-btn">
               Browse Files
               <input
