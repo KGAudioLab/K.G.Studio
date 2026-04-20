@@ -826,6 +826,7 @@ const SeparatorTab: React.FC = () => {
   const taskIdRef = useRef<string>('');
   const originalRegionRef = useRef<{
     regionName: string;
+    trackName: string;
     startFromBeat: number;
     trackIndex: number;
   } | null>(null);
@@ -866,6 +867,7 @@ const SeparatorTab: React.FC = () => {
     // Capture snapshot before anything changes — selection may shift during generation
     originalRegionRef.current = {
       regionName: selectedAudioRegion.region.getName(),
+      trackName: selectedAudioRegion.trackName,
       startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
       trackIndex: selectedAudioRegion.trackIndex,
     };
@@ -1043,7 +1045,8 @@ const SeparatorTab: React.FC = () => {
           await KGAudioFileStorage.storeAudioFile(projectName, fileId, audioFile);
 
           return {
-            trackName: `${snap.regionName} (${stem.name})`,
+            trackName: `${snap.trackName} - ${stem.name}`,
+            regionName: `${snap.regionName} - ${stem.name}`,
             audioFileId: fileId,
             audioFileName: fileName,
             audioDurationSeconds: toneBuffer.duration,

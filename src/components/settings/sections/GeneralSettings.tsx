@@ -203,17 +203,17 @@ const GeneralSettings: React.FC = () => {
       <div className="settings-section-header">
         <h3>General</h3>
       </div>
-      
+
       <div className="settings-section-content">
         <div className="settings-group">
           <h4>LLM Provider</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               LLM Provider
             </label>
-            <select 
-              className="settings-select" 
+            <select
+              className="settings-select"
               value={llmProvider}
               onChange={(e) => handleLlmProviderChange(e.target.value)}
             >
@@ -245,13 +245,13 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>OpenAI</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Key
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               className="settings-input"
               placeholder="Enter your OpenAI API key"
               value={openaiKey}
@@ -265,7 +265,7 @@ const GeneralSettings: React.FC = () => {
                   : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Model
@@ -365,13 +365,13 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>Anthropic Claude (via OpenRouter)</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Key
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               className="settings-input"
               placeholder="Enter your Claude API key"
               value={claudeOpenRouterKey}
@@ -390,8 +390,8 @@ const GeneralSettings: React.FC = () => {
             <label className="settings-label">
               Base URL
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="settings-input"
               placeholder="e.g. https://openrouter.ai/api/v1"
               value={claudeOpenRouterBaseUrl}
@@ -401,7 +401,7 @@ const GeneralSettings: React.FC = () => {
               This is the base URL for the OpenRouter API. Please do not change this unless you know what you are doing.
             </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Model
@@ -423,13 +423,13 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>OpenAI Compatible Server</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Key
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               className="settings-input"
               placeholder="Enter your API key"
               value={compatibleKey}
@@ -443,26 +443,26 @@ const GeneralSettings: React.FC = () => {
                   : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Base URL
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="settings-input"
               placeholder="e.g. https://openrouter.ai/api/v1"
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Model
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="settings-input"
               placeholder="e.g. qwen3:30b"
               value={compatibleModel}
@@ -500,7 +500,7 @@ const GeneralSettings: React.FC = () => {
                   e.preventDefault();
                   handleSoundfontBaseUrlChange('https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/');
                 }}
-                style={{ color: '#646cff', textDecoration: 'underline', cursor: 'pointer' }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
               >
                 Restore default
               </a>

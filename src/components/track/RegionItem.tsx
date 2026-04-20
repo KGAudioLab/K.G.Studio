@@ -548,7 +548,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       data-is-dragging={isDragging}
     >
       <div className="region-header">
-        {audioRegion ? audioRegion.getAudioFileName() : name}
+        {name}
       </div>
       <div className={`region-content${audioRegion ? ' audio-region-content' : ''}`} ref={regionContentRef}>
         {!audioRegion && (

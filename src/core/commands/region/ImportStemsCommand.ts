@@ -12,6 +12,7 @@ import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
  */
 export interface StemImportEntry {
   trackName: string;
+  regionName: string;
   audioFileId: string;
   audioFileName: string;
   audioDurationSeconds: number;
@@ -128,7 +129,7 @@ export class ImportStemsCommand extends KGCommand {
         regionId,
         trackId.toString(),
         track.getTrackIndex(),
-        stem.audioFileName,
+        stem.regionName,
         this.insertBeat,
         durationInBeats,
         stem.audioFileId,

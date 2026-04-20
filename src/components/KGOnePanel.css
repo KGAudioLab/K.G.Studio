@@ -59,7 +59,7 @@
 
 .kgone-tab.active {
   color: #e0e0e0;
-  border-bottom-color: #7a9cff;
+  border-bottom-color: #5a9fd4;
 }
 
 /* Scrollable body */
@@ -102,7 +102,7 @@
 .kgone-input:focus,
 .kgone-textarea:focus,
 .kgone-select:focus {
-  border-color: #5a6aaa;
+  border-color: #5a9fd4;
 }
 
 .kgone-textarea {
@@ -277,7 +277,7 @@
 }
 
 .kgone-player-play-btn:hover {
-  color: #7a9cff;
+  color: #5a9fd4;
 }
 
 .kgone-player-progress-track {
@@ -296,7 +296,7 @@
 
 .kgone-player-progress-fill {
   height: 100%;
-  background-color: #7a9cff;
+  background-color: #5a9fd4;
   border-radius: 2px;
   pointer-events: none;
   transition: width 0.1s linear;
@@ -336,7 +336,7 @@
 }
 
 .kgone-player-download-btn:hover {
-  color: #7a9cff;
+  color: #5a9fd4;
 }
 
 /* ── Generation state feedback ─────────────────────────────────────────────── */
@@ -364,8 +364,13 @@
 }
 
 @keyframes kgone-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Stem players (Separator tab) */
@@ -390,7 +395,7 @@
 .kgone-checkbox-row input[type="checkbox"] {
   width: 14px;
   height: 14px;
-  accent-color: #7a9cff;
+  accent-color: #5a9fd4;
   cursor: pointer;
 }
 
