@@ -13,9 +13,15 @@ export interface PromptOptions {
   placeholder?: string;
 }
 
+export interface TimeSigResult {
+  numerator: number;
+  denominator: number;
+}
+
 let _showAlertFn: ((message: string) => Promise<void>) | null = null;
 let _showConfirmFn: ((message: string, options?: ConfirmOptions) => Promise<boolean>) | null = null;
 let _showPromptFn: ((message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>) | null = null;
+let _showTimeSigFn: ((message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>) | null = null;
 
 export function showAlert(message: string): Promise<void> {
   if (!_showAlertFn) {
@@ -34,21 +40,35 @@ export function showConfirm(message: string, options?: ConfirmOptions): Promise<
 
 export function showPrompt(message: string, defaultValue?: string, options?: PromptOptions): Promise<string | null> {
   if (!_showPromptFn) {
-    return Promise.resolve(window.prompt(message, defaultValue) );
+    return Promise.resolve(window.prompt(message, defaultValue));
   }
   return _showPromptFn(message, defaultValue, options);
 }
 
+export function showTimeSigPrompt(message: string, defaultValue?: TimeSigResult): Promise<TimeSigResult | null> {
+  if (!_showTimeSigFn) {
+    const raw = window.prompt(message, defaultValue ? `${defaultValue.numerator}/${defaultValue.denominator}` : '4/4');
+    if (!raw) return Promise.resolve(null);
+    const [n, d] = raw.split('/').map(Number);
+    if (!n || !d) return Promise.resolve(null);
+    return Promise.resolve({ numerator: n, denominator: d });
+  }
+  return _showTimeSigFn(message, defaultValue);
+}
+
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
+  defaultTimeSig?: TimeSigResult;
 }
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [timeSigNumerator, setTimeSigNumerator] = useState('');
+  const [timeSigDenominator, setTimeSigDenominator] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
 
@@ -74,14 +94,27 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const openTimeSig = useCallback((message: string, defaultValue?: TimeSigResult): Promise<TimeSigResult | null> => {
+    return new Promise<TimeSigResult | null>((resolve) => {
+      resolveRef.current = resolve;
+      setTimeSigNumerator(String(defaultValue?.numerator ?? 4));
+      setTimeSigDenominator(String(defaultValue?.denominator ?? 4));
+      setDialog({ type: 'timesig', message, defaultTimeSig: defaultValue });
+    });
+  }, []);
+
   const close = useCallback((value: unknown) => {
     setDialog(null);
     setInputValue('');
+    setTimeSigNumerator('');
+    setTimeSigDenominator('');
     if (resolveRef.current) {
       resolveRef.current(value);
       resolveRef.current = null;
     }
   }, []);
+
+  const mouseDownOnOverlay = useRef(false);
 
   const registered = useRef(false);
   if (!registered.current) {
@@ -89,6 +122,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     _showAlertFn = openAlert;
     _showConfirmFn = openConfirm;
     _showPromptFn = openPrompt;
+    _showTimeSigFn = openTimeSig;
   }
 
   if (!dialog) {
@@ -97,23 +131,37 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const isAlert = dialog.type === 'alert';
   const isPrompt = dialog.type === 'prompt';
+  const isTimeSig = dialog.type === 'timesig';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
 
-  const title = isAlert ? 'Notice' : isPrompt ? 'Input' : 'Confirm';
+  const title = isAlert ? 'Notice' : isTimeSig ? 'Time Signature' : isPrompt ? 'Input' : 'Confirm';
+
+  const handleOverlayMouseDown = (e: React.MouseEvent) => {
+    mouseDownOnOverlay.current = e.target === e.currentTarget;
+  };
 
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      close(isAlert ? undefined : isPrompt ? null : false);
+    if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
+      close(isAlert ? undefined : (isPrompt || isTimeSig) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : isPrompt ? null : false);
-  const handleConfirm = () => close(isAlert ? undefined : isPrompt ? inputValue : true);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig) ? null : false);
+
+  const handleConfirm = () => {
+    if (isAlert) { close(undefined); return; }
+    if (isPrompt) { close(inputValue); return; }
+    if (isTimeSig) {
+      close({ numerator: Number(timeSigNumerator), denominator: Number(timeSigDenominator) });
+      return;
+    }
+    close(true);
+  };
 
   return (
     <>
       {children}
-      <div className="dialog-overlay" onClick={handleOverlayClick}>
+      <div className="dialog-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
         <div className="dialog-modal">
           <div className="dialog-header">
             <h3 className="dialog-title">{title}</h3>
@@ -141,6 +189,34 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 autoFocus
               />
             )}
+            {isTimeSig && (
+              <div className="dialog-timesig-row">
+                <input
+                  className="dialog-input dialog-timesig-input"
+                  type="number"
+                  min={1}
+                  value={timeSigNumerator}
+                  onChange={(e) => setTimeSigNumerator(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirm();
+                    if (e.key === 'Escape') handleCancel();
+                  }}
+                  autoFocus
+                />
+                <span className="dialog-timesig-sep">/</span>
+                <input
+                  className="dialog-input dialog-timesig-input"
+                  type="number"
+                  min={1}
+                  value={timeSigDenominator}
+                  onChange={(e) => setTimeSigDenominator(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirm();
+                    if (e.key === 'Escape') handleCancel();
+                  }}
+                />
+              </div>
+            )}
           </div>
           <div className="dialog-footer">
             {!isAlert && (
@@ -154,9 +230,9 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
             <button
               className="dialog-btn dialog-btn-primary"
               onClick={handleConfirm}
-              autoFocus={!isPrompt}
+              autoFocus={!isPrompt && !isTimeSig}
             >
-              {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt ? 'OK' : 'Yes'))}
+              {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : 'Yes'))}
             </button>
           </div>
         </div>

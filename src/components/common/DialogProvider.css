@@ -101,6 +101,26 @@
   border-color: #5a9fd4;
 }
 
+.dialog-timesig-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dialog-timesig-input {
+  width: 72px;
+  margin-top: 0;
+  text-align: center;
+}
+
+.dialog-timesig-sep {
+  color: #b0b0b0;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
+}
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;

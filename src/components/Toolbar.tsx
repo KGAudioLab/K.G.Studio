@@ -31,7 +31,7 @@ import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { ConfigManager } from '../core/config/ConfigManager';
-import { showAlert, showConfirm, showPrompt } from './common/DialogProvider';
+import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from './common/DialogProvider';
 
 const Toolbar: React.FC = () => {
   const {
@@ -596,29 +596,21 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Time signature clicked, current:", `${timeSignature.numerator}/${timeSignature.denominator}`);
     }
-    
-    const currentTimeSignatureStr = `${timeSignature.numerator}/${timeSignature.denominator}`;
-    const newTimeSignatureStr = await showPrompt(`Enter new time signature (numerator/denominator):`, currentTimeSignatureStr);
-    
-    // Check if user cancelled
-    if (newTimeSignatureStr === null) {
-      return;
-    }
-    
-    // Parse and validate time signature
-    const newTimeSignature = parseTimeSignature(newTimeSignatureStr);
-    
+
+    const result = await showTimeSigPrompt('Set the time signature:', timeSignature);
+    if (result === null) return;
+
+    const newTimeSignature = parseTimeSignature(`${result.numerator}/${result.denominator}`);
     if (newTimeSignature === null) {
       await showAlert(getTimeSignatureErrorMessage());
       return;
     }
-    
-    // Update time signature
+
     setTimeSignature(newTimeSignature);
     setStatus(`Time signature changed to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
-    
+
     if (DEBUG_MODE.TOOLBAR) {
-      console.log(`Time signature updated from ${currentTimeSignatureStr} to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
+      console.log(`Time signature updated to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
     }
   };
 
