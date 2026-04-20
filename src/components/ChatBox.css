@@ -15,7 +15,8 @@
 .chatbox-header {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* left title, right actions */
+  justify-content: space-between;
+  /* left title, right actions */
   background-color: #3a3a3a;
   height: 40px;
   border-bottom: 1px solid #4a4a4a;
@@ -229,7 +230,7 @@
 .abort-link {
   background: none !important;
   border: none !important;
-  color: #7b68ee !important;
+  color: #5a9fd4 !important;
   text-decoration: underline !important;
   cursor: pointer !important;
   padding: 0 !important;
@@ -288,14 +289,12 @@
 
 /* Processing wave animation */
 .processing-wave {
-  background: linear-gradient(
-    90deg,
-    rgba(135, 206, 250, 0.5) 0%,
-    rgba(135, 206, 250, 0.8) 25%,
-    rgb(171, 218, 250) 50%,
-    rgba(135, 206, 250, 0.8) 75%,
-    rgba(135, 206, 250, 0.5) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(135, 206, 250, 0.5) 0%,
+      rgba(135, 206, 250, 0.8) 25%,
+      rgb(171, 218, 250) 50%,
+      rgba(135, 206, 250, 0.8) 75%,
+      rgba(135, 206, 250, 0.5) 100%);
   background-size: 200% 100%;
   background-clip: text;
   -webkit-background-clip: text;
@@ -307,6 +306,7 @@
   0% {
     background-position: 200% 0%;
   }
+
   100% {
     background-position: -200% 0%;
   }

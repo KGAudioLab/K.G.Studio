@@ -19,7 +19,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -49,15 +50,6 @@ button {
   transition: border-color 0.25s;
 }
 
-button:hover {
-  border-color: #646cff;
-}
-
-button:focus,
-button:focus-visible {
-  outline: 2px auto rgba(100, 108, 255, 0.5);
-}
-
 textarea {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 12px;
@@ -71,7 +63,7 @@ input[type="range"] {
   height: 4px;
   border-radius: 2px;
   outline: none;
-  }
+}
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

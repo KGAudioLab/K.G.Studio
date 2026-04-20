@@ -2,13 +2,13 @@
 .track-grid {
   display: block;
   height: 120px;
-  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* 32 bars * --track-grid-bar-width */
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
+  /* 32 bars * --track-grid-bar-width */
   background-size: var(--track-grid-bar-width) 120px;
   background-image:
     /* Vertical lines for bars */
     linear-gradient(to right,
-      transparent calc(var(--track-grid-bar-width) - 1px), #3a3a3a calc(var(--track-grid-bar-width) - 1px), #3a3a3a var(--track-grid-bar-width)
-    );
+      transparent calc(var(--track-grid-bar-width) - 1px), #3a3a3a calc(var(--track-grid-bar-width) - 1px), #3a3a3a var(--track-grid-bar-width));
   position: relative;
   border-bottom: 1px solid #3a3a3a;
 }
@@ -73,11 +73,11 @@
 
 /* Drag and drop styles */
 .track-info.drag-over {
-  border-top: 2px solid #7b68ee;
+  border-top: 2px solid #5a9fd4;
 }
 
 .track-grid.drag-over {
-  border-top: 2px solid #7b68ee;
+  border-top: 2px solid #5a9fd4;
 }
 
 /* Dragging state */
@@ -103,7 +103,7 @@
 }
 
 .track-name:hover {
-  color: #7b68ee;
+  color: #5a9fd4;
 }
 
 .track-name:hover::before {
@@ -200,11 +200,13 @@
 }
 
 .pan-controls button.solo.active {
-  background: #c8a400; /* yellow */
+  background: #c8a400;
+  /* yellow */
   color: #101010;
 }
 
 .pan-controls button.mute.active {
-  background: #d32f2f; /* red */
+  background: #d32f2f;
+  /* red */
   color: #ffffff;
 }

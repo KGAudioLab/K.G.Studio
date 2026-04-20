@@ -1,6 +1,6 @@
 /* For the piano roll (to be implemented later) */
 .piano-roll {
-  background-color: #7b68ee;
+  background-color: #5a9fd4;
   height: 100%;
 }
 
@@ -18,7 +18,8 @@
 /* Piano notes */
 .piano-note {
   position: absolute;
-  background-color: #ff5555; /* Red color */
+  background-color: #ff5555;
+  /* Red color */
   border: 1px solid #999;
   border-radius: 2px;
   z-index: 10;
@@ -72,7 +73,8 @@
   padding: 0 10px;
   user-select: none;
   position: relative;
-  z-index: 100; /* Ensure toolbar and its dropdowns appear above piano roll content */
+  z-index: 100;
+  /* Ensure toolbar and its dropdowns appear above piano roll content */
 }
 
 /* Override pointer-events for piano roll toolbar sections */
@@ -138,7 +140,8 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  cursor: pointer; /* Show pointer cursor on hover to indicate interactivity */
+  cursor: pointer;
+  /* Show pointer cursor on hover to indicate interactivity */
 }
 
 .piano-grid-header:hover {
@@ -153,8 +156,10 @@
 
 .piano-roll-body {
   display: flex;
-  min-height: calc(8 * 12 * var(--region-piano-key-height)); /* 8 octaves * 12 notes * piano key height */
-  width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width)); /* 32 bars * 160px width + piano keys width */
+  min-height: calc(8 * 12 * var(--region-piano-key-height));
+  /* 8 octaves * 12 notes * piano key height */
+  width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+  /* 32 bars * 160px width + piano keys width */
 }
 
 .piano-keys-container {

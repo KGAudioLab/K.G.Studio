@@ -69,7 +69,6 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #3a3a3a;
   background-color: #252525;
   flex-shrink: 0;
 }
@@ -104,7 +103,6 @@
 .open-project-filter {
   padding: 10px 12px;
   background-color: #252525;
-  border-bottom: 1px solid #3a3a3a;
   flex-shrink: 0;
 }
 
@@ -127,7 +125,7 @@
 }
 
 .open-project-filter input:focus {
-  border-color: #7b68ee;
+  border-color: #5a9fd4;
 }
 
 .open-project-filter input::placeholder {
@@ -137,8 +135,7 @@
 /* View toggle (Projects / Trash) */
 .open-project-view-toggle {
   display: flex;
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -147,14 +144,11 @@
   background-color: #1e1e1e;
   color: #999;
   border: none;
-  padding: 5px 12px;
-  font-size: 12px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.1s, color 0.1s;
-}
-
-.open-project-toggle-btn:not(:last-child) {
-  border-right: 1px solid #3a3a3a;
+  transition: all 0.2s ease;
 }
 
 .open-project-toggle-btn:hover {
@@ -162,7 +156,7 @@
 }
 
 .open-project-toggle-btn.active {
-  background-color: #7b68ee;
+  background-color: #5a9fd4;
   color: #fff;
 }
 
@@ -170,7 +164,6 @@
 .open-project-trash-hint {
   padding: 6px 12px;
   background-color: #3a2a1a;
-  border-bottom: 1px solid #5a3a1a;
   color: #d4a054;
   font-size: 11px;
   flex-shrink: 0;
@@ -182,7 +175,6 @@
   align-items: center;
   padding: 6px 12px;
   background-color: #252525;
-  border-bottom: 1px solid #3a3a3a;
   font-size: 11px;
   color: #999;
   text-transform: uppercase;
@@ -205,7 +197,7 @@
 }
 
 .open-project-sort-col.active {
-  color: #7b68ee;
+  color: #5a9fd4;
 }
 
 .open-project-sort-col-name {
@@ -230,7 +222,6 @@
   display: flex;
   align-items: center;
   padding: 10px 12px;
-  border-bottom: 1px solid #333;
   cursor: pointer;
   transition: background-color 0.1s;
 }
@@ -272,32 +263,37 @@
 
 /* Open button */
 .open-project-item-open-btn {
-  background-color: #7b68ee;
+  background-color: #5a9fd4;
   color: #fff;
   border: none;
-  border-radius: 4px;
-  padding: 5px 14px;
-  font-size: 12px;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .open-project-item-open-btn:hover {
-  background-color: #6a58d6;
+  background-color: #4a8fc4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(90, 159, 212, 0.3);
 }
 
 /* Icon action buttons (duplicate, delete, restore, perm-delete) */
 .open-project-item-action-btn {
   background: transparent;
   border: 1px solid #555;
-  border-radius: 4px;
+  border-radius: 6px;
   color: #bbb;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+  transition: all 0.2s ease;
 }
 
 .open-project-item-action-btn:hover {
@@ -306,10 +302,16 @@
   border-color: #777;
 }
 
-.open-project-item-permdelete-btn:hover {
+.open-project-item-delete-btn:hover {
   background-color: #5a2020;
   color: #ff6666;
   border-color: #ff4444;
+}
+
+.open-project-item-permdelete-btn:hover {
+  background-color: #7a1010;
+  color: #ff4444;
+  border-color: #ff2222;
 }
 
 .open-project-item-restore-btn:hover {
