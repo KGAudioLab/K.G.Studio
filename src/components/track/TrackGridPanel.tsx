@@ -13,6 +13,7 @@ import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { generateNewRegionName } from '../../util/miscUtil';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
+import { showAlert } from '../common/DialogProvider';
 import { parseMidiFirstTrackNotes } from '../../util/midiUtil';
 import * as Tone from 'tone';
 
@@ -52,7 +53,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   const pendingAudioImportRef = useRef<{ barNumber: number; trackIndex: number } | null>(null);
 
   // Utility function to create a region at a specific position
-  const createRegionAtPosition = (e: React.MouseEvent<HTMLDivElement>, trackIndex: number) => {
+  const createRegionAtPosition = async (e: React.MouseEvent<HTMLDivElement>, trackIndex: number) => {
     // Get the grid container element
     const gridContainer = e.currentTarget.closest('.grid-container');
     if (!gridContainer) return;
@@ -108,7 +109,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`Cannot create region at bar ${barNumber}: overlaps with existing region`);
       }
-      alert('Cannot create region: overlaps with existing region');
+      await showAlert('Cannot create region: overlaps with existing region');
       return; // Don't create the region if it overlaps
     }
     
@@ -515,7 +516,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     try {
       if (track.getType() === TrackType.MIDI) {
         if (!dropData.midiUrl) {
-          window.alert(
+          await showAlert(
             'This audio clip can only be imported into an audio track.\n' +
             'Please drag it onto an audio track instead.'
           );

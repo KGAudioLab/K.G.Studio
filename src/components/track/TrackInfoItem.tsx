@@ -12,6 +12,7 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
+import { showAlert, showConfirm, showPrompt } from '../common/DialogProvider';
 interface TrackInfoItemProps {
   track: KGTrack;
   index: number;
@@ -97,10 +98,10 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   }, [allTracks, track]);
   
   // Handle track name edit within the component
-  const handleTrackNameClick = (e: React.MouseEvent) => {
+  const handleTrackNameClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening piano roll when clicking track name
-    
-    const newName = prompt("Enter track name:", track.getName());
+
+    const newName = await showPrompt("Enter track name:", track.getName());
     if (newName) {
       // Call the parent handler with the new name
       onTrackNameEdit(track, newName);
@@ -233,7 +234,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   // Handle settings action
   const handleSettingsAction = async (action: string) => {
     if (action === 'Delete Track') {
-      const confirmed = window.confirm(`Are you sure you want to delete track "${track.getName()}"?`);
+      const confirmed = await showConfirm(`Are you sure you want to delete track "${track.getName()}"?`);
       if (confirmed) {
         try {
           if (DEBUG_MODE.TRACK_INFO) {
@@ -252,7 +253,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           setShowSettingsDropdown(false);
         } catch (error) {
           console.error('Failed to delete track:', error);
-          alert('Failed to delete track. Please try again.');
+          await showAlert('Failed to delete track. Please try again.');
         }
       }
     }

@@ -15,6 +15,7 @@ import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
+import { showAlert, showPrompt } from '../common/DialogProvider';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -250,7 +251,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [isDragging, isResizing, dragOffset, position]);
   
   // Handle title click to rename the region
-  const handleTitleClick = () => {
+  const handleTitleClick = async () => {
     // If we were just dragging, don't show the rename dialog
     if (wasDraggingRef.current) {
       if (DEBUG_MODE.PIANO_ROLL) {
@@ -262,7 +263,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     if (!activeRegion) return;
     
     // Show a prompt to get the new name
-    const newName = window.prompt("Enter a new name for the region:", activeRegion.getName());
+    const newName = await showPrompt("Enter a new name for the region:", activeRegion.getName());
     
     // If the user clicked Cancel or entered an empty string, do nothing
     if (!newName || newName.trim() === '' || newName === activeRegion.getName()) return;
@@ -282,8 +283,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       
     } catch (error) {
       console.error('Error renaming region:', error);
-      // Optionally show user-friendly error message
-      alert('Failed to rename region. Please try again.');
+      await showAlert('Failed to rename region. Please try again.');
     }
   };
 

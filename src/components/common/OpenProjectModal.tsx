@@ -3,6 +3,7 @@ import { FaTimes, FaSortUp, FaSortDown, FaCopy, FaTrash, FaUndo } from 'react-ic
 import { KGProjectStorage, type ProjectMeta } from '../../core/io/KGProjectStorage';
 import { isValidProjectName } from '../../util/projectNameUtil';
 import './OpenProjectModal.css';
+import { showAlert, showConfirm, showPrompt } from './DialogProvider';
 
 interface OpenProjectModalProps {
   onClose: () => void;
@@ -115,12 +116,12 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
 
   const handleDuplicate = async (e: React.MouseEvent, projectName: string) => {
     e.stopPropagation();
-    const newName = window.prompt('Enter a name for the duplicated project:', projectName);
+    const newName = await showPrompt('Enter a name for the duplicated project:', projectName);
     if (!newName || newName.trim() === '') return;
 
     const trimmed = newName.trim();
     if (!isValidProjectName(trimmed)) {
-      window.alert('Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.');
+      await showAlert('Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.');
       return;
     }
 
@@ -132,7 +133,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
       onClose();
     } catch (error) {
       console.error('Error duplicating project:', error);
-      window.alert(`Failed to duplicate project: ${error}`);
+      await showAlert(`Failed to duplicate project: ${error}`);
     }
   };
 
@@ -144,7 +145,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
       await fetchProjects(viewMode);
     } catch (error) {
       console.error('Error deleting project:', error);
-      window.alert(`Failed to delete project: ${error}`);
+      await showAlert(`Failed to delete project: ${error}`);
     }
   };
 
@@ -156,13 +157,13 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
       await fetchProjects(viewMode);
     } catch (error) {
       console.error('Error restoring project:', error);
-      window.alert(`Failed to restore project: ${error}`);
+      await showAlert(`Failed to restore project: ${error}`);
     }
   };
 
   const handlePermanentDelete = async (e: React.MouseEvent, projectName: string) => {
     e.stopPropagation();
-    const confirmed = window.confirm(
+    const confirmed = await showConfirm(
       `Are you sure you want to permanently delete "${projectName}"?\n\nThis operation cannot be undone.`
     );
     if (!confirmed) return;
@@ -177,7 +178,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
       }
     } catch (error) {
       console.error('Error permanently deleting project:', error);
-      window.alert(`Failed to permanently delete project: ${error}`);
+      await showAlert(`Failed to permanently delete project: ${error}`);
     }
   };
 

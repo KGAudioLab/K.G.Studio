@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import './styles/variables.css';
 import './index.css';
 import App from './App.tsx';
+import DialogProvider from './components/common/DialogProvider';
 import { KGCore } from './core/KGCore';
 import { KGAudioInterface } from './core/audio-interface/KGAudioInterface';
 import { KGMidiInput } from './core/midi-input/KGMidiInput';
@@ -132,9 +133,11 @@ window.addEventListener('beforeunload', (event) => {
   // Note: Custom messages are no longer supported in modern browsers for security reasons
 });
 
-root.render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+  root.render(
+    <StrictMode>
+      <DialogProvider>
+        <App />
+      </DialogProvider>
+    </StrictMode>,
+  );
 } // end isSecureContext else

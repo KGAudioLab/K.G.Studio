@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import './FileImportModal.css';
 import { FaTimes } from 'react-icons/fa';
+import { showAlert } from './DialogProvider';
 
 interface FileImportModalProps {
   isVisible: boolean;
@@ -41,7 +42,7 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -56,7 +57,7 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
         onFileImport(file);
         onClose();
       } else {
-        alert(`Invalid file type. Please select a file with one of these extensions: ${acceptedTypes.join(', ')}`);
+        await showAlert(`Invalid file type. Please select a file with one of these extensions: ${acceptedTypes.join(', ')}`);
       }
     }
   }, [acceptedTypes, onFileImport, onClose]);

@@ -1,6 +1,7 @@
 import { KGProjectStorage } from '../core/io/KGProjectStorage';
 import { KGCore } from '../core/KGCore';
 import { RESERVED_PROJECT_NAME } from './projectNameUtil';
+import { showAlert } from '../components/common/DialogProvider';
 
 /**
  * Save project utility function.
@@ -59,7 +60,7 @@ export const saveProject = async (
       return true;
     } catch (error) {
       console.error('Error saving renamed project:', error);
-      window.alert(`An error occurred while saving: ${error}`);
+      await showAlert(`An error occurred while saving: ${error}`);
       return false;
     }
   }
@@ -72,7 +73,7 @@ export const saveProject = async (
     return true;
   } catch (error) {
     console.error('Error saving project:', error);
-    window.alert(`An error occurred while saving: ${error}`);
+    await showAlert(`An error occurred while saving: ${error}`);
     return false;
   }
 };

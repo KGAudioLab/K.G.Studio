@@ -18,6 +18,7 @@ import type { RenderingEvent } from './core/audio-interface/KGOfflineRenderer';
 import { KGCore } from './core/KGCore';
 import { ConfigManager } from './core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from './util/scaleUtil';
+import { showAlert } from './components/common/DialogProvider';
 import { KGProjectStorage } from './core/io/KGProjectStorage';
 import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 
@@ -212,12 +213,11 @@ const GlobalLoadingOverlayContainer: React.FC = () => {
   useEffectReact(() => {
     // When loading starts, start a 30s timer if not already overdue/timed
     if (loadingCount > 0 && !overdue && timeoutRef.current === null) {
-      timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = window.setTimeout(async () => {
         // Only trigger if still loading
         if (loadingCount > 0) {
           setOverdue(true);
-          // Friendly alert to the user
-          window.alert(
+          await showAlert(
             'Loading resources is taking longer than expected and may have partially failed. If you notice any playback issues, please refresh the page to retry downloading the audio files.'
           );
         }
