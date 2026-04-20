@@ -10,6 +10,7 @@ import type { InstrumentType } from '../track/KGMidiTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
+import { KGMetronome } from './KGMetronome';
 
 /**
  * KGAudioInterface - Audio engine interface for the DAW
@@ -44,6 +45,10 @@ export class KGAudioInterface {
 
   // Master volume control
   private masterGain: Tone.Gain | null = null;
+
+  // Metronome
+  private metronome: KGMetronome = new KGMetronome();
+  private isMetronomeEnabled = false;
 
   // Audio capture for screen sharing
   private captureDestination: MediaStreamAudioDestinationNode | null = null;
@@ -88,6 +93,11 @@ export class KGAudioInterface {
       Tone.Transport.bpm.value = TIME_CONSTANTS.DEFAULT_BPM; // Default BPM
       Tone.Transport.timeSignature = [TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.numerator, TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.denominator]; // Default time signature
       
+      // Initialize metronome sampler in background (non-blocking)
+      this.metronome.initialize(this.masterGain!).catch(err => {
+        console.error('Failed to initialize metronome:', err);
+      });
+
       // Check config and setup audio capture if enabled
       const enableCapture = configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean;
       
@@ -144,6 +154,9 @@ export class KGAudioInterface {
       });
       this.trackAudioPlayerBuses.clear();
       
+      // Dispose metronome
+      this.metronome.dispose();
+
       // Dispose master gain
       if (this.masterGain) {
         this.masterGain.dispose();
@@ -429,7 +442,12 @@ export class KGAudioInterface {
 
       // Set transport position (convert beats to Tone.js format)
       this.setTransportPosition(startPosition);
-      
+
+      // Start metronome if enabled
+      if (this.isMetronomeEnabled) {
+        this.metronome.start(startPosition, timeSignature.numerator, playbackDelay);
+      }
+
       // Schedule all MIDI events
       project.getTracks().forEach(track => {
         const trackId = track.getId().toString();
@@ -645,7 +663,8 @@ export class KGAudioInterface {
   public stopPlayback(): void {
     try {
       Tone.Transport.stop();
-      
+      this.metronome.stop();
+
       // Release all currently playing notes
       this.trackAudioBuses.forEach(audioBus => {
         audioBus.releaseAll();
@@ -789,6 +808,23 @@ export class KGAudioInterface {
       console.error('Error getting transport position:', error);
       return 0;
     }
+  }
+
+  // ===== METRONOME =====
+
+  public setMetronomeEnabled(enabled: boolean): void {
+    this.isMetronomeEnabled = enabled;
+  }
+
+  /** Start the metronome mid-playback without restarting the transport. */
+  public startMetronomeDuringPlayback(currentPositionBeats: number, beatsPerBar: number): void {
+    const playbackDelay = (ConfigManager.instance().get('audio.playback_delay') as number) ?? 0.2;
+    this.metronome.start(currentPositionBeats, beatsPerBar, playbackDelay);
+  }
+
+  /** Stop the metronome mid-playback without stopping the transport. */
+  public stopMetronomeDuringPlayback(): void {
+    this.metronome.stop();
   }
 
   /**

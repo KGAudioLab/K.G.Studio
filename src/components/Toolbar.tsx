@@ -29,6 +29,7 @@ import FileImportModal from './common/FileImportModal';
 import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
+import MetronomeIcon from './common/icons/MetronomeIcon';
 import { ConfigManager } from '../core/config/ConfigManager';
 
 const Toolbar: React.FC = () => {
@@ -42,7 +43,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
@@ -858,6 +859,13 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  const handleMetronomeToggle = () => {
+    toggleMetronome();
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log('Metronome toggled');
+    }
+  };
+
   return (
     <>
       <div className="toolbar">
@@ -949,6 +957,13 @@ const Toolbar: React.FC = () => {
           <FaSync />
         </button>
         <div className="toolbar-separator"></div>
+        <button
+          title="Metronome"
+          className={`tool-button ${isMetronomeEnabled ? 'active' : ''}`}
+          onClick={handleMetronomeToggle}
+        >
+          <MetronomeIcon />
+        </button>
         <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
         {/* <button title="Record"><FaCircle className="record-btn" /></button>
         <button title="Metronome">🎵</button> */}

@@ -59,6 +59,7 @@ interface ProjectState {
   keySignature: KeySignature;
   selectedMode: string;
   isLooping: boolean;
+  isMetronomeEnabled: boolean;
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
@@ -119,6 +120,7 @@ interface ProjectState {
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
   toggleLoop: () => void;
+  toggleMetronome: () => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
   setBarWidthMultiplier: (multiplier: number) => void;
@@ -269,6 +271,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     keySignature: currentProject.getKeySignature(),
     selectedMode: currentProject.getSelectedMode(),
     isLooping: currentProject.getIsLooping(),
+    isMetronomeEnabled: false,
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
@@ -778,6 +781,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       toggleLoop(isLooping, loopingRange, maxBars);
+    },
+
+    toggleMetronome: () => {
+      const { isMetronomeEnabled, isPlaying, timeSignature } = get();
+      const newValue = !isMetronomeEnabled;
+      set({ isMetronomeEnabled: newValue });
+
+      const audio = KGAudioInterface.instance();
+      audio.setMetronomeEnabled(newValue);
+
+      if (isPlaying) {
+        if (newValue) {
+          const currentBeat = KGCore.instance().getPlayheadPosition();
+          audio.startMetronomeDuringPlayback(currentBeat, timeSignature.numerator);
+        } else {
+          audio.stopMetronomeDuringPlayback();
+        }
+      }
     },
 
     setBpm: (bpm: number) => {
