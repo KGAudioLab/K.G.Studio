@@ -10,6 +10,7 @@ import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { DEBUG_MODE } from '../constants/uiConstants';
 import { fetchWithRetry } from '../util/retryUtil';
+import { sliceAudioToWav } from '../util/audioUtil';
 import type { KeySignature } from '../core/KGProject';
 import { ImportStemsCommand } from '../core/commands';
 import type { StemImportEntry } from '../core/commands';
@@ -915,18 +916,40 @@ const SeparatorTab: React.FC = () => {
 
       const audioFileId = selectedAudioRegion.region.getAudioFileId();
       const audioFileName = selectedAudioRegion.region.getAudioFileName();
-      const arrayBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
-      const audioFile = new File([arrayBuffer], audioFileName, { type: 'audio/mpeg' });
+      const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
+      const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
+      const regionLengthSec = selectedAudioRegion.region.getLength() * (60 / bpm);
+      const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
+
+      const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
+      const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
+
+      let uploadBuffer: ArrayBuffer;
+      let uploadFileName: string;
+      let uploadMimeType: string;
+
+      if (needsSlice) {
+        setGenHint('Trimming audio to region range...');
+        uploadBuffer = await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration);
+        uploadFileName = audioFileName.replace(/\.[^.]+$/, '.wav');
+        uploadMimeType = 'audio/wav';
+      } else {
+        uploadBuffer = rawBuffer;
+        uploadFileName = audioFileName;
+        uploadMimeType = 'audio/mpeg';
+      }
+
+      const audioFile = new File([uploadBuffer], uploadFileName, { type: uploadMimeType });
 
       const formData = new FormData();
-      formData.append('file', audioFile, audioFileName);
+      formData.append('file', audioFile, uploadFileName);
       formData.append('model_filename', model);
 
       if (signal.aborted) return;
 
       setGenHint('Submitting separation request...');
 
-      kgoneLog('REQ', 'POST /v1/separator/separate', { file: audioFileName, model_filename: model });
+      kgoneLog('REQ', 'POST /v1/separator/separate', { file: uploadFileName, model_filename: model });
       const sepResp = await fetch(`${baseUrl}/v1/separator/separate`, {
         method: 'POST',
         body: formData,
