@@ -15,6 +15,7 @@ import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
+import { showAlert, showPrompt } from '../common/DialogProvider';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -29,7 +30,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   initialPosition,
   initialSize
 }) => {
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -58,7 +59,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
   const pianoGridRef = useRef<HTMLDivElement>(null);
   const wasDraggingRef = useRef<boolean>(false);
-  
+
+  // Refs for auto-scroll during playback
+  const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
+  const pianoRollIsPlayingRef = useRef(false);
+
   // Ref for storing the setNoteUpdateCounter function
   const triggerNoteUpdateRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
   
@@ -246,7 +251,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [isDragging, isResizing, dragOffset, position]);
   
   // Handle title click to rename the region
-  const handleTitleClick = () => {
+  const handleTitleClick = async () => {
     // If we were just dragging, don't show the rename dialog
     if (wasDraggingRef.current) {
       if (DEBUG_MODE.PIANO_ROLL) {
@@ -258,7 +263,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     if (!activeRegion) return;
     
     // Show a prompt to get the new name
-    const newName = window.prompt("Enter a new name for the region:", activeRegion.getName());
+    const newName = await showPrompt("Enter a new name for the region:", activeRegion.getName());
     
     // If the user clicked Cancel or entered an empty string, do nothing
     if (!newName || newName.trim() === '' || newName === activeRegion.getName()) return;
@@ -278,8 +283,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       
     } catch (error) {
       console.error('Error renaming region:', error);
-      // Optionally show user-friendly error message
-      alert('Failed to rename region. Please try again.');
+      await showAlert('Failed to rename region. Please try again.');
     }
   };
 
@@ -620,6 +624,52 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       pianoRollContentRef.current.scrollTop = Math.max(0, scrollPosition);
     }
   }, []);
+
+  // Sync isPlayingRef for use inside scroll event closure
+  useEffect(() => {
+    pianoRollIsPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // Detect manual horizontal scroll during playback
+  useEffect(() => {
+    const container = pianoRollContentRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (!pianoRollIsPlayingRef.current) return;
+      if (Math.abs(container.scrollLeft - pianoRollExpectedScrollLeftRef.current) < 1) return;
+      useProjectStore.getState().setAutoScrollEnabled(false);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to keep playhead centered during playback
+  useEffect(() => {
+    if (!isPlaying || !autoScrollEnabled) return;
+
+    const container = pianoRollContentRef.current;
+    if (!container) return;
+
+    const beatWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+    ) || 40;
+    const playheadPixel = playheadPosition * beatWidth;
+
+    // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
+    const keysWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+    ) || 60;
+    const targetScrollLeft = playheadPixel - (container.clientWidth - keysWidth) / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
+    container.scrollLeft = clampedScrollLeft;
+  }, [playheadPosition, isPlaying, autoScrollEnabled]);
 
   // Scroll horizontally to the active region's starting bar
   useEffect(() => {

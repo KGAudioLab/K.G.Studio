@@ -10,6 +10,7 @@ import InstrumentSelection from './components/InstrumentSelection';
 import ChatBox from './components/ChatBox';
 import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
+import KGOnePanel from './components/KGOnePanel';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
 import { KGOfflineRenderer } from './core/audio-interface/KGOfflineRenderer';
@@ -17,6 +18,9 @@ import type { RenderingEvent } from './core/audio-interface/KGOfflineRenderer';
 import { KGCore } from './core/KGCore';
 import { ConfigManager } from './core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from './util/scaleUtil';
+import { showAlert } from './components/common/DialogProvider';
+import { KGProjectStorage } from './core/io/KGProjectStorage';
+import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
@@ -26,7 +30,7 @@ function App() {
   const {
     refreshStatus,
     loadProject, showChatBox, showSettings, setShowSettings, initializeFromConfig,
-    showInstrumentSelection
+    showInstrumentSelection, showKGOnePanel
   } = useProjectStore();
 
   // Track if app has been initialized to prevent multiple initializations
@@ -41,11 +45,40 @@ function App() {
     hasInitialized.current = true;
 
     const initializeApp = async () => {
+      // Wipe the reserved "Untitled Project" OPFS folder on every startup so it stays ephemeral
+      try {
+        const storage = KGProjectStorage.getInstance();
+        if (await storage.exists(RESERVED_PROJECT_NAME)) {
+          await storage.delete(RESERVED_PROJECT_NAME);
+        }
+      } catch (error) {
+        console.warn('Could not clear Untitled Project folder on startup:', error);
+      }
+
       // Load the current project from KGCore
       loadProject(null);
 
       // Initialize ConfigManager first to load config.json and user settings
       await ConfigManager.instance().initialize();
+
+      // Check for kgone-server.json (managed deployment override)
+      try {
+        const kgoneServerResponse = await fetch(`${import.meta.env.BASE_URL}kgone-server.json?ts=${Date.now()}`);
+        const contentType = kgoneServerResponse.headers.get('Content-Type') ?? '';
+        if (kgoneServerResponse.ok && contentType.includes('application/json')) {
+          const data = await kgoneServerResponse.json();
+          if (data.base_url) {
+            ConfigManager.instance().setKGOneManagedByServer(data.base_url);
+            console.log('K.G.One: server-managed config loaded from kgone-server.json, base URL:', data.base_url);
+          }
+          if (data.soundfont) {
+            ConfigManager.instance().setSoundfontManagedByServer(data.soundfont);
+            console.log('Soundfont: server-managed config loaded from kgone-server.json, base URL:', data.soundfont);
+          }
+        }
+      } catch {
+        // File not present — user configures manually
+      }
 
       // Initialize store from config after ConfigManager is ready
       await initializeFromConfig();
@@ -134,6 +167,7 @@ function App() {
             <MainContent />
           </>
         )}
+        <KGOnePanel isVisible={showKGOnePanel && !showSettings} />
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 
@@ -179,12 +213,11 @@ const GlobalLoadingOverlayContainer: React.FC = () => {
   useEffectReact(() => {
     // When loading starts, start a 30s timer if not already overdue/timed
     if (loadingCount > 0 && !overdue && timeoutRef.current === null) {
-      timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = window.setTimeout(async () => {
         // Only trigger if still loading
         if (loadingCount > 0) {
           setOverdue(true);
-          // Friendly alert to the user
-          window.alert(
+          await showAlert(
             'Loading resources is taking longer than expected and may have partially failed. If you notice any playback issues, please refresh the page to retry downloading the audio files.'
           );
         }

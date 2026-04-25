@@ -1,13 +1,13 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath, URL } from 'node:url';
 
 // Read version from package.json
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
-const version = packageJson.version
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
+const version = packageJson.version;
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -17,7 +17,8 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(version),
   },
   server: {
+    host: true,
     // IMPORTANT: MAKE SURE TO UPDATE YOUR OS HOSTS FILE TO POINT `testlocal.com` TO YOUR LOCAL IP (e.g. 127.0.0.1).
     allowedHosts: ['testlocal.com', '.testlocal.com', 'localhost', '127.0.0.1'],
   },
-})
+});

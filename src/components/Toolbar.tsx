@@ -2,7 +2,7 @@ import React from 'react';
 import './Toolbar.css';
 import { saveProject } from '../util/saveUtil';
 import { KGProjectStorage } from '../core/io/KGProjectStorage';
-import { isValidProjectName } from '../util/projectNameUtil';
+import { isValidProjectName, isReservedProjectName, RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 import { KGCore } from '../core/KGCore';
 import { useProjectStore } from '../stores/projectStore';
 import { DEBUG_MODE } from '../constants/uiConstants';
@@ -12,13 +12,14 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog, FaMagnet
+  FaCog, FaMagnet, FaCut
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { plainToInstance } from 'class-transformer';
-import { FaPencil, FaCopy, FaPaste, FaTrash } from 'react-icons/fa6';
+import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
+import { SplitRegionCommand } from '../core/commands/region/SplitRegionCommand';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
@@ -28,6 +29,9 @@ import FileImportModal from './common/FileImportModal';
 import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
+import MetronomeIcon from './common/icons/MetronomeIcon';
+import { ConfigManager } from '../core/config/ConfigManager';
+import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from './common/DialogProvider';
 
 const Toolbar: React.FC = () => {
   const {
@@ -40,11 +44,13 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, cleanupProjectState,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
-    selectedRegionIds
+    selectedRegionIds,
+    // Playhead and refresh
+    playheadPosition, refreshProjectState
   } = useProjectStore();
 
   // State for main content tools
@@ -85,15 +91,43 @@ const Toolbar: React.FC = () => {
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
 
-  const handleProjectNameClick = () => {
-    const newName = prompt("Enter project name:", projectName);
-    if (newName) {
-      if (!isValidProjectName(newName)) {
-        window.alert("Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.");
+  const handleProjectNameClick = async () => {
+    const newName = await showPrompt("Enter project name:", projectName);
+    if (!newName) return;
+    if (!isValidProjectName(newName)) {
+      await showAlert("Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.");
+      return;
+    }
+    if (isReservedProjectName(newName)) {
+      await showAlert(`"${RESERVED_PROJECT_NAME}" is a reserved project name. Please choose a different name.`);
+      return;
+    }
+
+    // Conflict check: only relevant when targeting a different OPFS folder
+    if (newName !== savedProjectName) {
+      const storage = KGProjectStorage.getInstance();
+      const exists = await storage.exists(newName);
+      if (exists) {
+        const confirmed = await showConfirm(
+          `Project "${newName}" already exists. Do you want to overwrite it?`
+        );
+        if (!confirmed) return;
+        // Confirmed: update in-memory name then save immediately, overwriting the existing project
+        setProjectName(newName);
+        await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+          setSavedProjectName(finalName);
+          if (finalName !== newName) setProjectName(finalName);
+        }, true /* forceOverwrite */);
         return;
       }
-      setProjectName(newName);
     }
+
+    // Name is available — update and save immediately
+    setProjectName(newName);
+    await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+      setSavedProjectName(finalName);
+      if (finalName !== newName) setProjectName(finalName);
+    });
   };
 
   // Common project loading logic extracted for reuse
@@ -125,7 +159,7 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error(`Error loading project from ${sourceDescription}:`, error);
       setStatus(`Failed to load project: ${error}`);
-      window.alert(`An error occurred while loading the project: ${error}`);
+      await showAlert(`An error occurred while loading the project: ${error}`);
     }
   };
 
@@ -150,8 +184,8 @@ const Toolbar: React.FC = () => {
   };
 
   // Handler functions for file operations
-  const handleNewProject = () => {
-    const confirmed = window.confirm("Are you sure you want to create a new project? Any unsaved changes will be lost.");
+  const handleNewProject = async () => {
+    const confirmed = await showConfirm("Are you sure you want to create a new project? Any unsaved changes will be lost.");
     if (confirmed) {
       createNewProject();
     }
@@ -170,14 +204,14 @@ const Toolbar: React.FC = () => {
       const loadedProject = await storage.load(projectNameToLoad);
 
       if (!loadedProject) {
-        window.alert(`Project "${projectNameToLoad}" not found.`);
+        await showAlert(`Project "${projectNameToLoad}" not found.`);
         return;
       }
 
       await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
     } catch (error) {
       console.error("Error loading project:", error);
-      window.alert(`An error occurred while loading the project: ${error}`);
+      await showAlert(`An error occurred while loading the project: ${error}`);
     }
   };
 
@@ -244,11 +278,11 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error exporting KGStudio file:", error);
       setStatus(`Error exporting project: ${error}`);
-      window.alert(`Failed to export project: ${error}`);
+      await showAlert(`Failed to export project: ${error}`);
     }
   };
 
-  const handleExportMIDI = () => {
+  const handleExportMIDI = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("exporting to MIDI file");
     }
@@ -286,7 +320,7 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error exporting MIDI:", error);
       setStatus(`Error exporting MIDI: ${error}`);
-      window.alert(`Failed to export project as MIDI: ${error}`);
+      await showAlert(`Failed to export project as MIDI: ${error}`);
     }
   };
 
@@ -302,7 +336,7 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error bouncing to WAV:", error);
       setStatus(`Error exporting WAV: ${error}`);
-      window.alert(`Failed to export project as WAV: ${error}`);
+      await showAlert(`Failed to export project as WAV: ${error}`);
     }
   };
 
@@ -318,7 +352,7 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error bouncing to MP3:", error);
       setStatus(`Error exporting MP3: ${error}`);
-      window.alert(`Failed to export project as MP3: ${error}`);
+      await showAlert(`Failed to export project as MP3: ${error}`);
     }
   };
 
@@ -354,7 +388,7 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error importing file:", error);
       setStatus(`Failed to import file: ${error}`);
-      window.alert(`Failed to import project file: ${error}`);
+      await showAlert(`Failed to import project file: ${error}`);
     }
   };
 
@@ -376,7 +410,7 @@ const Toolbar: React.FC = () => {
         console.log("KGStudio file imported successfully:", projectName);
       }
     } catch (error) {
-      window.alert(`The .kgstudio file is corrupted or invalid: ${error}`);
+      await showAlert(`The .kgstudio file is corrupted or invalid: ${error}`);
       throw error;
     }
   };
@@ -503,31 +537,31 @@ const Toolbar: React.FC = () => {
   };
 
   // Prompt to change max bars when clicking on current-time display
-  const handleCurrentTimeClick = () => {
+  const handleCurrentTimeClick = async () => {
     const MIN_BARS = 16;
-    const newMaxBarsStr = prompt(`Enter new max bars (>= ${MIN_BARS}):`, String(maxBars ?? 32));
+    const newMaxBarsStr = await showPrompt(`Enter new max bars (>= ${MIN_BARS}):`, String(maxBars ?? 32));
     if (newMaxBarsStr === null) {
       return; // cancelled
     }
     const parsed = parseInt(newMaxBarsStr.trim(), 10);
     if (isNaN(parsed)) {
-      alert('Invalid input. Please enter a valid number.');
+      await showAlert('Invalid input. Please enter a valid number.');
       return;
     }
     if (parsed < MIN_BARS) {
-      alert(`Invalid value. Please enter a number >= ${MIN_BARS}.`);
+      await showAlert(`Invalid value. Please enter a number >= ${MIN_BARS}.`);
       return;
     }
     setMaxBars(parsed);
     setStatus(`Max bars changed to ${parsed}`);
   };
 
-  const handleBpmClick = () => {
+  const handleBpmClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("BPM clicked, current BPM:", bpm);
     }
     
-    const newBpmStr = prompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, bpm.toString());
+    const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, bpm.toString());
     
     // Check if user cancelled
     if (newBpmStr === null) {
@@ -539,13 +573,13 @@ const Toolbar: React.FC = () => {
     
     // Check if it's a valid number
     if (isNaN(newBpm)) {
-      alert("Invalid input. Please enter a valid number.");
+      await showAlert("Invalid input. Please enter a valid number.");
       return;
     }
     
     // Check if it's within valid range
     if (newBpm <= TIME_CONSTANTS.MIN_BPM || newBpm >= TIME_CONSTANTS.MAX_BPM) {
-      alert(`Invalid BPM. Please enter a value between ${TIME_CONSTANTS.MIN_BPM} and ${TIME_CONSTANTS.MAX_BPM}.`);
+      await showAlert(`Invalid BPM. Please enter a value between ${TIME_CONSTANTS.MIN_BPM} and ${TIME_CONSTANTS.MAX_BPM}.`);
       return;
     }
     
@@ -558,33 +592,25 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleTimeSignatureClick = () => {
+  const handleTimeSignatureClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Time signature clicked, current:", `${timeSignature.numerator}/${timeSignature.denominator}`);
     }
-    
-    const currentTimeSignatureStr = `${timeSignature.numerator}/${timeSignature.denominator}`;
-    const newTimeSignatureStr = prompt(`Enter new time signature (numerator/denominator):`, currentTimeSignatureStr);
-    
-    // Check if user cancelled
-    if (newTimeSignatureStr === null) {
-      return;
-    }
-    
-    // Parse and validate time signature
-    const newTimeSignature = parseTimeSignature(newTimeSignatureStr);
-    
+
+    const result = await showTimeSigPrompt('Set the time signature:', timeSignature);
+    if (result === null) return;
+
+    const newTimeSignature = parseTimeSignature(`${result.numerator}/${result.denominator}`);
     if (newTimeSignature === null) {
-      alert(getTimeSignatureErrorMessage());
+      await showAlert(getTimeSignatureErrorMessage());
       return;
     }
-    
-    // Update time signature
+
     setTimeSignature(newTimeSignature);
     setStatus(`Time signature changed to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
-    
+
     if (DEBUG_MODE.TOOLBAR) {
-      console.log(`Time signature updated from ${currentTimeSignatureStr} to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
+      console.log(`Time signature updated to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
     }
   };
 
@@ -680,14 +706,60 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  // Handle split region button click
+  const handleSplitClick = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("Split button clicked");
+    }
+
+    if (selectedRegionIds.length === 0) {
+      await showAlert("Please select a region to split.");
+      return;
+    }
+    if (selectedRegionIds.length > 1) {
+      await showAlert("Please select exactly one region to split.");
+      return;
+    }
+
+    const regionId = selectedRegionIds[0];
+    const tracks = KGCore.instance().getCurrentProject().getTracks();
+    let targetRegion = null;
+    for (const track of tracks) {
+      const found = track.getRegions().find(r => r.getId() === regionId);
+      if (found) { targetRegion = found; break; }
+    }
+
+    if (!targetRegion) {
+      await showAlert("Selected region not found.");
+      return;
+    }
+
+    const regionStart = targetRegion.getStartFromBeat();
+    const regionEnd = regionStart + targetRegion.getLength();
+
+    if (playheadPosition <= regionStart || playheadPosition >= regionEnd) {
+      await showAlert("The playhead is not inside the selected region. Move the playhead inside the region before splitting.");
+      return;
+    }
+
+    const command = new SplitRegionCommand(regionId, playheadPosition);
+    KGCore.instance().executeCommand(command);
+    refreshProjectState();
+    setStatus(`Split region at beat ${playheadPosition.toFixed(2)}`);
+
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log(`Split region ${regionId} at beat ${playheadPosition}`);
+    }
+  };
+
   // Handle undo button click
-  const handleUndoClick = () => {
+  const handleUndoClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Undo button clicked");
     }
     
     if (!canUndo) {
-      alert("Nothing to undo");
+      await showAlert("Nothing to undo");
       return;
     }
     
@@ -701,13 +773,13 @@ const Toolbar: React.FC = () => {
   };
 
   // Handle redo button click
-  const handleRedoClick = () => {
+  const handleRedoClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Redo button clicked");
     }
     
     if (!canRedo) {
-      alert("Nothing to redo");
+      await showAlert("Nothing to redo");
       return;
     }
     
@@ -740,8 +812,18 @@ const Toolbar: React.FC = () => {
     setStatus("Settings toggled");
   };
 
+  // K.G.One panel toggle
+  const isKGOneEnabled = ConfigManager.instance().get('general.kgone.enabled') as boolean ?? false;
+
+  const handleKGOneClick = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("K.G.One button clicked");
+    }
+    toggleKGOnePanel();
+  };
+
   // Handle Piano button click: open piano roll if closed, targeting active or selected region
-  const handlePianoButtonClick = () => {
+  const handlePianoButtonClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log('Piano button clicked');
     }
@@ -760,6 +842,7 @@ const Toolbar: React.FC = () => {
       if (DEBUG_MODE.TOOLBAR) {
         console.log('No active or selected region; piano roll will not open');
       }
+      await showAlert('Please select a MIDI region to open the Piano Roll.');
       return;
     }
 
@@ -767,6 +850,13 @@ const Toolbar: React.FC = () => {
     setShowPianoRoll(true);
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Opening piano roll for region ${candidateRegionId}`);
+    }
+  };
+
+  const handleMetronomeToggle = () => {
+    toggleMetronome();
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log('Metronome toggled');
     }
   };
 
@@ -830,6 +920,12 @@ const Toolbar: React.FC = () => {
           <FaPencil />
         </button>
         <button
+          title="Split Region at Playhead"
+          onClick={handleSplitClick}
+        >
+          <FaCut />
+        </button>
+        <button
           title="Snap to Grid"
           className={`tool-button ${isSnapping ? 'active' : ''}`}
           onClick={handleSnappingToggle}
@@ -855,6 +951,13 @@ const Toolbar: React.FC = () => {
           <FaSync />
         </button>
         <div className="toolbar-separator"></div>
+        <button
+          title="Metronome"
+          className={`tool-button ${isMetronomeEnabled ? 'active' : ''}`}
+          onClick={handleMetronomeToggle}
+        >
+          <MetronomeIcon />
+        </button>
         <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
         {/* <button title="Record"><FaCircle className="record-btn" /></button>
         <button title="Metronome">🎵</button> */}
@@ -916,6 +1019,15 @@ const Toolbar: React.FC = () => {
           </div>
         </div>
         <button title="Settings" onClick={handleSettingsClick}><FaCog /></button>
+        <button
+          title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
+          onClick={handleKGOneClick}
+          disabled={!isKGOneEnabled}
+          className={showKGOnePanel ? 'active' : ''}
+          style={!isKGOneEnabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+        >
+          <FaWandMagicSparkles />
+        </button>
         <button title="Chat" onClick={handleChatClick}><FaComments /></button>
       </div>
     </div>

@@ -59,9 +59,11 @@ interface ProjectState {
   keySignature: KeySignature;
   selectedMode: string;
   isLooping: boolean;
+  isMetronomeEnabled: boolean;
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
+  autoScrollEnabled: boolean;
   currentTime: string; // formatted time string
   
   // Selection state for UI reactivity
@@ -75,6 +77,9 @@ interface ProjectState {
   
   // ChatBox state
   showChatBox: boolean;
+
+  // K.G.One panel state
+  showKGOnePanel: boolean;
 
   // Instrument selection panel state
   showInstrumentSelection: boolean;
@@ -111,9 +116,11 @@ interface ProjectState {
   refreshStatus: () => void;
   loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
   setPlayheadPosition: (position: number) => void;
+  setAutoScrollEnabled: (enabled: boolean) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
   toggleLoop: () => void;
+  toggleMetronome: () => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
   setBarWidthMultiplier: (multiplier: number) => void;
@@ -136,6 +143,9 @@ interface ProjectState {
   // ChatBox actions
   setShowChatBox: (show: boolean) => void;
   toggleChatBox: () => void;
+
+  // K.G.One panel actions
+  toggleKGOnePanel: () => void;
 
   // Instrument selection panel actions
   openInstrumentSelectionForTrack: () => void;
@@ -261,9 +271,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     keySignature: currentProject.getKeySignature(),
     selectedMode: currentProject.getSelectedMode(),
     isLooping: currentProject.getIsLooping(),
+    isMetronomeEnabled: false,
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
+    autoScrollEnabled: true,
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
     
     // Initial selection state
@@ -277,6 +289,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
+
+    // Initial K.G.One panel state
+    showKGOnePanel: false,
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
@@ -743,9 +758,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
     },
 
+    setAutoScrollEnabled: (enabled: boolean) => {
+      set({ autoScrollEnabled: enabled });
+    },
+
     startPlaying: async () => {
       await KGCore.instance().startPlaying();
-      set({ isPlaying: true });
+      set({ isPlaying: true, autoScrollEnabled: true });
     },
 
     stopPlaying: async () => {
@@ -762,6 +781,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       toggleLoop(isLooping, loopingRange, maxBars);
+    },
+
+    toggleMetronome: () => {
+      const { isMetronomeEnabled, isPlaying, timeSignature } = get();
+      const newValue = !isMetronomeEnabled;
+      set({ isMetronomeEnabled: newValue });
+
+      const audio = KGAudioInterface.instance();
+      audio.setMetronomeEnabled(newValue);
+
+      if (isPlaying) {
+        if (newValue) {
+          const currentBeat = KGCore.instance().getPlayheadPosition();
+          audio.startMetronomeDuringPlayback(currentBeat, timeSignature.numerator);
+        } else {
+          audio.stopMetronomeDuringPlayback();
+        }
+      }
     },
 
     setBpm: (bpm: number) => {
@@ -898,7 +935,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     toggleChatBox: () => {
       const { showChatBox } = get();
-      set({ showChatBox: !showChatBox });
+      set({ showChatBox: !showChatBox, showKGOnePanel: false });
+    },
+
+    toggleKGOnePanel: () => {
+      const { showKGOnePanel } = get();
+      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false });
     },
 
     // Instrument selection panel actions

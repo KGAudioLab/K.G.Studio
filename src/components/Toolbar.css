@@ -9,7 +9,9 @@
   border-bottom: 1px solid #3a3a3a;
 }
 
-.toolbar-left, .toolbar-center, .toolbar-right {
+.toolbar-left,
+.toolbar-center,
+.toolbar-right {
   display: flex;
   align-items: center;
 }
@@ -44,7 +46,8 @@
   border: none;
   color: #e0e0e0;
   margin: 0 5px;
-  padding: 5px;
+  width: 28px;
+  height: 28px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -61,6 +64,11 @@
 .toolbar button:disabled {
   color: #666;
   cursor: not-allowed;
+}
+
+.toolbar button:active {
+  background-color: #5a5a5a;
+  transform: scale(0.95);
 }
 
 .record-btn {

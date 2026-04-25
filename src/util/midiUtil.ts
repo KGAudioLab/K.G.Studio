@@ -465,6 +465,40 @@ function getKeySignatureBytes(keySignature: KeySignature): Uint8Array {
   return new Uint8Array([0, 0]);
 }
 
+// ─── K.G.One clip MIDI import helpers ────────────────────────────────────────
+
+export interface RawMidiNote {
+  startBeat: number;
+  endBeat: number;
+  pitch: number;
+  velocity: number;
+}
+
+/**
+ * Parses a MIDI binary and returns all notes from the first track that has
+ * notes, with beat offsets normalised so the earliest note starts at beat 0.
+ * Used by the K.G.One Clip drag-to-MIDI-track feature.
+ */
+export function parseMidiFirstTrackNotes(data: Uint8Array): {
+  notes: RawMidiNote[];
+  totalBeats: number;
+} {
+  const midiFile = parseMidiFile(data);
+  const firstTrack = midiFile.tracks.find(t => t.notes.length > 0);
+  if (!firstTrack || firstTrack.notes.length === 0) {
+    return { notes: [], totalBeats: 0 };
+  }
+  const minBeat = Math.min(...firstTrack.notes.map(n => n.startBeat));
+  const notes: RawMidiNote[] = firstTrack.notes.map(n => ({
+    startBeat: n.startBeat - minBeat,
+    endBeat: n.endBeat - minBeat,
+    pitch: n.pitch,
+    velocity: n.velocity,
+  }));
+  const totalBeats = Math.max(...notes.map(n => n.endBeat));
+  return { notes, totalBeats };
+}
+
 /**
  * Converts a MIDI binary file to a KGSP project
  * @param midiData - The MIDI file data as Uint8Array

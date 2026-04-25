@@ -1,5 +1,7 @@
-import { KGProjectStorage, DuplicateEntryError } from '../core/io/KGProjectStorage';
+import { KGProjectStorage } from '../core/io/KGProjectStorage';
 import { KGCore } from '../core/KGCore';
+import { RESERVED_PROJECT_NAME } from './projectNameUtil';
+import { showAlert } from '../components/common/DialogProvider';
 
 /**
  * Save project utility function.
@@ -17,14 +19,27 @@ export const saveProject = async (
   savedProjectName: string,
   setStatus: (status: string) => void,
   onSaveSuccess: (finalName: string) => void,
+  forceOverwrite: boolean = false,
 ): Promise<boolean> => {
   const storage = KGProjectStorage.getInstance();
+
+  // Auto-rename reserved "Untitled Project" to "Untitled Project (1)", "(2)", etc.
+  if (projectName === RESERVED_PROJECT_NAME) {
+    let counter = 1;
+    let autoName = `${RESERVED_PROJECT_NAME} (${counter})`;
+    while (await storage.exists(autoName)) {
+      counter++;
+      autoName = `${RESERVED_PROJECT_NAME} (${counter})`;
+    }
+    projectName = autoName;
+  }
+
   const isRename = savedProjectName !== projectName;
 
   if (isRename) {
-    // Determine the target name, resolving conflicts automatically
+    // Determine the target name; skip conflict resolution when caller already confirmed overwrite
     let targetName = projectName;
-    if (await storage.exists(projectName)) {
+    if (!forceOverwrite && await storage.exists(projectName)) {
       targetName = await storage.resolveUniqueName(projectName);
     }
 
@@ -33,6 +48,7 @@ export const saveProject = async (
         savedProjectName,
         targetName,
         KGCore.instance().getCurrentProject(),
+        forceOverwrite,
       );
 
       const statusMsg =
@@ -44,39 +60,20 @@ export const saveProject = async (
       return true;
     } catch (error) {
       console.error('Error saving renamed project:', error);
-      window.alert(`An error occurred while saving: ${error}`);
+      await showAlert(`An error occurred while saving: ${error}`);
       return false;
     }
   }
 
-  // Same name — existing overwrite logic
+  // Same name — overwrite silently (user hasn't changed the name, so no confirmation needed)
   try {
-    await storage.save(projectName, KGCore.instance().getCurrentProject(), false);
+    await storage.save(projectName, KGCore.instance().getCurrentProject(), true);
     setStatus(`Project "${projectName}" has been saved`);
     onSaveSuccess(projectName);
     return true;
   } catch (error) {
-    if (error instanceof DuplicateEntryError) {
-      const confirmed = window.confirm(
-        `Project "${projectName}" already exists. Do you want to overwrite it?`,
-      );
-      if (confirmed) {
-        try {
-          await storage.save(projectName, KGCore.instance().getCurrentProject(), true);
-          setStatus(`Project "${projectName}" has been saved`);
-          onSaveSuccess(projectName);
-          return true;
-        } catch (overwriteError) {
-          console.error('Error overwriting project:', overwriteError);
-          window.alert(`An error occurred while overwriting the project: ${overwriteError}`);
-          return false;
-        }
-      }
-      return false;
-    } else {
-      console.error('Error saving project:', error);
-      window.alert(`An unknown error ${error} occurred. Please try again.`);
-      return false;
-    }
+    console.error('Error saving project:', error);
+    await showAlert(`An error occurred while saving: ${error}`);
+    return false;
   }
 };

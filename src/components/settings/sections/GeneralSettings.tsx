@@ -18,6 +18,10 @@ const GeneralSettings: React.FC = () => {
   const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
   const [compatibleModel, setCompatibleModel] = useState<string>('');
   const [soundfontBaseUrl, setSoundfontBaseUrl] = useState<string>('');
+  const [kgoneEnabled, setKgoneEnabled] = useState<boolean>(false);
+  const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
+  const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
+  const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
 
   const configManager = ConfigManager.instance();
 
@@ -58,6 +62,10 @@ const GeneralSettings: React.FC = () => {
       setCompatibleBaseUrl((configManager.get('general.openai_compatible.base_url') as string) || '');
       setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
       setSoundfontBaseUrl((configManager.get('general.soundfont.base_url') as string) || '');
+      setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
+      setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
+      setKgoneServerManaged(configManager.isKGOneServerManaged());
+      setSoundfontServerManaged(configManager.isSoundfontServerManaged());
     };
 
     loadConfig();
@@ -175,23 +183,37 @@ const GeneralSettings: React.FC = () => {
     debouncedSave('general.soundfont.base_url', value);
   };
 
+  const handleKgoneEnabledChange = async (value: boolean) => {
+    setKgoneEnabled(value);
+    try {
+      await configManager.set('general.kgone.enabled', value);
+    } catch (error) {
+      console.error('Failed to save K.G.One enabled:', error);
+    }
+  };
+
+  const handleKgoneBaseUrlChange = (value: string) => {
+    setKgoneBaseUrl(value);
+    debouncedSave('general.kgone.base_url', value);
+  };
+
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
     <div className="settings-section">
       <div className="settings-section-header">
         <h3>General</h3>
       </div>
-      
+
       <div className="settings-section-content">
         <div className="settings-group">
           <h4>LLM Provider</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               LLM Provider
             </label>
-            <select 
-              className="settings-select" 
+            <select
+              className="settings-select"
               value={llmProvider}
               onChange={(e) => handleLlmProviderChange(e.target.value)}
             >
@@ -223,13 +245,13 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>OpenAI</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Key
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               className="settings-input"
               placeholder="Enter your OpenAI API key"
               value={openaiKey}
@@ -243,7 +265,7 @@ const GeneralSettings: React.FC = () => {
                   : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Model
@@ -343,13 +365,13 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>Anthropic Claude (via OpenRouter)</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Key
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               className="settings-input"
               placeholder="Enter your Claude API key"
               value={claudeOpenRouterKey}
@@ -368,8 +390,8 @@ const GeneralSettings: React.FC = () => {
             <label className="settings-label">
               Base URL
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="settings-input"
               placeholder="e.g. https://openrouter.ai/api/v1"
               value={claudeOpenRouterBaseUrl}
@@ -379,7 +401,7 @@ const GeneralSettings: React.FC = () => {
               This is the base URL for the OpenRouter API. Please do not change this unless you know what you are doing.
             </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Model
@@ -401,13 +423,13 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>OpenAI Compatible Server</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Key
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               className="settings-input"
               placeholder="Enter your API key"
               value={compatibleKey}
@@ -421,26 +443,72 @@ const GeneralSettings: React.FC = () => {
                   : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
             </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Base URL
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="settings-input"
               placeholder="e.g. https://openrouter.ai/api/v1"
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Quick presets:{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('http://localhost:11434/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Ollama
+              </a>
+              {' | '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('http://localhost:8080/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                llama.cpp
+              </a>
+              {' | '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('http://127.0.0.1:8317/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                CLIProxyAPI
+              </a>
+              {' | '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('https://openrouter.ai/api/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                OpenRouter
+              </a>
+            </div>
           </div>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Model
             </label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="settings-input"
               placeholder="e.g. qwen3:30b"
               value={compatibleModel}
@@ -452,6 +520,12 @@ const GeneralSettings: React.FC = () => {
         <div className="settings-group">
           <h4>Soundfont Settings</h4>
 
+          {soundfontServerManaged && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+              Soundfont configuration is managed by the server (kgone-server.json). Settings are read-only.
+            </div>
+          )}
+
           <div className="settings-item">
             <label className="settings-label">
               Base URL
@@ -462,9 +536,62 @@ const GeneralSettings: React.FC = () => {
               placeholder="e.g. https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/"
               value={soundfontBaseUrl}
               onChange={(e) => handleSoundfontBaseUrlChange(e.target.value)}
+              disabled={soundfontServerManaged}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changing this URL to an incompatible soundfont source may cause some instruments to sound wrong or not play.
+              Changing this URL to an incompatible soundfont source may cause some instruments to sound wrong or not play.{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSoundfontBaseUrlChange('https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Restore default
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>K.G.One Settings</h4>
+
+          {kgoneServerManaged && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+              K.G.One configuration is managed by the server (kgone-server.json). Settings are read-only.
+            </div>
+          )}
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Enable K.G.One Integration
+            </label>
+            <select
+              className="settings-select"
+              value={kgoneEnabled ? 'true' : 'false'}
+              onChange={(e) => handleKgoneEnabledChange(e.target.value === 'true')}
+              disabled={kgoneServerManaged}
+            >
+              <option value="false">Disabled</option>
+              <option value="true">Enabled</option>
+            </select>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Server Base URL
+            </label>
+            <input
+              type="text"
+              className="settings-input"
+              placeholder="e.g. http://127.0.0.1:8000"
+              value={kgoneBaseUrl}
+              onChange={(e) => handleKgoneBaseUrlChange(e.target.value)}
+              disabled={kgoneServerManaged}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Base URL of a running K.G.One server. Used for full-song generation, clip generation, and stem separation.
             </div>
           </div>
         </div>

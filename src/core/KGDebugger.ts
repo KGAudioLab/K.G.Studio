@@ -29,6 +29,8 @@ export class KGDebugger {
       'testExtractXMLFromString(input)',
       'testToolCall(jsonInput)',
       'inputChatBox(content, interval?)',
+      'inputKGOneCaption(content, interval?)',
+      'inputKGOneLyrics(content, interval?)',
       'opfs(command)',
       'startShell()',
     ]);
@@ -346,6 +348,8 @@ export class KGDebugger {
     console.log("  testExtractXMLFromString(input) - Test XML extraction from string");
     console.log("  testToolCall(input) - Execute tool call(s) from JSON and show results");
     console.log("  inputChatBox(content, interval?) - Type into ChatBox textarea and submit with Enter");
+    console.log("  inputKGOneCaption(content, interval?) - Type into KGOne Caption textarea (Full Song tab)");
+    console.log("  inputKGOneLyrics(content, interval?) - Type into KGOne Lyrics textarea (Full Song tab)");
     console.log("  opfs(command) - OPFS file browser (pwd, ls, cd, cat, dl, rm)");
     console.log("  startShell() - Start interactive OPFS shell (prompt-based loop)");
     console.log("  help() - Show this help");
@@ -359,6 +363,10 @@ export class KGDebugger {
     console.log('  await KGStudio.KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":8}}\')');
     console.log('  await KGStudio.KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:1}]}})');
     console.log('  await KGStudio.KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end_beat:4}},{name:"read_music",arguments:{}}])');
+    console.log("");
+    console.log("💡 KGOne input examples:");
+    console.log('  await KGStudio.KGDebugger.inputKGOneCaption("Genre: Eurodance, 90s dance-pop, upbeat electronic...", 30)');
+    console.log('  await KGStudio.KGDebugger.inputKGOneLyrics("[Verse 1]\\nYour lyrics here...\\n\\n[Chorus]\\n...", 30)');
   }
 
   /**
@@ -448,6 +456,146 @@ export class KGDebugger {
       textarea.dispatchEvent(keyupEvent);
     } catch (error) {
       console.error('❌ Error in inputChatBox:', error);
+    }
+  }
+
+  /**
+   * Type content into K.G.One Caption textarea character-by-character.
+   * Honors auto-resize (by dispatching 'input' events).
+   * Note: Unlike ChatBox, this does NOT auto-submit (no Enter key dispatch).
+   * @param content - The text to type into the caption input
+   * @param interval - Delay in ms between characters (default 30ms)
+   */
+  public async inputKGOneCaption(content: string, interval: number = 30): Promise<void> {
+    try {
+      const label = Array.from(document.querySelectorAll('label.kgone-label')).find(
+        el => el.textContent?.trim() === 'Caption'
+      );
+      if (!label) {
+        console.error('❌ Caption label not found. Ensure KGOne panel is visible with Full Song tab selected.');
+        return;
+      }
+
+      const textarea = label.nextElementSibling as HTMLTextAreaElement | null;
+      if (!textarea || textarea.tagName !== 'TEXTAREA') {
+        console.error('❌ Caption textarea not found after the label.');
+        return;
+      }
+
+      textarea.focus();
+
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      const setValue = (val: string) => {
+        if (valueSetter) {
+          valueSetter.call(textarea, val);
+        } else {
+          textarea.value = val;
+        }
+      };
+
+      const dispatchInput = (data?: string) => {
+        const ev = typeof InputEvent !== 'undefined'
+          ? new InputEvent('input', { bubbles: true, data, inputType: 'insertText' })
+          : new Event('input', { bubbles: true });
+        textarea.dispatchEvent(ev);
+      };
+
+      setValue('');
+      dispatchInput('');
+
+      const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+      let typed = '';
+      for (let i = 0; i < content.length; i++) {
+        typed += content[i];
+        setValue(typed);
+        dispatchInput(content[i]);
+
+        try {
+          textarea.selectionStart = textarea.selectionEnd = typed.length;
+        } catch {
+        }
+
+        textarea.scrollTop = textarea.scrollHeight;
+
+        if (interval > 0) {
+          await sleep(interval);
+        }
+      }
+
+      await sleep(Math.max(30, interval));
+    } catch (error) {
+      console.error('❌ Error in inputKGOneCaption:', error);
+    }
+  }
+
+  /**
+   * Type content into K.G.One Lyrics textarea character-by-character.
+   * Honors auto-resize (by dispatching 'input' events).
+   * Note: Unlike ChatBox, this does NOT auto-submit (no Enter key dispatch).
+   * @param content - The text to type into the lyrics input
+   * @param interval - Delay in ms between characters (default 30ms)
+   */
+  public async inputKGOneLyrics(content: string, interval: number = 30): Promise<void> {
+    try {
+      const label = Array.from(document.querySelectorAll('label.kgone-label')).find(
+        el => el.textContent?.trim() === 'Lyrics'
+      );
+      if (!label) {
+        console.error('❌ Lyrics label not found. Ensure KGOne panel is visible with Full Song tab selected.');
+        return;
+      }
+
+      const textarea = label.nextElementSibling as HTMLTextAreaElement | null;
+      if (!textarea || textarea.tagName !== 'TEXTAREA') {
+        console.error('❌ Lyrics textarea not found after the label.');
+        return;
+      }
+
+      textarea.focus();
+
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      const setValue = (val: string) => {
+        if (valueSetter) {
+          valueSetter.call(textarea, val);
+        } else {
+          textarea.value = val;
+        }
+      };
+
+      const dispatchInput = (data?: string) => {
+        const ev = typeof InputEvent !== 'undefined'
+          ? new InputEvent('input', { bubbles: true, data, inputType: 'insertText' })
+          : new Event('input', { bubbles: true });
+        textarea.dispatchEvent(ev);
+      };
+
+      setValue('');
+      dispatchInput('');
+
+      const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+      let typed = '';
+      for (let i = 0; i < content.length; i++) {
+        typed += content[i];
+        setValue(typed);
+        dispatchInput(content[i]);
+
+        try {
+          textarea.selectionStart = textarea.selectionEnd = typed.length;
+        } catch {
+        }
+
+        textarea.scrollTop = textarea.scrollHeight;
+
+        if (interval > 0) {
+          await sleep(interval);
+        }
+      }
+
+      await sleep(Math.max(30, interval));
+    } catch (error) {
+      console.error('❌ Error in inputKGOneLyrics:', error);
     }
   }
 

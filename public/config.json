@@ -28,6 +28,10 @@
         }, 
         "soundfont": {
             "base_url": "https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/"
+        },
+        "kgone": {
+            "enabled": false,
+            "base_url": "http://127.0.0.1:8000"
         }
     },
     "hotkeys": {

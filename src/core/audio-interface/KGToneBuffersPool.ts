@@ -1,5 +1,6 @@
 import { SAMPLER_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { ConfigManager } from '../config/ConfigManager';
 import * as Tone from 'tone';
 
 /**
@@ -12,7 +13,7 @@ export class KGToneBuffersPool {
 
   // Map to store ToneAudioBuffers by instrument name
   private bufferMap: Map<string, Tone.ToneAudioBuffers> = new Map();
-  
+
   // Map to store loading promises to prevent duplicate loading and handle race conditions
   private loadingPromises: Map<string, Promise<Tone.ToneAudioBuffers>> = new Map();
 
@@ -89,16 +90,16 @@ export class KGToneBuffersPool {
 
     try {
       const buffers = await loadingPromise;
-      
+
       // Cache the fully loaded buffers
       this.bufferMap.set(name, buffers);
       console.log(`KGToneBuffersPool: Cached loaded buffers for ${name}`);
-      
+
       // Remove from loading promises since it's complete
       this.loadingPromises.delete(name);
       this.emitLoadingEvent({ type: 'end', instrument: name });
       console.log(`[KGToneBuffersPool] end: Active load count: ${this.getActiveLoadCount()}`);
-      
+
       return buffers;
     } catch (error) {
       // Remove failed loading promise so it can be retried
@@ -115,21 +116,26 @@ export class KGToneBuffersPool {
    * Create ToneAudioBuffers for an instrument
    */
   private async createToneAudioBuffers(name: string): Promise<Tone.ToneAudioBuffers> {
+    const configManager = ConfigManager.instance();
+    if (!configManager.getIsInitialized()) {
+      await configManager.initialize();
+    }
+
     return new Promise((resolve, reject) => {
       try {
-        // Get instrument configuration from constants
-        const fluidConfig = SAMPLER_CONSTANTS.TONE_SAMPLERS.FLUID;
         const instrumentName = name;
-        
+
         if (!instrumentName) {
           throw new Error(`Unknown instrument: ${name}`);
         }
 
-        // Generate URL mapping for all keys from A0 to Bb7
-        const urls = this.generateKeyUrls(fluidConfig.url, instrumentName);
-        
+        const baseUrl = (ConfigManager.instance().get('general.soundfont.base_url') as string)
+          || SAMPLER_CONSTANTS.TONE_SAMPLERS.FLUID.url;
+
+        const urls = this.generateKeyUrls(baseUrl, instrumentName);
+
         console.log(`Loading ToneAudioBuffers for ${name} (${instrumentName})...`);
-        
+
         // Create ToneAudioBuffers with onload callback
         const buffers = new Tone.ToneAudioBuffers(
           urls,
@@ -140,7 +146,7 @@ export class KGToneBuffersPool {
         );
 
         // Don't cache until loading is complete - this will be handled in getToneAudioBuffers
-        
+
       } catch (error) {
         console.error(`Error creating ToneAudioBuffers for ${name}:`, error);
         reject(error);
@@ -158,23 +164,23 @@ export class KGToneBuffersPool {
     // get the range of the instrument. 
     // TODO: make the sound library name configurable.
     const range = FLUIDR3_INSTRUMENT_MAP[instrumentName]?.pitchRange || [21, 108];
-    
+
     // Note names in order (using flats instead of sharps where applicable)
     const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-    
+
     // Generate keys from A0 to C8 (MIDI notes 21 to 108)
     for (let midiNote = range[0]; midiNote <= range[1]; midiNote++) {
       const octave = Math.floor((midiNote - 12) / 12);
       const noteIndex = (midiNote - 12) % 12;
       const noteName = noteNames[noteIndex];
       const keyName = `${noteName}${octave}`;
-      
+
       // Generate URL for this key
       urls[keyName] = `${baseUrl}${instrumentName}-mp3/${keyName}.mp3`;
     }
-    
+
     console.log(`Generated ${Object.keys(urls).length} key URLs for ${instrumentName} from A0 to Bb7`);
-    
+
     return urls;
   }
 
@@ -196,7 +202,7 @@ export class KGToneBuffersPool {
       // Clear both maps
       this.bufferMap.clear();
       this.loadingPromises.clear();
-      
+
       console.log("KGToneBuffersPool disposed successfully");
     } catch (error) {
       console.error("Error disposing KGToneBuffersPool:", error);
@@ -207,7 +213,7 @@ export class KGToneBuffersPool {
    * Preload buffers for specific instruments (optional performance optimization)
    */
   public async preloadInstruments(instrumentNames: string[]): Promise<void> {
-    const loadPromises = instrumentNames.map(name => 
+    const loadPromises = instrumentNames.map(name =>
       this.getToneAudioBuffers(name).catch(error => {
         console.warn(`Failed to preload ${name}:`, error);
       })

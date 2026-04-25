@@ -1,6 +1,7 @@
 /* Shared toolbar layout classes (used by Toolbar and PianoRollToolbar) */
 
-.toolbar-left, .toolbar-right {
+.toolbar-left,
+.toolbar-right {
   display: flex;
   align-items: center;
   z-index: 1;
@@ -26,7 +27,7 @@
   align-items: center;
   justify-content: center;
   z-index: 1005;
-  margin-left: -50px;
+  margin-left: -120px;
 }
 
 /* Tool buttons (used by Toolbar and PianoRollToolbar) */
@@ -119,7 +120,15 @@
 }
 
 @keyframes buttonBlink {
-  0% { background-color: #333; }
-  50% { background-color: #555; }
-  100% { background-color: #333; }
+  0% {
+    background-color: #333;
+  }
+
+  50% {
+    background-color: #555;
+  }
+
+  100% {
+    background-color: #333;
+  }
 }

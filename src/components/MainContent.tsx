@@ -31,6 +31,10 @@ const MainContent: React.FC<MainContentProps> = ({
     updateTrackProperties,
     timeSignature,
     setPlayheadPosition,
+    playheadPosition,
+    isPlaying,
+    autoScrollEnabled,
+    setAutoScrollEnabled,
     clearAllSelections,
     setSelectedTrack,
     showPianoRoll,
@@ -38,7 +42,8 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll,
     setActiveRegionId,
     addTrack,
-    addAudioTrack
+    addAudioTrack,
+    projectName,
   } = useProjectStore();
 
   // State to store regions
@@ -79,12 +84,63 @@ const MainContent: React.FC<MainContentProps> = ({
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
 
+  // Refs for auto-scroll during playback
+  const mainContentRef = useRef<HTMLDivElement | null>(null);
+  const expectedScrollLeftRef = useRef<number>(-1);
+  const isPlayingRef = useRef(false);
+
   // Refs for bar numbers and loop range drag functionality
   const barNumbersRef = useRef<HTMLDivElement | null>(null);
   const isLoopDraggingRef = useRef(false);
   const loopDragStartBarRef = useRef<number | null>(null);
   const loopDragStartXRef = useRef<number | null>(null);
   const loopDragOriginalSettingsRef = useRef<{ isLooping: boolean; loopingRange: [number, number] } | null>(null);
+
+  // Sync isPlayingRef for use inside scroll event closure
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // Detect manual horizontal scroll during playback
+  useEffect(() => {
+    const container = mainContentRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (!isPlayingRef.current) return;
+      if (Math.abs(container.scrollLeft - expectedScrollLeftRef.current) < 1) return;
+      useProjectStore.getState().setAutoScrollEnabled(false);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to keep playhead centered during playback
+  useEffect(() => {
+    if (!isPlaying || !autoScrollEnabled) return;
+
+    const container = mainContentRef.current;
+    if (!container) return;
+
+    const beatsPerBar = timeSignature.numerator;
+    const barPosition = playheadPosition / beatsPerBar;
+    const barWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
+    ) || 40;
+    const playheadPixel = barPosition * barWidth;
+
+    // Center the playhead in the visible grid area (excluding the 200px sticky info panel)
+    const infoWidth = 200;
+    const targetScrollLeft = playheadPixel - (container.clientWidth - infoWidth) / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    expectedScrollLeftRef.current = clampedScrollLeft;
+    container.scrollLeft = clampedScrollLeft;
+  }, [playheadPosition, isPlaying, autoScrollEnabled, timeSignature]);
 
   // Effect to verify track updates
   useEffect(() => {
@@ -236,6 +292,27 @@ const MainContent: React.FC<MainContentProps> = ({
       }
 
       return updatedRegions;
+    });
+  };
+
+  // Handle regions dropped from K.G.One panel (external drag-and-drop)
+  const handleExternalDropComplete = (trackIndex: number, regionUI: RegionUI) => {
+    const track = tracks[trackIndex];
+    if (!track) return;
+    updateTrack(track);
+    setSelectedTrack(track.getId().toString());
+
+    // Sync maxBars from core model — ImportAudioCommand may have expanded it
+    const coreMaxBars = KGCore.instance().getCurrentProject().getMaxBars();
+    if (coreMaxBars > maxBars) {
+      useProjectStore.setState({ maxBars: coreMaxBars });
+      document.documentElement.style.setProperty('--max-number-of-bars', coreMaxBars.toString());
+    }
+
+    setRegions(prev => {
+      const updated = [...prev, regionUI];
+      selectRegion(regionUI.id, updated);
+      return updated;
     });
   };
 
@@ -700,7 +777,7 @@ const MainContent: React.FC<MainContentProps> = ({
   };
 
   return (
-    <div className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`}>
+    <div className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`} ref={mainContentRef}>
       <div className="main-content-wrapper">
         {/* Top-left spacer */}
         <div className="top-left-spacer">
@@ -742,10 +819,12 @@ const MainContent: React.FC<MainContentProps> = ({
             draggedTrackIndex={draggedTrackIndex}
             dragOverTrackIndex={dragOverTrackIndex}
             selectedRegionId={selectedRegionId}
+            projectName={projectName}
             onRegionCreated={handleRegionCreated}
             onRegionUpdated={handleRegionUpdated}
             onRegionClick={handleRegionClick}
             onOpenPianoRoll={handleOpenPianoRoll}
+            onExternalDropComplete={handleExternalDropComplete}
           />
         </div>
       </div>

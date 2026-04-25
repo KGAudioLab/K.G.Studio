@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from '../../../util/scaleUtil';
 import { KGCore } from '../../../core/KGCore';
+import { showAlert } from '../../common/DialogProvider';
 
 const ChordGuideSettings: React.FC = () => {
   const [chordDefinition, setChordDefinition] = useState<string>('');
@@ -88,7 +89,7 @@ const ChordGuideSettings: React.FC = () => {
       console.log('Loaded default chord template');
     } catch (error) {
       console.error('Failed to load default template:', error);
-      alert('Failed to load default template. Please check the console for details.');
+      await showAlert('Failed to load default template. Please check the console for details.');
     }
   };
 

@@ -1,49 +1,108 @@
-/* Overlay — blocks and blurs content below */
+/* Overlay — centered, blurs content below */
 .open-project-overlay {
   position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(3px);
-  z-index: 2000;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  backdrop-filter: blur(2px);
 }
 
-/* Open Project Panel — follows PianoRoll panel pattern */
+/* Open Project Panel — centered dialog */
 .open-project-panel {
-  position: fixed;
   background-color: #2d2d2d;
   border: 1px solid #3a3a3a;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  width: 90%;
+  max-width: 700px;
+  height: 70vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: openProjectFadeIn 0.2s ease-out;
 }
 
-/* Header — draggable */
+@keyframes openProjectFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes openProjectFadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+}
+
+@keyframes openProjectOverlayFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.open-project-overlay-closing {
+  animation: openProjectOverlayFadeOut 0.15s ease-in forwards;
+}
+
+.open-project-panel-closing {
+  animation: openProjectFadeOut 0.15s ease-in forwards;
+}
+
+/* Header */
 .open-project-header {
-  height: 30px;
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #3a3a3a;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 0 10px;
-  cursor: move;
-  user-select: none;
+  padding: 20px;
+  background-color: #252525;
   flex-shrink: 0;
 }
 
 .open-project-title {
-  flex: 1;
-  text-align: center;
-  font-size: 14px;
   color: #e0e0e0;
-  text-transform: uppercase;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.open-project-close-btn {
+  background: transparent;
+  border: none;
+  color: #b0b0b0;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.open-project-close-btn:hover {
+  background-color: #3a3a3a;
+  color: #e0e0e0;
 }
 
 /* Filter bar — sticky at top */
 .open-project-filter {
   padding: 10px 12px;
   background-color: #252525;
-  border-bottom: 1px solid #3a3a3a;
   flex-shrink: 0;
 }
 
@@ -66,7 +125,7 @@
 }
 
 .open-project-filter input:focus {
-  border-color: #7b68ee;
+  border-color: #5a9fd4;
 }
 
 .open-project-filter input::placeholder {
@@ -76,8 +135,7 @@
 /* View toggle (Projects / Trash) */
 .open-project-view-toggle {
   display: flex;
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -86,14 +144,11 @@
   background-color: #1e1e1e;
   color: #999;
   border: none;
-  padding: 5px 12px;
-  font-size: 12px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.1s, color 0.1s;
-}
-
-.open-project-toggle-btn:not(:last-child) {
-  border-right: 1px solid #3a3a3a;
+  transition: all 0.2s ease;
 }
 
 .open-project-toggle-btn:hover {
@@ -101,7 +156,7 @@
 }
 
 .open-project-toggle-btn.active {
-  background-color: #7b68ee;
+  background-color: #5a9fd4;
   color: #fff;
 }
 
@@ -109,7 +164,6 @@
 .open-project-trash-hint {
   padding: 6px 12px;
   background-color: #3a2a1a;
-  border-bottom: 1px solid #5a3a1a;
   color: #d4a054;
   font-size: 11px;
   flex-shrink: 0;
@@ -121,7 +175,6 @@
   align-items: center;
   padding: 6px 12px;
   background-color: #252525;
-  border-bottom: 1px solid #3a3a3a;
   font-size: 11px;
   color: #999;
   text-transform: uppercase;
@@ -144,7 +197,7 @@
 }
 
 .open-project-sort-col.active {
-  color: #7b68ee;
+  color: #5a9fd4;
 }
 
 .open-project-sort-col-name {
@@ -169,7 +222,6 @@
   display: flex;
   align-items: center;
   padding: 10px 12px;
-  border-bottom: 1px solid #333;
   cursor: pointer;
   transition: background-color 0.1s;
 }
@@ -211,32 +263,37 @@
 
 /* Open button */
 .open-project-item-open-btn {
-  background-color: #7b68ee;
+  background-color: #5a9fd4;
   color: #fff;
   border: none;
-  border-radius: 4px;
-  padding: 5px 14px;
-  font-size: 12px;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .open-project-item-open-btn:hover {
-  background-color: #6a58d6;
+  background-color: #4a8fc4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(90, 159, 212, 0.3);
 }
 
 /* Icon action buttons (duplicate, delete, restore, perm-delete) */
 .open-project-item-action-btn {
   background: transparent;
   border: 1px solid #555;
-  border-radius: 4px;
+  border-radius: 6px;
   color: #bbb;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+  transition: all 0.2s ease;
 }
 
 .open-project-item-action-btn:hover {
@@ -245,10 +302,16 @@
   border-color: #777;
 }
 
-.open-project-item-permdelete-btn:hover {
+.open-project-item-delete-btn:hover {
   background-color: #5a2020;
   color: #ff6666;
   border-color: #ff4444;
+}
+
+.open-project-item-permdelete-btn:hover {
+  background-color: #7a1010;
+  color: #ff4444;
+  border-color: #ff2222;
 }
 
 .open-project-item-restore-btn:hover {
@@ -267,19 +330,4 @@
   color: #888;
   font-size: 14px;
   padding: 40px;
-}
-
-/* Resize handle — same as PianoRoll */
-.open-project-panel .resize-handle {
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 20px;
-  height: 20px;
-  cursor: nwse-resize;
-  color: #999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
 }
