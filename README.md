@@ -44,16 +44,22 @@ This project investigates how AI-human collaboration can enhance creative music-
   <table>
     <tr>
       <td align="center">
+        <a href="https://youtu.be/F1JWjK84zwc" target="_blank">
+          <img src="./public/demo/demo-cover.png" alt="K.G.One Music Studio" width="400"/>
+        </a>
+        <br><b>K.G.One Music Studio</b>
+      </td>
+      <td align="center">
         <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
           <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
         </a>
-        <br><b>📱 Short Demo</b>
+        <br><b>Short Demo (DAW Only)</b>
       </td>
       <td align="center">
         <a href="https://youtu.be/vKbWAQRt0r0" target="_blank">
           <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
         </a>
-        <br><b>🎬 Full Demo</b>
+        <br><b>Full Demo (DAW Only)</b>
       </td>
     </tr>
   </table>
