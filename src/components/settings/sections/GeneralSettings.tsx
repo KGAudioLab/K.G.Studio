@@ -455,6 +455,52 @@ const GeneralSettings: React.FC = () => {
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Quick presets:{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('http://localhost:11434/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Ollama
+              </a>
+              {' | '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('http://localhost:8080/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                llama.cpp
+              </a>
+              {' | '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('http://127.0.0.1:8317/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                CLIProxyAPI
+              </a>
+              {' | '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCompatibleBaseUrlChange('https://openrouter.ai/api/v1/chat/completions');
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                OpenRouter
+              </a>
+            </div>
           </div>
 
           <div className="settings-item">
