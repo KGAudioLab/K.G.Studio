@@ -14,10 +14,11 @@ import { sliceAudioToWav } from '../util/audioUtil';
 import type { KeySignature } from '../core/KGProject';
 import { ImportStemsCommand } from '../core/commands';
 import type { StemImportEntry } from '../core/commands';
+import { showAlert } from './common/DialogProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'clip' | 'fullsong' | 'separator';
+type Tab = 'clip' | 'fullsong' | 'remix' | 'repaint' | 'separator';
 
 type GenStatus = 'idle' | 'loading-model' | 'generating' | 'polling' | 'downloading' | 'done' | 'error';
 
@@ -813,6 +814,22 @@ function extractStemName(filename: string): string {
   return match ? match[1] : filename;
 }
 
+/** Count existing remix tracks derived from `sourceTrackName` (for naming new ones). */
+function countRemixTracks(sourceTrackName: string): number {
+  const tracks = KGCore.instance().getCurrentProject().getTracks();
+  const escaped = sourceTrackName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escaped} - remix \\(\\d+\\)$`);
+  return tracks.filter(t => pattern.test(t.getName())).length;
+}
+
+/** Count existing repaint tracks derived from `sourceTrackName` (for naming new ones). */
+function countRepaintTracks(sourceTrackName: string): number {
+  const tracks = KGCore.instance().getCurrentProject().getTracks();
+  const escaped = sourceTrackName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escaped} - repaint \\(\\d+\\)$`);
+  return tracks.filter(t => pattern.test(t.getName())).length;
+}
+
 const SeparatorTab: React.FC = () => {
   const { selectedRegionIds, projectName, bpm, timeSignature, maxBars, refreshProjectState } = useProjectStore();
   const [model, setModel] = useState<typeof SEPARATOR_MODELS[number]['value']>(SEPARATOR_MODELS[0].value);
@@ -1202,6 +1219,1008 @@ const SeparatorTab: React.FC = () => {
   );
 };
 
+// ─── Remix Tab ────────────────────────────────────────────────────────────────
+
+const RemixTab: React.FC = () => {
+  const { selectedRegionIds, projectName, bpm, maxBars, refreshProjectState } = useProjectStore();
+
+  // Form state (mirrors FullSongTab)
+  const [caption, setCaption] = useState('');
+  const [lyrics, setLyrics] = useState('');
+  const [instrumental, setInstrumental] = useState(false);
+  const [inferenceSteps, setInferenceSteps] = useState(8);
+  const [guidanceScale, setGuidanceScale] = useState(7.0);
+  const [useRandomSeed, setUseRandomSeed] = useState(true);
+  const [seed, setSeed] = useState(-1);
+  const [thinking, setThinking] = useState(true);
+
+  // Remix-specific params
+  const [audioCoverStrength, setAudioCoverStrength] = useState(0.5);
+  const [coverNoiseStrength, setCoverNoiseStrength] = useState(0.2);
+
+  // Generation state
+  const [genStatus, setGenStatus] = useState<GenStatus>('idle');
+  const [genHint, setGenHint] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  // Import state
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+
+  const abortRef = useRef<AbortController | null>(null);
+  const taskIdRef = useRef<string>('');
+  const originalRegionRef = useRef<{
+    regionName: string;
+    trackName: string;
+    startFromBeat: number;
+    trackIndex: number;
+  } | null>(null);
+
+  // Revoke blob URL on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedAudioRegion = useMemo(() => {
+    if (!selectedRegionIds.length) return null;
+    const project = KGCore.instance().getCurrentProject();
+    for (const track of project.getTracks()) {
+      for (const region of track.getRegions()) {
+        if (
+          selectedRegionIds.includes(region.getId()) &&
+          region.getCurrentType() === 'KGAudioRegion'
+        ) {
+          return { region: region as KGAudioRegion, trackName: track.getName(), trackIndex: track.getTrackIndex() };
+        }
+      }
+    }
+    return null;
+  }, [selectedRegionIds]);
+
+  const isGenerating = genStatus !== 'idle' && genStatus !== 'done' && genStatus !== 'error';
+
+  const handleRemix = useCallback(async () => {
+    if (!selectedAudioRegion) return;
+
+    // Capture snapshot before anything changes — selection may shift during generation
+    originalRegionRef.current = {
+      regionName: selectedAudioRegion.region.getName(),
+      trackName: selectedAudioRegion.trackName,
+      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      trackIndex: selectedAudioRegion.trackIndex,
+    };
+    setImportError('');
+
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const { signal } = ctrl;
+
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    setErrorMsg('');
+
+    try {
+      const baseUrl = getKGOneBaseUrl();
+
+      // ── 1. Load the fullsong model ──────────────────────────────────────────
+      setGenStatus('loading-model');
+      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+
+      const loadPayload = { model: 'fullsong' };
+      kgoneLog('REQ', 'POST /v1/models/load', loadPayload);
+      const loadResp = await fetch(`${baseUrl}/v1/models/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loadPayload),
+        signal,
+      });
+
+      if (!loadResp.ok) {
+        const body = await loadResp.text().catch(() => '');
+        kgoneLog('RES', `POST /v1/models/load → ${loadResp.status}`, body);
+        throw new Error(`Model load failed (${loadResp.status}): ${body}`);
+      }
+      kgoneLog('RES', `POST /v1/models/load → ${loadResp.status}`, await loadResp.clone().json().catch(() => '(unparseable)'));
+
+      if (signal.aborted) return;
+
+      // ── 2. Load audio from OPFS and build multipart form ───────────────────
+      setGenStatus('generating');
+      setGenHint('Reading audio file...');
+
+      const audioFileId = selectedAudioRegion.region.getAudioFileId();
+      const audioFileName = selectedAudioRegion.region.getAudioFileName();
+      const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
+      const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
+      const regionLengthSec = selectedAudioRegion.region.getLength() * (60 / bpm);
+      const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
+
+      const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
+      const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
+
+      let uploadBuffer: ArrayBuffer;
+      let uploadFileName: string;
+      let uploadMimeType: string;
+
+      if (needsSlice) {
+        setGenHint('Trimming audio to region range...');
+        uploadBuffer = await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration);
+        uploadFileName = audioFileName.replace(/\.[^.]+$/, '.wav');
+        uploadMimeType = 'audio/wav';
+      } else {
+        uploadBuffer = rawBuffer;
+        uploadFileName = audioFileName;
+        uploadMimeType = 'audio/mpeg';
+      }
+
+      const audioFile = new File([uploadBuffer], uploadFileName, { type: uploadMimeType });
+
+      const formData = new FormData();
+      formData.append('audio_file', audioFile, uploadFileName);
+      formData.append('caption', caption);
+      formData.append('lyrics', instrumental ? '' : lyrics);
+      formData.append('instrumental', String(instrumental));
+      formData.append('inference_steps', String(inferenceSteps));
+      formData.append('guidance_scale', String(guidanceScale));
+      formData.append('use_random_seed', String(useRandomSeed));
+      formData.append('seed', String(seed));
+      formData.append('thinking', String(thinking));
+      formData.append('batch_size', '1');
+      formData.append('audio_format', 'mp3');
+      formData.append('audio_cover_strength', String(audioCoverStrength));
+      formData.append('cover_noise_strength', String(coverNoiseStrength));
+
+      if (signal.aborted) return;
+
+      setGenHint('Submitting remix request...');
+
+      kgoneLog('REQ', 'POST /v1/fullsong/remix', {
+        file: uploadFileName, caption, instrumental, inference_steps: inferenceSteps,
+        guidance_scale: guidanceScale, use_random_seed: useRandomSeed, seed, thinking,
+        audio_cover_strength: audioCoverStrength, cover_noise_strength: coverNoiseStrength,
+      });
+      const remixResp = await fetch(`${baseUrl}/v1/fullsong/remix`, {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+
+      if (!remixResp.ok) {
+        const body = await remixResp.text().catch(() => '');
+        kgoneLog('RES', `POST /v1/fullsong/remix → ${remixResp.status}`, body);
+        throw new Error(`Remix request failed (${remixResp.status}): ${body}`);
+      }
+
+      // Response shape: { "data": { "task_id": "...", ... }, "code": 200, ... }
+      const remixJson = (await remixResp.json()) as { data: { task_id: string }; code: number };
+      kgoneLog('RES', `POST /v1/fullsong/remix → ${remixResp.status}`, remixJson);
+
+      const task_id = remixJson.data.task_id;
+      taskIdRef.current = task_id;
+
+      // ── 3. Poll for completion (same as FullSongTab) ───────────────────────
+      setGenStatus('polling');
+      setGenHint('Generating remix...');
+
+      type ResultItem = { progress: number; stage: string; status: number };
+      type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (signal.aborted) return;
+
+        await new Promise<void>(r => {
+          const t = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+        });
+
+        if (signal.aborted) return;
+
+        kgoneLog('REQ', `GET /v1/fullsong/result/${task_id}`, null);
+        const resultResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/result/${task_id}`, { signal });
+
+        const pollJson = (await resultResp.json()) as PollResponse;
+        kgoneLog('RES', `GET /v1/fullsong/result/${task_id} → ${resultResp.status}`, pollJson);
+
+        const outer = pollJson.data?.[0];
+        if (!outer) continue;
+
+        try {
+          const inner = JSON.parse(outer.result) as ResultItem[];
+          const item = inner[0];
+          if (item) {
+            const pct = Math.round((item.progress ?? 0) * 100);
+            const stage = item.stage ?? '';
+            setGenHint(stage ? `Generating remix... ${pct}% — ${stage}` : `Generating remix... ${pct}%`);
+          }
+        } catch {
+          // result may be empty string while still queued — ignore parse errors
+        }
+
+        if (outer.status === 1) break;
+      }
+
+      // ── 4. Download the MP3 ─────────────────────────────────────────────────
+      setGenStatus('downloading');
+      setGenHint('Downloading audio...');
+
+      kgoneLog('REQ', `GET /v1/fullsong/audio/${task_id}?index=0`, null);
+      const audioResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
+
+      const blob = await audioResp.blob();
+      const url = URL.createObjectURL(blob);
+      kgoneLog('RES', `GET /v1/fullsong/audio/${task_id}?index=0 → ${audioResp.status} (binary MP3)`, url);
+
+      setAudioUrl(url);
+      setGenStatus('done');
+      setGenHint('');
+    } catch (err) {
+      if (signal.aborted) return;
+      console.error('[KGOne] Remix error:', err);
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+      setGenStatus('error');
+      setGenHint('');
+    }
+  }, [selectedAudioRegion, projectName, bpm, caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, audioCoverStrength, coverNoiseStrength, audioUrl]);
+
+  const handleImportAligned = useCallback(async () => {
+    const snap = originalRegionRef.current;
+    if (!snap || !audioUrl) return;
+
+    setIsImporting(true);
+    setImportError('');
+
+    try {
+      const audioContext = Tone.getContext().rawContext as AudioContext;
+
+      const blob = await fetch(audioUrl).then(r => r.blob());
+      const fileName = `KGOne_Remix_${taskIdRef.current || Date.now()}.mp3`;
+      const fileId = `kgone_remix_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const audioFile = new File([blob], fileName, { type: 'audio/mpeg' });
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const toneBuffer = new Tone.ToneAudioBuffer();
+      await new Promise<void>((resolve, reject) => {
+        audioContext.decodeAudioData(
+          arrayBuffer.slice(0),
+          decoded => { toneBuffer.set(decoded); resolve(); },
+          reject,
+        );
+      });
+
+      await KGAudioFileStorage.storeAudioFile(projectName, fileId, audioFile);
+
+      const project = KGCore.instance().getCurrentProject();
+      const count = countRemixTracks(snap.trackName) + 1;
+      const stemEntry: StemImportEntry = {
+        trackName: `${snap.trackName} - remix (${count})`,
+        regionName: `${snap.regionName} - remix (${count})`,
+        audioFileId: fileId,
+        audioFileName: fileName,
+        audioDurationSeconds: toneBuffer.duration,
+        toneBuffer,
+      };
+
+      const cmd = new ImportStemsCommand(
+        project.getTracks().length,
+        snap.trackIndex,
+        snap.startFromBeat,
+        [stemEntry],
+        maxBars,
+      );
+      KGCore.instance().executeCommand(cmd);
+      refreshProjectState();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsImporting(false);
+    }
+  }, [audioUrl, projectName, maxBars, refreshProjectState]);
+
+  const btnLabel = () => {
+    switch (genStatus) {
+      case 'loading-model': return 'Loading model...';
+      case 'generating': return 'Preparing upload...';
+      case 'polling': return 'Processing remix...';
+      case 'downloading': return 'Downloading...';
+      default: return 'Generate Remix';
+    }
+  };
+
+  return (
+    <>
+      {selectedAudioRegion ? (
+        <>
+          <div className="kgone-region-info">
+            <div className="kgone-region-info-label">Selected Region</div>
+            <div className="kgone-region-info-value">{selectedAudioRegion.region.getName()}</div>
+            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Track</div>
+            <div className="kgone-region-info-value">{selectedAudioRegion.trackName}</div>
+          </div>
+
+          <div className="kgone-field">
+            <label className="kgone-label">Caption</label>
+            <textarea
+              className="kgone-textarea"
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder="e.g. Genre: Jazz, Style: Smooth and mellow, Instrumentation: piano, upright bass, brushed drums..."
+              rows={5}
+            />
+            <div className="kgone-hint">
+              Describe the target style, mood, and instrumentation for the remix.
+            </div>
+          </div>
+
+          <div className="kgone-field">
+            <label className="kgone-label">Lyrics</label>
+            <textarea
+              className="kgone-textarea"
+              value={lyrics}
+              onChange={e => setLyrics(e.target.value)}
+              placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
+              rows={6}
+              disabled={instrumental}
+              style={instrumental ? { opacity: 0.4 } : undefined}
+            />
+            <div className="kgone-hint">
+              Leave empty to keep the original lyrics, or provide new ones. Use [Verse], [Chorus], [Bridge] tags.
+            </div>
+          </div>
+
+          <div className="kgone-checkbox-row">
+            <input type="checkbox" id="kgone-remix-instrumental" checked={instrumental}
+              onChange={e => setInstrumental(e.target.checked)} />
+            <label htmlFor="kgone-remix-instrumental">Instrumental (no vocals)</label>
+          </div>
+
+          <Expander label="Advanced Settings">
+            <div className="kgone-row">
+              <div className="kgone-field">
+                <label className="kgone-label">Inference Steps</label>
+                <input type="number" className="kgone-input" value={inferenceSteps} min={1} max={200}
+                  onChange={e => setInferenceSteps(Number(e.target.value))} />
+              </div>
+              <div className="kgone-field">
+                <label className="kgone-label">Guidance Scale</label>
+                <input type="number" className="kgone-input" value={guidanceScale} min={0} max={20} step={0.1}
+                  onChange={e => setGuidanceScale(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="kgone-checkbox-row">
+              <input type="checkbox" id="kgone-remix-use-random-seed" checked={useRandomSeed}
+                onChange={e => setUseRandomSeed(e.target.checked)} />
+              <label htmlFor="kgone-remix-use-random-seed">Use Random Seed</label>
+            </div>
+
+            <div className="kgone-field">
+              <label className="kgone-label">Seed</label>
+              <input type="number" className="kgone-input" value={seed}
+                disabled={useRandomSeed} style={useRandomSeed ? { opacity: 0.4 } : undefined}
+                onChange={e => setSeed(Number(e.target.value))} />
+            </div>
+
+            <div className="kgone-row">
+              <div className="kgone-field">
+                <label className="kgone-label">Cover Strength</label>
+                <input type="number" className="kgone-input" value={audioCoverStrength} min={0} max={1} step={0.05}
+                  onChange={e => setAudioCoverStrength(Number(e.target.value))} />
+                <div className="kgone-hint">0 = creative, 1 = faithful to source structure</div>
+              </div>
+              <div className="kgone-field">
+                <label className="kgone-label">Noise Strength</label>
+                <input type="number" className="kgone-input" value={coverNoiseStrength} min={0} max={1} step={0.05}
+                  onChange={e => setCoverNoiseStrength(Number(e.target.value))} />
+                <div className="kgone-hint">0 = pure style transfer, 0.1–0.25 recommended</div>
+              </div>
+            </div>
+
+            <div className="kgone-checkbox-row">
+              <input type="checkbox" id="kgone-remix-thinking" checked={thinking}
+                onChange={e => setThinking(e.target.checked)} />
+              <label htmlFor="kgone-remix-thinking">Thinking (CoT metadata generation)</label>
+            </div>
+          </Expander>
+
+          {audioUrl && (
+            <AudioPlayer
+              src={audioUrl}
+              dragData={taskIdRef.current ? {
+                audioFileName: `KGOne_Remix_${taskIdRef.current}.mp3`,
+              } : undefined}
+            />
+          )}
+
+          {genStatus === 'done' && (
+            <div className="kgone-hint">
+              Drag the player above to an <strong>audio track</strong> to import the remix.
+            </div>
+          )}
+
+          {genStatus === 'done' && audioUrl && (
+            <>
+              <button
+                className="kgone-btn-generate"
+                disabled={isImporting}
+                onClick={handleImportAligned}
+                style={{ marginTop: 0 }}
+              >
+                {isImporting && <FaCircleNotch className="kgone-spinner" />}
+                {isImporting ? 'Importing...' : 'Import Aligned to Source'}
+              </button>
+              {importError && <div className="kgone-error-msg">{importError}</div>}
+            </>
+          )}
+
+          {genStatus === 'error' && errorMsg && (
+            <div className="kgone-error-msg">{errorMsg}</div>
+          )}
+
+          <button
+            className="kgone-btn-generate"
+            disabled={isGenerating || !caption.trim()}
+            onClick={handleRemix}
+          >
+            {isGenerating && <FaCircleNotch className="kgone-spinner" />}
+            {btnLabel()}
+          </button>
+
+          {genHint && <div className="kgone-gen-hint">{genHint}</div>}
+        </>
+      ) : (
+        <div className="kgone-separator-hint">
+          Select an audio region on the timeline to remix it.
+          Only audio regions are supported — MIDI regions cannot be remixed.
+        </div>
+      )}
+
+      <div className="kgone-powered-by">
+        Powered by <a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">ACE-Step 1.5</a>
+      </div>
+    </>
+  );
+};
+
+// ─── Repaint Tab ──────────────────────────────────────────────────────────────
+
+const RepaintTab: React.FC = () => {
+  const { selectedRegionIds, projectName, bpm, timeSignature, maxBars,
+          isLooping, loopingRange, refreshProjectState } = useProjectStore();
+
+  // Form state (mirrors FullSongTab)
+  const [caption, setCaption] = useState('');
+  const [lyrics, setLyrics] = useState('');
+  const [instrumental, setInstrumental] = useState(false);
+  const [inferenceSteps, setInferenceSteps] = useState(8);
+  const [guidanceScale, setGuidanceScale] = useState(7.0);
+  const [useRandomSeed, setUseRandomSeed] = useState(true);
+  const [seed, setSeed] = useState(-1);
+  const [thinking, setThinking] = useState(true);
+
+  // Repaint-specific param
+  const [repaintStrength, setRepaintStrength] = useState(0.5);
+
+  // Generation state
+  const [genStatus, setGenStatus] = useState<GenStatus>('idle');
+  const [genHint, setGenHint] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  // Import state
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+
+  const abortRef = useRef<AbortController | null>(null);
+  const taskIdRef = useRef<string>('');
+  const originalRegionRef = useRef<{
+    regionName: string;
+    trackName: string;
+    startFromBeat: number;
+    trackIndex: number;
+  } | null>(null);
+
+  // Revoke blob URL on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedAudioRegion = useMemo(() => {
+    if (!selectedRegionIds.length) return null;
+    const project = KGCore.instance().getCurrentProject();
+    for (const track of project.getTracks()) {
+      for (const region of track.getRegions()) {
+        if (
+          selectedRegionIds.includes(region.getId()) &&
+          region.getCurrentType() === 'KGAudioRegion'
+        ) {
+          return { region: region as KGAudioRegion, trackName: track.getName(), trackIndex: track.getTrackIndex() };
+        }
+      }
+    }
+    return null;
+  }, [selectedRegionIds]);
+
+  const isGenerating = genStatus !== 'idle' && genStatus !== 'done' && genStatus !== 'error';
+
+  // Computed repaint range in seconds (read-only display, derived from loop + region)
+  const computedRepaintRange = useMemo(() => {
+    if (!selectedAudioRegion || !isLooping) return null;
+    const beatsPerBar = timeSignature.numerator;
+    const secondsPerBeat = 60 / bpm;
+    const regionStartBeat = selectedAudioRegion.region.getStartFromBeat();
+    const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
+    const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
+    const regionLengthSec = selectedAudioRegion.region.getLength() * secondsPerBeat;
+    const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
+    const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
+    const uploadedDuration = needsSlice ? effectiveDuration : fullDuration;
+    const loopStartBeat = loopingRange[0] * beatsPerBar;
+    const loopEndBeat = (loopingRange[1] + 1) * beatsPerBar; // endBar is inclusive
+    // Both sliced and non-sliced cases: uploaded audio time 0 ≈ regionStartBeat in the timeline
+    const startRaw = (loopStartBeat - regionStartBeat) * secondsPerBeat;
+    const endRaw = (loopEndBeat - regionStartBeat) * secondsPerBeat;
+    const startClamped = Math.max(0, startRaw);
+    const endClamped = Math.min(uploadedDuration, endRaw);
+    return { startClamped, endClamped, uploadedDuration, hasIntersection: endClamped > startClamped };
+  }, [selectedAudioRegion, isLooping, loopingRange, bpm, timeSignature]);
+
+  const handleRepaint = useCallback(async () => {
+    if (!selectedAudioRegion) return;
+
+    // ── Validate loop state ────────────────────────────────────────────────────
+    if (!isLooping) {
+      await showAlert('Please enable loop mode on the toolbar and set a loop range to define the repaint window.');
+      return;
+    }
+
+    // Re-compute range inline (fresh values independent of the display memo)
+    const beatsPerBar = timeSignature.numerator;
+    const secondsPerBeat = 60 / bpm;
+    const regionStartBeat = selectedAudioRegion.region.getStartFromBeat();
+    const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
+    const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
+    const regionLengthSec = selectedAudioRegion.region.getLength() * secondsPerBeat;
+    const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
+    const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
+    const uploadedDuration = needsSlice ? effectiveDuration : fullDuration;
+    const loopStartBeat = loopingRange[0] * beatsPerBar;
+    const loopEndBeat = (loopingRange[1] + 1) * beatsPerBar;
+    const startClamped = Math.max(0, (loopStartBeat - regionStartBeat) * secondsPerBeat);
+    const endClamped = Math.min(uploadedDuration, (loopEndBeat - regionStartBeat) * secondsPerBeat);
+
+    if (endClamped <= startClamped) {
+      await showAlert('The loop range does not overlap with the selected audio region. Please adjust the loop range to overlap with the region.');
+      return;
+    }
+
+    const apiRepaintStart = startClamped;
+    const apiRepaintEnd = endClamped >= uploadedDuration - 0.1 ? -1 : endClamped;
+
+    // Capture snapshot before anything changes — selection may shift during generation
+    originalRegionRef.current = {
+      regionName: selectedAudioRegion.region.getName(),
+      trackName: selectedAudioRegion.trackName,
+      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      trackIndex: selectedAudioRegion.trackIndex,
+    };
+    setImportError('');
+
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const { signal } = ctrl;
+
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    setErrorMsg('');
+
+    try {
+      const baseUrl = getKGOneBaseUrl();
+
+      // ── 1. Load the fullsong model ──────────────────────────────────────────
+      setGenStatus('loading-model');
+      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+
+      const loadPayload = { model: 'fullsong' };
+      kgoneLog('REQ', 'POST /v1/models/load', loadPayload);
+      const loadResp = await fetch(`${baseUrl}/v1/models/load`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loadPayload),
+        signal,
+      });
+
+      if (!loadResp.ok) {
+        const body = await loadResp.text().catch(() => '');
+        kgoneLog('RES', `POST /v1/models/load → ${loadResp.status}`, body);
+        throw new Error(`Model load failed (${loadResp.status}): ${body}`);
+      }
+      kgoneLog('RES', `POST /v1/models/load → ${loadResp.status}`, await loadResp.clone().json().catch(() => '(unparseable)'));
+
+      if (signal.aborted) return;
+
+      // ── 2. Load audio from OPFS and build multipart form ───────────────────
+      setGenStatus('generating');
+      setGenHint('Reading audio file...');
+
+      const audioFileId = selectedAudioRegion.region.getAudioFileId();
+      const audioFileName = selectedAudioRegion.region.getAudioFileName();
+      const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
+
+      let uploadBuffer: ArrayBuffer;
+      let uploadFileName: string;
+      let uploadMimeType: string;
+
+      if (needsSlice) {
+        setGenHint('Trimming audio to region range...');
+        uploadBuffer = await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration);
+        uploadFileName = audioFileName.replace(/\.[^.]+$/, '.wav');
+        uploadMimeType = 'audio/wav';
+      } else {
+        uploadBuffer = rawBuffer;
+        uploadFileName = audioFileName;
+        uploadMimeType = 'audio/mpeg';
+      }
+
+      const audioFile = new File([uploadBuffer], uploadFileName, { type: uploadMimeType });
+
+      const formData = new FormData();
+      formData.append('audio_file', audioFile, uploadFileName);
+      formData.append('caption', caption);
+      formData.append('lyrics', instrumental ? '' : lyrics);
+      formData.append('instrumental', String(instrumental));
+      formData.append('inference_steps', String(inferenceSteps));
+      formData.append('guidance_scale', String(guidanceScale));
+      formData.append('use_random_seed', String(useRandomSeed));
+      formData.append('seed', String(seed));
+      formData.append('thinking', String(thinking));
+      formData.append('batch_size', '1');
+      formData.append('audio_format', 'mp3');
+      formData.append('repaint_strength', String(repaintStrength));
+      formData.append('repainting_start', String(apiRepaintStart));
+      formData.append('repainting_end', String(apiRepaintEnd));
+
+      if (signal.aborted) return;
+
+      setGenHint('Submitting repaint request...');
+
+      kgoneLog('REQ', 'POST /v1/fullsong/repaint', {
+        file: uploadFileName, caption, instrumental, inference_steps: inferenceSteps,
+        guidance_scale: guidanceScale, use_random_seed: useRandomSeed, seed, thinking,
+        repaint_strength: repaintStrength, repainting_start: apiRepaintStart, repainting_end: apiRepaintEnd,
+      });
+      const repaintResp = await fetch(`${baseUrl}/v1/fullsong/repaint`, {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+
+      if (!repaintResp.ok) {
+        const body = await repaintResp.text().catch(() => '');
+        kgoneLog('RES', `POST /v1/fullsong/repaint → ${repaintResp.status}`, body);
+        throw new Error(`Repaint request failed (${repaintResp.status}): ${body}`);
+      }
+
+      // Response shape: { "data": { "task_id": "...", ... }, "code": 200, ... }
+      const repaintJson = (await repaintResp.json()) as { data: { task_id: string }; code: number };
+      kgoneLog('RES', `POST /v1/fullsong/repaint → ${repaintResp.status}`, repaintJson);
+
+      const task_id = repaintJson.data.task_id;
+      taskIdRef.current = task_id;
+
+      // ── 3. Poll for completion (same as FullSongTab) ───────────────────────
+      setGenStatus('polling');
+      setGenHint('Generating repaint...');
+
+      type ResultItem = { progress: number; stage: string; status: number };
+      type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (signal.aborted) return;
+
+        await new Promise<void>(r => {
+          const t = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+        });
+
+        if (signal.aborted) return;
+
+        kgoneLog('REQ', `GET /v1/fullsong/result/${task_id}`, null);
+        const resultResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/result/${task_id}`, { signal });
+
+        const pollJson = (await resultResp.json()) as PollResponse;
+        kgoneLog('RES', `GET /v1/fullsong/result/${task_id} → ${resultResp.status}`, pollJson);
+
+        const outer = pollJson.data?.[0];
+        if (!outer) continue;
+
+        try {
+          const inner = JSON.parse(outer.result) as ResultItem[];
+          const item = inner[0];
+          if (item) {
+            const pct = Math.round((item.progress ?? 0) * 100);
+            const stage = item.stage ?? '';
+            setGenHint(stage ? `Generating repaint... ${pct}% — ${stage}` : `Generating repaint... ${pct}%`);
+          }
+        } catch {
+          // result may be empty string while still queued — ignore parse errors
+        }
+
+        if (outer.status === 1) break;
+      }
+
+      // ── 4. Download the MP3 ─────────────────────────────────────────────────
+      setGenStatus('downloading');
+      setGenHint('Downloading audio...');
+
+      kgoneLog('REQ', `GET /v1/fullsong/audio/${task_id}?index=0`, null);
+      const audioResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
+
+      const blob = await audioResp.blob();
+      const url = URL.createObjectURL(blob);
+      kgoneLog('RES', `GET /v1/fullsong/audio/${task_id}?index=0 → ${audioResp.status} (binary MP3)`, url);
+
+      setAudioUrl(url);
+      setGenStatus('done');
+      setGenHint('');
+    } catch (err) {
+      if (signal.aborted) return;
+      console.error('[KGOne] Repaint error:', err);
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+      setGenStatus('error');
+      setGenHint('');
+    }
+  }, [selectedAudioRegion, projectName, bpm, timeSignature, isLooping, loopingRange, caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, repaintStrength, audioUrl]);
+
+  const handleImportAligned = useCallback(async () => {
+    const snap = originalRegionRef.current;
+    if (!snap || !audioUrl) return;
+
+    setIsImporting(true);
+    setImportError('');
+
+    try {
+      const audioContext = Tone.getContext().rawContext as AudioContext;
+
+      const blob = await fetch(audioUrl).then(r => r.blob());
+      const fileName = `KGOne_Repaint_${taskIdRef.current || Date.now()}.mp3`;
+      const fileId = `kgone_repaint_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const audioFile = new File([blob], fileName, { type: 'audio/mpeg' });
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const toneBuffer = new Tone.ToneAudioBuffer();
+      await new Promise<void>((resolve, reject) => {
+        audioContext.decodeAudioData(
+          arrayBuffer.slice(0),
+          decoded => { toneBuffer.set(decoded); resolve(); },
+          reject,
+        );
+      });
+
+      await KGAudioFileStorage.storeAudioFile(projectName, fileId, audioFile);
+
+      const project = KGCore.instance().getCurrentProject();
+      const count = countRepaintTracks(snap.trackName) + 1;
+      const stemEntry: StemImportEntry = {
+        trackName: `${snap.trackName} - repaint (${count})`,
+        regionName: `${snap.regionName} - repaint (${count})`,
+        audioFileId: fileId,
+        audioFileName: fileName,
+        audioDurationSeconds: toneBuffer.duration,
+        toneBuffer,
+      };
+
+      const cmd = new ImportStemsCommand(
+        project.getTracks().length,
+        snap.trackIndex,
+        snap.startFromBeat,
+        [stemEntry],
+        maxBars,
+      );
+      KGCore.instance().executeCommand(cmd);
+      refreshProjectState();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsImporting(false);
+    }
+  }, [audioUrl, projectName, maxBars, refreshProjectState]);
+
+  const btnLabel = () => {
+    switch (genStatus) {
+      case 'loading-model': return 'Loading model...';
+      case 'generating': return 'Preparing upload...';
+      case 'polling': return 'Processing repaint...';
+      case 'downloading': return 'Downloading...';
+      default: return 'Generate Repaint';
+    }
+  };
+
+  return (
+    <>
+      {selectedAudioRegion ? (
+        <>
+          <div className="kgone-region-info">
+            <div className="kgone-region-info-label">Selected Region</div>
+            <div className="kgone-region-info-value">{selectedAudioRegion.region.getName()}</div>
+            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Track</div>
+            <div className="kgone-region-info-value">{selectedAudioRegion.trackName}</div>
+          </div>
+
+          <div className="kgone-region-info">
+            <div className="kgone-region-info-label">Repaint Range</div>
+            {!isLooping ? (
+              <div className="kgone-region-info-value" style={{ opacity: 0.6 }}>
+                Loop mode is off. Enable the loop button on the toolbar and set a loop range to define the repaint window.
+              </div>
+            ) : computedRepaintRange ? (
+              <>
+                <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Start</div>
+                <div className="kgone-region-info-value">{computedRepaintRange.startClamped.toFixed(2)} s</div>
+                <div className="kgone-region-info-label" style={{ marginTop: 4 }}>End</div>
+                <div className="kgone-region-info-value">
+                  {computedRepaintRange.endClamped >= computedRepaintRange.uploadedDuration - 0.1
+                    ? 'until end of audio'
+                    : `${computedRepaintRange.endClamped.toFixed(2)} s`}
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          <div className="kgone-field">
+            <label className="kgone-label">Caption</label>
+            <textarea
+              className="kgone-textarea"
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              placeholder="e.g. Genre: Jazz, Style: Smooth and mellow, Instrumentation: piano, upright bass, brushed drums..."
+              rows={5}
+            />
+            <div className="kgone-hint">
+              Describe the target style and instrumentation for the repainted section.
+            </div>
+          </div>
+
+          <div className="kgone-field">
+            <label className="kgone-label">Lyrics</label>
+            <textarea
+              className="kgone-textarea"
+              value={lyrics}
+              onChange={e => setLyrics(e.target.value)}
+              placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
+              rows={6}
+              disabled={instrumental}
+              style={instrumental ? { opacity: 0.4 } : undefined}
+            />
+            <div className="kgone-hint">
+              Leave empty to keep the original lyrics, or provide new ones for the repainted section.
+            </div>
+          </div>
+
+          <div className="kgone-checkbox-row">
+            <input type="checkbox" id="kgone-repaint-instrumental" checked={instrumental}
+              onChange={e => setInstrumental(e.target.checked)} />
+            <label htmlFor="kgone-repaint-instrumental">Instrumental (no vocals)</label>
+          </div>
+
+          <Expander label="Advanced Settings">
+            <div className="kgone-row">
+              <div className="kgone-field">
+                <label className="kgone-label">Inference Steps</label>
+                <input type="number" className="kgone-input" value={inferenceSteps} min={1} max={200}
+                  onChange={e => setInferenceSteps(Number(e.target.value))} />
+              </div>
+              <div className="kgone-field">
+                <label className="kgone-label">Guidance Scale</label>
+                <input type="number" className="kgone-input" value={guidanceScale} min={0} max={20} step={0.1}
+                  onChange={e => setGuidanceScale(Number(e.target.value))} />
+              </div>
+            </div>
+
+            <div className="kgone-checkbox-row">
+              <input type="checkbox" id="kgone-repaint-use-random-seed" checked={useRandomSeed}
+                onChange={e => setUseRandomSeed(e.target.checked)} />
+              <label htmlFor="kgone-repaint-use-random-seed">Use Random Seed</label>
+            </div>
+
+            <div className="kgone-field">
+              <label className="kgone-label">Seed</label>
+              <input type="number" className="kgone-input" value={seed}
+                disabled={useRandomSeed} style={useRandomSeed ? { opacity: 0.4 } : undefined}
+                onChange={e => setSeed(Number(e.target.value))} />
+            </div>
+
+            <div className="kgone-field">
+              <label className="kgone-label">Repaint Strength</label>
+              <input type="number" className="kgone-input" value={repaintStrength} min={0} max={1} step={0.05}
+                onChange={e => setRepaintStrength(Number(e.target.value))} />
+              <div className="kgone-hint">0 = preserve original, 1 = full regeneration</div>
+            </div>
+
+            <div className="kgone-checkbox-row">
+              <input type="checkbox" id="kgone-repaint-thinking" checked={thinking}
+                onChange={e => setThinking(e.target.checked)} />
+              <label htmlFor="kgone-repaint-thinking">Thinking (CoT metadata generation)</label>
+            </div>
+          </Expander>
+
+          {audioUrl && (
+            <AudioPlayer
+              src={audioUrl}
+              dragData={taskIdRef.current ? {
+                audioFileName: `KGOne_Repaint_${taskIdRef.current}.mp3`,
+              } : undefined}
+            />
+          )}
+
+          {genStatus === 'done' && (
+            <div className="kgone-hint">
+              Drag the player above to an <strong>audio track</strong> to import the repaint.
+            </div>
+          )}
+
+          {genStatus === 'done' && audioUrl && (
+            <>
+              <button
+                className="kgone-btn-generate"
+                disabled={isImporting}
+                onClick={handleImportAligned}
+                style={{ marginTop: 0 }}
+              >
+                {isImporting && <FaCircleNotch className="kgone-spinner" />}
+                {isImporting ? 'Importing...' : 'Import Aligned to Source'}
+              </button>
+              {importError && <div className="kgone-error-msg">{importError}</div>}
+            </>
+          )}
+
+          {genStatus === 'error' && errorMsg && (
+            <div className="kgone-error-msg">{errorMsg}</div>
+          )}
+
+          <button
+            className="kgone-btn-generate"
+            disabled={isGenerating || !caption.trim()}
+            onClick={handleRepaint}
+          >
+            {isGenerating && <FaCircleNotch className="kgone-spinner" />}
+            {btnLabel()}
+          </button>
+
+          {genHint && <div className="kgone-gen-hint">{genHint}</div>}
+        </>
+      ) : (
+        <div className="kgone-separator-hint">
+          Select an audio region on the timeline to repaint it.
+          Only audio regions are supported — MIDI regions cannot be repainted.
+        </div>
+      )}
+
+      <div className="kgone-powered-by">
+        Powered by <a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">ACE-Step 1.5</a>
+      </div>
+    </>
+  );
+};
+
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 interface KGOnePanelProps {
@@ -1219,20 +2238,27 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
       </div>
 
       <div className="kgone-tabs">
-        {(['clip', 'fullsong', 'separator'] as const).map(tab => (
+        {/* Clip tab temporarily disabled, will enable in the future */}
+        {(['fullsong', 'remix', 'repaint', 'separator'] as const).map(tab => (
           <button
             key={tab}
             className={`kgone-tab${activeTab === tab ? ' active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === 'clip' ? 'Clip' : tab === 'fullsong' ? 'Full Song' : 'Separator'}
+            {tab === 'fullsong' ? 'Full Song'
+              : tab === 'remix' ? 'Remix'
+              : tab === 'repaint' ? 'Repaint'
+              : 'Separator'}
           </button>
         ))}
       </div>
 
       <div className="kgone-panel-body">
+        {/* Clip tab temporarily disabled, will enable in the future */}
         {activeTab === 'clip' && <ClipTab bpm={bpm} keySignature={keySignature} />}
         {activeTab === 'fullsong' && <FullSongTab />}
+        {activeTab === 'remix' && <RemixTab />}
+        {activeTab === 'repaint' && <RepaintTab />}
         {activeTab === 'separator' && <SeparatorTab />}
       </div>
     </div>
