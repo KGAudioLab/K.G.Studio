@@ -1,3 +1,9 @@
+# [0.12.0-build.20260430] (2026-04-30)
+
+* Merge pull request #34 from KGAudioLab/feat/2026-04-28-add-remix-and-repaint-support (c54cf3e)
+* docs: updated README.md (d7a3bcc)
+* feat: added remix and repaint support (f60c7b4)
+
 # [0.11.0-build.20260425] (2026-04-25)
 
 * Merge pull request #33 from KGAudioLab/feat/2026-04-15-kgone-integration (f5d24a8)
