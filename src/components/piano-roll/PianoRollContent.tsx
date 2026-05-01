@@ -4,6 +4,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGTrack } from '../../core/track/KGTrack';
 import { KGCore } from '../../core/KGCore';
+import { useProjectStore } from '../../stores/projectStore';
 import PianoNote from './PianoNote';
 import PianoKeys from './PianoKeys';
 import PianoGridHeader from './PianoGridHeader';
@@ -43,7 +44,11 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
 }) => {
   // Get KGCore instance
   const core = KGCore.instance();
-  
+
+  // Recording state
+  const isRecording = useProjectStore(s => s.isRecording);
+  const recordingNotes = useProjectStore(s => s.recordingNotes);
+
   // Use the note operations hook for resize and drag functionality
   const {
     resizingNoteId,
@@ -216,8 +221,26 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     });
   }, [activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks]);
 
+  const recordingNoteOverlays = useMemo(() => {
+    if (!isRecording || !activeRegion || recordingNotes.length === 0) return null;
+    const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
+    const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
+    return recordingNotes.map((note, index) => (
+      <div
+        key={`recording-note-${index}`}
+        className="piano-grid-recording-note"
+        style={{
+          left: note.startBeat * beatWidth,
+          top: (107 - note.pitch) * noteHeight,
+          width: Math.max((note.endBeat - note.startBeat) * beatWidth, 4),
+          height: noteHeight,
+        }}
+      />
+    ));
+  }, [isRecording, recordingNotes, activeRegion]);
+
   return (
-    <div 
+    <div
       className="piano-roll-content"
       ref={contentRef}
     >
@@ -239,6 +262,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           chordGuide={chordGuide}
         >
           {memoizedNotes}
+          {recordingNoteOverlays}
         </PianoGrid>
       </div>
     </div>

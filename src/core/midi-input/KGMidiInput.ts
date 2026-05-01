@@ -15,6 +15,10 @@ export class KGMidiInput {
   private isInitialized: boolean = false;
   private connectedInputs: Map<string, MIDIInput> = new Map();
 
+  // Recording callbacks
+  private onRecordNoteOn: ((pitch: number) => void) | null = null;
+  private onRecordNoteOff: ((pitch: number) => void) | null = null;
+
   // Private constructor to prevent direct instantiation
   private constructor() {
     console.log("KGMidiInput initialized");
@@ -161,11 +165,13 @@ export class KGMidiInput {
     if (command === 0x90 && velocity > 0) {
       console.log(`MIDI Note On: pitch=${pitch}, velocity=${velocity}, channel=${channel}`);
       this.triggerNoteOn(pitch, velocity);
+      this.onRecordNoteOn?.(pitch);
     }
     // Note Off: command = 0x80 (128) or Note On with velocity 0
     else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
       console.log(`MIDI Note Off: pitch=${pitch}, channel=${channel}`);
       this.triggerNoteOff(pitch);
+      this.onRecordNoteOff?.(pitch);
     }
     // Control Change: command = 0xB0 (176)
     else if (command === 0xb0) {
@@ -262,6 +268,16 @@ export class KGMidiInput {
     } catch (error) {
       console.error("Error disposing MIDI resources:", error);
     }
+  }
+
+  // ===== RECORDING =====
+
+  public setRecordingCallbacks(
+    onNoteOn: ((pitch: number) => void) | null,
+    onNoteOff: ((pitch: number) => void) | null
+  ): void {
+    this.onRecordNoteOn = onNoteOn;
+    this.onRecordNoteOff = onNoteOff;
   }
 
   // ===== GETTERS =====
