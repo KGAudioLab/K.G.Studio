@@ -25,7 +25,7 @@ export const MockTransport = {
   start: vi.fn(),
   stop: vi.fn(),
   pause: vi.fn(),
-  position: '0:0:0',
+  position: 0,
   bpm: {
     value: 120,
     rampTo: vi.fn()
@@ -34,9 +34,22 @@ export const MockTransport = {
   state: 'stopped',
   scheduleOnce: vi.fn(),
   scheduleRepeat: vi.fn(),
+  schedule: vi.fn().mockReturnValue(1),
   cancel: vi.fn(),
   clear: vi.fn()
+  ,
+  setLoopPoints: vi.fn(),
+  loop: false,
+  PPQ: 192,
+  getTicksAtTime: vi.fn().mockImplementation((time: number) => time * 192)
 }
+
+export const MockLoop = vi.fn().mockImplementation((callback: (time: number) => void, interval: string) => ({
+  callback,
+  interval,
+  start: vi.fn(),
+  dispose: vi.fn()
+}))
 
 // Mock Destination
 export const MockDestination = {
@@ -81,6 +94,7 @@ export const MockMeter = vi.fn().mockImplementation(() => ({
 // Complete Tone.js mock
 export const ToneMock = {
   Sampler: MockSampler,
+  Loop: MockLoop,
   Transport: MockTransport,
   Destination: MockDestination,
   ToneAudioBuffer: MockToneAudioBuffer,
@@ -106,7 +120,8 @@ export const ToneMock = {
   Frequency: vi.fn().mockImplementation((freq) => ({
     toFrequency: vi.fn().mockReturnValue(parseFloat(freq) || 440),
     valueOf: vi.fn().mockReturnValue(parseFloat(freq) || 440)
-  }))
+  })),
+  now: vi.fn().mockReturnValue(0)
 }
 
 // Setup the global mock
