@@ -12,7 +12,7 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
-import { showAlert, showConfirm, showPrompt } from '../common/DialogProvider';
+import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;

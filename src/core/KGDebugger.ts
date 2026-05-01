@@ -513,8 +513,7 @@ export class KGDebugger {
 
         try {
           textarea.selectionStart = textarea.selectionEnd = typed.length;
-        } catch {
-        }
+        } catch { /* setting cursor position can fail in read-only or special inputs */ }
 
         textarea.scrollTop = textarea.scrollHeight;
 
@@ -583,8 +582,7 @@ export class KGDebugger {
 
         try {
           textarea.selectionStart = textarea.selectionEnd = typed.length;
-        } catch {
-        }
+        } catch { /* setting cursor position can fail in read-only or special inputs */ }
 
         textarea.scrollTop = textarea.scrollHeight;
 

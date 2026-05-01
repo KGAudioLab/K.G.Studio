@@ -214,8 +214,8 @@ describe('xmlUtil', () => {
 
     it('should handle empty input', () => {
       expect(wrapXmlBlocksInContent('')).toBe('');
-      expect(wrapXmlBlocksInContent(null as any)).toBeNull();
-      expect(wrapXmlBlocksInContent(undefined as any)).toBeUndefined();
+      expect(wrapXmlBlocksInContent(null as unknown as string)).toBeNull();
+      expect(wrapXmlBlocksInContent(undefined as unknown as string)).toBeUndefined();
     });
 
     it('should wrap XML blocks from multipleXmlBlocks fixture', () => {

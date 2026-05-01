@@ -15,7 +15,7 @@ import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
-import { showAlert, showPrompt } from '../common/DialogProvider';
+import { showAlert, showPrompt } from '../../util/dialogUtil';
 
 interface PianoRollProps {
   onClose: () => void;

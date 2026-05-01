@@ -19,10 +19,9 @@ class MockFileSystemFileHandle {
   async createWritable() {
     const stream = new MockFileSystemWritableFileStream();
     // When stream closes, update our content
-    const self = this;
     const origClose = stream.close.bind(stream);
     stream.close = async () => {
-      self._content = stream.data;
+      this._content = stream.data;
       await origClose();
     };
     return stream;

@@ -5,11 +5,13 @@
 import { vi } from 'vitest';
 
 // In-memory storage for tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockStorage = new Map<string, any>();
 
 export const mockIndexedDB = {
   openDB: vi.fn().mockImplementation(() => {
     return Promise.resolve({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       put: vi.fn().mockImplementation((storeName: string, data: any, key?: string) => {
         const actualKey = key || data.id || 'default';
         mockStorage.set(`${storeName}:${actualKey}`, data);
@@ -21,6 +23,7 @@ export const mockIndexedDB = {
       }),
       
       getAll: vi.fn().mockImplementation((storeName: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const results: any[] = [];
         for (const [key, value] of mockStorage.entries()) {
           if (key.startsWith(`${storeName}:`)) {

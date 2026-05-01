@@ -33,7 +33,7 @@ import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { ConfigManager } from '../core/config/ConfigManager';
-import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from './common/DialogProvider';
+import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
 
 const Toolbar: React.FC = () => {
   const {

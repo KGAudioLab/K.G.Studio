@@ -3,7 +3,7 @@ import { FaTimes, FaSortUp, FaSortDown, FaCopy, FaTrash, FaUndo } from 'react-ic
 import { KGProjectStorage, type ProjectMeta } from '../../core/io/KGProjectStorage';
 import { isValidProjectName } from '../../util/projectNameUtil';
 import './OpenProjectModal.css';
-import { showAlert, showConfirm, showPrompt } from './DialogProvider';
+import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
 
 interface OpenProjectModalProps {
   onClose: () => void;

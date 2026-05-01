@@ -14,7 +14,7 @@ import { sliceAudioToWav } from '../util/audioUtil';
 import type { KeySignature } from '../core/KGProject';
 import { ImportStemsCommand } from '../core/commands';
 import type { StemImportEntry } from '../core/commands';
-import { showAlert } from './common/DialogProvider';
+import { showAlert } from '../util/dialogUtil';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
