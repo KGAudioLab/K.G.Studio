@@ -10,6 +10,10 @@ import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
 
+interface PlaybackStartOptions {
+  preserveLoopPreroll?: boolean;
+}
+
 /**
  * KGCore - Main application class for the DAW
  * Implements the singleton pattern for global access
@@ -231,7 +235,7 @@ export class KGCore {
     return this.isPlaying;
   }
 
-  public async preparePlay(): Promise<void> {
+  public async preparePlay(options?: PlaybackStartOptions): Promise<void> {
     try {
       const audioInterface = KGAudioInterface.instance();
       
@@ -239,7 +243,9 @@ export class KGCore {
       await audioInterface.startAudioContext();
       
       // Prepare playback with current project and playhead position
-      audioInterface.preparePlayback(this.currentProject, this.playheadPosition);
+      audioInterface.preparePlayback(this.currentProject, this.playheadPosition, {
+        allowStartBeforeLoopStart: options?.preserveLoopPreroll ?? false,
+      });
       
       // Sync BPM and transport settings
       audioInterface.setBpm(this.currentProject.getBpm());
@@ -301,7 +307,7 @@ export class KGCore {
   }
 
   // High-level playback control methods
-  public async startPlaying(): Promise<void> {
+  public async startPlaying(options?: PlaybackStartOptions): Promise<void> {
     // Handle loop mode initialization
     if (this.currentProject.getIsLooping()) {
       const [startBar, endBar] = this.currentProject.getLoopingRange();
@@ -319,11 +325,13 @@ export class KGCore {
       const updatedRange = this.currentProject.getLoopingRange();
       const beatsPerBar = this.currentProject.getTimeSignature().numerator;
       const loopStartBeats = updatedRange[0] * beatsPerBar;
-      this.setPlayheadPosition(loopStartBeats);
+      if (!options?.preserveLoopPreroll) {
+        this.setPlayheadPosition(loopStartBeats);
+      }
     }
 
     // Prepare playback first
-    await this.preparePlay();
+    await this.preparePlay(options);
 
     // Start playing (non-blocking)
     this.play(); // Don't await this

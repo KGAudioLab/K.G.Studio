@@ -97,4 +97,19 @@ describe('KGAudioInterface preroll playback', () => {
     expect(MockTransport.stop).toHaveBeenCalledTimes(1)
     expect(audio.getTransportPosition()).toBe(0)
   })
+
+  it('allows a first-pass start before the loop start when explicitly requested', () => {
+    const project = createMockProject({
+      bpm: 120,
+      timeSignature: { numerator: 4, denominator: 4 },
+      tracks: [],
+    })
+    project.setIsLooping(true)
+    project.setLoopingRange([4, 7])
+
+    const audio = KGAudioInterface.instance()
+    audio.preparePlayback(project, 12, { allowStartBeforeLoopStart: true })
+
+    expect(MockTransport.position).toBe(6)
+  })
 })

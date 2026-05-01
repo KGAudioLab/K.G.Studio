@@ -797,7 +797,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     startRecording: async () => {
-      const { activeRegionId, timeSignature, playheadPosition, startPlaying, setPlayheadPosition } = get();
+      const { activeRegionId, timeSignature, playheadPosition, setPlayheadPosition } = get();
 
       const project = KGCore.instance().getCurrentProject();
       let targetRegion: KGMidiRegion | null = null;
@@ -842,8 +842,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         }
       );
 
-      setPlayheadPosition(playheadPosition - timeSignature.numerator);
-      await startPlaying();
+      const projectLooping = project.getIsLooping();
+      const [loopStartBar] = project.getLoopingRange();
+      const loopStartBeat = loopStartBar * timeSignature.numerator;
+      const recordingStartBeat = projectLooping
+        ? loopStartBeat - timeSignature.numerator
+        : playheadPosition - timeSignature.numerator;
+
+      setPlayheadPosition(recordingStartBeat);
+      await KGCore.instance().startPlaying({
+        preserveLoopPreroll: projectLooping,
+      });
+      set({ isPlaying: true, autoScrollEnabled: true });
     },
 
     stopRecording: async () => {
@@ -1189,7 +1199,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   }
 }); 
-
 
 
 

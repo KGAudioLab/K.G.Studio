@@ -11,6 +11,7 @@ import { KGProject } from '../../../core/KGProject'
 import { KGMidiTrack, type InstrumentType } from '../../../core/track/KGMidiTrack'
 import { KGMidiRegion } from '../../../core/region/KGMidiRegion'
 import { KGMidiNote } from '../../../core/midi/KGMidiNote'
+import { KGMidiInput } from '../../../core/midi-input/KGMidiInput'
 
 // Import store
 import { useProjectStore } from '../../../stores/projectStore'
@@ -278,6 +279,41 @@ describe('Project Store Synchronization Integration Tests', () => {
       
       // Verify audio interface was called
       expect(mockAudioInterface.stopPlayback).toHaveBeenCalled()
+    })
+
+    it('should start looped recording one bar before the loop start on the first pass', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano')
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16)
+      testTrack.addRegion(testRegion)
+      testProject.setTracks([testTrack])
+      testProject.setIsLooping(true)
+      testProject.setLoopingRange([4, 7])
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject)
+      })
+
+      const core = KGCore.instance()
+      const startPlayingSpy = vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined)
+      const recordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks')
+      const { setActiveRegionId, setPlayheadPosition, startRecording } = useProjectStore.getState()
+
+      act(() => {
+        setActiveRegionId(testRegion.getId())
+        setPlayheadPosition(18)
+      })
+
+      await act(async () => {
+        await startRecording()
+      })
+
+      const storeState = useProjectStore.getState()
+      expect(storeState.playheadPosition).toBe(12)
+      expect(storeState.recordingOriginalPlayhead).toBe(18)
+      expect(storeState.isRecording).toBe(true)
+      expect(storeState.isPlaying).toBe(true)
+      expect(recordingCallbacksSpy).toHaveBeenCalled()
+      expect(startPlayingSpy).toHaveBeenCalledWith({ preserveLoopPreroll: true })
     })
   })
 

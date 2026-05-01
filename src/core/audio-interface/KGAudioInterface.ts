@@ -12,6 +12,10 @@ import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 import { KGMetronome } from './KGMetronome';
 
+interface PreparePlaybackOptions {
+  allowStartBeforeLoopStart?: boolean;
+}
+
 /**
  * KGAudioInterface - Audio engine interface for the DAW
  * Implements the singleton pattern for global audio management
@@ -391,7 +395,7 @@ export class KGAudioInterface {
   /**
    * Prepare playback by scheduling all MIDI events
    */
-  public preparePlayback(project: KGProject, startPosition: number): void {
+  public preparePlayback(project: KGProject, startPosition: number, options?: PreparePlaybackOptions): void {
     // Clear any existing scheduled events
     this.clearScheduledEvents();
     this.clearDelayedTransportStart();
@@ -437,7 +441,7 @@ export class KGAudioInterface {
         console.log(`Loop mode enabled: bars [${startBar}, ${endBar}], beats [${scheduleStartBeat}, ${scheduleEndBeat}]`);
 
         // Adjust start position to loop start if before loop range
-        if (startPosition < scheduleStartBeat) {
+        if (startPosition < scheduleStartBeat && !options?.allowStartBeforeLoopStart) {
           startPosition = scheduleStartBeat;
         }
       } else {
