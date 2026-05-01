@@ -13,6 +13,35 @@ import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { showAlert, showConfirm, showPrompt } from '../common/DialogProvider';
+
+const UNITY_POS = 750;
+const SLIDER_MAX = 1000;
+
+function sliderToDb(pos: number): number {
+  const MIN = AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+  const MAX = AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB;
+  if (pos <= 0) return MIN;
+  if (pos >= SLIDER_MAX) return MAX;
+  if (pos <= UNITY_POS) {
+    const t = pos / UNITY_POS;
+    return MIN * (1 - t * t);
+  }
+  return MAX * (pos - UNITY_POS) / (SLIDER_MAX - UNITY_POS);
+}
+
+function dbToSlider(db: number): number {
+  const MIN = AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+  const MAX = AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB;
+  if (db <= MIN) return 0;
+  if (db >= MAX) return SLIDER_MAX;
+  if (db <= 0) return Math.round(Math.sqrt(1 - db / MIN) * UNITY_POS);
+  return Math.round(UNITY_POS + (db / MAX) * (SLIDER_MAX - UNITY_POS));
+}
+
+function formatDb(db: number): string {
+  if (db <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB) return '−∞';
+  return `${db >= 0 ? '+' : ''}${db.toFixed(1)}`;
+}
 interface TrackInfoItemProps {
   track: KGTrack;
   index: number;
@@ -56,6 +85,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const suppressDragRef = useRef(false);
   const [volume, setVolume] = useState(track.getVolume());
+  const [isEditingVolume, setIsEditingVolume] = useState(false);
+  const [volumeInputText, setVolumeInputText] = useState('');
+  const volumeInputRef = useRef<HTMLInputElement>(null);
   // Local flag to track slider interaction; not used for rendering
   const isAdjustingVolumeRef = useRef(false);
   const [muted, setMuted] = useState(false);
@@ -129,11 +161,10 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
-    const next = Number(e.target.value) / 100;
+    const next = sliderToDb(Number(e.target.value));
     isAdjustingVolumeRef.current = true;
     setVolume(next);
     try {
-      // Live preview: update audio only while sliding
       KGAudioInterface.instance().setTrackVolume(track.getId().toString(), next);
     } catch (err) {
       console.error('Failed to update live volume:', err);
@@ -164,6 +195,43 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
       useProjectStore.getState().updateTrackProperties(track.getId(), { volume: defaultVolume });
     } catch (err) {
       console.error('Failed to reset volume:', err);
+    }
+  };
+
+  const handleVolumeLabelClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const displayText = volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB
+      ? '-60'
+      : volume.toFixed(1);
+    setVolumeInputText(displayText);
+    setIsEditingVolume(true);
+    setTimeout(() => {
+      volumeInputRef.current?.select();
+    }, 0);
+  };
+
+  const commitVolumeLabelInput = () => {
+    setIsEditingVolume(false);
+    const parsed = parseFloat(volumeInputText);
+    if (isNaN(parsed)) return;
+    const clamped = Math.max(
+      AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB,
+      Math.min(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB, parsed)
+    );
+    setVolume(clamped);
+    try {
+      useProjectStore.getState().updateTrackProperties(track.getId(), { volume: clamped });
+    } catch (err) {
+      console.error('Failed to set volume from label input:', err);
+    }
+  };
+
+  const handleVolumeLabelKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitVolumeLabelInput();
+    } else if (e.key === 'Escape') {
+      setIsEditingVolume(false);
     }
   };
 
@@ -302,8 +370,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
               <input
                 type="range"
                 min="0"
-                max="100"
-                value={Math.round(volume * 100)}
+                max="1000"
+                step="1"
+                value={dbToSlider(volume)}
                 onChange={handleVolumeChange}
                 onMouseDown={(e) => { e.stopPropagation(); isAdjustingVolumeRef.current = true; }}
                 onMouseUp={(e) => { e.stopPropagation(); commitVolumeChange(); }}
@@ -314,12 +383,32 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
               />
               <button
                 className="reset-volume"
-                title="Reset volume"
-                aria-label="Reset volume"
+                title="Reset to 0 dB"
+                aria-label="Reset volume to 0 dB"
                 onClick={handleResetVolume}
               >
                 ↺
               </button>
+              {isEditingVolume ? (
+                <input
+                  ref={volumeInputRef}
+                  className="volume-label volume-label-input"
+                  type="text"
+                  value={volumeInputText}
+                  onChange={(e) => setVolumeInputText(e.target.value)}
+                  onKeyDown={handleVolumeLabelKeyDown}
+                  onBlur={commitVolumeLabelInput}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span
+                  className="volume-label volume-label-clickable"
+                  title="Click to enter dB value"
+                  onClick={handleVolumeLabelClick}
+                >
+                  {formatDb(volume)}
+                </span>
+              )}
             </div>
           </div>
         </div>

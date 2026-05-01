@@ -19,18 +19,18 @@ describe('KGMidiTrack', () => {
       expect(defaultTrack.getId()).toBe(0)
       expect(defaultTrack.getType()).toBe(TrackType.MIDI)
       expect(defaultTrack.getInstrument()).toBe('acoustic_grand_piano')
-      expect(defaultTrack.getVolume()).toBe(0.8) // DEFAULT_TRACK_VOLUME
+      expect(defaultTrack.getVolume()).toBe(0) // DEFAULT_TRACK_VOLUME (0 dB)
       expect(defaultTrack.getRegions()).toEqual([])
     })
 
     it('should create track with custom parameters', () => {
-      const customTrack = new KGMidiTrack('My Piano Track', 5, 'electric_piano_1', 0.6)
+      const customTrack = new KGMidiTrack('My Piano Track', 5, 'electric_piano_1', -4)
 
       expect(customTrack.getName()).toBe('My Piano Track')
       expect(customTrack.getId()).toBe(5)
       expect(customTrack.getType()).toBe(TrackType.MIDI)
       expect(customTrack.getInstrument()).toBe('electric_piano_1')
-      expect(customTrack.getVolume()).toBe(0.6)
+      expect(customTrack.getVolume()).toBe(-4)
     })
 
     it('should set correct type identifier', () => {
@@ -193,33 +193,33 @@ describe('KGMidiTrack', () => {
 
   describe('inheritance from KGTrack', () => {
     it('should inherit all base track properties', () => {
-      const customTrack = new KGMidiTrack('Test Track', 42, 'violin', 0.9)
+      const customTrack = new KGMidiTrack('Test Track', 42, 'violin', -1)
 
       expect(customTrack.getName()).toBe('Test Track')
       expect(customTrack.getId()).toBe(42)
       expect(customTrack.getType()).toBe(TrackType.MIDI)
-      expect(customTrack.getVolume()).toBe(0.9)
+      expect(customTrack.getVolume()).toBe(-1)
     })
 
     it('should inherit base track setters', () => {
       track.setName('Updated Track')
       expect(track.getName()).toBe('Updated Track')
 
-      track.setVolume(0.5)
-      expect(track.getVolume()).toBe(0.5)
+      track.setVolume(-6)
+      expect(track.getVolume()).toBe(-6)
 
       track.setTrackIndex(3)
       expect(track.getTrackIndex()).toBe(3)
     })
 
     it('should inherit volume controls', () => {
-      expect(track.getVolume()).toBe(0.8) // Default volume
+      expect(track.getVolume()).toBe(0) // Default volume (0 dB)
 
-      track.setVolume(0.5)
-      expect(track.getVolume()).toBe(0.5)
+      track.setVolume(-6)
+      expect(track.getVolume()).toBe(-6)
 
-      track.setVolume(1.0)
-      expect(track.getVolume()).toBe(1.0)
+      track.setVolume(0)
+      expect(track.getVolume()).toBe(0)
     })
   })
 
@@ -275,8 +275,8 @@ describe('KGMidiTrack', () => {
       // Setup initial state
       track.setName('Piano Track')
       track.setInstrument('acoustic_grand_piano')
-      track.setVolume(0.7)
-      
+      track.setVolume(-3)
+
       const regions = [
         createMockMidiRegion({ id: 'r1', trackId: '0', name: 'Intro' }),
         createMockMidiRegion({ id: 'r2', trackId: '0', name: 'Verse' })
@@ -286,21 +286,21 @@ describe('KGMidiTrack', () => {
       // Verify initial state
       expect(track.getName()).toBe('Piano Track')
       expect(track.getInstrument()).toBe('acoustic_grand_piano')
-      expect(track.getVolume()).toBe(0.7)
+      expect(track.getVolume()).toBe(-3)
       expect(track.getRegions()).toHaveLength(2)
 
       // Modify state
       track.setInstrument('electric_piano_1')
-      track.addRegion(createMockMidiRegion({ 
-        id: 'r3', 
-        trackId: '0', 
-        name: 'Chorus' 
+      track.addRegion(createMockMidiRegion({
+        id: 'r3',
+        trackId: '0',
+        name: 'Chorus'
       }))
 
       // Verify modified state
       expect(track.getName()).toBe('Piano Track')
       expect(track.getInstrument()).toBe('electric_piano_1')
-      expect(track.getVolume()).toBe(0.7)
+      expect(track.getVolume()).toBe(-3)
       expect(track.getRegions()).toHaveLength(3)
     })
 
@@ -337,15 +337,21 @@ describe('KGMidiTrack', () => {
     })
 
     it('should handle volume boundaries', () => {
-      track.setVolume(0.0)
-      expect(track.getVolume()).toBe(0.0)
+      track.setVolume(-60)
+      expect(track.getVolume()).toBe(-60)
 
-      track.setVolume(1.0)
-      expect(track.getVolume()).toBe(1.0)
+      track.setVolume(0)
+      expect(track.getVolume()).toBe(0)
 
-      // Volume outside normal range (should still work)
-      track.setVolume(1.5)
-      expect(track.getVolume()).toBe(1.5)
+      track.setVolume(6)
+      expect(track.getVolume()).toBe(6)
+
+      // Volume outside valid dB range is clamped
+      track.setVolume(10)
+      expect(track.getVolume()).toBe(6)
+
+      track.setVolume(-100)
+      expect(track.getVolume()).toBe(-60)
     })
 
     it('should handle large number of regions', () => {

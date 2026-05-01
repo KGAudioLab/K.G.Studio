@@ -51,7 +51,7 @@
 .track-info {
   width: 200px;
   height: 120px;
-  padding: 15px;
+  padding: 15px 5px 15px 15px;
   background-color: #2d2d2d;
   display: flex;
   flex-direction: column;
@@ -153,6 +153,34 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.volume-slider .volume-label {
+  flex-shrink: 0;
+  font-size: 9px;
+  color: #aaa;
+  min-width: 22px;
+  text-align: left;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.volume-slider .volume-label-clickable {
+  cursor: pointer;
+}
+
+.volume-slider .volume-label-clickable:hover {
+  color: #ddd;
+}
+
+.volume-slider .volume-label-input {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 3px;
+  color: #e0e0e0;
+  padding: 0 2px;
+  width: 36px;
+  outline: none;
 }
 
 .volume-slider input[type="range"] {

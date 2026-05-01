@@ -200,14 +200,8 @@ export class KGAudioPlayerBus {
    */
   public applyEffectiveVolume(hasSoloedTracks: boolean): void {
     try {
-      let effectiveVolume = this.volume;
-      if (this.muted) {
-        effectiveVolume = 0;
-      } else if (hasSoloedTracks && !this.solo) {
-        effectiveVolume = 0;
-      }
-      const volumeDb = effectiveVolume > 0 ? 20 * Math.log10(effectiveVolume) : -Infinity;
-      this.gainNode.gain.value = Math.pow(10, volumeDb / 20);
+      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, this.volume / 20);
     } catch (error) {
       console.error('Error applying effective volume for audio player bus:', error);
     }
@@ -266,9 +260,8 @@ export class KGAudioPlayerBus {
 
   private updateGainVolume(): void {
     try {
-      const effectiveVolume = this.muted ? 0 : this.volume;
-      // Convert linear volume to gain value
-      this.gainNode.gain.value = effectiveVolume;
+      const isSilent = this.muted || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, this.volume / 20);
     } catch (error) {
       console.error('Error updating gain volume:', error);
     }
