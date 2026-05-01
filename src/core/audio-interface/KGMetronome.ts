@@ -55,7 +55,8 @@ export class KGMetronome {
 
   /** Stop and dispose the loop only — sampler is kept alive for reuse. */
   stop(): void {
-    this.prerollTimeoutIds.forEach(timeoutId => window.clearTimeout(timeoutId));
+    const context = Tone.getContext();
+    this.prerollTimeoutIds.forEach(timeoutId => context.clearTimeout(timeoutId));
     this.prerollTimeoutIds = [];
 
     if (this.loop) {
@@ -78,16 +79,17 @@ export class KGMetronome {
     }
 
     const secondsPerBeat = 60 / Tone.Transport.bpm.value;
+    const context = Tone.getContext();
     const firstBeat = Math.ceil(startPositionBeats);
 
     for (let beat = firstBeat; beat < 0; beat += 1) {
-      const waitMs = Math.max(0, ((beat - startPositionBeats) * secondsPerBeat + playbackDelay) * 1000);
+      const waitSeconds = Math.max(0, (beat - startPositionBeats) * secondsPerBeat + playbackDelay);
       const note = beat % beatsPerBar === 0 ? 'C5' : 'C4';
-      const timeoutId = window.setTimeout(() => {
+      const timeoutId = context.setTimeout(() => {
         if (this.sampler?.loaded) {
           this.sampler.triggerAttackRelease(note, '16n', Tone.now());
         }
-      }, waitMs);
+      }, waitSeconds);
       this.prerollTimeoutIds.push(timeoutId);
     }
   }

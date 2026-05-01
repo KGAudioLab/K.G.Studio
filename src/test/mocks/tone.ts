@@ -107,7 +107,14 @@ export const ToneMock = {
     state: 'running',
     resume: vi.fn().mockResolvedValue(undefined),
     suspend: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined)
+    close: vi.fn().mockResolvedValue(undefined),
+    lookAhead: 0.05,
+    setTimeout: vi.fn().mockImplementation((fn: () => void, timeoutSeconds: number) => {
+      return window.setTimeout(fn, timeoutSeconds * 1000)
+    }),
+    clearTimeout: vi.fn().mockImplementation((id: number) => {
+      window.clearTimeout(id)
+    })
   }),
   
   // Time utilities
@@ -121,7 +128,7 @@ export const ToneMock = {
     toFrequency: vi.fn().mockReturnValue(parseFloat(freq) || 440),
     valueOf: vi.fn().mockReturnValue(parseFloat(freq) || 440)
   })),
-  now: vi.fn().mockReturnValue(0)
+  now: vi.fn().mockImplementation(() => Date.now() / 1000)
 }
 
 // Setup the global mock

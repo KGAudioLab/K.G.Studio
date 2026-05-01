@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MockLoop, MockTransport, ToneMock } from '../../test/mocks/tone'
+import { MockLoop, MockTransport } from '../../test/mocks/tone'
 
 vi.mock('tone', async () => {
   const { ToneMock: toneMock } = await import('../../test/mocks/tone')
@@ -11,10 +11,10 @@ import { KGMetronome } from './KGMetronome'
 describe('KGMetronome', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.setSystemTime(0)
     vi.clearAllMocks()
     MockTransport.bpm.value = 120
     MockTransport.getTicksAtTime.mockImplementation((time: number) => time * MockTransport.PPQ)
-    vi.mocked(ToneMock.now).mockReturnValue(42)
   })
 
   it('schedules audible preroll clicks before beat 0 and keeps the beat 0 accent', () => {
@@ -28,10 +28,14 @@ describe('KGMetronome', () => {
     metronome.start(-4, 4, 0.2)
 
     vi.advanceTimersByTime(200)
-    expect(triggerAttackRelease).toHaveBeenNthCalledWith(1, 'C5', '16n', 42)
+    expect(triggerAttackRelease.mock.calls[0]?.[0]).toBe('C5')
+    expect(triggerAttackRelease.mock.calls[0]?.[1]).toBe('16n')
+    expect(triggerAttackRelease.mock.calls[0]?.[2]).toBeCloseTo(0.2, 5)
 
     vi.advanceTimersByTime(1000)
-    expect(triggerAttackRelease).toHaveBeenNthCalledWith(2, 'C4', '16n', 42)
+    expect(triggerAttackRelease.mock.calls[1]?.[0]).toBe('C4')
+    expect(triggerAttackRelease.mock.calls[1]?.[1]).toBe('16n')
+    expect(triggerAttackRelease.mock.calls[1]?.[2]).toBeCloseTo(0.7, 5)
 
     const transportLoop = MockLoop.mock.results[0]?.value
     expect(transportLoop).toBeDefined()

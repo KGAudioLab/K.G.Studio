@@ -43,9 +43,9 @@ export class KGAudioInterface {
   private masterVolume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_MASTER_VOLUME;
   private scheduledEvents: Set<number> = new Set(); // Tone event IDs
   private delayedTransportStartTimeoutId: number | null = null;
-  private delayedTransportStartMs: number = 0;
+  private delayedTransportStartSeconds: number = 0;
   private virtualPrerollStartBeat: number | null = null;
-  private virtualPrerollStartTimeMs: number | null = null;
+  private virtualPrerollStartAudioTime: number | null = null;
 
   // Master volume control
   private masterGain: Tone.Gain | null = null;
@@ -446,13 +446,13 @@ export class KGAudioInterface {
       }
 
       if (startPosition < 0) {
-        this.delayedTransportStartMs = Math.abs(startPosition) * secondsPerBeat * 1000;
+        this.delayedTransportStartSeconds = Math.abs(startPosition) * secondsPerBeat;
         this.virtualPrerollStartBeat = startPosition;
-        this.virtualPrerollStartTimeMs = null;
+        this.virtualPrerollStartAudioTime = null;
       } else {
-        this.delayedTransportStartMs = 0;
+        this.delayedTransportStartSeconds = 0;
         this.virtualPrerollStartBeat = null;
-        this.virtualPrerollStartTimeMs = null;
+        this.virtualPrerollStartAudioTime = null;
       }
 
       // Set transport position (convert beats to Tone.js format)
@@ -662,14 +662,14 @@ export class KGAudioInterface {
         throw new Error('Audio context not started');
       }
 
-      if (this.delayedTransportStartMs > 0 && this.virtualPrerollStartBeat !== null) {
-        this.virtualPrerollStartTimeMs = performance.now();
-        this.delayedTransportStartTimeoutId = window.setTimeout(() => {
+      if (this.delayedTransportStartSeconds > 0 && this.virtualPrerollStartBeat !== null) {
+        this.virtualPrerollStartAudioTime = Tone.now();
+        this.delayedTransportStartTimeoutId = Tone.getContext().setTimeout(() => {
           this.delayedTransportStartTimeoutId = null;
           this.virtualPrerollStartBeat = null;
-          this.virtualPrerollStartTimeMs = null;
+          this.virtualPrerollStartAudioTime = null;
           Tone.Transport.start();
-        }, this.delayedTransportStartMs);
+        }, this.delayedTransportStartSeconds);
       } else {
         Tone.Transport.start();
       }
@@ -830,10 +830,10 @@ export class KGAudioInterface {
    */
   public getTransportPosition(): number {
     try {
-      if (this.virtualPrerollStartBeat !== null && this.virtualPrerollStartTimeMs !== null) {
+      if (this.virtualPrerollStartBeat !== null && this.virtualPrerollStartAudioTime !== null) {
         const project = KGCore.instance().getCurrentProject();
         const secondsPerBeat = 60 / project.getBpm();
-        const elapsedSeconds = (performance.now() - this.virtualPrerollStartTimeMs) / 1000;
+        const elapsedSeconds = Math.max(0, Tone.now() - this.virtualPrerollStartAudioTime);
         const elapsedBeats = elapsedSeconds / secondsPerBeat;
         return Math.min(0, this.virtualPrerollStartBeat + elapsedBeats);
       }
@@ -1011,13 +1011,13 @@ export class KGAudioInterface {
 
   private clearDelayedTransportStart(): void {
     if (this.delayedTransportStartTimeoutId !== null) {
-      window.clearTimeout(this.delayedTransportStartTimeoutId);
+      Tone.getContext().clearTimeout(this.delayedTransportStartTimeoutId);
       this.delayedTransportStartTimeoutId = null;
     }
 
-    this.delayedTransportStartMs = 0;
+    this.delayedTransportStartSeconds = 0;
     this.virtualPrerollStartBeat = null;
-    this.virtualPrerollStartTimeMs = null;
+    this.virtualPrerollStartAudioTime = null;
   }
 
   // ===== PRIVATE UTILITY METHODS =====

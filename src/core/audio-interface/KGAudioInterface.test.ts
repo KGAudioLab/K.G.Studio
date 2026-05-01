@@ -26,6 +26,7 @@ import { KGAudioInterface } from './KGAudioInterface'
 describe('KGAudioInterface preroll playback', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.setSystemTime(0)
     vi.clearAllMocks()
 
     MockTransport.position = 0
