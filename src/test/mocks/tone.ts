@@ -1,4 +1,4 @@
-import { vi } from 'vitest'
+import { vi } from 'vitest';
 
 /**
  * Mock implementation of Tone.js for testing
@@ -18,7 +18,7 @@ export const MockSampler = vi.fn().mockImplementation(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
   toDestination: vi.fn()
-}))
+}));
 
 // Mock Transport object
 export const MockTransport = {
@@ -42,14 +42,14 @@ export const MockTransport = {
   loop: false,
   PPQ: 192,
   getTicksAtTime: vi.fn().mockImplementation((time: number) => time * 192)
-}
+};
 
 export const MockLoop = vi.fn().mockImplementation((callback: (time: number) => void, interval: string) => ({
   callback,
   interval,
   start: vi.fn(),
   dispose: vi.fn()
-}))
+}));
 
 // Mock Destination
 export const MockDestination = {
@@ -59,7 +59,7 @@ export const MockDestination = {
   mute: false,
   connect: vi.fn(),
   disconnect: vi.fn()
-}
+};
 
 // Mock ToneAudioBuffer
 export const MockToneAudioBuffer = vi.fn().mockImplementation(() => ({
@@ -68,7 +68,7 @@ export const MockToneAudioBuffer = vi.fn().mockImplementation(() => ({
   get: vi.fn(),
   set: vi.fn(),
   load: vi.fn().mockResolvedValue(undefined)
-}))
+}));
 
 // Mock Gain node
 export const MockGain = vi.fn().mockImplementation(() => ({
@@ -81,7 +81,7 @@ export const MockGain = vi.fn().mockImplementation(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
   dispose: vi.fn()
-}))
+}));
 
 // Mock Meter
 export const MockMeter = vi.fn().mockImplementation(() => ({
@@ -89,7 +89,7 @@ export const MockMeter = vi.fn().mockImplementation(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
   dispose: vi.fn()
-}))
+}));
 
 // Complete Tone.js mock
 export const ToneMock = {
@@ -110,10 +110,10 @@ export const ToneMock = {
     close: vi.fn().mockResolvedValue(undefined),
     lookAhead: 0.05,
     setTimeout: vi.fn().mockImplementation((fn: () => void, timeoutSeconds: number) => {
-      return window.setTimeout(fn, timeoutSeconds * 1000)
+      return window.setTimeout(fn, timeoutSeconds * 1000);
     }),
     clearTimeout: vi.fn().mockImplementation((id: number) => {
-      window.clearTimeout(id)
+      window.clearTimeout(id);
     })
   }),
   
@@ -129,9 +129,9 @@ export const ToneMock = {
     valueOf: vi.fn().mockReturnValue(parseFloat(freq) || 440)
   })),
   now: vi.fn().mockImplementation(() => Date.now() / 1000)
-}
+};
 
 // Setup the global mock
 export const setupToneMocks = () => {
-  vi.doMock('tone', () => ToneMock)
-}
+  vi.doMock('tone', () => ToneMock);
+};

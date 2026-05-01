@@ -300,7 +300,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       setGenStatus('polling');
       setGenHint('Generating clip...');
 
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         if (signal.aborted) return;
 
@@ -626,7 +626,7 @@ const FullSongTab: React.FC = () => {
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         if (signal.aborted) return;
 
@@ -997,7 +997,7 @@ const SeparatorTab: React.FC = () => {
 
       let files: string[] = [];
 
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         if (signal.aborted) return;
 
@@ -1414,7 +1414,7 @@ const RemixTab: React.FC = () => {
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         if (signal.aborted) return;
 
@@ -1932,7 +1932,7 @@ const RepaintTab: React.FC = () => {
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-      // eslint-disable-next-line no-constant-condition
+       
       while (true) {
         if (signal.aborted) return;
 

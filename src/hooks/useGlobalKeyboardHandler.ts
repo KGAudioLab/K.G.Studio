@@ -5,13 +5,16 @@ import { saveProject } from '../util/saveUtil';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { useProjectStore } from '../stores/projectStore';
 import { selectAllNotesInActiveRegion } from '../util/selectionUtil';
+import { KGCore } from '../core/KGCore';
+import { KGMidiInput } from '../core/midi-input/KGMidiInput';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
 
 /**
  * Global keyboard handler for copy/paste, undo/redo, play/pause, and save operations
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll } = useProjectStore();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -64,6 +67,7 @@ export const useGlobalKeyboardHandler = () => {
       const playShortcut = configManager.get('hotkeys.main.play') as string;
       const loopShortcut = configManager.get('hotkeys.main.loop') as string;
       const saveShortcut = configManager.get('hotkeys.main.save') as string;
+      const recordShortcut = configManager.get('hotkeys.main.record') as string;
 
       // Check for undo shortcut
       if (undoShortcut && matchesKeyboardShortcut(event, undoShortcut)) {
@@ -153,6 +157,42 @@ export const useGlobalKeyboardHandler = () => {
         return;
       }
 
+      // Check for record toggle shortcut
+      if (recordShortcut && matchesKeyboardShortcut(event, recordShortcut)) {
+        event.preventDefault();
+        if (isRecording) {
+          stopRecording();
+          setStatus('Recording stopped — notes committed');
+          return;
+        }
+        const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+        if (!candidateId) {
+          setStatus('Select a MIDI region before recording');
+          return;
+        }
+        const tracks = KGCore.instance().getCurrentProject().getTracks();
+        let isMidi = false;
+        for (const track of tracks) {
+          const region = track.getRegions().find(r => r.getId() === candidateId);
+          if (region) { isMidi = region instanceof KGMidiRegion; break; }
+        }
+        if (!isMidi) {
+          setStatus('Select a MIDI region before recording');
+          return;
+        }
+        if (KGMidiInput.instance().getConnectedInputCount() === 0) {
+          setStatus('No MIDI device detected');
+          return;
+        }
+        if (!activeRegionId) {
+          setActiveRegionId(candidateId);
+          setShowPianoRoll(true);
+        }
+        startRecording();
+        setStatus('Recording started...');
+        return;
+      }
+
       // Check for save shortcut
       if (saveShortcut && matchesKeyboardShortcut(event, saveShortcut)) {
         event.preventDefault();
@@ -176,5 +216,5 @@ export const useGlobalKeyboardHandler = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName]); // Include dependencies for store actions
+  }, [undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll]); // Include dependencies for store actions
 };

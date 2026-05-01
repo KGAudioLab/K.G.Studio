@@ -1197,7 +1197,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         set({ showChatBox: defaultChatBoxOpen });
       }
     }
-  }
+  };
 }); 
 
 

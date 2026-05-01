@@ -2,7 +2,7 @@
  * Mock implementation of Tone.js for integration tests
  * Provides interface compatibility while avoiding actual audio operations
  */
-import { vi } from 'vitest'
+import { vi } from 'vitest';
 
 // Mock Sampler class
 export const mockSampler = {
@@ -16,7 +16,7 @@ export const mockSampler = {
   disconnect: vi.fn().mockReturnThis(),
   set: vi.fn().mockReturnThis(),
   get: vi.fn().mockReturnValue({}),
-}
+};
 
 // Mock Transport
 export const mockTransport = {
@@ -30,7 +30,7 @@ export const mockTransport = {
   schedule: vi.fn(),
   clear: vi.fn(),
   cancel: vi.fn(),
-}
+};
 
 // Mock Tone namespace
 export const mockTone = {
@@ -55,4 +55,4 @@ export const mockTone = {
     state: 'running',
     resume: vi.fn().mockResolvedValue(undefined),
   },
-}
+};
