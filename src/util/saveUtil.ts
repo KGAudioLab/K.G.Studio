@@ -1,7 +1,7 @@
 import { KGProjectStorage } from '../core/io/KGProjectStorage';
 import { KGCore } from '../core/KGCore';
 import { RESERVED_PROJECT_NAME } from './projectNameUtil';
-import { showAlert } from '../components/common/DialogProvider';
+import { showAlert } from './dialogUtil';
 
 /**
  * Save project utility function.

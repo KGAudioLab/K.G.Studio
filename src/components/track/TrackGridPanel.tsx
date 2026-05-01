@@ -13,7 +13,7 @@ import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { generateNewRegionName } from '../../util/miscUtil';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
-import { showAlert } from '../common/DialogProvider';
+import { showAlert } from '../../util/dialogUtil';
 import { parseMidiFirstTrackNotes } from '../../util/midiUtil';
 import * as Tone from 'tone';
 

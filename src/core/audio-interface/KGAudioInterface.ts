@@ -12,6 +12,10 @@ import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 import { KGMetronome } from './KGMetronome';
 
+interface PreparePlaybackOptions {
+  allowStartBeforeLoopStart?: boolean;
+}
+
 /**
  * KGAudioInterface - Audio engine interface for the DAW
  * Implements the singleton pattern for global audio management
@@ -42,6 +46,10 @@ export class KGAudioInterface {
   private isPlaying: boolean = false;
   private masterVolume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_MASTER_VOLUME;
   private scheduledEvents: Set<number> = new Set(); // Tone event IDs
+  private delayedTransportStartTimeoutId: number | null = null;
+  private delayedTransportStartSeconds: number = 0;
+  private virtualPrerollStartBeat: number | null = null;
+  private virtualPrerollStartAudioTime: number | null = null;
 
   // Master volume control
   private masterGain: Tone.Gain | null = null;
@@ -387,9 +395,10 @@ export class KGAudioInterface {
   /**
    * Prepare playback by scheduling all MIDI events
    */
-  public preparePlayback(project: KGProject, startPosition: number): void {
+  public preparePlayback(project: KGProject, startPosition: number, options?: PreparePlaybackOptions): void {
     // Clear any existing scheduled events
     this.clearScheduledEvents();
+    this.clearDelayedTransportStart();
 
     console.log("Preparing playback");
 
@@ -432,7 +441,7 @@ export class KGAudioInterface {
         console.log(`Loop mode enabled: bars [${startBar}, ${endBar}], beats [${scheduleStartBeat}, ${scheduleEndBeat}]`);
 
         // Adjust start position to loop start if before loop range
-        if (startPosition < scheduleStartBeat) {
+        if (startPosition < scheduleStartBeat && !options?.allowStartBeforeLoopStart) {
           startPosition = scheduleStartBeat;
         }
       } else {
@@ -440,8 +449,18 @@ export class KGAudioInterface {
         console.log("Loop mode disabled");
       }
 
+      if (startPosition < 0) {
+        this.delayedTransportStartSeconds = Math.abs(startPosition) * secondsPerBeat;
+        this.virtualPrerollStartBeat = startPosition;
+        this.virtualPrerollStartAudioTime = null;
+      } else {
+        this.delayedTransportStartSeconds = 0;
+        this.virtualPrerollStartBeat = null;
+        this.virtualPrerollStartAudioTime = null;
+      }
+
       // Set transport position (convert beats to Tone.js format)
-      this.setTransportPosition(startPosition);
+      this.setTransportPosition(Math.max(0, startPosition));
 
       // Start metronome if enabled
       if (this.isMetronomeEnabled) {
@@ -646,8 +665,19 @@ export class KGAudioInterface {
       if (!this.isAudioContextStarted) {
         throw new Error('Audio context not started');
       }
-      
-      Tone.Transport.start();
+
+      if (this.delayedTransportStartSeconds > 0 && this.virtualPrerollStartBeat !== null) {
+        this.virtualPrerollStartAudioTime = Tone.now();
+        this.delayedTransportStartTimeoutId = Tone.getContext().setTimeout(() => {
+          this.delayedTransportStartTimeoutId = null;
+          this.virtualPrerollStartBeat = null;
+          this.virtualPrerollStartAudioTime = null;
+          Tone.Transport.start();
+        }, this.delayedTransportStartSeconds);
+      } else {
+        Tone.Transport.start();
+      }
+
       this.isPlaying = true;
       
       console.log('Audio playback started');
@@ -662,6 +692,7 @@ export class KGAudioInterface {
    */
   public stopPlayback(): void {
     try {
+      this.clearDelayedTransportStart();
       Tone.Transport.stop();
       this.metronome.stop();
 
@@ -789,7 +820,8 @@ export class KGAudioInterface {
   public setTransportPosition(position: number): void {
     try {
       // Convert beats to Tone.js time format
-      const toneTime = this.beatsToToneTime(position);
+      const safePosition = Math.max(0, position);
+      const toneTime = this.beatsToToneTime(safePosition);
       Tone.Transport.position = toneTime;
       console.log(`Set transport position to ${position} beats (${toneTime})`);
     } catch (error) {
@@ -802,6 +834,14 @@ export class KGAudioInterface {
    */
   public getTransportPosition(): number {
     try {
+      if (this.virtualPrerollStartBeat !== null && this.virtualPrerollStartAudioTime !== null) {
+        const project = KGCore.instance().getCurrentProject();
+        const secondsPerBeat = 60 / project.getBpm();
+        const elapsedSeconds = Math.max(0, Tone.now() - this.virtualPrerollStartAudioTime);
+        const elapsedBeats = elapsedSeconds / secondsPerBeat;
+        return Math.min(0, this.virtualPrerollStartBeat + elapsedBeats);
+      }
+
       const position = Tone.Transport.position;
       return this.toneTimeToBeats(position);
     } catch (error) {
@@ -971,6 +1011,17 @@ export class KGAudioInterface {
 
   public getCaptureStream(): MediaStream | null {
     return this.captureStream;
+  }
+
+  private clearDelayedTransportStart(): void {
+    if (this.delayedTransportStartTimeoutId !== null) {
+      Tone.getContext().clearTimeout(this.delayedTransportStartTimeoutId);
+      this.delayedTransportStartTimeoutId = null;
+    }
+
+    this.delayedTransportStartSeconds = 0;
+    this.virtualPrerollStartBeat = null;
+    this.virtualPrerollStartAudioTime = null;
   }
 
   // ===== PRIVATE UTILITY METHODS =====

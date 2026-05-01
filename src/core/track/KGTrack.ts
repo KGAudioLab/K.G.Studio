@@ -104,7 +104,10 @@ export class KGTrack {
   }
 
   public setVolume(volume: number): void {
-    this.volume = volume;
+    this.volume = Math.max(
+      AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB,
+      Math.min(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB, volume)
+    );
   }
 
   public setRegions(regions: KGRegion[]): void {

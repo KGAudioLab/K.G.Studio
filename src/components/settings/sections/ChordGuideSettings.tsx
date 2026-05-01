@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from '../../../util/scaleUtil';
 import { KGCore } from '../../../core/KGCore';
-import { showAlert } from '../../common/DialogProvider';
+import { showAlert } from '../../../util/dialogUtil';
 
 const ChordGuideSettings: React.FC = () => {
   const [chordDefinition, setChordDefinition] = useState<string>('');

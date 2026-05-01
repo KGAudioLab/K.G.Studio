@@ -7,9 +7,11 @@ const BehaviorSettings: React.FC = () => {
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
   const [audioLookaheadTime, setAudioLookaheadTime] = useState<string>('50');
   const [playbackDelay, setPlaybackDelay] = useState<string>('200');
+  const [recordingOffset, setRecordingOffset] = useState<string>('0');
   const [enableAudioCapture, setEnableAudioCapture] = useState<boolean>(false);
   const [lookaheadValidationErrors, setLookaheadValidationErrors] = useState<string[]>([]);
   const [playbackDelayValidationErrors, setPlaybackDelayValidationErrors] = useState<string[]>([]);
+  const [recordingOffsetValidationErrors, setRecordingOffsetValidationErrors] = useState<string[]>([]);
 
   const configManager = ConfigManager.instance();
 
@@ -26,6 +28,8 @@ const BehaviorSettings: React.FC = () => {
       setAudioLookaheadTime(((lookaheadTimeSeconds * 1000).toFixed(0)));
       const playbackDelaySeconds = (configManager.get('audio.playback_delay') as number) ?? 0.2;
       setPlaybackDelay(((playbackDelaySeconds * 1000).toFixed(0)));
+      const recordingOffsetSeconds = (configManager.get('audio.recording_offset') as number) ?? 0;
+      setRecordingOffset(((recordingOffsetSeconds * 1000).toFixed(0)));
       setEnableAudioCapture((configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean) ?? false);
     };
 
@@ -99,6 +103,28 @@ const BehaviorSettings: React.FC = () => {
       await configManager.set('audio.playback_delay', numValueSeconds);
 
       console.log(`Playback delay changed to: ${numValueSeconds}s (${numValueMs}ms)`);
+    }
+  };
+
+  const handleRecordingOffsetChange = async (value: string) => {
+    const numValueMs = value === '' ? 0 : parseFloat(value);
+    const numValueSeconds = numValueMs / 1000;
+    const errors: string[] = [];
+
+    if (isNaN(numValueMs)) {
+      errors.push('MIDI input latency must be a valid number');
+    } else if (numValueSeconds < 0) {
+      errors.push('MIDI input latency must be between 0 and 0.5 seconds (0-500ms)');
+    } else if (numValueSeconds > 0.5) {
+      errors.push('MIDI input latency must be between 0 and 0.5 seconds (0-500ms)');
+    }
+
+    setRecordingOffsetValidationErrors(errors);
+
+    if (errors.length === 0) {
+      setRecordingOffset(value);
+      await configManager.set('audio.recording_offset', numValueSeconds);
+      console.log(`MIDI input latency changed to: ${numValueSeconds}s (${numValueMs}ms)`);
     }
   };
 
@@ -209,6 +235,33 @@ const BehaviorSettings: React.FC = () => {
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               Playback will start with a short delay after pressing the start button (0-500ms). Increasing this value might help stabilize playback, especially for the first few ticks if the lookahead value is too low. Changes apply immediately without restart.
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              MIDI Input Latency (ms)
+            </label>
+            <input
+              type="number"
+              className="settings-select"
+              value={recordingOffset}
+              onChange={(e) => handleRecordingOffsetChange(e.target.value)}
+              min="0"
+              max="500"
+              step="1"
+            />
+            {recordingOffsetValidationErrors.length > 0 && (
+              <div className="settings-validation-errors">
+                {recordingOffsetValidationErrors.map((error, index) => (
+                  <div key={index} className="settings-validation-error">
+                    {error}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Timing correction for MIDI recording (0-500ms). If recorded notes appear slightly late compared to where you intended to play them, increase this value to match your MIDI device's input latency. Each note's position is shifted back by this amount when committed.
             </div>
           </div>
 

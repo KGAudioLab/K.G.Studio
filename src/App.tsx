@@ -18,7 +18,7 @@ import type { RenderingEvent } from './core/audio-interface/KGOfflineRenderer';
 import { KGCore } from './core/KGCore';
 import { ConfigManager } from './core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from './util/scaleUtil';
-import { showAlert } from './components/common/DialogProvider';
+import { showAlert } from './util/dialogUtil';
 import { KGProjectStorage } from './core/io/KGProjectStorage';
 import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 

@@ -79,6 +79,7 @@ interface AppConfig {
     enable_audio_capture_for_screen_sharing: boolean;
     lookahead_time: number;
     playback_delay: number;
+    recording_offset: number;
   };
   templates: {
     custom_instructions: string;
@@ -250,7 +251,8 @@ export class ConfigManager {
         audio: {
           enable_audio_capture_for_screen_sharing: false,
           lookahead_time: 0.05,
-          playback_delay: 0.2
+          playback_delay: 0.2,
+          recording_offset: 0
         },
         templates: {
           custom_instructions: ''

@@ -8,6 +8,7 @@ import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 export class KGMetronome {
   private loop: Tone.Loop | null = null;
   private sampler: Tone.Sampler | null = null;
+  private prerollTimeoutIds: number[] = [];
 
   /**
    * Load the woodblock sampler. Called once from KGAudioInterface.initialize() —
@@ -34,6 +35,8 @@ export class KGMetronome {
 
     const ppq = Tone.Transport.PPQ;
 
+    this.schedulePrerollClicks(startPositionBeats, beatsPerBar, playbackDelay);
+
     this.loop = new Tone.Loop((time) => {
       if (this.sampler?.loaded) {
         // Derive bar position from the exact Transport tick count at the
@@ -52,6 +55,10 @@ export class KGMetronome {
 
   /** Stop and dispose the loop only — sampler is kept alive for reuse. */
   stop(): void {
+    const context = Tone.getContext();
+    this.prerollTimeoutIds.forEach(timeoutId => context.clearTimeout(timeoutId));
+    this.prerollTimeoutIds = [];
+
     if (this.loop) {
       this.loop.dispose();
       this.loop = null;
@@ -63,6 +70,27 @@ export class KGMetronome {
     if (this.sampler) {
       this.sampler.dispose();
       this.sampler = null;
+    }
+  }
+
+  private schedulePrerollClicks(startPositionBeats: number, beatsPerBar: number, playbackDelay: number): void {
+    if (startPositionBeats >= 0 || !this.sampler?.loaded) {
+      return;
+    }
+
+    const secondsPerBeat = 60 / Tone.Transport.bpm.value;
+    const context = Tone.getContext();
+    const firstBeat = Math.ceil(startPositionBeats);
+
+    for (let beat = firstBeat; beat < 0; beat += 1) {
+      const waitSeconds = Math.max(0, (beat - startPositionBeats) * secondsPerBeat + playbackDelay);
+      const note = beat % beatsPerBar === 0 ? 'C5' : 'C4';
+      const timeoutId = context.setTimeout(() => {
+        if (this.sampler?.loaded) {
+          this.sampler.triggerAttackRelease(note, '16n', Tone.now());
+        }
+      }, waitSeconds);
+      this.prerollTimeoutIds.push(timeoutId);
     }
   }
 }

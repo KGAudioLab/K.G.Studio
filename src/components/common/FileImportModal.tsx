@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import './FileImportModal.css';
 import { FaTimes } from 'react-icons/fa';
-import { showAlert } from './DialogProvider';
+import { showAlert } from '../../util/dialogUtil';
 
 interface FileImportModalProps {
   isVisible: boolean;

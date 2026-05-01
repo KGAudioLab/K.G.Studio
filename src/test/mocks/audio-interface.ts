@@ -2,7 +2,7 @@
  * Mock implementation of KGAudioInterface for integration tests
  * Provides interface compatibility while avoiding actual audio operations
  */
-import { vi } from 'vitest'
+import { vi } from 'vitest';
 
 export const mockAudioInterface = {
   // Audio context management
@@ -34,7 +34,7 @@ export const mockAudioInterface = {
   
   // Singleton pattern
   getInstance: vi.fn().mockReturnThis(),
-}
+};
 
 // Mock the class constructor
-export const mockKGAudioInterfaceClass = vi.fn(() => mockAudioInterface)
+export const mockKGAudioInterfaceClass = vi.fn(() => mockAudioInterface);

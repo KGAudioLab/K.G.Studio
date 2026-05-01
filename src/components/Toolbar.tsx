@@ -12,9 +12,11 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog, FaMagnet, FaCut
+  FaCog, FaMagnet, FaCut, FaCircle
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
+import { KGMidiInput } from '../core/midi-input/KGMidiInput';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { plainToInstance } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
@@ -31,7 +33,7 @@ import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { ConfigManager } from '../core/config/ConfigManager';
-import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from './common/DialogProvider';
+import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
 
 const Toolbar: React.FC = () => {
   const {
@@ -45,6 +47,7 @@ const Toolbar: React.FC = () => {
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
@@ -515,6 +518,11 @@ const Toolbar: React.FC = () => {
       console.log("Pause button clicked");
     }
     try {
+      if (isRecording) {
+        await stopRecording();
+        setStatus("Recording stopped — notes committed");
+        return;
+      }
       await stopPlaying();
     } catch (error) {
       console.error("Failed to stop playback:", error);
@@ -860,6 +868,46 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  const handleRecordClick = async () => {
+    if (isRecording) {
+      await stopRecording();
+      setStatus("Recording stopped — notes committed");
+      return;
+    }
+
+    // Require an active or selected MIDI region
+    const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+    if (!candidateId) {
+      await showAlert("Please open a MIDI region in the Piano Roll before starting recording.");
+      return;
+    }
+    const tracks = KGCore.instance().getCurrentProject().getTracks();
+    let isMidi = false;
+    for (const track of tracks) {
+      const region = track.getRegions().find(r => r.getId() === candidateId);
+      if (region) { isMidi = region instanceof KGMidiRegion; break; }
+    }
+    if (!isMidi) {
+      await showAlert("Please select a MIDI region before starting recording.");
+      return;
+    }
+
+    // Require at least one connected MIDI device
+    if (KGMidiInput.instance().getConnectedInputCount() === 0) {
+      await showAlert("No MIDI device detected. Please connect a MIDI keyboard and try again.");
+      return;
+    }
+
+    // Ensure the piano roll is open showing the target region
+    if (!activeRegionId) {
+      setActiveRegionId(candidateId);
+      setShowPianoRoll(true);
+    }
+
+    await startRecording();
+    setStatus("Recording started...");
+  };
+
   return (
     <>
       <div className="toolbar">
@@ -943,6 +991,14 @@ const Toolbar: React.FC = () => {
         ) : (
           <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
         )}
+        <button
+          title={isRecording ? "Stop Recording" : "Record"}
+          className={`tool-button ${isRecording ? 'active' : ''}`}
+          style={isRecording ? { color: 'red' } : undefined}
+          onClick={handleRecordClick}
+        >
+          <FaCircle />
+        </button>
         <button
           title="Loop"
           className={`tool-button ${isLooping ? 'active' : ''}`}

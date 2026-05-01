@@ -283,9 +283,8 @@ export class KGAudioBus {
    */
   private updateSamplerVolume(): void {
     try {
-      const effectiveVolume = this.muted ? 0 : this.volume;
-      const volumeDb = effectiveVolume > 0 ? 20 * Math.log10(effectiveVolume) : -Infinity;
-      this.sampler.volume.value = volumeDb;
+      const isSilent = this.muted || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.sampler.volume.value = isSilent ? -Infinity : this.volume;
     } catch (error) {
       console.error(`Error updating volume for ${this.instrument}:`, error);
     }
@@ -297,14 +296,8 @@ export class KGAudioBus {
    */
   public applyEffectiveVolume(hasSoloedTracks: boolean): void {
     try {
-      let effectiveVolume = this.volume;
-      if (this.muted) {
-        effectiveVolume = 0;
-      } else if (hasSoloedTracks && !this.solo) {
-        effectiveVolume = 0;
-      }
-      const volumeDb = effectiveVolume > 0 ? 20 * Math.log10(effectiveVolume) : -Infinity;
-      this.sampler.volume.value = volumeDb;
+      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.sampler.volume.value = isSilent ? -Infinity : this.volume;
     } catch (error) {
       console.error(`Error applying effective volume for ${this.instrument}:`, error);
     }

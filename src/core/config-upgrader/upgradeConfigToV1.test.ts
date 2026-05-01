@@ -47,9 +47,8 @@ class MockFileHandle {
   async getFile() { return { text: () => Promise.resolve(this._content) }; }
   async createWritable() {
     const w = new MockWritable();
-    const self = this;
     const origClose = w.close.bind(w);
-    w.close = async () => { self._content = w.data; await origClose(); };
+    w.close = async () => { this._content = w.data; await origClose(); };
     return w;
   }
 }

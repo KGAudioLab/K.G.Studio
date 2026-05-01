@@ -1,7 +1,7 @@
-import { KGMidiNote } from '../../core/midi/KGMidiNote'
-import { KGProject } from '../../core/KGProject'
-import { KGMidiTrack } from '../../core/track/KGMidiTrack'
-import { KGMidiRegion } from '../../core/region/KGMidiRegion'
+import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { KGProject } from '../../core/KGProject';
+import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 
 /**
  * Test data factories for creating mock objects
@@ -22,7 +22,7 @@ export const createMockMidiNote = (overrides: Partial<{
     pitch: 60, // Middle C
     velocity: 80,
     ...overrides
-  }
+  };
   
   return new KGMidiNote(
     defaults.id,
@@ -30,8 +30,8 @@ export const createMockMidiNote = (overrides: Partial<{
     defaults.endBeat,
     defaults.pitch,
     defaults.velocity
-  )
-}
+  );
+};
 
 export const createMockMidiRegion = (overrides: Partial<{
   id: string
@@ -50,7 +50,7 @@ export const createMockMidiRegion = (overrides: Partial<{
     startFromBeat: 0,
     length: 4,
     ...overrides
-  }
+  };
   
   const region = new KGMidiRegion(
     defaults.id,
@@ -59,15 +59,15 @@ export const createMockMidiRegion = (overrides: Partial<{
     defaults.name,
     defaults.startFromBeat,
     defaults.length
-  )
+  );
   
   // Add notes if provided
   if (overrides.notes) {
-    overrides.notes.forEach(note => region.addNote(note))
+    overrides.notes.forEach(note => region.addNote(note));
   }
   
-  return region
-}
+  return region;
+};
 
 export const createMockMidiTrack = (overrides: Partial<{
   name: string
@@ -82,22 +82,22 @@ export const createMockMidiTrack = (overrides: Partial<{
     instrument: 'acoustic_grand_piano' as const,
     volume: 0.8,
     ...overrides
-  }
+  };
   
   const track = new KGMidiTrack(
     defaults.name,
     defaults.id,
     defaults.instrument as keyof typeof import('../../constants/generalMidiConstants').FLUIDR3_INSTRUMENT_MAP,
     defaults.volume
-  )
+  );
   
   // Add regions if provided
   if (overrides.regions) {
-    track.setRegions(overrides.regions)
+    track.setRegions(overrides.regions);
   }
   
-  return track
-}
+  return track;
+};
 
 export const createMockProject = (overrides: Partial<{
   name: string
@@ -111,7 +111,7 @@ export const createMockProject = (overrides: Partial<{
     timeSignature: { numerator: 4, denominator: 4 },
     tracks: [],
     ...overrides
-  }
+  };
   
   const project = new KGProject(
     defaults.name,
@@ -126,34 +126,34 @@ export const createMockProject = (overrides: Partial<{
     1, // barWidthMultiplier
     defaults.tracks, // tracks
     5 // projectStructureVersion
-  )
+  );
   
-  return project
-}
+  return project;
+};
 
 // Common test scenarios
 export const createBasicProjectWithTrack = (): { project: KGProject; track: KGMidiTrack; region: KGMidiRegion } => {
   const notes = [
     createMockMidiNote({ pitch: 60, startBeat: 0, endBeat: 1 }),
     createMockMidiNote({ pitch: 64, startBeat: 1, endBeat: 2 }),
-  ]
+  ];
   
   const region = createMockMidiRegion({ 
     id: 'region-1',
     trackId: 'track-1',
     notes 
-  })
+  });
   
   const track = createMockMidiTrack({ 
     id: 1,
     name: 'Track 1',
     regions: [region] 
-  })
+  });
   
   const project = createMockProject({ 
     name: 'Basic Test Project',
     tracks: [track] 
-  })
+  });
   
-  return { project, track, region }
-}
+  return { project, track, region };
+};
