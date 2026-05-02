@@ -30,6 +30,10 @@ interface TrackGridPanelProps {
   onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startBeat: number, length: number }) => void;
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenSpectrogram?: (regionId: string) => void;
+  showHybridButtonForAudio?: boolean;
+  showHybridButtonForMidi?: boolean;
+  onOpenHybrid?: (regionId: string) => void;
   onExternalDropComplete?: (trackIndex: number, regionUI: RegionUI) => void;
 }
 
@@ -46,6 +50,10 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onRegionUpdated,
   onRegionClick,
   onOpenPianoRoll,
+  onOpenSpectrogram,
+  showHybridButtonForAudio,
+  showHybridButtonForMidi,
+  onOpenHybrid,
   onExternalDropComplete,
 }) => {
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -378,6 +386,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Find the region
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
+
+    if (finalBarNumber === region.barNumber && finalTrackIndex === region.trackIndex) {
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`Skipping no-op move for region ${regionId}`);
+      }
+      return;
+    }
     
     // Get the target track
     const targetTrack = tracks[finalTrackIndex];
@@ -455,6 +470,44 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           length: updatedRegion ? updatedRegion.getLength() : 0 
         }
       );
+    }
+  };
+
+  // Handle fine-move end — execute MoveRegionCommand with float-precision beat position
+  const handleRegionFineMoveEnd = (regionId: string, deltaInBars: number) => {
+    const region = regions.find(r => r.id === regionId);
+    if (!region) return;
+    const track = tracks.find(t => t.getId().toString() === region.trackId);
+    if (!track) return;
+    const coreRegion = track.getRegions().find(r => r.getId() === regionId);
+    if (!coreRegion) return;
+
+    const beatsPerBar = timeSignature.numerator;
+    const newStartFromBeat = Math.max(0, coreRegion.getStartFromBeat() + deltaInBars * beatsPerBar);
+    if (newStartFromBeat === coreRegion.getStartFromBeat()) return;
+
+    try {
+      // Use constructor directly (NOT fromBarCoordinates) to preserve float precision
+      const command = new MoveRegionCommand(
+        regionId,
+        newStartFromBeat,
+        track.getId().toString(),
+        region.trackIndex
+      );
+      KGCore.instance().executeCommand(command);
+
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`Fine-moved region ${regionId}: startFromBeat=${newStartFromBeat}`);
+      }
+
+      const newBarNumber = newStartFromBeat / beatsPerBar + 1;
+      onRegionUpdated?.(
+        regionId,
+        { barNumber: newBarNumber, trackId: region.trackId, trackIndex: region.trackIndex },
+        { startBeat: newStartFromBeat, length: coreRegion.getLength() }
+      );
+    } catch (error) {
+      console.error('Error executing fine-move:', error);
     }
   };
 
@@ -649,8 +702,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onRegionResizeEnd={handleRegionResizeEnd}
           onRegionDrag={handleRegionDrag}
           onRegionDragEnd={handleRegionDragEnd}
+          onRegionFineMoveEnd={handleRegionFineMoveEnd}
           onRegionClick={handleRegionClick}
           onOpenPianoRoll={onOpenPianoRoll}
+          onOpenSpectrogram={onOpenSpectrogram}
+          showHybridButtonForAudio={showHybridButtonForAudio}
+          showHybridButtonForMidi={showHybridButtonForMidi}
+          onOpenHybrid={onOpenHybrid}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}
         />

@@ -2,6 +2,7 @@
   --time-signature-numerator: 4;
   --max-number-of-bars: 32;
   --track-grid-bar-width: 40px;
+  --track-info-panel-width: 200px;
   --region-piano-key-width: 60px;
   --region-piano-key-height: 20px;
   --region-grid-beat-width: 40px;

@@ -19,12 +19,6 @@ const PianoRollHeader: React.FC<PianoRollHeaderProps> = ({
       className="piano-roll-header"
       onMouseDown={onMouseDown}
     >
-      <button 
-        className="close-button"
-        onClick={onClose}
-      >
-        <FaTimes />
-      </button>
       <div 
         className="piano-roll-title"
         onClick={onTitleClick}
@@ -32,6 +26,12 @@ const PianoRollHeader: React.FC<PianoRollHeaderProps> = ({
       >
         {title}
       </div>
+      <button 
+        className="close-button"
+        onClick={onClose}
+      >
+        <FaTimes />
+      </button>
     </div>
   );
 };

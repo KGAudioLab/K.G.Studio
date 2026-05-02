@@ -77,10 +77,17 @@
   /* Ensure toolbar and its dropdowns appear above piano roll content */
 }
 
+.piano-roll-toolbar .tool-button {
+  width: 20px;
+  height: 20px;
+}
+
 /* Override pointer-events for piano roll toolbar sections */
 .piano-roll-toolbar .toolbar-left,
 .piano-roll-toolbar .toolbar-right {
   pointer-events: auto;
+  /* max-width: 70%; */
+  width: auto;
 }
 
 .piano-roll-toolbar .quant-button {
@@ -96,12 +103,44 @@
   left: 0;
 }
 
+/* Spectrogram toolbar controls */
+.spectrogram-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 5px;
+}
+
+.spectrogram-control-label {
+  font-size: 10px;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.spectrogram-threshold-slider {
+  /* Match the visual width of the Qua. Pos. / Qua. Len. buttons (~80px) */
+  width: 80px;
+  height: 4px;
+  accent-color: #7a9ccf;
+  cursor: pointer;
+  margin: 0;
+}
+
+.spectrogram-threshold-value {
+  font-size: 10px;
+  color: #e0e0e0;
+  min-width: 30px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .piano-roll-title {
   flex: 1;
   text-align: center;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: bold;
   color: #e0e0e0;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   cursor: pointer;
   padding: 5px;
   border-radius: 3px;
@@ -120,11 +159,35 @@
   color: #ff4444;
 }
 
+.piano-roll-content-outer {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
 .piano-roll-content {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  height: 100%;
   overflow: auto;
+}
+
+.spectrogram-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.spectrogram-loading-label {
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #aaa;
+  font-size: 11px;
+  border-radius: 3px;
 }
 
 .piano-grid-header {
@@ -275,4 +338,32 @@
   align-items: center;
   justify-content: center;
   z-index: 100;
+}
+
+.piano-roll-zoom-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 8px 12px;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.piano-roll-zoom-popup input[type="range"] {
+  width: 120px;
+}
+
+.piano-roll-zoom-value {
+  font-size: 12px;
+  color: #e0e0e0;
+  min-width: 20px;
+  text-align: center;
 }

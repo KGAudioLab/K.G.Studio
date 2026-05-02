@@ -78,6 +78,8 @@ interface ProjectState {
   // Piano roll state
   showPianoRoll: boolean;
   activeRegionId: string | null;
+  pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
+  hybridAudioRegionId: string | null;
   
   // ChatBox state
   showChatBox: boolean;
@@ -107,6 +109,12 @@ interface ProjectState {
   canRedo: boolean;
   undoDescription: string | null;
   redoDescription: string | null;
+
+  // Cross-component scroll request state
+  requestMainContentScroll: (beatPosition: number) => void;
+  requestPianoRollScroll: (beatPosition: number) => void;
+  mainContentScrollRequest: number | null;
+  pianoRollScrollRequest: number | null;
   
   // Actions
   setProjectName: (name: string) => void;
@@ -146,6 +154,9 @@ interface ProjectState {
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
   setActiveRegionId: (regionId: string | null) => void;
+  openMidiPianoRoll: (regionId: string) => void;
+  openSpectrogramViewer: (regionId: string) => void;
+  openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
   
   // Project state cleanup
   cleanupProjectState: () => void;
@@ -304,6 +315,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Initial piano roll state
     showPianoRoll: false,
     activeRegionId: null,
+    pianoRollMode: 'midi-edit' as const,
+    hybridAudioRegionId: null,
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
@@ -332,6 +345,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     recordingTargetRegionId: null,
     recordingNotes: [],
     recordingOriginalPlayhead: 0,
+
+    // Initial cross-component scroll request state
+    mainContentScrollRequest: null,
+    pianoRollScrollRequest: null,
 
     // Actions
     setProjectName: (name: string) => {
@@ -786,6 +803,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ autoScrollEnabled: enabled });
     },
 
+    requestMainContentScroll: (beatPosition: number) => {
+      set({ mainContentScrollRequest: beatPosition });
+    },
+
+    requestPianoRollScroll: (beatPosition: number) => {
+      set({ pianoRollScrollRequest: beatPosition });
+    },
+
     startPlaying: async () => {
       await KGCore.instance().startPlaying();
       set({ isPlaying: true, autoScrollEnabled: true });
@@ -1028,18 +1053,30 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setShowPianoRoll: (show: boolean) => {
       set({ showPianoRoll: show });
     },
-    
+
     setActiveRegionId: (regionId: string | null) => {
       set({ activeRegionId: regionId });
+    },
+
+    openMidiPianoRoll: (regionId: string) => {
+      set({ showPianoRoll: true, activeRegionId: regionId, pianoRollMode: 'midi-edit', hybridAudioRegionId: null });
+    },
+
+    openSpectrogramViewer: (regionId: string) => {
+      set({ showPianoRoll: true, activeRegionId: regionId, pianoRollMode: 'spectrogram', hybridAudioRegionId: null });
+    },
+
+    openHybridMode: (midiRegionId: string, audioRegionId: string) => {
+      set({ showPianoRoll: true, activeRegionId: midiRegionId, hybridAudioRegionId: audioRegionId, pianoRollMode: 'hybrid' });
     },
     
     // Project state cleanup - used when starting new/loading projects
     cleanupProjectState: () => {
       // Close piano roll if it's visible
       set({ showPianoRoll: false });
-      
-      // Clear active region
-      set({ activeRegionId: null });
+
+      // Clear active region and hybrid state
+      set({ activeRegionId: null, hybridAudioRegionId: null, pianoRollMode: 'midi-edit' });
       
       // Clear any selected items
       KGCore.instance().clearSelectedItems();

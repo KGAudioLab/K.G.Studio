@@ -1,10 +1,11 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
 import './PianoRoll.css';
 import type { MouseEvent } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
-import { DEBUG_MODE, PIANO_ROLL_CONSTANTS } from '../../constants';
+import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
 import PianoRollContent from './PianoRollContent';
@@ -22,18 +23,35 @@ interface PianoRollProps {
   regionId: string | null;
   initialPosition?: { x: number; y: number };
   initialSize?: { width: number; height: number };
+  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  audioRegion?: KGAudioRegion;
+  trackId?: string;
+  projectName?: string;
 }
 
 const PianoRoll: React.FC<PianoRollProps> = ({
   onClose,
   regionId,
   initialPosition,
-  initialSize
+  initialSize,
+  mode = 'midi-edit',
+  audioRegion,
+  trackId,
+  projectName,
 }) => {
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled } = useProjectStore();
+  const isSpectrogram = mode === 'spectrogram';
+  const isHybrid = mode === 'hybrid';
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
+
+  // Spectrogram controls (only used in spectrogram mode)
+  const [spectrogramThresholdDb, setSpectrogramThresholdDb] = useState<number>(-25);
+  const [spectrogramPower, setSpectrogramPower] = useState<number>(0.5);
+
+  // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
+  const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
   
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -63,6 +81,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Refs for auto-scroll during playback
   const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
   const pianoRollIsPlayingRef = useRef(false);
+  const pendingZoomAnchorBeatRef = useRef<number | null>(null);
 
   // Ref for storing the setNoteUpdateCounter function
   const triggerNoteUpdateRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
@@ -139,22 +158,22 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       setActiveRegion(null);
       return;
     }
-    
-    // Find the region in the tracks
+
+    let found: KGMidiRegion | null = null;
     for (const track of tracks) {
-      const regions = track.getRegions();
-      const region = regions.find(r => r.getId() === regionId);
-      
+      const region = track.getRegions().find(r => r.getId() === regionId);
       if (region && region instanceof KGMidiRegion) {
-        setActiveRegion(region);
-        
-        if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Active region set in PianoRoll: ${region.getId()}`);
-          console.log(`Region details: name=${region.getName()}, trackId=${region.getTrackId()}, trackIndex=${region.getTrackIndex()}`);
-        }
-        
+        found = region;
         break;
       }
+    }
+
+    // Always update — clears stale MIDI region when switching to an audio region
+    setActiveRegion(found);
+
+    if (found && DEBUG_MODE.PIANO_ROLL) {
+      console.log(`Active region set in PianoRoll: ${found.getId()}`);
+      console.log(`Region details: name=${found.getName()}, trackId=${found.getTrackId()}, trackIndex=${found.getTrackIndex()}`);
     }
   }, [regionId, tracks]);
 
@@ -595,6 +614,30 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
   }, [quantizeSelectedNotes, quantizeNoteLength]);
 
+  const handleZoomChange = useCallback((nextZoom: number) => {
+    if (nextZoom === pianoRollZoom) return;
+
+    const container = pianoRollContentRef.current;
+    pendingZoomAnchorBeatRef.current = null;
+    if (container) {
+      const keysWidth = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+      ) || 60;
+      const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
+      const beatWidth = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+      ) || TOOLBAR_CONSTANTS.BASE_BAR_WIDTH;
+
+      if (visibleMusicWidth > 0 && beatWidth > 0) {
+        pendingZoomAnchorBeatRef.current = (container.scrollLeft + visibleMusicWidth / 2) / beatWidth;
+      } else {
+        pendingZoomAnchorBeatRef.current = null;
+      }
+    }
+
+    setPianoRollZoom(nextZoom);
+  }, [pianoRollZoom]);
+
   // Calculate C4 position and scroll to it when piano roll opens
   useEffect(() => {
     if (pianoRollContentRef.current) {
@@ -670,6 +713,66 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
   }, [playheadPosition, isPlaying, autoScrollEnabled]);
+
+  // Handle scroll requests from main content bar numbers clicks
+  useEffect(() => {
+    if (pianoRollScrollRequest === null) return;
+
+    const container = pianoRollContentRef.current;
+    if (!container) return;
+
+    const beatWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+    ) || 40;
+    const playheadPixel = pianoRollScrollRequest * beatWidth;
+
+    // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
+    const keysWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+    ) || 60;
+    const targetScrollLeft = playheadPixel - (container.clientWidth - keysWidth) / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    container.scrollLeft = clampedScrollLeft;
+
+    // Clear the request after handling
+    useProjectStore.setState({ pianoRollScrollRequest: null });
+  }, [pianoRollScrollRequest]);
+
+  // Update --region-grid-beat-width when zoom changes and preserve the centered beat position.
+  useLayoutEffect(() => {
+    const beatWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * pianoRollZoom;
+    document.documentElement.style.setProperty('--region-grid-beat-width', `${beatWidth}px`);
+    if (triggerNoteUpdateRef.current) {
+      triggerNoteUpdateRef.current(prev => prev + 1);
+    }
+
+    const anchorBeat = pendingZoomAnchorBeatRef.current;
+    const container = pianoRollContentRef.current;
+    if (anchorBeat !== null && container) {
+      const keysWidth = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+      ) || 60;
+      const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
+      const targetPixel = anchorBeat * beatWidth;
+      const targetScrollLeft = targetPixel - visibleMusicWidth / 2;
+      const clampedScrollLeft = Math.max(
+        0,
+        Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+      );
+
+      pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
+      container.scrollLeft = clampedScrollLeft;
+      pendingZoomAnchorBeatRef.current = null;
+    }
+
+    return () => {
+      document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
+    };
+  }, [pianoRollZoom]);
 
   // Scroll horizontally to the active region's starting bar
   useEffect(() => {
@@ -855,6 +958,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Get the title for the piano roll based on the active region
   const getPianoRollTitle = () => {
+    if (isSpectrogram) return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
+    if (isHybrid) {
+      const midiName = activeRegion?.getName() ?? 'MIDI';
+      const audioName = audioRegion?.getName() ?? 'Audio';
+      return `${midiName} + ${audioName}`;
+    }
     if (!activeRegion) return "EDIT NOTE CLIP";
     
     // Calculate the bar and beat position of the region
@@ -901,8 +1010,15 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         chordGuide={chordGuide}
         onChordGuideChange={handleChordGuideSelect}
         blinkButton={blinkButton}
+        mode={mode}
+        thresholdDb={spectrogramThresholdDb}
+        onThresholdChange={setSpectrogramThresholdDb}
+        power={spectrogramPower}
+        onPowerChange={setSpectrogramPower}
+        zoom={pianoRollZoom}
+        onZoomChange={handleZoomChange}
       />
-      
+
       <PianoRollContent
         contentRef={pianoRollContentRef}
         pianoGridRef={pianoGridRef}
@@ -916,6 +1032,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         selectedMode={selectedMode}
         keySignature={keySignature}
         chordGuide={chordGuide}
+        mode={mode}
+        audioRegion={audioRegion}
+        trackId={trackId}
+        projectName={projectName}
+        bpm={bpm}
+        spectrogramThresholdDb={spectrogramThresholdDb}
+        spectrogramPower={spectrogramPower}
+        pianoRollZoom={pianoRollZoom}
       />
       
       <div 

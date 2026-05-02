@@ -41,10 +41,10 @@ describe('upgradeToV7', () => {
   });
 
   it('clamps values that exceed MAX_TRACK_VOLUME_DB', () => {
-    // linear > 1.0 would give positive dB; cap at +6
+    // linear > 1.0 gives positive dB but 2.0 is still below the +12 dB ceiling
     const project = makeProject([2.0]);
     upgradeToV7(project);
-    expect(project.getTracks()[0].getVolume()).toBe(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB);
+    expect(project.getTracks()[0].getVolume()).toBeCloseTo(20 * Math.log10(2.0), 5);
   });
 
   it('bumps project structure version to 7', () => {

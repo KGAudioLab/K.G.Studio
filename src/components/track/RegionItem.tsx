@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './Region.css';
-import { FaPencilAlt } from 'react-icons/fa';
+import { FaPencilAlt, FaPlus } from 'react-icons/fa';
+import { MdGraphicEq, MdSwapHoriz } from 'react-icons/md';
 import type { ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
+
+const DRAG_START_THRESHOLD_PX = 4;
 
 interface RegionItemProps {
   id: string;
@@ -27,6 +30,13 @@ interface RegionItemProps {
   onClick?: (regionId: string) => void;
   // Explicit open piano roll action from header pencil icon
   onOpenPianoRoll?: (regionId: string) => void;
+  // Open spectrogram viewer for audio regions
+  onOpenSpectrogram?: (regionId: string) => void;
+  // Enter hybrid mode (show + when piano roll is open with the opposite region type selected)
+  showHybridButton?: boolean;
+  onOpenHybrid?: (regionId: string) => void;
+  // Fine-move end callback — passes raw (unscaled) mouse pixel delta
+  onFineMoveEnd?: (regionId: string, rawPixelDelta: number) => void;
   // MIDI region data for rendering notes
   midiRegion?: KGMidiRegion;
   // Audio region data for rendering waveform
@@ -49,6 +59,10 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onDragEnd,
   onClick,
   onOpenPianoRoll,
+  onOpenSpectrogram,
+  showHybridButton,
+  onOpenHybrid,
+  onFineMoveEnd,
   midiRegion,
   audioRegion,
   audioBuffer
@@ -60,11 +74,19 @@ const RegionItem: React.FC<RegionItemProps> = ({
   const [resizeEdge, setResizeEdge] = useState<ResizeAction>('none');
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const initialMousePosRef = useRef<{x: number, y: number}>({x: 0, y: 0});
+  const initialMousePosRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
   // Use refs to track states for immediate access
   const isResizingRef = useRef<boolean>(false);
   const isDraggingRef = useRef<boolean>(false);
-  const hasMovedRef = useRef<boolean>(false);
+  const isPendingDragRef = useRef<boolean>(false);
+
+  // Fine-move state
+  const [isFineDragging, setIsFineDragging] = useState(false);
+  const [fineDeltaDisplay, setFineDeltaDisplay] = useState('+0.00');
+  const [fineTranslateX, setFineTranslateX] = useState(0);
+  const isFineDraggingRef = useRef(false);
+  const fineMouseStartXRef = useRef(0);
+  const fineRawDeltaRef = useRef(0);
 
   // Canvas ref for note visualization
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -382,7 +404,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const activeTool = KGMainContentState.instance().getActiveTool();
     if (activeTool === 'pencil') {
       // Still allow click events to pass through for region selection
-      if (!hasMovedRef.current && onClick) {
+      if (onClick) {
         if (DEBUG_MODE.REGION_ITEM) {
           console.log(`REGION CLICKED (pencil mode): regionId=${id}`);
         }
@@ -395,7 +417,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     e.preventDefault();
 
     // Reset movement tracking
-    hasMovedRef.current = false;
+    isPendingDragRef.current = false;
 
     // Store initial mouse position
     initialMousePosRef.current = { x: e.clientX, y: e.clientY };
@@ -414,21 +436,12 @@ const RegionItem: React.FC<RegionItemProps> = ({
         onResizeStart(id, resizeEdge, e.clientX);
       }
     } else {
-      // Start dragging
+      // Wait for actual pointer movement before promoting this gesture to a drag.
       if (DEBUG_MODE.REGION_ITEM) {
-        console.log(`DRAG START: regionId=${id}`);
+        console.log(`PENDING REGION INTERACTION: regionId=${id}`);
       }
 
-      setIsDragging(true);
-      isDraggingRef.current = true;
-
-      // Change cursor to grabbing during drag
-      setCursor('grabbing');
-
-      // Call the onDragStart callback if provided
-      if (onDragStart) {
-        onDragStart(id, e.clientX, e.clientY);
-      }
+      isPendingDragRef.current = true;
     }
 
     // Add global event listeners for mouse move and up
@@ -438,9 +451,6 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
   // Handle global mouse move for resize or drag
   const handleGlobalMouseMove = (e: MouseEvent) => {
-    // Set the hasMovedRef to true as soon as there's movement
-    hasMovedRef.current = true;
-
     if (isResizingRef.current) {
       // Handle resize
       if (DEBUG_MODE.REGION_ITEM) {
@@ -454,15 +464,34 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (onResize) {
         onResize(id, resizeEdge, deltaX);
       }
-    } else if (isDraggingRef.current) {
+    } else if (isDraggingRef.current || isPendingDragRef.current) {
+      const deltaX = e.clientX - initialMousePosRef.current.x;
+      const deltaY = e.clientY - initialMousePosRef.current.y;
+      const movedEnough = Math.hypot(deltaX, deltaY) >= DRAG_START_THRESHOLD_PX;
+
+      if (!isDraggingRef.current) {
+        if (!movedEnough) {
+          return;
+        }
+
+        if (DEBUG_MODE.REGION_ITEM) {
+          console.log(`DRAG START: regionId=${id}`);
+        }
+
+        isPendingDragRef.current = false;
+        setIsDragging(true);
+        isDraggingRef.current = true;
+        setCursor('grabbing');
+
+        if (onDragStart) {
+          onDragStart(id, initialMousePosRef.current.x, initialMousePosRef.current.y);
+        }
+      }
+
       // Handle drag
       if (DEBUG_MODE.REGION_ITEM) {
         console.log(`DRAG MOVE: regionId=${id}, trackIndex=${trackIndex}`);
       }
-
-      // Calculate delta from initial position
-      const deltaX = e.clientX - initialMousePosRef.current.x;
-      const deltaY = e.clientY - initialMousePosRef.current.y;
 
       // Call the onDrag callback if provided
       if (onDrag) {
@@ -502,19 +531,53 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (onDragEnd) {
         onDragEnd(id);
       }
-
-      // If there was no movement, treat it as a click
-      if (!hasMovedRef.current && onClick) {
-        if (DEBUG_MODE.REGION_ITEM) {
-          console.log(`REGION CLICKED: regionId=${id}`);
-        }
-        onClick(id);
+    } else if (isPendingDragRef.current && onClick) {
+      if (DEBUG_MODE.REGION_ITEM) {
+        console.log(`REGION CLICKED: regionId=${id}`);
       }
+      onClick(id);
     }
+
+    isPendingDragRef.current = false;
 
     // Remove global event listeners
     document.removeEventListener('mousemove', handleGlobalMouseMove);
     document.removeEventListener('mouseup', handleGlobalMouseUp);
+  };
+
+  // Fine-move handlers
+  const handleFineMoveGlobalMouseMove = (e: MouseEvent) => {
+    if (!isFineDraggingRef.current) return;
+    const rawDelta = e.clientX - fineMouseStartXRef.current;
+    fineRawDeltaRef.current = rawDelta;
+    const scaledDelta = rawDelta * REGION_CONSTANTS.FINE_MOVE_SPEED_RATIO;
+    setFineTranslateX(scaledDelta);
+    setFineDeltaDisplay(scaledDelta >= 0 ? `+${scaledDelta.toFixed(2)}` : `${scaledDelta.toFixed(2)}`);
+  };
+
+  const handleFineMoveGlobalMouseUp = () => {
+    if (!isFineDraggingRef.current) return;
+    isFineDraggingRef.current = false;
+    setIsFineDragging(false);
+    setFineTranslateX(0);
+    document.removeEventListener('mousemove', handleFineMoveGlobalMouseMove);
+    document.removeEventListener('mouseup', handleFineMoveGlobalMouseUp);
+    if (fineRawDeltaRef.current !== 0 && onFineMoveEnd) {
+      onFineMoveEnd(id, fineRawDeltaRef.current);
+    }
+  };
+
+  const handleFineMoveMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isFineDraggingRef.current) return;
+    fineMouseStartXRef.current = e.clientX;
+    fineRawDeltaRef.current = 0;
+    isFineDraggingRef.current = true;
+    setIsFineDragging(true);
+    setFineDeltaDisplay('+0.00');
+    document.addEventListener('mousemove', handleFineMoveGlobalMouseMove);
+    document.addEventListener('mouseup', handleFineMoveGlobalMouseUp);
   };
 
   // Clean up event listeners on unmount
@@ -522,6 +585,8 @@ const RegionItem: React.FC<RegionItemProps> = ({
     return () => {
       document.removeEventListener('mousemove', handleGlobalMouseMove);
       document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('mousemove', handleFineMoveGlobalMouseMove);
+      document.removeEventListener('mouseup', handleFineMoveGlobalMouseUp);
     };
   }, []);
 
@@ -538,7 +603,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     <div
       key={id}
       className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''} ${audioRegion ? 'audio-region' : ''}`}
-      style={{ ...style, cursor }}
+      style={{ ...style, cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
@@ -551,31 +616,108 @@ const RegionItem: React.FC<RegionItemProps> = ({
         {name}
       </div>
       <div className={`region-content${audioRegion ? ' audio-region-content' : ''}`} ref={regionContentRef}>
-        {!audioRegion && (
-          <button
-            className="region-pencil-btn"
-            title="Edit notes"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (DEBUG_MODE.REGION_ITEM) {
-                console.log(`Pencil clicked: open piano roll for region ${id}`);
-              }
-              if (onOpenPianoRoll) {
-                onOpenPianoRoll(id);
-              } else if (onClick) {
-                onClick(id);
-              }
-            }}
-            aria-label="Open piano roll"
-          >
-            <FaPencilAlt size={10} />
-          </button>
-        )}
+        <div className="region-left-buttons">
+          {!audioRegion && (
+            <button
+              className="region-pencil-btn"
+              title="Edit notes"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (DEBUG_MODE.REGION_ITEM) {
+                  console.log(`Pencil clicked: open piano roll for region ${id}`);
+                }
+                if (onOpenPianoRoll) {
+                  onOpenPianoRoll(id);
+                } else if (onClick) {
+                  onClick(id);
+                }
+              }}
+              aria-label="Open piano roll"
+            >
+              <FaPencilAlt size={10} />
+            </button>
+          )}
+          {audioRegion && (
+            <button
+              className="region-waveform-btn"
+              title="View waveform"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              aria-label="View waveform"
+            >
+              <MdGraphicEq size={10} />
+            </button>
+          )}
+          {audioRegion && (
+            <button
+              className="region-spectrogram-btn"
+              title="View melodic spectrogram"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onOpenSpectrogram) {
+                  onOpenSpectrogram(id);
+                }
+              }}
+              aria-label="View spectrogram"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4"/>
+                <rect x="1.5" y="3.75" width="6.5" height="2.5" rx="0.4"/>
+                <rect x="0" y="7" width="6.5" height="2.5" rx="0.4"/>
+              </svg>
+            </button>
+          )}
+          {showHybridButton && (
+            <button
+              className="region-hybrid-btn"
+              title="Open in hybrid mode"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onOpenHybrid) {
+                  onOpenHybrid(id);
+                }
+              }}
+              aria-label="Open hybrid mode"
+            >
+              <FaPlus size={10} />
+            </button>
+          )}
+          <div className="region-fine-move-widget">
+            <button
+              className="region-fine-move-btn"
+              title="Fine move"
+              onMouseDown={handleFineMoveMouseDown}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              aria-label="Fine move region"
+            >
+              <MdSwapHoriz size={10} />
+            </button>
+            {isFineDragging && (
+              <span className="region-fine-move-label">{fineDeltaDisplay}</span>
+            )}
+          </div>
+        </div>
         <canvas ref={canvasRef} />
       </div>
     </div>

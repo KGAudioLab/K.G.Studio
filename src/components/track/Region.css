@@ -97,11 +97,23 @@
   background-color: #5a9b6a;
 }
 
-/* Region pencil trigger inside content */
-.region-pencil-btn {
+/* Left-side button cluster inside region-content */
+.region-left-buttons {
   position: absolute;
   top: 4px;
   left: 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  z-index: 2;
+}
+
+/* Shared style for all region content buttons */
+.region-pencil-btn,
+.region-waveform-btn,
+.region-spectrogram-btn,
+.region-hybrid-btn {
   background: rgba(0, 0, 0, 0.25);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -109,14 +121,61 @@
   padding: 2px;
   margin: 0;
   cursor: pointer;
-  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.region-pencil-btn:hover {
+.region-pencil-btn:hover,
+.region-spectrogram-btn:hover,
+.region-hybrid-btn:hover {
   background: rgba(0, 0, 0, 0.35);
+}
+
+.region-waveform-btn {
+  display: none;
+}
+
+.region-waveform-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* Fine-move widget: sits inline in the left button cluster */
+.region-fine-move-widget {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.region-fine-move-btn {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  padding: 2px;
+  margin: 0;
+  cursor: ew-resize;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.region-fine-move-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.region-fine-move-label {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  line-height: 1;
+  user-select: none;
 }
 
 /* Instrument dropdown specific styles */

@@ -10,7 +10,7 @@
 .main-content-wrapper {
   display: flex;
   flex-direction: column;
-  min-width: calc(200px + var(--max-number-of-bars) * var(--track-grid-bar-width)); /* info width + grid width */
+  min-width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width)); /* info width + grid width */
   min-height: fit-content;
   position: relative;
 }
@@ -19,7 +19,7 @@
   position: fixed;
   top: 50px;
   left: 0;
-  width: 200px;
+  width: var(--track-info-panel-width);
   height: 20px;
   background-color: #2d2d2d;
   border-bottom: 1px solid #3a3a3a;
@@ -42,7 +42,7 @@
   border-bottom: 1px solid #3a3a3a;
   background-color: #2d2d2d;
   z-index: 20;
-  margin-left: 200px; /* Offset for info-container */
+  margin-left: var(--track-info-panel-width); /* Offset for info-container */
   width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* Exact width for 32 bars */
   cursor: pointer; /* Show pointer cursor on hover to indicate interactivity */
 }
@@ -80,7 +80,7 @@
 .info-container {
   position: sticky;
   left: 0;
-  width: 200px;
+  width: var(--track-info-panel-width);
   z-index: 1002;
   background-color: #2d2d2d;
   align-self: flex-start;

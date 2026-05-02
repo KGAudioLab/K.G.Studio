@@ -24,8 +24,13 @@ interface TrackGridItemProps {
   onRegionResizeEnd?: (regionId: string, finalBarNumber: number, finalLength: number) => void;
   onRegionDrag?: (regionId: string, newBarNumber: number, newTrackIndex: number) => void;
   onRegionDragEnd?: (regionId: string, finalBarNumber: number, finalTrackIndex: number) => void;
+  onRegionFineMoveEnd?: (regionId: string, deltaInBars: number) => void;
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenSpectrogram?: (regionId: string) => void;
+  showHybridButtonForAudio?: boolean;
+  showHybridButtonForMidi?: boolean;
+  onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
 }
@@ -45,8 +50,13 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onRegionResizeEnd,
   onRegionDrag,
   onRegionDragEnd,
+  onRegionFineMoveEnd,
   onRegionClick,
   onOpenPianoRoll,
+  onOpenSpectrogram,
+  showHybridButtonForAudio,
+  showHybridButtonForMidi,
+  onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
 }) => {
@@ -484,10 +494,25 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     currentDragTop.current = null;
     currentDragRegion.current = null;
     
+    if (finalBarNumber === region.barNumber && finalTrackIndex === region.trackIndex) {
+      if (DEBUG_MODE.TRACK_GRID_ITEM) {
+        console.log(`Skipping no-op drag update for region ${regionId}`);
+      }
+      return;
+    }
+
     // Notify parent about drag end with final values
     if (onRegionDragEnd) {
       onRegionDragEnd(regionId, finalBarNumber, finalTrackIndex);
     }
+  };
+
+  // Handle fine-move end — convert raw pixel delta to delta in bars and pass up
+  const handleRegionFineMoveEnd = (regionId: string, rawPixelDelta: number) => {
+    const barWidth = containerWidth / maxBars;
+    if (barWidth <= 0) return;
+    const deltaInBars = (rawPixelDelta * REGION_CONSTANTS.FINE_MOVE_SPEED_RATIO) / barWidth;
+    onRegionFineMoveEnd?.(regionId, deltaInBars);
   };
 
   // Handle region click
@@ -555,6 +580,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             onDragStart={handleRegionDragStart}
             onDrag={handleRegionDrag}
             onDragEnd={handleRegionDragEnd}
+            onFineMoveEnd={handleRegionFineMoveEnd}
             // Keep onClick for selection-only logic if needed by parent
             onClick={handleRegionClick}
             // New explicit pencil action — disabled for audio regions
@@ -566,6 +592,11 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onRegionClick(regionId);
               }
             }}
+            onOpenSpectrogram={audioRegion ? (regionId) => {
+              onOpenSpectrogram?.(regionId);
+            } : undefined}
+            showHybridButton={audioRegion ? showHybridButtonForAudio : showHybridButtonForMidi}
+            onOpenHybrid={onOpenHybrid}
             midiRegion={midiRegion}
             audioRegion={audioRegion}
             audioBuffer={audioBuffer}

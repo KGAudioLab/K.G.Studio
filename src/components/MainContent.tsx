@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import './MainContent.css';
 import { createPortal } from 'react-dom';
 import { useProjectStore } from '../stores/projectStore';
@@ -10,7 +10,7 @@ import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
 import type { RegionUI } from './interfaces';
-import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS } from '../constants';
+import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { KGMainContentState } from '../core/state/KGMainContentState';
@@ -26,6 +26,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const {
     tracks,
     maxBars,
+    barWidthMultiplier,
     reorderTracks,
     updateTrack,
     updateTrackProperties,
@@ -41,9 +42,17 @@ const MainContent: React.FC<MainContentProps> = ({
     activeRegionId,
     setShowPianoRoll,
     setActiveRegionId,
+    pianoRollMode,
+    openMidiPianoRoll,
+    openSpectrogramViewer,
+    openHybridMode,
+    hybridAudioRegionId,
     addTrack,
     addAudioTrack,
     projectName,
+    savedProjectName,
+    requestPianoRollScroll,
+    mainContentScrollRequest,
   } = useProjectStore();
 
   // State to store regions
@@ -88,6 +97,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const mainContentRef = useRef<HTMLDivElement | null>(null);
   const expectedScrollLeftRef = useRef<number>(-1);
   const isPlayingRef = useRef(false);
+  const previousBarWidthMultiplierRef = useRef(barWidthMultiplier);
 
   // Refs for bar numbers and loop range drag functionality
   const barNumbersRef = useRef<HTMLDivElement | null>(null);
@@ -100,6 +110,37 @@ const MainContent: React.FC<MainContentProps> = ({
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  useLayoutEffect(() => {
+    const previousMultiplier = previousBarWidthMultiplierRef.current;
+    if (previousMultiplier === barWidthMultiplier) return;
+
+    previousBarWidthMultiplierRef.current = barWidthMultiplier;
+
+    const container = mainContentRef.current;
+    if (!container) return;
+
+    const infoWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width')
+    ) || 200;
+    const visibleMusicWidth = Math.max(0, container.clientWidth - infoWidth);
+    const previousBarWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * previousMultiplier;
+    const nextBarWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
+
+    if (visibleMusicWidth === 0 || previousBarWidth === 0 || nextBarWidth === 0) return;
+
+    const centerPixelBeforeZoom = container.scrollLeft + visibleMusicWidth / 2;
+    const anchorBeat = (centerPixelBeforeZoom / previousBarWidth) * timeSignature.numerator;
+    const targetPixel = (anchorBeat / timeSignature.numerator) * nextBarWidth;
+    const targetScrollLeft = targetPixel - visibleMusicWidth / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    expectedScrollLeftRef.current = clampedScrollLeft;
+    container.scrollLeft = clampedScrollLeft;
+  }, [barWidthMultiplier, timeSignature]);
 
   // Detect manual horizontal scroll during playback
   useEffect(() => {
@@ -130,8 +171,10 @@ const MainContent: React.FC<MainContentProps> = ({
     ) || 40;
     const playheadPixel = barPosition * barWidth;
 
-    // Center the playhead in the visible grid area (excluding the 200px sticky info panel)
-    const infoWidth = 200;
+    // Center the playhead in the visible grid area (excluding the sticky info panel)
+    const infoWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width')
+    ) || 200;
     const targetScrollLeft = playheadPixel - (container.clientWidth - infoWidth) / 2;
     const clampedScrollLeft = Math.max(
       0,
@@ -141,6 +184,36 @@ const MainContent: React.FC<MainContentProps> = ({
     expectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
   }, [playheadPosition, isPlaying, autoScrollEnabled, timeSignature]);
+
+  // Handle scroll requests from piano roll header clicks
+  useEffect(() => {
+    if (mainContentScrollRequest === null) return;
+
+    const container = mainContentRef.current;
+    if (!container) return;
+
+    const beatsPerBar = timeSignature.numerator;
+    const barPosition = mainContentScrollRequest / beatsPerBar;
+    const barWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
+    ) || 40;
+    const playheadPixel = barPosition * barWidth;
+
+    // Center the playhead in the visible grid area (excluding the sticky info panel)
+    const infoWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width')
+    ) || 200;
+    const targetScrollLeft = playheadPixel - (container.clientWidth - infoWidth) / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    container.scrollLeft = clampedScrollLeft;
+
+    // Clear the request after handling
+    useProjectStore.setState({ mainContentScrollRequest: null });
+  }, [mainContentScrollRequest, timeSignature]);
 
   // Effect to verify track updates
   useEffect(() => {
@@ -433,8 +506,9 @@ const MainContent: React.FC<MainContentProps> = ({
       }
     }
 
-    // If piano roll is visible, set this region as the active region
-    if (showPianoRoll) {
+    // Keep the active piano roll region in sync when that same region is updated.
+    // Do not switch the editor to an unrelated region from generic move/resize updates.
+    if (showPianoRoll && activeRegionId === regionId) {
       setActiveRegionId(regionId);
 
       if (DEBUG_MODE.MAIN_CONTENT) {
@@ -508,6 +582,16 @@ const MainContent: React.FC<MainContentProps> = ({
     const track = tracks.find(t => t.getId().toString() === region.trackId);
     if (!track) return;
     setSelectedTrack(track.getId().toString());
+
+    // If the piano roll window is already open, follow the selected region's type
+    if (showPianoRoll) {
+      const coreRegion = track.getRegions().find(r => r.getId() === regionId);
+      if (coreRegion?.getCurrentType() === 'KGAudioRegion') {
+        openSpectrogramViewer(regionId);
+      } else if (coreRegion?.getCurrentType() === 'KGMidiRegion') {
+        openMidiPianoRoll(regionId);
+      }
+    }
   };
 
   // Handle explicit pencil action: select region and open piano roll
@@ -528,10 +612,28 @@ const MainContent: React.FC<MainContentProps> = ({
     // Reuse selection logic
     handleRegionClick(regionId);
 
-    // Activate and show piano roll
-    setActiveRegionId(regionId);
-    setShowPianoRoll(true);
+    // Activate and show piano roll in midi-edit mode
+    openMidiPianoRoll(regionId);
   };
+
+  // Handle spectrogram viewer open
+  const handleOpenSpectrogram = (regionId: string) => {
+    handleRegionClick(regionId);
+    openSpectrogramViewer(regionId);
+  };
+
+  // Handle hybrid mode open (+ button clicked on opposite-type region)
+  const handleOpenHybrid = (regionId: string) => {
+    if (pianoRollMode === 'midi-edit' && activeRegionId) {
+      openHybridMode(activeRegionId, regionId);
+    } else if (pianoRollMode === 'spectrogram' && activeRegionId) {
+      openHybridMode(regionId, activeRegionId);
+    }
+  };
+
+  // + button is visible only when piano roll is open and mode is not hybrid
+  const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
+  const showHybridButtonForMidi  = showPianoRoll && pianoRollMode === 'spectrogram';
 
   // Handle piano roll close
   const handlePianoRollClose = () => {
@@ -739,6 +841,7 @@ const MainContent: React.FC<MainContentProps> = ({
             const clickPosition = calculatePlayheadFromMouse(e.clientX);
             if (clickPosition !== null) {
               setPlayheadPosition(clickPosition);
+              requestPianoRollScroll(clickPosition);
 
               if (DEBUG_MODE.MAIN_CONTENT) {
                 console.log(`Single click on bar numbers - Set playhead to: ${clickPosition}`);
@@ -764,7 +867,7 @@ const MainContent: React.FC<MainContentProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, setPlayheadPosition]);
+  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, setPlayheadPosition, requestPianoRollScroll]);
 
   const { showInstrumentSelection, isLooping, loopingRange } = useProjectStore();
 
@@ -824,16 +927,49 @@ const MainContent: React.FC<MainContentProps> = ({
             onRegionUpdated={handleRegionUpdated}
             onRegionClick={handleRegionClick}
             onOpenPianoRoll={handleOpenPianoRoll}
+            onOpenSpectrogram={handleOpenSpectrogram}
+            showHybridButtonForAudio={showHybridButtonForAudio}
+            showHybridButtonForMidi={showHybridButtonForMidi}
+            onOpenHybrid={handleOpenHybrid}
             onExternalDropComplete={handleExternalDropComplete}
           />
         </div>
       </div>
 
-      {/* Piano Roll - render using portal */}
+      {/* Piano Roll / Spectrogram Viewer - render using portal */}
       {showPianoRoll && createPortal(
         <PianoRoll
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
+          mode={pianoRollMode}
+          audioRegion={(() => {
+            // spectrogram mode: audio region IS the activeRegionId
+            // hybrid mode: audio region is hybridAudioRegionId
+            const audioId = pianoRollMode === 'spectrogram' ? activeRegionId
+                          : pianoRollMode === 'hybrid'      ? hybridAudioRegionId
+                          : null;
+            if (!audioId) return undefined;
+            for (const track of tracks) {
+              const region = track.getRegions().find(r => r.getId() === audioId);
+              if (region && region.getCurrentType() === 'KGAudioRegion') {
+                return region as unknown as KGAudioRegion;
+              }
+            }
+            return undefined;
+          })()}
+          trackId={(() => {
+            const audioId = pianoRollMode === 'spectrogram' ? activeRegionId
+                          : pianoRollMode === 'hybrid'      ? hybridAudioRegionId
+                          : null;
+            if (!audioId) return undefined;
+            for (const track of tracks) {
+              if (track.getRegions().some(r => r.getId() === audioId)) {
+                return track.getId().toString();
+              }
+            }
+            return undefined;
+          })()}
+          projectName={savedProjectName}
         />,
         document.body
       )}

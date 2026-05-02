@@ -14,7 +14,7 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
   timeSignature = { numerator: 4, denominator: 4 } // Default to 4/4 if not provided
 }) => {
   // Get store access for playhead position updates
-  const { setPlayheadPosition } = useProjectStore();
+  const { setPlayheadPosition, requestMainContentScroll } = useProjectStore();
   
   // Refs for drag functionality
   const isDraggingRef = useRef(false);
@@ -122,8 +122,9 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
         console.log(`Current bar: ${currentBarNumber} (beat ${currentPlayheadPosition})`);
         console.log(`Destination bar: ${destinationBarNumber} (beat ${newPosition})`);
       }
-      
+
       setPlayheadPosition(newPosition);
+      requestMainContentScroll(newPosition);
     }
   };
 
