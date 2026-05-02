@@ -30,6 +30,7 @@ interface TrackGridPanelProps {
   onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startBeat: number, length: number }) => void;
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenSpectrogram?: (regionId: string) => void;
   onExternalDropComplete?: (trackIndex: number, regionUI: RegionUI) => void;
 }
 
@@ -46,6 +47,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onRegionUpdated,
   onRegionClick,
   onOpenPianoRoll,
+  onOpenSpectrogram,
   onExternalDropComplete,
 }) => {
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -651,6 +653,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onRegionDragEnd={handleRegionDragEnd}
           onRegionClick={handleRegionClick}
           onOpenPianoRoll={onOpenPianoRoll}
+          onOpenSpectrogram={onOpenSpectrogram}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}
         />

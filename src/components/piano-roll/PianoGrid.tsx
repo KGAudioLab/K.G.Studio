@@ -6,6 +6,8 @@ import { isModifierKeyPressed } from '../../util/osUtil';
 import { generatePianoGridBackground, getMatchingChordsForPitch } from '../../util/scaleUtil';
 import type { KeySignature } from '../../core/KGProject';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
+import SpectrogramCanvas from './SpectrogramCanvas';
+import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -24,6 +26,12 @@ interface PianoGridProps {
   selectedMode: string;
   keySignature: KeySignature;
   chordGuide: string;
+  audioRegion?: KGAudioRegion;
+  trackId?: string;
+  projectName?: string;
+  bpm?: number;
+  spectrogramThresholdDb?: number;
+  spectrogramPower?: number;
 }
 
 interface CursorPosition {
@@ -44,7 +52,13 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   regionStartBeat = 0,
   selectedMode,
   keySignature,
-  chordGuide
+  chordGuide,
+  audioRegion,
+  trackId,
+  projectName,
+  bpm = 120,
+  spectrogramThresholdDb = -25,
+  spectrogramPower = 0.5,
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
   const [isModifierPressed, setIsModifierPressed] = useState(false);
@@ -209,13 +223,25 @@ const PianoGrid: React.FC<PianoGridProps> = ({
       <div
         className={`piano-grid ${isModifierPressed ? 'pencil-cursor' : ''}`}
         ref={gridRef}
-        style={{ backgroundImage }}
+        style={{ backgroundImage: audioRegion ? undefined : backgroundImage }}
         onDoubleClick={onDoubleClick}
         onClick={onClick}
         onMouseDown={(e) => onMouseDown(e)}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
+        {/* Spectrogram layer — rendered at z-index 0, behind all highlights and notes */}
+        {audioRegion && trackId && projectName && (
+          <SpectrogramCanvas
+            audioRegion={audioRegion}
+            trackId={trackId}
+            projectName={projectName}
+            bpm={bpm}
+            thresholdDb={spectrogramThresholdDb}
+            power={spectrogramPower}
+          />
+        )}
+
         {/* Cursor Highlights */}
         {cursorPosition && (
           <>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './Region.css';
 import { FaPencilAlt } from 'react-icons/fa';
+import { MdGraphicEq } from 'react-icons/md';
 import type { ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
@@ -27,6 +28,8 @@ interface RegionItemProps {
   onClick?: (regionId: string) => void;
   // Explicit open piano roll action from header pencil icon
   onOpenPianoRoll?: (regionId: string) => void;
+  // Open spectrogram viewer for audio regions
+  onOpenSpectrogram?: (regionId: string) => void;
   // MIDI region data for rendering notes
   midiRegion?: KGMidiRegion;
   // Audio region data for rendering waveform
@@ -49,6 +52,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onDragEnd,
   onClick,
   onOpenPianoRoll,
+  onOpenSpectrogram,
   midiRegion,
   audioRegion,
   audioBuffer
@@ -574,6 +578,26 @@ const RegionItem: React.FC<RegionItemProps> = ({
             aria-label="Open piano roll"
           >
             <FaPencilAlt size={10} />
+          </button>
+        )}
+        {audioRegion && (
+          <button
+            className="region-spectrogram-btn"
+            title="View melodic spectrogram"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onOpenSpectrogram) {
+                onOpenSpectrogram(id);
+              }
+            }}
+            aria-label="View spectrogram"
+          >
+            <MdGraphicEq size={10} />
           </button>
         )}
         <canvas ref={canvasRef} />

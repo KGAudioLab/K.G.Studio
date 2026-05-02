@@ -4,6 +4,7 @@ import type { MouseEvent } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
@@ -22,18 +23,31 @@ interface PianoRollProps {
   regionId: string | null;
   initialPosition?: { x: number; y: number };
   initialSize?: { width: number; height: number };
+  mode?: 'midi-edit' | 'spectrogram';
+  audioRegion?: KGAudioRegion;
+  trackId?: string;
+  projectName?: string;
 }
 
 const PianoRoll: React.FC<PianoRollProps> = ({
   onClose,
   regionId,
   initialPosition,
-  initialSize
+  initialSize,
+  mode = 'midi-edit',
+  audioRegion,
+  trackId,
+  projectName,
 }) => {
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled } = useProjectStore();
+  const isSpectrogram = mode === 'spectrogram';
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
+
+  // Spectrogram controls (only used in spectrogram mode)
+  const [spectrogramThresholdDb, setSpectrogramThresholdDb] = useState<number>(-25);
+  const [spectrogramPower, setSpectrogramPower] = useState<number>(0.5);
   
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -855,6 +869,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Get the title for the piano roll based on the active region
   const getPianoRollTitle = () => {
+    if (isSpectrogram) return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
     if (!activeRegion) return "EDIT NOTE CLIP";
     
     // Calculate the bar and beat position of the region
@@ -901,8 +916,13 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         chordGuide={chordGuide}
         onChordGuideChange={handleChordGuideSelect}
         blinkButton={blinkButton}
+        mode={mode}
+        thresholdDb={spectrogramThresholdDb}
+        onThresholdChange={setSpectrogramThresholdDb}
+        power={spectrogramPower}
+        onPowerChange={setSpectrogramPower}
       />
-      
+
       <PianoRollContent
         contentRef={pianoRollContentRef}
         pianoGridRef={pianoGridRef}
@@ -916,6 +936,13 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         selectedMode={selectedMode}
         keySignature={keySignature}
         chordGuide={chordGuide}
+        mode={mode}
+        audioRegion={audioRegion}
+        trackId={trackId}
+        projectName={projectName}
+        bpm={bpm}
+        spectrogramThresholdDb={spectrogramThresholdDb}
+        spectrogramPower={spectrogramPower}
       />
       
       <div 

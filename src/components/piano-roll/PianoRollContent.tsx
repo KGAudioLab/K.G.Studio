@@ -12,6 +12,7 @@ import PianoGrid from './PianoGrid';
 import { useNoteOperations } from '../../hooks/useNoteOperations';
 import { useNoteSelection } from '../../hooks/useNoteSelection';
 import type { KeySignature } from '../../core/KGProject';
+import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 
 interface PianoRollContentProps {
   contentRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -26,6 +27,13 @@ interface PianoRollContentProps {
   selectedMode: string;
   keySignature: KeySignature;
   chordGuide: string;
+  mode?: 'midi-edit' | 'spectrogram';
+  audioRegion?: KGAudioRegion;
+  trackId?: string;
+  projectName?: string;
+  bpm?: number;
+  spectrogramThresholdDb?: number;
+  spectrogramPower?: number;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
@@ -40,8 +48,16 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   onSetDeleteNotesTrigger,
   selectedMode,
   keySignature,
-  chordGuide
+  chordGuide,
+  mode = 'midi-edit',
+  audioRegion,
+  trackId,
+  projectName,
+  bpm = 120,
+  spectrogramThresholdDb = -25,
+  spectrogramPower = 0.5,
 }) => {
+  const isSpectrogram = mode === 'spectrogram';
   // Get KGCore instance
   const core = KGCore.instance();
 
@@ -105,9 +121,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
 
   // Combined click handler for both pointer and pencil modes
   const handleCombinedClick = (e: React.MouseEvent) => {
-    // Handle selection click (pointer mode)
+    if (isSpectrogram) return;
     handleBackgroundClick(e);
-    // Handle pencil mode note creation
     handleGridClick(e);
   };
 
@@ -144,7 +159,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
 
   // Memoize the notes rendering to prevent unnecessary recalculations
   const memoizedNotes = useMemo(() => {
-    if (!activeRegion) return null;
+    if (isSpectrogram || !activeRegion) return null;
     
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Rendering notes for region: ${activeRegion.getId()}`);
@@ -251,18 +266,24 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
         
         <PianoGrid
           gridRef={pianoGridRef}
-          onDoubleClick={handleGridDoubleClick}
-          onClick={handleCombinedClick}
-          onMouseDown={handleBackgroundMouseDown}
-          isBoxSelecting={isBoxSelectingRef.current}
-          selectionBox={selectionBoxRef.current}
+          onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
+          onClick={isSpectrogram ? () => {} : handleCombinedClick}
+          onMouseDown={isSpectrogram ? () => {} : handleBackgroundMouseDown}
+          isBoxSelecting={isSpectrogram ? false : isBoxSelectingRef.current}
+          selectionBox={isSpectrogram ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
           regionStartBeat={activeRegion?.getStartFromBeat() || 0}
           selectedMode={selectedMode}
           keySignature={keySignature}
           chordGuide={chordGuide}
+          audioRegion={audioRegion}
+          trackId={trackId}
+          projectName={projectName}
+          bpm={bpm}
+          spectrogramThresholdDb={spectrogramThresholdDb}
+          spectrogramPower={spectrogramPower}
         >
           {memoizedNotes}
-          {recordingNoteOverlays}
+          {!isSpectrogram && recordingNoteOverlays}
         </PianoGrid>
       </div>
     </div>

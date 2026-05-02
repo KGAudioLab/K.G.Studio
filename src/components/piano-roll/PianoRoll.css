@@ -96,6 +96,36 @@
   left: 0;
 }
 
+/* Spectrogram toolbar controls */
+.spectrogram-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spectrogram-control-label {
+  font-size: 10px;
+  color: #aaa;
+  white-space: nowrap;
+}
+
+.spectrogram-threshold-slider {
+  /* Match the visual width of the Qua. Pos. / Qua. Len. buttons (~80px) */
+  width: 80px;
+  height: 4px;
+  accent-color: #7a9ccf;
+  cursor: pointer;
+  margin: 0;
+}
+
+.spectrogram-threshold-value {
+  font-size: 10px;
+  color: #e0e0e0;
+  min-width: 44px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .piano-roll-title {
   flex: 1;
   text-align: center;

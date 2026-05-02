@@ -41,9 +41,12 @@ const MainContent: React.FC<MainContentProps> = ({
     activeRegionId,
     setShowPianoRoll,
     setActiveRegionId,
+    pianoRollMode,
+    openSpectrogramViewer,
     addTrack,
     addAudioTrack,
     projectName,
+    savedProjectName,
   } = useProjectStore();
 
   // State to store regions
@@ -533,6 +536,12 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll(true);
   };
 
+  // Handle spectrogram viewer open
+  const handleOpenSpectrogram = (regionId: string) => {
+    handleRegionClick(regionId);
+    openSpectrogramViewer(regionId);
+  };
+
   // Handle piano roll close
   const handlePianoRollClose = () => {
     setShowPianoRoll(false);
@@ -824,16 +833,39 @@ const MainContent: React.FC<MainContentProps> = ({
             onRegionUpdated={handleRegionUpdated}
             onRegionClick={handleRegionClick}
             onOpenPianoRoll={handleOpenPianoRoll}
+            onOpenSpectrogram={handleOpenSpectrogram}
             onExternalDropComplete={handleExternalDropComplete}
           />
         </div>
       </div>
 
-      {/* Piano Roll - render using portal */}
+      {/* Piano Roll / Spectrogram Viewer - render using portal */}
       {showPianoRoll && createPortal(
         <PianoRoll
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
+          mode={pianoRollMode}
+          audioRegion={pianoRollMode === 'spectrogram' && activeRegionId
+            ? (() => {
+                for (const track of tracks) {
+                  const region = track.getRegions().find(r => r.getId() === activeRegionId);
+                  if (region && region.getCurrentType() === 'KGAudioRegion') {
+                    return region as unknown as KGAudioRegion;
+                  }
+                }
+                return undefined;
+              })()
+            : undefined}
+          trackId={pianoRollMode === 'spectrogram' && activeRegionId
+            ? (() => {
+                for (const track of tracks) {
+                  const region = track.getRegions().find(r => r.getId() === activeRegionId);
+                  if (region) return track.getId().toString();
+                }
+                return undefined;
+              })()
+            : undefined}
+          projectName={savedProjectName}
         />,
         document.body
       )}

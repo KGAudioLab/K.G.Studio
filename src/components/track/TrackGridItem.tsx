@@ -26,6 +26,7 @@ interface TrackGridItemProps {
   onRegionDragEnd?: (regionId: string, finalBarNumber: number, finalTrackIndex: number) => void;
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenSpectrogram?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
 }
@@ -47,6 +48,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onRegionDragEnd,
   onRegionClick,
   onOpenPianoRoll,
+  onOpenSpectrogram,
   allTracks,
   onKGOneClipDrop,
 }) => {
@@ -566,6 +568,9 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onRegionClick(regionId);
               }
             }}
+            onOpenSpectrogram={audioRegion ? (regionId) => {
+              onOpenSpectrogram?.(regionId);
+            } : undefined}
             midiRegion={midiRegion}
             audioRegion={audioRegion}
             audioBuffer={audioBuffer}

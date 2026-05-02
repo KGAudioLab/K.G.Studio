@@ -78,6 +78,7 @@ interface ProjectState {
   // Piano roll state
   showPianoRoll: boolean;
   activeRegionId: string | null;
+  pianoRollMode: 'midi-edit' | 'spectrogram';
   
   // ChatBox state
   showChatBox: boolean;
@@ -146,6 +147,8 @@ interface ProjectState {
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
   setActiveRegionId: (regionId: string | null) => void;
+  openMidiPianoRoll: (regionId: string) => void;
+  openSpectrogramViewer: (regionId: string) => void;
   
   // Project state cleanup
   cleanupProjectState: () => void;
@@ -304,6 +307,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Initial piano roll state
     showPianoRoll: false,
     activeRegionId: null,
+    pianoRollMode: 'midi-edit' as const,
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
@@ -1028,9 +1032,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setShowPianoRoll: (show: boolean) => {
       set({ showPianoRoll: show });
     },
-    
+
     setActiveRegionId: (regionId: string | null) => {
       set({ activeRegionId: regionId });
+    },
+
+    openMidiPianoRoll: (regionId: string) => {
+      set({ showPianoRoll: true, activeRegionId: regionId, pianoRollMode: 'midi-edit' });
+    },
+
+    openSpectrogramViewer: (regionId: string) => {
+      set({ showPianoRoll: true, activeRegionId: regionId, pianoRollMode: 'spectrogram' });
     },
     
     // Project state cleanup - used when starting new/loading projects
