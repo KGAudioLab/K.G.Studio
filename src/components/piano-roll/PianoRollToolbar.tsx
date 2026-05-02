@@ -29,6 +29,8 @@ interface PianoRollToolbarProps {
   onThresholdChange?: (db: number) => void;
   power?: number;
   onPowerChange?: (power: number) => void;
+  zoom: number;
+  onZoomChange: (value: number) => void;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -49,10 +51,26 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onThresholdChange,
   power = 0.5,
   onPowerChange,
+  zoom,
+  onZoomChange,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const showMidiControls = mode !== 'spectrogram';   // midi-edit and hybrid
   const showSpecControls = mode === 'spectrogram' || mode === 'hybrid';
+
+  const [showZoomSlider, setShowZoomSlider] = React.useState(false);
+  const zoomSliderRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!showZoomSlider) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (zoomSliderRef.current && !zoomSliderRef.current.contains(e.target as Node)) {
+        setShowZoomSlider(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showZoomSlider]);
 
   return (
     <div className="piano-roll-toolbar">
@@ -148,6 +166,29 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             />
           </div>
         )}
+
+        <div className="quant-dropdown-container" ref={zoomSliderRef}>
+          <button
+            className="quant-button"
+            onClick={() => setShowZoomSlider(!showZoomSlider)}
+            title="Zoom"
+          >
+            {zoom}x
+          </button>
+          {showZoomSlider && (
+            <div className="piano-roll-zoom-popup">
+              <input
+                type="range"
+                min="1"
+                max="8"
+                step="1"
+                value={zoom}
+                onChange={(e) => onZoomChange(parseInt(e.target.value))}
+              />
+              <span className="piano-roll-zoom-value">{zoom}x</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

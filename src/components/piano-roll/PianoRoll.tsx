@@ -49,6 +49,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Spectrogram controls (only used in spectrogram mode)
   const [spectrogramThresholdDb, setSpectrogramThresholdDb] = useState<number>(-25);
   const [spectrogramPower, setSpectrogramPower] = useState<number>(0.5);
+
+  // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
+  const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
   
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -686,6 +689,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     container.scrollLeft = clampedScrollLeft;
   }, [playheadPosition, isPlaying, autoScrollEnabled]);
 
+  // Update --region-grid-beat-width when zoom changes; reset on unmount
+  useEffect(() => {
+    document.documentElement.style.setProperty('--region-grid-beat-width', `${40 * pianoRollZoom}px`);
+    if (triggerNoteUpdateRef.current) {
+      triggerNoteUpdateRef.current(prev => prev + 1);
+    }
+    return () => {
+      document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
+    };
+  }, [pianoRollZoom]);
+
   // Scroll horizontally to the active region's starting bar
   useEffect(() => {
     if (pianoRollContentRef.current && activeRegion) {
@@ -927,6 +941,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onThresholdChange={setSpectrogramThresholdDb}
         power={spectrogramPower}
         onPowerChange={setSpectrogramPower}
+        zoom={pianoRollZoom}
+        onZoomChange={setPianoRollZoom}
       />
 
       <PianoRollContent

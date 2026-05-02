@@ -315,3 +315,31 @@
   justify-content: center;
   z-index: 100;
 }
+
+.piano-roll-zoom-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 8px 12px;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.piano-roll-zoom-popup input[type="range"] {
+  width: 120px;
+}
+
+.piano-roll-zoom-value {
+  font-size: 12px;
+  color: #e0e0e0;
+  min-width: 20px;
+  text-align: center;
+}
