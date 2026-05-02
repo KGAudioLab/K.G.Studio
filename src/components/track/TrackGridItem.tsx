@@ -24,6 +24,7 @@ interface TrackGridItemProps {
   onRegionResizeEnd?: (regionId: string, finalBarNumber: number, finalLength: number) => void;
   onRegionDrag?: (regionId: string, newBarNumber: number, newTrackIndex: number) => void;
   onRegionDragEnd?: (regionId: string, finalBarNumber: number, finalTrackIndex: number) => void;
+  onRegionFineMoveEnd?: (regionId: string, deltaInBars: number) => void;
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
@@ -49,6 +50,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onRegionResizeEnd,
   onRegionDrag,
   onRegionDragEnd,
+  onRegionFineMoveEnd,
   onRegionClick,
   onOpenPianoRoll,
   onOpenSpectrogram,
@@ -505,6 +507,14 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     }
   };
 
+  // Handle fine-move end — convert raw pixel delta to delta in bars and pass up
+  const handleRegionFineMoveEnd = (regionId: string, rawPixelDelta: number) => {
+    const barWidth = containerWidth / maxBars;
+    if (barWidth <= 0) return;
+    const deltaInBars = (rawPixelDelta * REGION_CONSTANTS.FINE_MOVE_SPEED_RATIO) / barWidth;
+    onRegionFineMoveEnd?.(regionId, deltaInBars);
+  };
+
   // Handle region click
   const handleRegionClick = (regionId: string) => {
     if (DEBUG_MODE.TRACK_GRID_ITEM) {
@@ -570,6 +580,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             onDragStart={handleRegionDragStart}
             onDrag={handleRegionDrag}
             onDragEnd={handleRegionDragEnd}
+            onFineMoveEnd={handleRegionFineMoveEnd}
             // Keep onClick for selection-only logic if needed by parent
             onClick={handleRegionClick}
             // New explicit pencil action — disabled for audio regions

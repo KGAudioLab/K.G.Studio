@@ -28,6 +28,8 @@ export const REGION_CONSTANTS = {
   EDGE_THRESHOLD: 10,
   // Minimum region length in bars
   MIN_REGION_LENGTH: 1.0,
+  // Fine-move speed ratio: mouse pixels to region movement pixels
+  FINE_MOVE_SPEED_RATIO: 0.25,
 };
 
 // Piano roll related constants

@@ -473,6 +473,44 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
   };
 
+  // Handle fine-move end — execute MoveRegionCommand with float-precision beat position
+  const handleRegionFineMoveEnd = (regionId: string, deltaInBars: number) => {
+    const region = regions.find(r => r.id === regionId);
+    if (!region) return;
+    const track = tracks.find(t => t.getId().toString() === region.trackId);
+    if (!track) return;
+    const coreRegion = track.getRegions().find(r => r.getId() === regionId);
+    if (!coreRegion) return;
+
+    const beatsPerBar = timeSignature.numerator;
+    const newStartFromBeat = Math.max(0, coreRegion.getStartFromBeat() + deltaInBars * beatsPerBar);
+    if (newStartFromBeat === coreRegion.getStartFromBeat()) return;
+
+    try {
+      // Use constructor directly (NOT fromBarCoordinates) to preserve float precision
+      const command = new MoveRegionCommand(
+        regionId,
+        newStartFromBeat,
+        track.getId().toString(),
+        region.trackIndex
+      );
+      KGCore.instance().executeCommand(command);
+
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`Fine-moved region ${regionId}: startFromBeat=${newStartFromBeat}`);
+      }
+
+      const newBarNumber = newStartFromBeat / beatsPerBar + 1;
+      onRegionUpdated?.(
+        regionId,
+        { barNumber: newBarNumber, trackId: region.trackId, trackIndex: region.trackIndex },
+        { startBeat: newStartFromBeat, length: coreRegion.getLength() }
+      );
+    } catch (error) {
+      console.error('Error executing fine-move:', error);
+    }
+  };
+
   // Handle region click
   const handleRegionClick = (regionId: string) => {
     if (DEBUG_MODE.TRACK_GRID_PANEL) {
@@ -664,6 +702,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onRegionResizeEnd={handleRegionResizeEnd}
           onRegionDrag={handleRegionDrag}
           onRegionDragEnd={handleRegionDragEnd}
+          onRegionFineMoveEnd={handleRegionFineMoveEnd}
           onRegionClick={handleRegionClick}
           onOpenPianoRoll={onOpenPianoRoll}
           onOpenSpectrogram={onOpenSpectrogram}

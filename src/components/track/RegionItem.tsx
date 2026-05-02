@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './Region.css';
 import { FaPencilAlt, FaPlus } from 'react-icons/fa';
-import { MdGraphicEq } from 'react-icons/md';
+import { MdGraphicEq, MdSwapHoriz } from 'react-icons/md';
 import type { ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
@@ -35,6 +35,8 @@ interface RegionItemProps {
   // Enter hybrid mode (show + when piano roll is open with the opposite region type selected)
   showHybridButton?: boolean;
   onOpenHybrid?: (regionId: string) => void;
+  // Fine-move end callback — passes raw (unscaled) mouse pixel delta
+  onFineMoveEnd?: (regionId: string, rawPixelDelta: number) => void;
   // MIDI region data for rendering notes
   midiRegion?: KGMidiRegion;
   // Audio region data for rendering waveform
@@ -60,6 +62,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onOpenSpectrogram,
   showHybridButton,
   onOpenHybrid,
+  onFineMoveEnd,
   midiRegion,
   audioRegion,
   audioBuffer
@@ -76,6 +79,14 @@ const RegionItem: React.FC<RegionItemProps> = ({
   const isResizingRef = useRef<boolean>(false);
   const isDraggingRef = useRef<boolean>(false);
   const isPendingDragRef = useRef<boolean>(false);
+
+  // Fine-move state
+  const [isFineDragging, setIsFineDragging] = useState(false);
+  const [fineDeltaDisplay, setFineDeltaDisplay] = useState('+0.00');
+  const [fineTranslateX, setFineTranslateX] = useState(0);
+  const isFineDraggingRef = useRef(false);
+  const fineMouseStartXRef = useRef(0);
+  const fineRawDeltaRef = useRef(0);
 
   // Canvas ref for note visualization
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -534,11 +545,48 @@ const RegionItem: React.FC<RegionItemProps> = ({
     document.removeEventListener('mouseup', handleGlobalMouseUp);
   };
 
+  // Fine-move handlers
+  const handleFineMoveGlobalMouseMove = (e: MouseEvent) => {
+    if (!isFineDraggingRef.current) return;
+    const rawDelta = e.clientX - fineMouseStartXRef.current;
+    fineRawDeltaRef.current = rawDelta;
+    const scaledDelta = rawDelta * REGION_CONSTANTS.FINE_MOVE_SPEED_RATIO;
+    setFineTranslateX(scaledDelta);
+    setFineDeltaDisplay(scaledDelta >= 0 ? `+${scaledDelta.toFixed(2)}` : `${scaledDelta.toFixed(2)}`);
+  };
+
+  const handleFineMoveGlobalMouseUp = () => {
+    if (!isFineDraggingRef.current) return;
+    isFineDraggingRef.current = false;
+    setIsFineDragging(false);
+    setFineTranslateX(0);
+    document.removeEventListener('mousemove', handleFineMoveGlobalMouseMove);
+    document.removeEventListener('mouseup', handleFineMoveGlobalMouseUp);
+    if (fineRawDeltaRef.current !== 0 && onFineMoveEnd) {
+      onFineMoveEnd(id, fineRawDeltaRef.current);
+    }
+  };
+
+  const handleFineMoveMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isFineDraggingRef.current) return;
+    fineMouseStartXRef.current = e.clientX;
+    fineRawDeltaRef.current = 0;
+    isFineDraggingRef.current = true;
+    setIsFineDragging(true);
+    setFineDeltaDisplay('+0.00');
+    document.addEventListener('mousemove', handleFineMoveGlobalMouseMove);
+    document.addEventListener('mouseup', handleFineMoveGlobalMouseUp);
+  };
+
   // Clean up event listeners on unmount
   useEffect(() => {
     return () => {
       document.removeEventListener('mousemove', handleGlobalMouseMove);
       document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('mousemove', handleFineMoveGlobalMouseMove);
+      document.removeEventListener('mouseup', handleFineMoveGlobalMouseUp);
     };
   }, []);
 
@@ -555,7 +603,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     <div
       key={id}
       className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''} ${audioRegion ? 'audio-region' : ''}`}
-      style={{ ...style, cursor }}
+      style={{ ...style, cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
@@ -568,92 +616,108 @@ const RegionItem: React.FC<RegionItemProps> = ({
         {name}
       </div>
       <div className={`region-content${audioRegion ? ' audio-region-content' : ''}`} ref={regionContentRef}>
-        {!audioRegion && (
-          <button
-            className="region-pencil-btn"
-            title="Edit notes"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (DEBUG_MODE.REGION_ITEM) {
-                console.log(`Pencil clicked: open piano roll for region ${id}`);
-              }
-              if (onOpenPianoRoll) {
-                onOpenPianoRoll(id);
-              } else if (onClick) {
-                onClick(id);
-              }
-            }}
-            aria-label="Open piano roll"
-          >
-            <FaPencilAlt size={10} />
-          </button>
-        )}
-        {audioRegion && (
-          <button
-            className="region-waveform-btn"
-            title="View waveform"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            aria-label="View waveform"
-          >
-            <MdGraphicEq size={10} />
-          </button>
-        )}
-        {audioRegion && (
-          <button
-            className="region-spectrogram-btn"
-            title="View melodic spectrogram"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (onOpenSpectrogram) {
-                onOpenSpectrogram(id);
-              }
-            }}
-            aria-label="View spectrogram"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4"/>
-              <rect x="1.5" y="3.75" width="6.5" height="2.5" rx="0.4"/>
-              <rect x="0" y="7" width="6.5" height="2.5" rx="0.4"/>
-            </svg>
-          </button>
-        )}
-        {showHybridButton && (
-          <button
-            className="region-hybrid-btn"
-            title="Open in hybrid mode"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (onOpenHybrid) {
-                onOpenHybrid(id);
-              }
-            }}
-            aria-label="Open hybrid mode"
-          >
-            <FaPlus size={10} />
-          </button>
-        )}
+        <div className="region-left-buttons">
+          {!audioRegion && (
+            <button
+              className="region-pencil-btn"
+              title="Edit notes"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (DEBUG_MODE.REGION_ITEM) {
+                  console.log(`Pencil clicked: open piano roll for region ${id}`);
+                }
+                if (onOpenPianoRoll) {
+                  onOpenPianoRoll(id);
+                } else if (onClick) {
+                  onClick(id);
+                }
+              }}
+              aria-label="Open piano roll"
+            >
+              <FaPencilAlt size={10} />
+            </button>
+          )}
+          {audioRegion && (
+            <button
+              className="region-waveform-btn"
+              title="View waveform"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              aria-label="View waveform"
+            >
+              <MdGraphicEq size={10} />
+            </button>
+          )}
+          {audioRegion && (
+            <button
+              className="region-spectrogram-btn"
+              title="View melodic spectrogram"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onOpenSpectrogram) {
+                  onOpenSpectrogram(id);
+                }
+              }}
+              aria-label="View spectrogram"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4"/>
+                <rect x="1.5" y="3.75" width="6.5" height="2.5" rx="0.4"/>
+                <rect x="0" y="7" width="6.5" height="2.5" rx="0.4"/>
+              </svg>
+            </button>
+          )}
+          {showHybridButton && (
+            <button
+              className="region-hybrid-btn"
+              title="Open in hybrid mode"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onOpenHybrid) {
+                  onOpenHybrid(id);
+                }
+              }}
+              aria-label="Open hybrid mode"
+            >
+              <FaPlus size={10} />
+            </button>
+          )}
+          <div className="region-fine-move-widget">
+            <button
+              className="region-fine-move-btn"
+              title="Fine move"
+              onMouseDown={handleFineMoveMouseDown}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              aria-label="Fine move region"
+            >
+              <MdSwapHoriz size={10} />
+            </button>
+            {isFineDragging && (
+              <span className="region-fine-move-label">{fineDeltaDisplay}</span>
+            )}
+          </div>
+        </div>
         <canvas ref={canvasRef} />
       </div>
     </div>
