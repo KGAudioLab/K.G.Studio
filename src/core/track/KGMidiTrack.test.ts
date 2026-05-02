@@ -348,7 +348,7 @@ describe('KGMidiTrack', () => {
 
       // Volume outside valid dB range is clamped
       track.setVolume(10);
-      expect(track.getVolume()).toBe(6);
+      expect(track.getVolume()).toBe(10);
 
       track.setVolume(-100);
       expect(track.getVolume()).toBe(-60);

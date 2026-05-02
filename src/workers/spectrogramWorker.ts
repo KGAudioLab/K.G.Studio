@@ -1,5 +1,12 @@
 import FFT from 'fft.js';
 
+type WorkerScopeLike = typeof globalThis & {
+  onmessage: ((event: MessageEvent<SpectrogramRequest>) => void) | null;
+  postMessage: (message: SpectrogramResult, transfer: Transferable[]) => void;
+};
+
+const workerScope = self as WorkerScopeLike;
+
 export interface SpectrogramRequest {
   pcm: Float32Array;
   sampleRate: number;
@@ -25,7 +32,7 @@ function hannWindow(size: number): Float32Array {
   return w;
 }
 
-self.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
+workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
   const { pcm, sampleRate, clipStartOffsetSeconds, regionDurationSeconds } = e.data;
 
   const startSample = Math.floor(clipStartOffsetSeconds * sampleRate);
@@ -92,5 +99,5 @@ self.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
   }
 
   const response: SpectrogramResult = { data: result, timeSteps: totalHops };
-  self.postMessage(response, [result.buffer]);
+  workerScope.postMessage(response, [result.buffer]);
 };
