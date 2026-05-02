@@ -23,7 +23,7 @@ interface PianoRollProps {
   regionId: string | null;
   initialPosition?: { x: number; y: number };
   initialSize?: { width: number; height: number };
-  mode?: 'midi-edit' | 'spectrogram';
+  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;
@@ -40,6 +40,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   projectName,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
+  const isHybrid = mode === 'hybrid';
   const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm } = useProjectStore();
   
   // Tool state for piano roll
@@ -870,6 +871,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Get the title for the piano roll based on the active region
   const getPianoRollTitle = () => {
     if (isSpectrogram) return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
+    if (isHybrid) {
+      const midiName = activeRegion?.getName() ?? 'MIDI';
+      const audioName = audioRegion?.getName() ?? 'Audio';
+      return `${midiName} + ${audioName}`;
+    }
     if (!activeRegion) return "EDIT NOTE CLIP";
     
     // Calculate the bar and beat position of the region

@@ -27,7 +27,7 @@ interface PianoRollContentProps {
   selectedMode: string;
   keySignature: KeySignature;
   chordGuide: string;
-  mode?: 'midi-edit' | 'spectrogram';
+  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;

@@ -32,6 +32,7 @@ interface PianoGridProps {
   bpm?: number;
   spectrogramThresholdDb?: number;
   spectrogramPower?: number;
+  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
 }
 
 interface CursorPosition {

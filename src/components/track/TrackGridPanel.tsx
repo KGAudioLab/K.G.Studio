@@ -31,6 +31,9 @@ interface TrackGridPanelProps {
   onRegionClick?: (regionId: string) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
+  showHybridButtonForAudio?: boolean;
+  showHybridButtonForMidi?: boolean;
+  onOpenHybrid?: (regionId: string) => void;
   onExternalDropComplete?: (trackIndex: number, regionUI: RegionUI) => void;
 }
 
@@ -48,6 +51,9 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onRegionClick,
   onOpenPianoRoll,
   onOpenSpectrogram,
+  showHybridButtonForAudio,
+  showHybridButtonForMidi,
+  onOpenHybrid,
   onExternalDropComplete,
 }) => {
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -654,6 +660,9 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onRegionClick={handleRegionClick}
           onOpenPianoRoll={onOpenPianoRoll}
           onOpenSpectrogram={onOpenSpectrogram}
+          showHybridButtonForAudio={showHybridButtonForAudio}
+          showHybridButtonForMidi={showHybridButtonForMidi}
+          onOpenHybrid={onOpenHybrid}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}
         />

@@ -24,7 +24,7 @@ interface PianoRollToolbarProps {
   chordGuide: string;
   onChordGuideChange: (value: string) => void;
   blinkButton?: string | null;
-  mode?: 'midi-edit' | 'spectrogram';
+  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
   thresholdDb?: number;
   onThresholdChange?: (db: number) => void;
   power?: number;
@@ -51,11 +51,27 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onPowerChange,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
+  const showMidiControls = mode !== 'spectrogram';   // midi-edit and hybrid
+  const showSpecControls = mode === 'spectrogram' || mode === 'hybrid';
 
   return (
     <div className="piano-roll-toolbar">
-      {!isSpectrogram && (
+      {showMidiControls && (
         <div className="toolbar-left">
+          <button
+            className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
+            onClick={() => onToolSelect('pointer')}
+            title="Pointer Tool"
+          >
+            <FaMousePointer />
+          </button>
+          <button
+            className={`tool-button ${activeTool === 'pencil' ? 'active' : ''}`}
+            onClick={() => onToolSelect('pencil')}
+            title="Pencil Tool"
+          >
+            <FaPencilAlt />
+          </button>
           <KGDropdown
             options={Object.entries(KGCore.FUNCTIONAL_CHORDS_DATA).map(([id, data]) => ({ label: data.name, value: id }))}
             value={selectedMode}
@@ -80,27 +96,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
         </div>
       )}
 
-      {!isSpectrogram && (
-        <div className="toolbar-center">
-          <button
-            className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
-            onClick={() => onToolSelect('pointer')}
-            title="Pointer Tool"
-          >
-            <FaMousePointer />
-          </button>
-          <button
-            className={`tool-button ${activeTool === 'pencil' ? 'active' : ''}`}
-            onClick={() => onToolSelect('pencil')}
-            title="Pencil Tool"
-          >
-            <FaPencilAlt />
-          </button>
-        </div>
-      )}
-
       <div className="toolbar-right">
-        {!isSpectrogram && (
+        {showMidiControls && (
           <>
             <KGDropdown
               options={KGPianoRollState.SNAP_OPTIONS}
@@ -127,7 +124,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           </>
         )}
 
-        {isSpectrogram && (
+        {showSpecControls && (
           <div className="spectrogram-toolbar-controls">
             <span className="spectrogram-control-label">Floor</span>
             <input

@@ -77,10 +77,17 @@
   /* Ensure toolbar and its dropdowns appear above piano roll content */
 }
 
+.piano-roll-toolbar .tool-button {
+  width: 20px;
+  height: 20px;
+}
+
 /* Override pointer-events for piano roll toolbar sections */
 .piano-roll-toolbar .toolbar-left,
 .piano-roll-toolbar .toolbar-right {
   pointer-events: auto;
+  /* max-width: 70%; */
+  width: auto;
 }
 
 .piano-roll-toolbar .quant-button {
@@ -101,6 +108,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: 5px;
 }
 
 .spectrogram-control-label {
@@ -121,7 +129,7 @@
 .spectrogram-threshold-value {
   font-size: 10px;
   color: #e0e0e0;
-  min-width: 44px;
+  min-width: 30px;
   text-align: right;
   white-space: nowrap;
 }
@@ -131,7 +139,7 @@
   text-align: center;
   font-size: 14px;
   color: #e0e0e0;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   cursor: pointer;
   padding: 5px;
   border-radius: 3px;

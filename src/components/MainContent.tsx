@@ -44,6 +44,8 @@ const MainContent: React.FC<MainContentProps> = ({
     pianoRollMode,
     openMidiPianoRoll,
     openSpectrogramViewer,
+    openHybridMode,
+    hybridAudioRegionId,
     addTrack,
     addAudioTrack,
     projectName,
@@ -552,6 +554,19 @@ const MainContent: React.FC<MainContentProps> = ({
     openSpectrogramViewer(regionId);
   };
 
+  // Handle hybrid mode open (+ button clicked on opposite-type region)
+  const handleOpenHybrid = (regionId: string) => {
+    if (pianoRollMode === 'midi-edit' && activeRegionId) {
+      openHybridMode(activeRegionId, regionId);
+    } else if (pianoRollMode === 'spectrogram' && activeRegionId) {
+      openHybridMode(regionId, activeRegionId);
+    }
+  };
+
+  // + button is visible only when piano roll is open and mode is not hybrid
+  const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
+  const showHybridButtonForMidi  = showPianoRoll && pianoRollMode === 'spectrogram';
+
   // Handle piano roll close
   const handlePianoRollClose = () => {
     setShowPianoRoll(false);
@@ -844,6 +859,9 @@ const MainContent: React.FC<MainContentProps> = ({
             onRegionClick={handleRegionClick}
             onOpenPianoRoll={handleOpenPianoRoll}
             onOpenSpectrogram={handleOpenSpectrogram}
+            showHybridButtonForAudio={showHybridButtonForAudio}
+            showHybridButtonForMidi={showHybridButtonForMidi}
+            onOpenHybrid={handleOpenHybrid}
             onExternalDropComplete={handleExternalDropComplete}
           />
         </div>
@@ -855,26 +873,33 @@ const MainContent: React.FC<MainContentProps> = ({
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
           mode={pianoRollMode}
-          audioRegion={pianoRollMode === 'spectrogram' && activeRegionId
-            ? (() => {
-                for (const track of tracks) {
-                  const region = track.getRegions().find(r => r.getId() === activeRegionId);
-                  if (region && region.getCurrentType() === 'KGAudioRegion') {
-                    return region as unknown as KGAudioRegion;
-                  }
-                }
-                return undefined;
-              })()
-            : undefined}
-          trackId={pianoRollMode === 'spectrogram' && activeRegionId
-            ? (() => {
-                for (const track of tracks) {
-                  const region = track.getRegions().find(r => r.getId() === activeRegionId);
-                  if (region) return track.getId().toString();
-                }
-                return undefined;
-              })()
-            : undefined}
+          audioRegion={(() => {
+            // spectrogram mode: audio region IS the activeRegionId
+            // hybrid mode: audio region is hybridAudioRegionId
+            const audioId = pianoRollMode === 'spectrogram' ? activeRegionId
+                          : pianoRollMode === 'hybrid'      ? hybridAudioRegionId
+                          : null;
+            if (!audioId) return undefined;
+            for (const track of tracks) {
+              const region = track.getRegions().find(r => r.getId() === audioId);
+              if (region && region.getCurrentType() === 'KGAudioRegion') {
+                return region as unknown as KGAudioRegion;
+              }
+            }
+            return undefined;
+          })()}
+          trackId={(() => {
+            const audioId = pianoRollMode === 'spectrogram' ? activeRegionId
+                          : pianoRollMode === 'hybrid'      ? hybridAudioRegionId
+                          : null;
+            if (!audioId) return undefined;
+            for (const track of tracks) {
+              if (track.getRegions().some(r => r.getId() === audioId)) {
+                return track.getId().toString();
+              }
+            }
+            return undefined;
+          })()}
           projectName={savedProjectName}
         />,
         document.body

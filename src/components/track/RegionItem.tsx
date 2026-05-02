@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './Region.css';
-import { FaPencilAlt } from 'react-icons/fa';
+import { FaPencilAlt, FaPlus } from 'react-icons/fa';
 import { MdGraphicEq } from 'react-icons/md';
 import type { ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
@@ -30,6 +30,9 @@ interface RegionItemProps {
   onOpenPianoRoll?: (regionId: string) => void;
   // Open spectrogram viewer for audio regions
   onOpenSpectrogram?: (regionId: string) => void;
+  // Enter hybrid mode (show + when piano roll is open with the opposite region type selected)
+  showHybridButton?: boolean;
+  onOpenHybrid?: (regionId: string) => void;
   // MIDI region data for rendering notes
   midiRegion?: KGMidiRegion;
   // Audio region data for rendering waveform
@@ -53,6 +56,8 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onClick,
   onOpenPianoRoll,
   onOpenSpectrogram,
+  showHybridButton,
+  onOpenHybrid,
   midiRegion,
   audioRegion,
   audioBuffer
@@ -64,7 +69,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   const [resizeEdge, setResizeEdge] = useState<ResizeAction>('none');
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const initialMousePosRef = useRef<{x: number, y: number}>({x: 0, y: 0});
+  const initialMousePosRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
   // Use refs to track states for immediate access
   const isResizingRef = useRef<boolean>(false);
   const isDraggingRef = useRef<boolean>(false);
@@ -598,6 +603,26 @@ const RegionItem: React.FC<RegionItemProps> = ({
             aria-label="View spectrogram"
           >
             <MdGraphicEq size={10} />
+          </button>
+        )}
+        {showHybridButton && (
+          <button
+            className="region-hybrid-btn"
+            title="Open in hybrid mode"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onOpenHybrid) {
+                onOpenHybrid(id);
+              }
+            }}
+            aria-label="Open hybrid mode"
+          >
+            <FaPlus size={10} />
           </button>
         )}
         <canvas ref={canvasRef} />
