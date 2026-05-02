@@ -13,6 +13,7 @@ interface SpectrogramCanvasProps {
   thresholdDb: number;
   power: number;
   zoom: number;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 const PITCH_BINS = 128;
@@ -55,6 +56,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
   thresholdDb,
   power,
   zoom,
+  onLoadingChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +71,8 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
   // Always-current zoom without making it a renderSpectrogram dependency
   const zoomRef = useRef(zoom);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+  useEffect(() => { onLoadingChange?.(loading); }, [loading, onLoadingChange]);
 
   const renderSpectrogram = useCallback((
     result: SpectrogramResult,
@@ -240,35 +244,16 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
   }, [audioRegion, trackId, projectName, bpm]);
 
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          zIndex: 0,
-          pointerEvents: 'none',
-        }}
-      />
-      {loading && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            zIndex: 1,
-            padding: '6px 10px',
-            background: 'rgba(0,0,0,0.6)',
-            color: '#aaa',
-            fontSize: '11px',
-            pointerEvents: 'none',
-          }}
-        >
-          Computing spectrogram…
-        </div>
-      )}
-    </>
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        zIndex: 0,
+        pointerEvents: 'none',
+      }}
+    />
   );
 };
 

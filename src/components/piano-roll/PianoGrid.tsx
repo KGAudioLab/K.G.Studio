@@ -34,6 +34,7 @@ interface PianoGridProps {
   spectrogramPower?: number;
   pianoRollZoom?: number;
   mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  onSpectrogramLoadingChange?: (loading: boolean) => void;
 }
 
 interface CursorPosition {
@@ -62,6 +63,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   spectrogramThresholdDb = -25,
   spectrogramPower = 0.5,
   pianoRollZoom = 1,
+  onSpectrogramLoadingChange,
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
   const [isModifierPressed, setIsModifierPressed] = useState(false);
@@ -243,6 +245,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
             thresholdDb={spectrogramThresholdDb}
             power={spectrogramPower}
             zoom={pianoRollZoom}
+            onLoadingChange={onSpectrogramLoadingChange}
           />
         )}
 

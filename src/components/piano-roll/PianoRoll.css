@@ -159,11 +159,35 @@
   color: #ff4444;
 }
 
+.piano-roll-content-outer {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
 .piano-roll-content {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  height: 100%;
   overflow: auto;
+}
+
+.spectrogram-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.spectrogram-loading-label {
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #aaa;
+  font-size: 11px;
+  border-radius: 3px;
 }
 
 .piano-grid-header {

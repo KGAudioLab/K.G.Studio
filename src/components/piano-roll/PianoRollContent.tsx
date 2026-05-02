@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { DEBUG_MODE } from '../../constants';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
@@ -60,6 +60,11 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   pianoRollZoom = 1,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
+  const [spectrogramLoading, setSpectrogramLoading] = useState(false);
+  const handleSpectrogramLoadingChange = useCallback((loading: boolean) => {
+    setSpectrogramLoading(loading);
+  }, []);
+
   // Get KGCore instance
   const core = KGCore.instance();
 
@@ -257,38 +262,48 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   }, [isRecording, recordingNotes, activeRegion]);
 
   return (
-    <div
-      className="piano-roll-content"
-      ref={contentRef}
-    >
-      <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
-      
-      <div className="piano-roll-body">
-        <PianoKeys activeRegion={activeRegion} />
-        
-        <PianoGrid
-          gridRef={pianoGridRef}
-          onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
-          onClick={isSpectrogram ? () => {} : handleCombinedClick}
-          onMouseDown={isSpectrogram ? () => {} : handleBackgroundMouseDown}
-          isBoxSelecting={isSpectrogram ? false : isBoxSelectingRef.current}
-          selectionBox={isSpectrogram ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
-          regionStartBeat={activeRegion?.getStartFromBeat() || 0}
-          selectedMode={selectedMode}
-          keySignature={keySignature}
-          chordGuide={chordGuide}
-          audioRegion={audioRegion}
-          trackId={trackId}
-          projectName={projectName}
-          bpm={bpm}
-          spectrogramThresholdDb={spectrogramThresholdDb}
-          spectrogramPower={spectrogramPower}
-          pianoRollZoom={pianoRollZoom}
-        >
-          {memoizedNotes}
-          {!isSpectrogram && recordingNoteOverlays}
-        </PianoGrid>
+    <div className="piano-roll-content-outer">
+      <div
+        className="piano-roll-content"
+        ref={contentRef}
+      >
+        <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
+
+        <div className="piano-roll-body">
+          <PianoKeys activeRegion={activeRegion} />
+
+          <PianoGrid
+            gridRef={pianoGridRef}
+            onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
+            onClick={isSpectrogram ? () => {} : handleCombinedClick}
+            onMouseDown={isSpectrogram ? () => {} : handleBackgroundMouseDown}
+            isBoxSelecting={isSpectrogram ? false : isBoxSelectingRef.current}
+            selectionBox={isSpectrogram ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
+            regionStartBeat={activeRegion?.getStartFromBeat() || 0}
+            selectedMode={selectedMode}
+            keySignature={keySignature}
+            chordGuide={chordGuide}
+            audioRegion={audioRegion}
+            trackId={trackId}
+            projectName={projectName}
+            bpm={bpm}
+            spectrogramThresholdDb={spectrogramThresholdDb}
+            spectrogramPower={spectrogramPower}
+            pianoRollZoom={pianoRollZoom}
+            onSpectrogramLoadingChange={handleSpectrogramLoadingChange}
+          >
+            {memoizedNotes}
+            {!isSpectrogram && recordingNoteOverlays}
+          </PianoGrid>
+        </div>
       </div>
+      {spectrogramLoading && (
+        <div className="spectrogram-loading-overlay">
+          <div className="spectrogram-loading-label">
+            Computing spectrogram…
+          </div>
+        </div>
+      )}
     </div>
   );
 };
