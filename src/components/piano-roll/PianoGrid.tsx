@@ -32,6 +32,7 @@ interface PianoGridProps {
   bpm?: number;
   spectrogramThresholdDb?: number;
   spectrogramPower?: number;
+  pianoRollZoom?: number;
   mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
 }
 
@@ -60,6 +61,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   bpm = 120,
   spectrogramThresholdDb = -25,
   spectrogramPower = 0.5,
+  pianoRollZoom = 1,
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
   const [isModifierPressed, setIsModifierPressed] = useState(false);
@@ -240,6 +242,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
             bpm={bpm}
             thresholdDb={spectrogramThresholdDb}
             power={spectrogramPower}
+            zoom={pianoRollZoom}
           />
         )}
 

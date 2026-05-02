@@ -157,22 +157,22 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       setActiveRegion(null);
       return;
     }
-    
-    // Find the region in the tracks
+
+    let found: KGMidiRegion | null = null;
     for (const track of tracks) {
-      const regions = track.getRegions();
-      const region = regions.find(r => r.getId() === regionId);
-      
+      const region = track.getRegions().find(r => r.getId() === regionId);
       if (region && region instanceof KGMidiRegion) {
-        setActiveRegion(region);
-        
-        if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Active region set in PianoRoll: ${region.getId()}`);
-          console.log(`Region details: name=${region.getName()}, trackId=${region.getTrackId()}, trackIndex=${region.getTrackIndex()}`);
-        }
-        
+        found = region;
         break;
       }
+    }
+
+    // Always update — clears stale MIDI region when switching to an audio region
+    setActiveRegion(found);
+
+    if (found && DEBUG_MODE.PIANO_ROLL) {
+      console.log(`Active region set in PianoRoll: ${found.getId()}`);
+      console.log(`Region details: name=${found.getName()}, trackId=${found.getTrackId()}, trackIndex=${found.getTrackIndex()}`);
     }
   }, [regionId, tracks]);
 
@@ -965,6 +965,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         bpm={bpm}
         spectrogramThresholdDb={spectrogramThresholdDb}
         spectrogramPower={spectrogramPower}
+        pianoRollZoom={pianoRollZoom}
       />
       
       <div 

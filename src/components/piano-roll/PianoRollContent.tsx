@@ -34,6 +34,7 @@ interface PianoRollContentProps {
   bpm?: number;
   spectrogramThresholdDb?: number;
   spectrogramPower?: number;
+  pianoRollZoom?: number;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
@@ -56,6 +57,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   bpm = 120,
   spectrogramThresholdDb = -25,
   spectrogramPower = 0.5,
+  pianoRollZoom = 1,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   // Get KGCore instance
@@ -234,7 +236,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
         />
       );
     });
-  }, [activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks]);
+  }, [mode, activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks]);
 
   const recordingNoteOverlays = useMemo(() => {
     if (!isRecording || !activeRegion || recordingNotes.length === 0) return null;
@@ -281,6 +283,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           bpm={bpm}
           spectrogramThresholdDb={spectrogramThresholdDb}
           spectrogramPower={spectrogramPower}
+          pianoRollZoom={pianoRollZoom}
         >
           {memoizedNotes}
           {!isSpectrogram && recordingNoteOverlays}

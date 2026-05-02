@@ -12,6 +12,7 @@ interface SpectrogramCanvasProps {
   bpm: number;
   thresholdDb: number;
   power: number;
+  zoom: number;
 }
 
 const PITCH_BINS = 128;
@@ -53,6 +54,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
   bpm,
   thresholdDb,
   power,
+  zoom,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +64,11 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
   const rawResultRef = useRef<SpectrogramResult | null>(null);
   const sampleRateRef = useRef<number>(44100);
   const regionDurationRef = useRef<number>(0);
+  // Natural (1x) canvas pixel width — set after each draw, used to apply zoom as CSS stretch
+  const naturalWidthRef = useRef<number>(0);
+  // Always-current zoom without making it a renderSpectrogram dependency
+  const zoomRef = useRef(zoom);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   const renderSpectrogram = useCallback((
     result: SpectrogramResult,
@@ -75,13 +82,12 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const beatWidth =
-      parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     const noteHeight =
       parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
 
     const totalBeats = (regionDurationSeconds * bpm) / 60;
-    const canvasWidth = Math.ceil(totalBeats * beatWidth);
+    // Always draw at 1x resolution; zoom is applied as CSS width stretch
+    const canvasWidth = Math.ceil(totalBeats * 40);
     const canvasHeight = PITCH_BINS * noteHeight;
 
     // Convert dB threshold to linear: values below this → black
@@ -131,6 +137,11 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(offscreen, 0, 0, canvasWidth, canvasHeight);
+
+    // Store natural width and apply current zoom as CSS stretch (no pixel recompute on zoom)
+    naturalWidthRef.current = canvasWidth;
+    canvas.style.width = `${canvasWidth * zoomRef.current}px`;
+    canvas.style.height = `${canvasHeight}px`;
   }, [bpm]);
 
   // Re-render without re-running the worker when threshold or power changes
@@ -145,6 +156,14 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
       );
     }
   }, [thresholdDb, power, renderSpectrogram]);
+
+  // Zoom changes: stretch width only, pin height to canvas pixel height
+  useEffect(() => {
+    if (canvasRef.current && naturalWidthRef.current > 0) {
+      canvasRef.current.style.width = `${naturalWidthRef.current * zoom}px`;
+      canvasRef.current.style.height = `${canvasRef.current.height}px`;
+    }
+  }, [zoom]);
 
   // Load audio + run worker when the audio region itself changes
   useEffect(() => {
