@@ -42,6 +42,7 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll,
     setActiveRegionId,
     pianoRollMode,
+    openMidiPianoRoll,
     openSpectrogramViewer,
     addTrack,
     addAudioTrack,
@@ -511,6 +512,16 @@ const MainContent: React.FC<MainContentProps> = ({
     const track = tracks.find(t => t.getId().toString() === region.trackId);
     if (!track) return;
     setSelectedTrack(track.getId().toString());
+
+    // If the piano roll window is already open, follow the selected region's type
+    if (showPianoRoll) {
+      const coreRegion = track.getRegions().find(r => r.getId() === regionId);
+      if (coreRegion?.getCurrentType() === 'KGAudioRegion') {
+        openSpectrogramViewer(regionId);
+      } else if (coreRegion?.getCurrentType() === 'KGMidiRegion') {
+        openMidiPianoRoll(regionId);
+      }
+    }
   };
 
   // Handle explicit pencil action: select region and open piano roll
@@ -531,9 +542,8 @@ const MainContent: React.FC<MainContentProps> = ({
     // Reuse selection logic
     handleRegionClick(regionId);
 
-    // Activate and show piano roll
-    setActiveRegionId(regionId);
-    setShowPianoRoll(true);
+    // Activate and show piano roll in midi-edit mode
+    openMidiPianoRoll(regionId);
   };
 
   // Handle spectrogram viewer open
