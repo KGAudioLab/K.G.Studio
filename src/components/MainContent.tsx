@@ -50,6 +50,8 @@ const MainContent: React.FC<MainContentProps> = ({
     addAudioTrack,
     projectName,
     savedProjectName,
+    requestPianoRollScroll,
+    mainContentScrollRequest,
   } = useProjectStore();
 
   // State to store regions
@@ -136,8 +138,10 @@ const MainContent: React.FC<MainContentProps> = ({
     ) || 40;
     const playheadPixel = barPosition * barWidth;
 
-    // Center the playhead in the visible grid area (excluding the 200px sticky info panel)
-    const infoWidth = 200;
+    // Center the playhead in the visible grid area (excluding the sticky info panel)
+    const infoWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width')
+    ) || 200;
     const targetScrollLeft = playheadPixel - (container.clientWidth - infoWidth) / 2;
     const clampedScrollLeft = Math.max(
       0,
@@ -147,6 +151,36 @@ const MainContent: React.FC<MainContentProps> = ({
     expectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
   }, [playheadPosition, isPlaying, autoScrollEnabled, timeSignature]);
+
+  // Handle scroll requests from piano roll header clicks
+  useEffect(() => {
+    if (mainContentScrollRequest === null) return;
+
+    const container = mainContentRef.current;
+    if (!container) return;
+
+    const beatsPerBar = timeSignature.numerator;
+    const barPosition = mainContentScrollRequest / beatsPerBar;
+    const barWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
+    ) || 40;
+    const playheadPixel = barPosition * barWidth;
+
+    // Center the playhead in the visible grid area (excluding the sticky info panel)
+    const infoWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width')
+    ) || 200;
+    const targetScrollLeft = playheadPixel - (container.clientWidth - infoWidth) / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    container.scrollLeft = clampedScrollLeft;
+
+    // Clear the request after handling
+    useProjectStore.setState({ mainContentScrollRequest: null });
+  }, [mainContentScrollRequest, timeSignature]);
 
   // Effect to verify track updates
   useEffect(() => {
@@ -774,6 +808,7 @@ const MainContent: React.FC<MainContentProps> = ({
             const clickPosition = calculatePlayheadFromMouse(e.clientX);
             if (clickPosition !== null) {
               setPlayheadPosition(clickPosition);
+              requestPianoRollScroll(clickPosition);
 
               if (DEBUG_MODE.MAIN_CONTENT) {
                 console.log(`Single click on bar numbers - Set playhead to: ${clickPosition}`);
@@ -799,7 +834,7 @@ const MainContent: React.FC<MainContentProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, setPlayheadPosition]);
+  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, setPlayheadPosition, requestPianoRollScroll]);
 
   const { showInstrumentSelection, isLooping, loopingRange } = useProjectStore();
 

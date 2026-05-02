@@ -41,7 +41,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -688,6 +688,34 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
   }, [playheadPosition, isPlaying, autoScrollEnabled]);
+
+  // Handle scroll requests from main content bar numbers clicks
+  useEffect(() => {
+    if (pianoRollScrollRequest === null) return;
+
+    const container = pianoRollContentRef.current;
+    if (!container) return;
+
+    const beatWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+    ) || 40;
+    const playheadPixel = pianoRollScrollRequest * beatWidth;
+
+    // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
+    const keysWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+    ) || 60;
+    const targetScrollLeft = playheadPixel - (container.clientWidth - keysWidth) / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    container.scrollLeft = clampedScrollLeft;
+
+    // Clear the request after handling
+    useProjectStore.setState({ pianoRollScrollRequest: null });
+  }, [pianoRollScrollRequest]);
 
   // Update --region-grid-beat-width when zoom changes; reset on unmount
   useEffect(() => {

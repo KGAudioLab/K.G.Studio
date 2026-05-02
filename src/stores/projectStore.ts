@@ -109,6 +109,12 @@ interface ProjectState {
   canRedo: boolean;
   undoDescription: string | null;
   redoDescription: string | null;
+
+  // Cross-component scroll request state
+  requestMainContentScroll: (beatPosition: number) => void;
+  requestPianoRollScroll: (beatPosition: number) => void;
+  mainContentScrollRequest: number | null;
+  pianoRollScrollRequest: number | null;
   
   // Actions
   setProjectName: (name: string) => void;
@@ -339,6 +345,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     recordingTargetRegionId: null,
     recordingNotes: [],
     recordingOriginalPlayhead: 0,
+
+    // Initial cross-component scroll request state
+    mainContentScrollRequest: null,
+    pianoRollScrollRequest: null,
 
     // Actions
     setProjectName: (name: string) => {
@@ -791,6 +801,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     setAutoScrollEnabled: (enabled: boolean) => {
       set({ autoScrollEnabled: enabled });
+    },
+
+    requestMainContentScroll: (beatPosition: number) => {
+      set({ mainContentScrollRequest: beatPosition });
+    },
+
+    requestPianoRollScroll: (beatPosition: number) => {
+      set({ pianoRollScrollRequest: beatPosition });
     },
 
     startPlaying: async () => {
