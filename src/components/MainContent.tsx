@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import './MainContent.css';
 import { createPortal } from 'react-dom';
 import { useProjectStore } from '../stores/projectStore';
@@ -10,7 +10,7 @@ import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
 import type { RegionUI } from './interfaces';
-import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS } from '../constants';
+import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { KGMainContentState } from '../core/state/KGMainContentState';
@@ -26,6 +26,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const {
     tracks,
     maxBars,
+    barWidthMultiplier,
     reorderTracks,
     updateTrack,
     updateTrackProperties,
@@ -96,6 +97,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const mainContentRef = useRef<HTMLDivElement | null>(null);
   const expectedScrollLeftRef = useRef<number>(-1);
   const isPlayingRef = useRef(false);
+  const previousBarWidthMultiplierRef = useRef(barWidthMultiplier);
 
   // Refs for bar numbers and loop range drag functionality
   const barNumbersRef = useRef<HTMLDivElement | null>(null);
@@ -108,6 +110,37 @@ const MainContent: React.FC<MainContentProps> = ({
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  useLayoutEffect(() => {
+    const previousMultiplier = previousBarWidthMultiplierRef.current;
+    if (previousMultiplier === barWidthMultiplier) return;
+
+    previousBarWidthMultiplierRef.current = barWidthMultiplier;
+
+    const container = mainContentRef.current;
+    if (!container) return;
+
+    const infoWidth = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width')
+    ) || 200;
+    const visibleMusicWidth = Math.max(0, container.clientWidth - infoWidth);
+    const previousBarWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * previousMultiplier;
+    const nextBarWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
+
+    if (visibleMusicWidth === 0 || previousBarWidth === 0 || nextBarWidth === 0) return;
+
+    const centerPixelBeforeZoom = container.scrollLeft + visibleMusicWidth / 2;
+    const anchorBeat = (centerPixelBeforeZoom / previousBarWidth) * timeSignature.numerator;
+    const targetPixel = (anchorBeat / timeSignature.numerator) * nextBarWidth;
+    const targetScrollLeft = targetPixel - visibleMusicWidth / 2;
+    const clampedScrollLeft = Math.max(
+      0,
+      Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+    );
+
+    expectedScrollLeftRef.current = clampedScrollLeft;
+    container.scrollLeft = clampedScrollLeft;
+  }, [barWidthMultiplier, timeSignature]);
 
   // Detect manual horizontal scroll during playback
   useEffect(() => {

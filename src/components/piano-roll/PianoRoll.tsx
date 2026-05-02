@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
 import './PianoRoll.css';
 import type { MouseEvent } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
-import { DEBUG_MODE, PIANO_ROLL_CONSTANTS } from '../../constants';
+import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
 import PianoRollContent from './PianoRollContent';
@@ -81,6 +81,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Refs for auto-scroll during playback
   const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
   const pianoRollIsPlayingRef = useRef(false);
+  const pendingZoomAnchorBeatRef = useRef<number | null>(null);
 
   // Ref for storing the setNoteUpdateCounter function
   const triggerNoteUpdateRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
@@ -613,6 +614,30 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
   }, [quantizeSelectedNotes, quantizeNoteLength]);
 
+  const handleZoomChange = useCallback((nextZoom: number) => {
+    if (nextZoom === pianoRollZoom) return;
+
+    const container = pianoRollContentRef.current;
+    pendingZoomAnchorBeatRef.current = null;
+    if (container) {
+      const keysWidth = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+      ) || 60;
+      const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
+      const beatWidth = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+      ) || TOOLBAR_CONSTANTS.BASE_BAR_WIDTH;
+
+      if (visibleMusicWidth > 0 && beatWidth > 0) {
+        pendingZoomAnchorBeatRef.current = (container.scrollLeft + visibleMusicWidth / 2) / beatWidth;
+      } else {
+        pendingZoomAnchorBeatRef.current = null;
+      }
+    }
+
+    setPianoRollZoom(nextZoom);
+  }, [pianoRollZoom]);
+
   // Calculate C4 position and scroll to it when piano roll opens
   useEffect(() => {
     if (pianoRollContentRef.current) {
@@ -717,12 +742,33 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     useProjectStore.setState({ pianoRollScrollRequest: null });
   }, [pianoRollScrollRequest]);
 
-  // Update --region-grid-beat-width when zoom changes; reset on unmount
-  useEffect(() => {
-    document.documentElement.style.setProperty('--region-grid-beat-width', `${40 * pianoRollZoom}px`);
+  // Update --region-grid-beat-width when zoom changes and preserve the centered beat position.
+  useLayoutEffect(() => {
+    const beatWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * pianoRollZoom;
+    document.documentElement.style.setProperty('--region-grid-beat-width', `${beatWidth}px`);
     if (triggerNoteUpdateRef.current) {
       triggerNoteUpdateRef.current(prev => prev + 1);
     }
+
+    const anchorBeat = pendingZoomAnchorBeatRef.current;
+    const container = pianoRollContentRef.current;
+    if (anchorBeat !== null && container) {
+      const keysWidth = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+      ) || 60;
+      const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
+      const targetPixel = anchorBeat * beatWidth;
+      const targetScrollLeft = targetPixel - visibleMusicWidth / 2;
+      const clampedScrollLeft = Math.max(
+        0,
+        Math.min(targetScrollLeft, container.scrollWidth - container.clientWidth)
+      );
+
+      pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
+      container.scrollLeft = clampedScrollLeft;
+      pendingZoomAnchorBeatRef.current = null;
+    }
+
     return () => {
       document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
     };
@@ -970,7 +1016,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         power={spectrogramPower}
         onPowerChange={setSpectrogramPower}
         zoom={pianoRollZoom}
-        onZoomChange={setPianoRollZoom}
+        onZoomChange={handleZoomChange}
       />
 
       <PianoRollContent
