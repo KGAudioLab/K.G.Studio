@@ -386,6 +386,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Find the region
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
+
+    if (finalBarNumber === region.barNumber && finalTrackIndex === region.trackIndex) {
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`Skipping no-op move for region ${regionId}`);
+      }
+      return;
+    }
     
     // Get the target track
     const targetTrack = tracks[finalTrackIndex];

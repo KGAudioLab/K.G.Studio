@@ -439,8 +439,9 @@ const MainContent: React.FC<MainContentProps> = ({
       }
     }
 
-    // If piano roll is visible, set this region as the active region
-    if (showPianoRoll) {
+    // Keep the active piano roll region in sync when that same region is updated.
+    // Do not switch the editor to an unrelated region from generic move/resize updates.
+    if (showPianoRoll && activeRegionId === regionId) {
       setActiveRegionId(regionId);
 
       if (DEBUG_MODE.MAIN_CONTENT) {

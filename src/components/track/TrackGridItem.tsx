@@ -492,6 +492,13 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     currentDragTop.current = null;
     currentDragRegion.current = null;
     
+    if (finalBarNumber === region.barNumber && finalTrackIndex === region.trackIndex) {
+      if (DEBUG_MODE.TRACK_GRID_ITEM) {
+        console.log(`Skipping no-op drag update for region ${regionId}`);
+      }
+      return;
+    }
+
     // Notify parent about drag end with final values
     if (onRegionDragEnd) {
       onRegionDragEnd(regionId, finalBarNumber, finalTrackIndex);

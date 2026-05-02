@@ -9,6 +9,8 @@ import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 
+const DRAG_START_THRESHOLD_PX = 4;
+
 interface RegionItemProps {
   id: string;
   name: string;
@@ -73,7 +75,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   // Use refs to track states for immediate access
   const isResizingRef = useRef<boolean>(false);
   const isDraggingRef = useRef<boolean>(false);
-  const hasMovedRef = useRef<boolean>(false);
+  const isPendingDragRef = useRef<boolean>(false);
 
   // Canvas ref for note visualization
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -391,7 +393,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const activeTool = KGMainContentState.instance().getActiveTool();
     if (activeTool === 'pencil') {
       // Still allow click events to pass through for region selection
-      if (!hasMovedRef.current && onClick) {
+      if (onClick) {
         if (DEBUG_MODE.REGION_ITEM) {
           console.log(`REGION CLICKED (pencil mode): regionId=${id}`);
         }
@@ -404,7 +406,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     e.preventDefault();
 
     // Reset movement tracking
-    hasMovedRef.current = false;
+    isPendingDragRef.current = false;
 
     // Store initial mouse position
     initialMousePosRef.current = { x: e.clientX, y: e.clientY };
@@ -423,21 +425,12 @@ const RegionItem: React.FC<RegionItemProps> = ({
         onResizeStart(id, resizeEdge, e.clientX);
       }
     } else {
-      // Start dragging
+      // Wait for actual pointer movement before promoting this gesture to a drag.
       if (DEBUG_MODE.REGION_ITEM) {
-        console.log(`DRAG START: regionId=${id}`);
+        console.log(`PENDING REGION INTERACTION: regionId=${id}`);
       }
 
-      setIsDragging(true);
-      isDraggingRef.current = true;
-
-      // Change cursor to grabbing during drag
-      setCursor('grabbing');
-
-      // Call the onDragStart callback if provided
-      if (onDragStart) {
-        onDragStart(id, e.clientX, e.clientY);
-      }
+      isPendingDragRef.current = true;
     }
 
     // Add global event listeners for mouse move and up
@@ -447,9 +440,6 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
   // Handle global mouse move for resize or drag
   const handleGlobalMouseMove = (e: MouseEvent) => {
-    // Set the hasMovedRef to true as soon as there's movement
-    hasMovedRef.current = true;
-
     if (isResizingRef.current) {
       // Handle resize
       if (DEBUG_MODE.REGION_ITEM) {
@@ -463,15 +453,34 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (onResize) {
         onResize(id, resizeEdge, deltaX);
       }
-    } else if (isDraggingRef.current) {
+    } else if (isDraggingRef.current || isPendingDragRef.current) {
+      const deltaX = e.clientX - initialMousePosRef.current.x;
+      const deltaY = e.clientY - initialMousePosRef.current.y;
+      const movedEnough = Math.hypot(deltaX, deltaY) >= DRAG_START_THRESHOLD_PX;
+
+      if (!isDraggingRef.current) {
+        if (!movedEnough) {
+          return;
+        }
+
+        if (DEBUG_MODE.REGION_ITEM) {
+          console.log(`DRAG START: regionId=${id}`);
+        }
+
+        isPendingDragRef.current = false;
+        setIsDragging(true);
+        isDraggingRef.current = true;
+        setCursor('grabbing');
+
+        if (onDragStart) {
+          onDragStart(id, initialMousePosRef.current.x, initialMousePosRef.current.y);
+        }
+      }
+
       // Handle drag
       if (DEBUG_MODE.REGION_ITEM) {
         console.log(`DRAG MOVE: regionId=${id}, trackIndex=${trackIndex}`);
       }
-
-      // Calculate delta from initial position
-      const deltaX = e.clientX - initialMousePosRef.current.x;
-      const deltaY = e.clientY - initialMousePosRef.current.y;
 
       // Call the onDrag callback if provided
       if (onDrag) {
@@ -511,15 +520,14 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (onDragEnd) {
         onDragEnd(id);
       }
-
-      // If there was no movement, treat it as a click
-      if (!hasMovedRef.current && onClick) {
-        if (DEBUG_MODE.REGION_ITEM) {
-          console.log(`REGION CLICKED: regionId=${id}`);
-        }
-        onClick(id);
+    } else if (isPendingDragRef.current && onClick) {
+      if (DEBUG_MODE.REGION_ITEM) {
+        console.log(`REGION CLICKED: regionId=${id}`);
       }
+      onClick(id);
     }
+
+    isPendingDragRef.current = false;
 
     // Remove global event listeners
     document.removeEventListener('mousemove', handleGlobalMouseMove);
