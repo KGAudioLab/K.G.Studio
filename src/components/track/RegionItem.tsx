@@ -587,6 +587,23 @@ const RegionItem: React.FC<RegionItemProps> = ({
         )}
         {audioRegion && (
           <button
+            className="region-waveform-btn"
+            title="View waveform"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            aria-label="View waveform"
+          >
+            <MdGraphicEq size={10} />
+          </button>
+        )}
+        {audioRegion && (
+          <button
             className="region-spectrogram-btn"
             title="View melodic spectrogram"
             onMouseDown={(e) => {
@@ -602,7 +619,11 @@ const RegionItem: React.FC<RegionItemProps> = ({
             }}
             aria-label="View spectrogram"
           >
-            <MdGraphicEq size={10} />
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4"/>
+              <rect x="1.5" y="3.75" width="6.5" height="2.5" rx="0.4"/>
+              <rect x="0" y="7" width="6.5" height="2.5" rx="0.4"/>
+            </svg>
           </button>
         )}
         {showHybridButton && (
