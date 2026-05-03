@@ -249,7 +249,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
       style={{
         position: 'absolute',
         top: 0,
-        left: 0,
+        left: `${audioRegion.getStartFromBeat() * 40 * zoom}px`,
         zIndex: 0,
         pointerEvents: 'none',
       }}
