@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import './PianoRoll.css';
 import type { MouseEvent } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
@@ -8,6 +8,7 @@ import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
+import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
 import { KGCore } from '../../core/KGCore';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
@@ -41,7 +42,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -73,6 +74,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
+
+  const selectedNotes = useMemo(
+    () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
+    [activeRegion, selectedNoteIds]
+  );
+
   const pianoRollRef = useRef<HTMLDivElement>(null);
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
   const pianoGridRef = useRef<HTMLDivElement>(null);
@@ -1018,6 +1025,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         zoom={pianoRollZoom}
         onZoomChange={handleZoomChange}
       />
+
+      <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isSpectrogram} activeRegion={activeRegion} />
 
       <PianoRollContent
         contentRef={pianoRollContentRef}

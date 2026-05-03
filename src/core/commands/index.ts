@@ -32,6 +32,7 @@ export { DeleteNotesCommand, DeleteNoteCommand } from './note/DeleteNotesCommand
 export { ResizeNotesCommand } from './note/ResizeNotesCommand';
 export { MoveNotesCommand } from './note/MoveNotesCommand';
 export { PasteNotesCommand } from './note/PasteNotesCommand';
+export { UpdateNotePropertiesCommand } from './note/UpdateNotePropertiesCommand';
 
 // Project commands
 export { ChangeProjectPropertyCommand, type ProjectUpdateProperties } from './project/ChangeProjectPropertyCommand';

@@ -2,6 +2,20 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PIANO_ROLL_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { useProjectStore } from '../../stores/projectStore';
 
+// Purple (vel=0) → green (vel=64) → red (vel=127), matching Logic Pro
+function velocityToColor(v: number, alpha = 1): string {
+  const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
+  let r: number, g: number, b: number;
+  if (v <= 64) {
+    const t = v / 64;
+    r = lerp(123, 90, t); g = lerp(95, 176, t); b = lerp(160, 106, t);
+  } else {
+    const t = (v - 64) / 63;
+    r = lerp(90, 255, t); g = lerp(176, 85, t); b = lerp(106, 85, t);
+  }
+  return alpha === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 interface PianoNoteProps {
   id: string;
   index: number;
@@ -9,6 +23,7 @@ interface PianoNoteProps {
   top: number;
   width: number;
   height: number;
+  velocity: number;
   onResizeStart?: (noteId: string, resizeEdge: 'start' | 'end', initialX: number) => void;
   onResize?: (noteId: string, resizeEdge: 'start' | 'end', deltaX: number) => void;
   onResizeEnd?: (noteId: string, resizeEdge: 'start' | 'end') => void;
@@ -25,6 +40,7 @@ const PianoNote: React.FC<PianoNoteProps> = ({
   top,
   width,
   height,
+  velocity,
   onResizeStart,
   onResize,
   onResizeEnd,
@@ -41,6 +57,7 @@ const PianoNote: React.FC<PianoNoteProps> = ({
   const [resizeEdge, setResizeEdge] = useState<'none' | 'start' | 'end'>('none');
   const [isResizing, setIsResizing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   
   // Use refs to track states for immediate access
   const isResizingRef = useRef<boolean>(false);
@@ -80,6 +97,7 @@ const PianoNote: React.FC<PianoNoteProps> = ({
   
   // Reset cursor when mouse leaves
   const handleMouseLeave = () => {
+    setIsHovered(false);
     if (!isResizingRef.current && !isDraggingRef.current) {
       setCursor('default');
       setResizeEdge('none');
@@ -250,9 +268,16 @@ const PianoNote: React.FC<PianoNoteProps> = ({
         top: `${top}px`,
         width: `${width}px`,
         height: `${height}px`,
-        cursor: cursor
+        cursor: cursor,
+        backgroundColor: velocityToColor(velocity),
+        boxShadow: isResizing
+          ? `0 0 10px ${velocityToColor(velocity, 0.7)}`
+          : isHovered
+          ? `0 0 5px ${velocityToColor(velocity, 0.5)}`
+          : undefined,
       }}
       onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
       onMouseDown={handleMouseDown}
       id={id}

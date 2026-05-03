@@ -211,6 +211,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
             top={parseFloat(tempStyle.top as string)}
             width={parseFloat(tempStyle.width as string)}
             height={noteHeight}
+            velocity={note.getVelocity()}
             onResizeStart={handleNoteResizeStart}
             onResize={handleNoteResize}
             onResizeEnd={handleNoteResizeEnd}
@@ -221,7 +222,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           />
         );
       }
-      
+
       return (
         <PianoNote
           key={`note-${noteId}`}
@@ -231,6 +232,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           top={top}
           width={width}
           height={noteHeight}
+          velocity={note.getVelocity()}
           onResizeStart={handleNoteResizeStart}
           onResize={handleNoteResize}
           onResizeEnd={handleNoteResizeEnd}
