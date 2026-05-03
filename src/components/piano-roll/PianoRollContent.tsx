@@ -249,12 +249,13 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     if (!isRecording || !activeRegion || recordingNotes.length === 0) return null;
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
+    const regionStartBeat = activeRegion.getStartFromBeat();
     return recordingNotes.map((note, index) => (
       <div
         key={`recording-note-${index}`}
         className="piano-grid-recording-note"
         style={{
-          left: note.startBeat * beatWidth,
+          left: (note.startBeat + regionStartBeat) * beatWidth,
           top: (107 - note.pitch) * noteHeight,
           width: Math.max((note.endBeat - note.startBeat) * beatWidth, 4),
           height: noteHeight,
