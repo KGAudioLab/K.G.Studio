@@ -137,6 +137,7 @@ interface ProjectState {
   setAutoScrollEnabled: (enabled: boolean) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
+  stopTransport: () => Promise<void>;
   toggleLoop: () => void;
   toggleMetronome: () => void;
   setBpm: (bpm: number) => void;
@@ -821,6 +822,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ isPlaying: false });
     },
 
+    stopTransport: async () => {
+      if (get().isRecording) {
+        await get().stopRecording();
+        return;
+      }
+      await get().stopPlaying();
+    },
+
     startRecording: async () => {
       const { activeRegionId, timeSignature, playheadPosition, setPlayheadPosition } = get();
 
@@ -1236,7 +1245,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   };
 }); 
-
 
 
 

@@ -30,6 +30,7 @@ export const mockAudioInterface = {
   
   // Transport
   getCurrentBeat: vi.fn().mockReturnValue(0),
+  getTransportPosition: vi.fn().mockReturnValue(0),
   setBpm: vi.fn().mockReturnValue(undefined),
   
   // Singleton pattern

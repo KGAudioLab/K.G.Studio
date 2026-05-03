@@ -14,7 +14,7 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll } = useProjectStore();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -134,8 +134,8 @@ export const useGlobalKeyboardHandler = () => {
             startPlaying();
             setStatus('Playback started');
           } else {
-            stopPlaying();
-            setStatus('Playback stopped');
+            stopTransport();
+            setStatus(isRecording ? 'Recording stopped — notes committed' : 'Playback stopped');
           }
         } catch (error) {
           console.error('Play/pause failed:', error);
@@ -216,5 +216,5 @@ export const useGlobalKeyboardHandler = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll]); // Include dependencies for store actions
+  }, [undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll]); // Include dependencies for store actions
 };

@@ -3,7 +3,7 @@
  * Tests the critical data flow: Store Actions → Core Models → UI State Updates
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act } from '@testing-library/react';
 
 // Import core classes
 import { KGCore } from '../../../core/KGCore';
@@ -314,6 +314,57 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(storeState.isPlaying).toBe(true);
       expect(recordingCallbacksSpy).toHaveBeenCalled();
       expect(startPlayingSpy).toHaveBeenCalledWith({ preserveLoopPreroll: true });
+    });
+
+    it('should commit recording when transport is stopped during recording', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      const executeCommandSpy = vi.spyOn(core, 'executeCommand');
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      vi.spyOn(mockAudioInterface, 'getTransportPosition').mockReturnValue(5);
+
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(4);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const noteOn = setRecordingCallbacksSpy.mock.calls.at(-1)?.[0];
+      const noteOff = setRecordingCallbacksSpy.mock.calls.at(-1)?.[1];
+      expect(noteOn).toBeTypeOf('function');
+      expect(noteOff).toBeTypeOf('function');
+
+      act(() => {
+        noteOn?.(60);
+        noteOff?.(60);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      const storeState = useProjectStore.getState();
+      expect(storeState.isRecording).toBe(false);
+      expect(storeState.isPlaying).toBe(false);
+      expect(storeState.recordingNotes).toHaveLength(0);
+      expect(executeCommandSpy).toHaveBeenCalled();
+      expect(mockAudioInterface.stopPlayback).toHaveBeenCalled();
+      expect(setRecordingCallbacksSpy).toHaveBeenLastCalledWith(null, null);
+      expect(testRegion.getNotes()).toHaveLength(1);
     });
   });
 

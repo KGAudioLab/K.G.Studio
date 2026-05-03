@@ -40,7 +40,7 @@ const Toolbar: React.FC = () => {
     projectName, setProjectName,
     savedProjectName, setSavedProjectName,
     bpm, timeSignature, keySignature, setStatus,
-    isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
+    isPlaying, startPlaying, stopTransport, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
@@ -518,12 +518,10 @@ const Toolbar: React.FC = () => {
       console.log("Pause button clicked");
     }
     try {
+      await stopTransport();
       if (isRecording) {
-        await stopRecording();
         setStatus("Recording stopped — notes committed");
-        return;
       }
-      await stopPlaying();
     } catch (error) {
       console.error("Failed to stop playback:", error);
       setStatus("Failed to stop playback");
