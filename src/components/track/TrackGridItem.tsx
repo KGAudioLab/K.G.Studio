@@ -4,7 +4,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import RegionItem from './RegionItem';
-import type { RegionUI, ResizeAction } from '../interfaces';
+import type { RegionClickOptions, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
@@ -25,7 +25,7 @@ interface TrackGridItemProps {
   onRegionDrag?: (regionId: string, newBarNumber: number, newTrackIndex: number) => void;
   onRegionDragEnd?: (regionId: string, finalBarNumber: number, finalTrackIndex: number) => void;
   onRegionFineMoveEnd?: (regionId: string, deltaInBars: number) => void;
-  onRegionClick?: (regionId: string) => void;
+  onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
@@ -516,13 +516,13 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   };
 
   // Handle region click
-  const handleRegionClick = (regionId: string) => {
+  const handleRegionClick = (regionId: string, options: RegionClickOptions) => {
     if (DEBUG_MODE.TRACK_GRID_ITEM) {
       console.log(`Region clicked: ${regionId}`);
     }
     
     if (onRegionClick) {
-      onRegionClick(regionId);
+      onRegionClick(regionId, options);
     }
   };
 
@@ -589,7 +589,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onOpenPianoRoll(regionId);
               } else if (onRegionClick) {
                 // Fallback to legacy behavior
-                onRegionClick(regionId);
+                onRegionClick(regionId, { shiftKey: false });
               }
             }}
             onOpenSpectrogram={audioRegion ? (regionId) => {

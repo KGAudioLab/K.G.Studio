@@ -3,7 +3,7 @@ import { KGTrack, TrackType } from '../../core/track/KGTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import TrackGridItem from './TrackGridItem';
 import { Playhead, FileImportModal } from '../common';
-import type { RegionUI } from '../interfaces';
+import type { RegionClickOptions, RegionUI } from '../interfaces';
 import { DEBUG_MODE, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
@@ -28,7 +28,7 @@ interface TrackGridPanelProps {
   projectName: string;
   onRegionCreated: (trackIndex: number, region: RegionUI, midiRegion: KGMidiRegion) => void;
   onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startBeat: number, length: number }) => void;
-  onRegionClick?: (regionId: string) => void;
+  onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
@@ -512,7 +512,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   };
 
   // Handle region click
-  const handleRegionClick = (regionId: string) => {
+  const handleRegionClick = (regionId: string, options: RegionClickOptions) => {
     if (DEBUG_MODE.TRACK_GRID_PANEL) {
       console.log(`Region clicked in panel: ${regionId}`);
     }
@@ -535,7 +535,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     
     // Notify parent about the click
     if (onRegionClick) {
-      onRegionClick(regionId);
+      onRegionClick(regionId, options);
     }
   };
 

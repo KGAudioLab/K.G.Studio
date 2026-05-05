@@ -4,12 +4,13 @@ import { createPortal } from 'react-dom';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
+import { KGRegion } from '../core/region/KGRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
-import type { RegionUI } from './interfaces';
+import type { RegionClickOptions, RegionUI } from './interfaces';
 import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
@@ -38,6 +39,7 @@ const MainContent: React.FC<MainContentProps> = ({
     setAutoScrollEnabled,
     clearAllSelections,
     setSelectedTrack,
+    selectedRegionIds,
     showPianoRoll,
     activeRegionId,
     setShowPianoRoll,
@@ -349,7 +351,7 @@ const MainContent: React.FC<MainContentProps> = ({
       const updatedRegions = [...prevRegions, regionUI];
 
       // Select the region using the updated regions array
-      selectRegion(regionUI.id, updatedRegions);
+      selectRegion(regionUI.id, { shiftKey: false }, updatedRegions);
 
       // Manually trigger selection sync to ensure UI updates immediately
       const { syncSelectionFromCore } = useProjectStore.getState();
@@ -384,7 +386,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     setRegions(prev => {
       const updated = [...prev, regionUI];
-      selectRegion(regionUI.id, updated);
+      selectRegion(regionUI.id, { shiftKey: false }, updated);
       return updated;
     });
   };
@@ -518,10 +520,11 @@ const MainContent: React.FC<MainContentProps> = ({
   };
 
   // Helper function to select a region (clears previous selections)
-  const selectRegion = (regionId: string, regionsToSearch?: RegionUI[]) => {
-    // Clear any existing selections using store method
-    clearAllSelections();
-
+  const selectRegion = (
+    regionId: string,
+    options: RegionClickOptions = { shiftKey: false },
+    regionsToSearch?: RegionUI[]
+  ) => {
     // Find the region in the UI state (use provided regions or current state)
     const regionsToUse = regionsToSearch || regions;
     const region = regionsToUse.find(r => r.id === regionId);
@@ -542,39 +545,81 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     // Find the region in the track's model
-    const trackRegions = track.getRegions();
-    const midiRegion = trackRegions.find(r => r.getId() === regionId) as KGMidiRegion | undefined;
+    const coreRegion = track.getRegions().find(r => r.getId() === regionId);
 
-    if (!midiRegion) {
+    if (!coreRegion) {
       if (DEBUG_MODE.MAIN_CONTENT) {
-        console.log(`MIDI region not found in track model: ${regionId}`);
+        console.log(`Region not found in track model: ${regionId}`);
       }
       return;
     }
 
-    // Add the region to KGCore's selection
     const core = KGCore.instance();
-    core.addSelectedItem(midiRegion);
+    const orderedSelection = options.shiftKey
+      ? (selectedRegionIds.includes(regionId)
+        ? selectedRegionIds.filter(id => id !== regionId)
+        : [...selectedRegionIds, regionId])
+      : [regionId];
 
-    // Update the region's internal selection state
-    midiRegion.select();
+    tracks.forEach(projectTrack => {
+      projectTrack.getRegions().forEach(projectRegion => projectRegion.deselect());
+    });
 
-    // Set the selected region (this might be redundant now, but keeping for compatibility)
-    setSelectedRegionId(regionId);
+    clearAllSelections();
+
+    const selectedRegions: KGRegion[] = orderedSelection
+      .map(selectedId => {
+        for (const projectTrack of tracks) {
+          const selectedRegion = projectTrack.getRegions().find(r => r.getId() === selectedId);
+          if (selectedRegion) {
+            selectedRegion.select();
+            return selectedRegion as KGRegion;
+          }
+        }
+        return null;
+      })
+      .filter((selectedRegion): selectedRegion is KGRegion => selectedRegion !== null);
+
+    if (selectedRegions.length > 0) {
+      core.addSelectedItems(selectedRegions);
+    }
+
+    const lastSelectedRegionId = selectedRegions.length > 0
+      ? selectedRegions[selectedRegions.length - 1].getId()
+      : null;
+
+    setSelectedRegionId(lastSelectedRegionId);
 
     if (DEBUG_MODE.MAIN_CONTENT) {
-      console.log(`Selected region: ${regionId} (added to KGCore selection)`);
+      console.log(`Selected regions: ${selectedRegions.map(selectedRegion => selectedRegion.getId()).join(', ')}`);
+    }
+
+    if (!showPianoRoll) {
+      return;
+    }
+
+    if (!lastSelectedRegionId) {
+      setShowPianoRoll(false);
+      setActiveRegionId(null);
+      return;
+    }
+
+    const lastSelectedRegion = selectedRegions[selectedRegions.length - 1];
+    if (lastSelectedRegion instanceof KGAudioRegion) {
+      openSpectrogramViewer(lastSelectedRegionId);
+    } else if (lastSelectedRegion instanceof KGMidiRegion) {
+      openMidiPianoRoll(lastSelectedRegionId);
     }
   };
 
   // Handle region single click: selection only (no piano roll opening)
-  const handleRegionClick = (regionId: string) => {
+  const handleRegionClick = (regionId: string, options: RegionClickOptions = { shiftKey: false }) => {
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Region clicked in MainContent (selection only): ${regionId}`);
     }
 
     // Select the region
-    selectRegion(regionId);
+    selectRegion(regionId, options);
 
     // Also select the containing track
     const region = regions.find(r => r.id === regionId);
@@ -583,15 +628,6 @@ const MainContent: React.FC<MainContentProps> = ({
     if (!track) return;
     setSelectedTrack(track.getId().toString());
 
-    // If the piano roll window is already open, follow the selected region's type
-    if (showPianoRoll) {
-      const coreRegion = track.getRegions().find(r => r.getId() === regionId);
-      if (coreRegion?.getCurrentType() === 'KGAudioRegion') {
-        openSpectrogramViewer(regionId);
-      } else if (coreRegion?.getCurrentType() === 'KGMidiRegion') {
-        openMidiPianoRoll(regionId);
-      }
-    }
   };
 
   // Handle explicit pencil action: select region and open piano roll
@@ -610,7 +646,7 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     // Reuse selection logic
-    handleRegionClick(regionId);
+    handleRegionClick(regionId, { shiftKey: false });
 
     // Activate and show piano roll in midi-edit mode
     openMidiPianoRoll(regionId);
@@ -618,7 +654,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Handle spectrogram viewer open
   const handleOpenSpectrogram = (regionId: string) => {
-    handleRegionClick(regionId);
+    handleRegionClick(regionId, { shiftKey: false });
     openSpectrogramViewer(regionId);
   };
 

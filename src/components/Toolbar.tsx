@@ -94,6 +94,7 @@ const Toolbar: React.FC = () => {
   
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
+  const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   const handleProjectNameClick = async () => {
     const newName = await showPrompt("Enter project name:", projectName);
@@ -730,7 +731,7 @@ const Toolbar: React.FC = () => {
       return;
     }
 
-    const regionId = selectedRegionIds[0];
+    const regionId = lastSelectedRegionId;
     const tracks = KGCore.instance().getCurrentProject().getTracks();
     let targetRegion = null;
     for (const track of tracks) {
@@ -845,7 +846,7 @@ const Toolbar: React.FC = () => {
     }
 
     // Prefer current active region; otherwise, first selected region
-    const candidateRegionId = activeRegionId || (selectedRegionIds && selectedRegionIds.length > 0 ? selectedRegionIds[0] : null);
+    const candidateRegionId = activeRegionId || lastSelectedRegionId;
 
     if (!candidateRegionId) {
       if (DEBUG_MODE.TOOLBAR) {
@@ -877,7 +878,7 @@ const Toolbar: React.FC = () => {
     }
 
     // Require an active or selected MIDI region
-    const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+    const candidateId = activeRegionId ?? lastSelectedRegionId;
     if (!candidateId) {
       await showAlert("Please open a MIDI region in the Piano Roll before starting recording.");
       return;

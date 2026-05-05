@@ -450,11 +450,14 @@ export class KGCore {
   }
 
   public addSelectedItem(item: Selectable): void {
+    this.selectedItems = this.selectedItems.filter(i => i.getId() !== item.getId());
     this.selectedItems.push(item);
     this.notifySelectionChanged();
   }
 
   public addSelectedItems(items: Selectable[]): void {
+    const seenIds = new Set(items.map(item => item.getId()));
+    this.selectedItems = this.selectedItems.filter(item => !seenIds.has(item.getId()));
     this.selectedItems.push(...items);
     this.notifySelectionChanged();
   }

@@ -16,6 +16,7 @@ import { showAlert } from '../util/dialogUtil';
  */
 export const useGlobalKeyboardHandler = () => {
   const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRoll, openSpectrogramViewer } = useProjectStore();
+  const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -166,7 +167,7 @@ export const useGlobalKeyboardHandler = () => {
           setStatus('Recording stopped — notes committed');
           return;
         }
-        const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+        const candidateId = activeRegionId ?? lastSelectedRegionId;
         if (!candidateId) {
           setStatus('Select a MIDI region before recording');
           return;
@@ -201,7 +202,7 @@ export const useGlobalKeyboardHandler = () => {
           setShowPianoRoll(false);
           return;
         }
-        const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+        const candidateId = activeRegionId ?? lastSelectedRegionId;
         if (!candidateId) {
           void showAlert('Please select a region to open the editor.');
           return;
@@ -264,7 +265,7 @@ export const useGlobalKeyboardHandler = () => {
     startRecording,
     stopRecording,
     activeRegionId,
-    selectedRegionIds,
+    lastSelectedRegionId,
     setActiveRegionId,
     setShowPianoRoll,
     showPianoRoll,

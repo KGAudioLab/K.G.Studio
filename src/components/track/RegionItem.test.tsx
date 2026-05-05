@@ -68,10 +68,23 @@ describe('RegionItem', () => {
     fireEvent.mouseMove(document, { clientX: 102, clientY: 102 });
     fireEvent.mouseUp(document, { clientX: 102, clientY: 102 });
 
-    expect(onClick).toHaveBeenCalledWith('midi-1');
+    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: false });
     expect(onDragStart).not.toHaveBeenCalled();
     expect(onDrag).not.toHaveBeenCalled();
     expect(onDragEnd).not.toHaveBeenCalled();
+  });
+
+  it('passes shift-click state through the region click callback', () => {
+    const onClick = vi.fn();
+    const { container } = renderRegion({ onClick });
+    const region = container.querySelector('.track-region');
+
+    expect(region).toBeTruthy();
+
+    fireEvent.mouseDown(region!, { clientX: 100, clientY: 100, shiftKey: true });
+    fireEvent.mouseUp(document, { clientX: 100, clientY: 100, shiftKey: true });
+
+    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: true });
   });
 
   it('starts a drag after crossing the movement threshold', () => {

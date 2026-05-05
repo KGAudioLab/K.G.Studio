@@ -18,6 +18,10 @@ export interface RegionUI {
   name: string;
 }
 
+export interface RegionClickOptions {
+  shiftKey: boolean;
+}
+
 // Define resize action types
 export type ResizeAction = 'none' | 'start' | 'end';
 

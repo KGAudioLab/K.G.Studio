@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './Region.css';
 import { FaPencilAlt, FaPlus } from 'react-icons/fa';
 import { MdGraphicEq, MdSwapHoriz } from 'react-icons/md';
-import type { ResizeAction } from '../interfaces';
+import type { RegionClickOptions, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
@@ -27,7 +27,7 @@ interface RegionItemProps {
   onDrag?: (regionId: string, deltaX: number, deltaY: number) => void;
   onDragEnd?: (regionId: string) => void;
   // Click prop
-  onClick?: (regionId: string) => void;
+  onClick?: (regionId: string, options: RegionClickOptions) => void;
   // Explicit open piano roll action from header pencil icon
   onOpenPianoRoll?: (regionId: string) => void;
   // Open spectrogram viewer for audio regions
@@ -70,6 +70,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   // Get selection state and time signature from store
   const { selectedRegionIds, timeSignature, bpm } = useProjectStore();
   const isSelected = selectedRegionIds.includes(id);
+  const isPrimarySelected = isSelected && selectedRegionIds[selectedRegionIds.length - 1] === id;
   const [cursor, setCursor] = useState<string>('pointer');
   const [resizeEdge, setResizeEdge] = useState<ResizeAction>('none');
   const [isResizing, setIsResizing] = useState(false);
@@ -408,7 +409,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         if (DEBUG_MODE.REGION_ITEM) {
           console.log(`REGION CLICKED (pencil mode): regionId=${id}`);
         }
-        onClick(id);
+        onClick(id, { shiftKey: e.shiftKey });
       }
       return;
     }
@@ -535,7 +536,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (DEBUG_MODE.REGION_ITEM) {
         console.log(`REGION CLICKED: regionId=${id}`);
       }
-      onClick(id);
+      onClick(id, { shiftKey: e.shiftKey });
     }
 
     isPendingDragRef.current = false;
@@ -602,7 +603,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   return (
     <div
       key={id}
-      className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? 'selected' : ''} ${audioRegion ? 'audio-region' : ''}`}
+      className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? (isPrimarySelected ? 'selected' : 'selected-secondary') : ''} ${audioRegion ? 'audio-region' : ''}`}
       style={{ ...style, cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -634,7 +635,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
                 if (onOpenPianoRoll) {
                   onOpenPianoRoll(id);
                 } else if (onClick) {
-                  onClick(id);
+                  onClick(id, { shiftKey: e.shiftKey });
                 }
               }}
               aria-label="Open piano roll"
