@@ -205,19 +205,28 @@ const Toolbar: React.FC = () => {
   };
 
   const handleOpenProjectSelect = async (projectNameToLoad: string) => {
+    const confirmed = await showConfirm(
+      'Open this project? Any unsaved changes in the current project will be lost.'
+    );
+    if (!confirmed) {
+      return false;
+    }
+
     try {
       const storage = KGProjectStorage.getInstance();
       const loadedProject = await storage.load(projectNameToLoad);
 
       if (!loadedProject) {
         await showAlert(`Project "${projectNameToLoad}" not found.`);
-        return;
+        return false;
       }
 
       await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
+      return true;
     } catch (error) {
       console.error("Error loading project:", error);
       await showAlert(`An error occurred while loading the project: ${error}`);
+      return false;
     }
   };
 

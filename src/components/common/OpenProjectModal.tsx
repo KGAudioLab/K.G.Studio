@@ -7,7 +7,7 @@ import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
 
 interface OpenProjectModalProps {
   onClose: () => void;
-  onOpenProject: (projectName: string) => Promise<void>;
+  onOpenProject: (projectName: string) => Promise<boolean>;
   currentProjectName: string | null;
   onCreateNewProject: () => void;
 }
@@ -121,8 +121,10 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
   }, [projects, filter, sortField, sortDirection]);
 
   const handleOpen = async (projectName: string) => {
-    await onOpenProject(projectName);
-    startClose();
+    const opened = await onOpenProject(projectName);
+    if (opened) {
+      startClose();
+    }
   };
 
   const handleDuplicate = async (e: React.MouseEvent, projectName: string) => {
@@ -140,8 +142,10 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
       const storage = KGProjectStorage.getInstance();
       const finalName = await storage.resolveUniqueName(trimmed);
       await storage.duplicate(projectName, finalName);
-      await onOpenProject(finalName);
-      startClose();
+      const opened = await onOpenProject(finalName);
+      if (opened) {
+        startClose();
+      }
     } catch (error) {
       console.error('Error duplicating project:', error);
       await showAlert(`Failed to duplicate project: ${error}`);
