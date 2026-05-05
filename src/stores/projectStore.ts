@@ -101,7 +101,7 @@ interface ProjectState {
   // Recording state
   isRecording: boolean;
   recordingTargetRegionId: string | null;
-  recordingNotes: Array<{ pitch: number; startBeat: number; endBeat: number }>;
+  recordingNotes: Array<{ pitch: number; startBeat: number; endBeat: number; velocity: number }>;
   recordingOriginalPlayhead: number;
 
   // Undo/redo state
@@ -199,7 +199,7 @@ interface ProjectState {
 }
 
 // Module-level recording state (not reactive — only used for timing during active recording)
-let _recordingActiveNotes: Map<number, number> = new Map(); // pitch → region-relative startBeat
+let _recordingActiveNotes: Map<number, { startBeat: number; velocity: number }> = new Map(); // pitch → note-on data
 let _recordingRegionStartBeat: number = 0;
 
 function getRecordingLoopEndBeatRelative(): number | null {
@@ -883,18 +883,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       };
 
       KGMidiInput.instance().setRecordingCallbacks(
-        (pitch: number) => {
+        (pitch: number, velocity: number) => {
           const beat = buildCorrectedBeat();
-          _recordingActiveNotes.set(pitch, beat);
+          _recordingActiveNotes.set(pitch, { startBeat: beat, velocity });
         },
         (pitch: number) => {
           const endBeat = buildCorrectedBeat();
-          const startBeat = _recordingActiveNotes.get(pitch);
-          if (startBeat !== undefined) {
+          const activeNote = _recordingActiveNotes.get(pitch);
+          if (activeNote !== undefined) {
             _recordingActiveNotes.delete(pitch);
-            const finalizedEndBeat = finalizeRecordedNote(startBeat, endBeat);
+            const finalizedEndBeat = finalizeRecordedNote(activeNote.startBeat, endBeat);
             set(state => ({
-              recordingNotes: [...state.recordingNotes, { pitch, startBeat, endBeat: finalizedEndBeat }],
+              recordingNotes: [...state.recordingNotes, {
+                pitch,
+                startBeat: activeNote.startBeat,
+                endBeat: finalizedEndBeat,
+                velocity: activeNote.velocity,
+              }],
             }));
           }
         }
@@ -925,8 +930,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const correctionBeats = (playbackDelaySec + recordingOffsetSec) * (bpm / 60);
       const endBeatForHeld = KGAudioInterface.instance().getTransportPosition() - correctionBeats - _recordingRegionStartBeat;
 
-      _recordingActiveNotes.forEach((startBeat, pitch) => {
-        finalNotes.push({ pitch, startBeat, endBeat: finalizeRecordedNote(startBeat, endBeatForHeld) });
+      _recordingActiveNotes.forEach((activeNote, pitch) => {
+        finalNotes.push({
+          pitch,
+          startBeat: activeNote.startBeat,
+          endBeat: finalizeRecordedNote(activeNote.startBeat, endBeatForHeld),
+          velocity: activeNote.velocity,
+        });
       });
       _recordingActiveNotes.clear();
 
@@ -938,7 +948,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           startBeat: n.startBeat,
           endBeat: n.endBeat,
           pitch: n.pitch,
-          velocity: 127,
+          velocity: n.velocity,
         }));
         const command = new CreateNotesCommand(noteData);
         KGCore.instance().executeCommand(command);
@@ -1269,7 +1279,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   };
 }); 
-
 
 
 

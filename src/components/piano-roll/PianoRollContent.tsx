@@ -13,6 +13,7 @@ import { useNoteOperations } from '../../hooks/useNoteOperations';
 import { useNoteSelection } from '../../hooks/useNoteSelection';
 import type { KeySignature } from '../../core/KGProject';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import { velocityToColor } from '../../util/velocityColor';
 
 interface PianoRollContentProps {
   contentRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -259,6 +260,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           top: (107 - note.pitch) * noteHeight,
           width: Math.max((note.endBeat - note.startBeat) * beatWidth, 4),
           height: noteHeight,
+          backgroundColor: velocityToColor(note.velocity, 0.35),
+          borderColor: velocityToColor(note.velocity, 0.85),
         }}
       />
     ));

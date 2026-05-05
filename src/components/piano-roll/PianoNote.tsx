@@ -1,20 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PIANO_ROLL_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { useProjectStore } from '../../stores/projectStore';
-
-// Purple (vel=0) → green (vel=64) → red (vel=127), matching Logic Pro
-function velocityToColor(v: number, alpha = 1): string {
-  const lerp = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
-  let r: number, g: number, b: number;
-  if (v <= 64) {
-    const t = v / 64;
-    r = lerp(123, 90, t); g = lerp(95, 176, t); b = lerp(160, 106, t);
-  } else {
-    const t = (v - 64) / 63;
-    r = lerp(90, 255, t); g = lerp(176, 85, t); b = lerp(106, 85, t);
-  }
-  return alpha === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+import { velocityToColor } from '../../util/velocityColor';
 
 interface PianoNoteProps {
   id: string;

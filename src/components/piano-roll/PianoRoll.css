@@ -418,8 +418,7 @@
 
 .piano-grid-recording-note {
   position: absolute;
-  background-color: rgba(255, 60, 60, 0.35);
-  border: 1px solid rgba(255, 60, 60, 0.85);
+  border: 1px solid transparent;
   pointer-events: none;
   z-index: 3;
 }

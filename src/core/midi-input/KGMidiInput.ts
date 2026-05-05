@@ -16,7 +16,7 @@ export class KGMidiInput {
   private connectedInputs: Map<string, MIDIInput> = new Map();
 
   // Recording callbacks
-  private onRecordNoteOn: ((pitch: number) => void) | null = null;
+  private onRecordNoteOn: ((pitch: number, velocity: number) => void) | null = null;
   private onRecordNoteOff: ((pitch: number) => void) | null = null;
 
   // Private constructor to prevent direct instantiation
@@ -165,7 +165,7 @@ export class KGMidiInput {
     if (command === 0x90 && velocity > 0) {
       console.log(`MIDI Note On: pitch=${pitch}, velocity=${velocity}, channel=${channel}`);
       this.triggerNoteOn(pitch, velocity);
-      this.onRecordNoteOn?.(pitch);
+      this.onRecordNoteOn?.(pitch, velocity);
     }
     // Note Off: command = 0x80 (128) or Note On with velocity 0
     else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
@@ -273,7 +273,7 @@ export class KGMidiInput {
   // ===== RECORDING =====
 
   public setRecordingCallbacks(
-    onNoteOn: ((pitch: number) => void) | null,
+    onNoteOn: ((pitch: number, velocity: number) => void) | null,
     onNoteOff: ((pitch: number) => void) | null
   ): void {
     this.onRecordNoteOn = onNoteOn;

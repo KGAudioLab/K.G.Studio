@@ -349,7 +349,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(noteOff).toBeTypeOf('function');
 
       act(() => {
-        noteOn?.(60);
+        noteOn?.(60, 96);
         noteOff?.(60);
       });
 
@@ -365,6 +365,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(mockAudioInterface.stopPlayback).toHaveBeenCalled();
       expect(setRecordingCallbacksSpy).toHaveBeenLastCalledWith(null, null);
       expect(testRegion.getNotes()).toHaveLength(1);
+      expect(testRegion.getNotes()[0].getVelocity()).toBe(96);
     });
 
     it('should cut a held looped recording note at the loop end when note off arrives after wrap', async () => {
@@ -400,7 +401,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       const noteOff = setRecordingCallbacksSpy.mock.calls.at(-1)?.[1];
 
       act(() => {
-        noteOn?.(60);
+        noteOn?.(60, 72);
         noteOff?.(60);
       });
 
@@ -412,6 +413,50 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(notes).toHaveLength(1);
       expect(notes[0].getStartBeat()).toBeCloseTo(15);
       expect(notes[0].getEndBeat()).toBeCloseTo(16);
+      expect(notes[0].getVelocity()).toBe(72);
+    });
+
+    it('should preserve velocity when finalizing a held recording note on stop', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      vi.spyOn(mockAudioInterface, 'getTransportPosition')
+        .mockReturnValueOnce(5)
+        .mockReturnValueOnce(6.5);
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(4);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const noteOn = setRecordingCallbacksSpy.mock.calls.at(-1)?.[0];
+      expect(noteOn).toBeTypeOf('function');
+
+      act(() => {
+        noteOn?.(60, 48);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      const notes = testRegion.getNotes();
+      expect(notes).toHaveLength(1);
+      expect(notes[0].getVelocity()).toBe(48);
     });
   });
 
