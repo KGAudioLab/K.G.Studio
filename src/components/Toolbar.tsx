@@ -29,6 +29,7 @@ import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { KGOfflineRenderer } from '../core/audio-interface/KGOfflineRenderer';
 import KGDropdown from './common/KGDropdown';
 import FileImportModal from './common/FileImportModal';
+import LoadingOverlay from './common/LoadingOverlay';
 import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
@@ -77,6 +78,7 @@ const Toolbar: React.FC = () => {
 
   // State for open project modal
   const [showOpenProject, setShowOpenProject] = React.useState(false);
+  const [isOpeningProject, setIsOpeningProject] = React.useState(false);
   
   // Close zoom slider on click outside
   React.useEffect(() => {
@@ -205,12 +207,7 @@ const Toolbar: React.FC = () => {
   };
 
   const handleOpenProjectSelect = async (projectNameToLoad: string) => {
-    const confirmed = await showConfirm(
-      'Open this project? Any unsaved changes in the current project will be lost.'
-    );
-    if (!confirmed) {
-      return false;
-    }
+    setIsOpeningProject(true);
 
     try {
       const storage = KGProjectStorage.getInstance();
@@ -218,16 +215,23 @@ const Toolbar: React.FC = () => {
 
       if (!loadedProject) {
         await showAlert(`Project "${projectNameToLoad}" not found.`);
-        return false;
+        return;
       }
 
       await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
-      return true;
     } catch (error) {
       console.error("Error loading project:", error);
       await showAlert(`An error occurred while loading the project: ${error}`);
-      return false;
+    } finally {
+      setIsOpeningProject(false);
     }
+  };
+
+  const handleConfirmOpenProject = async (_projectNameToLoad: string) => {
+    const confirmed = await showConfirm(
+      'Open this project? Any unsaved changes in the current project will be lost.'
+    );
+    return confirmed;
   };
 
   const handleSaveProject = async () => {
@@ -1207,9 +1211,15 @@ const Toolbar: React.FC = () => {
       description="Drag and drop your project file here"
     />
 
+    <LoadingOverlay
+      visible={isOpeningProject}
+      message="Opening project..."
+    />
+
     {showOpenProject && (
       <OpenProjectModal
         onClose={() => setShowOpenProject(false)}
+        onConfirmOpenProject={handleConfirmOpenProject}
         onOpenProject={handleOpenProjectSelect}
         currentProjectName={savedProjectName}
         onCreateNewProject={createNewProject}
