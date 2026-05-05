@@ -138,8 +138,46 @@
 }
 
 .piano-roll-toolbar .tool-button {
+  --toolbar-button-bg: transparent;
+  --toolbar-button-fg: #999;
   width: 20px;
   height: 20px;
+  background-color: var(--toolbar-button-bg);
+  color: var(--toolbar-button-fg);
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+
+.piano-roll-toolbar .tool-button svg {
+  transition: color 0.18s ease, fill 0.18s ease;
+}
+
+.piano-roll-toolbar .tool-button:hover {
+  --toolbar-button-bg: #3a3a3a;
+  --toolbar-button-fg: #e0e0e0;
+}
+
+.piano-roll-toolbar .tool-button.active {
+  --toolbar-button-bg: #e0e0e0;
+  --toolbar-button-fg: #2d2d2d;
+  background-color: var(--toolbar-button-bg);
+  color: var(--toolbar-button-fg);
+}
+
+.piano-roll-toolbar .tool-button.active:hover {
+  --toolbar-button-bg: #f0f0f0;
+}
+
+.piano-roll-toolbar .tool-button:active {
+  --toolbar-button-bg: #5a5a5a;
+  transform: scale(0.95);
+}
+
+.piano-roll-toolbar .tool-button.active:active {
+  --toolbar-button-bg: #d6d6d6;
 }
 
 /* Override pointer-events for piano roll toolbar sections */

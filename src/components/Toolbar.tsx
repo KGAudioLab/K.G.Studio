@@ -994,8 +994,7 @@ const Toolbar: React.FC = () => {
         )}
         <button
           title={isRecording ? "Stop Recording" : "Record"}
-          className={`tool-button ${isRecording ? 'active' : ''}`}
-          style={isRecording ? { color: 'red' } : undefined}
+          className={`tool-button record-button ${isRecording ? 'active' : ''}`}
           onClick={handleRecordClick}
         >
           <FaCircle />
