@@ -7,7 +7,7 @@ import type { RegionClickOptions, RegionUI } from '../interfaces';
 import { DEBUG_MODE, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
-import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, ImportAudioCommand, ImportMidiClipCommand } from '../../core/commands';
+import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand, ImportAudioCommand, ImportMidiClipCommand } from '../../core/commands';
 import { KGCore } from '../../core/KGCore';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
@@ -16,6 +16,7 @@ import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { showAlert } from '../../util/dialogUtil';
 import { parseMidiFirstTrackNotes } from '../../util/midiUtil';
 import * as Tone from 'tone';
+import { useProjectStore } from '../../stores/projectStore';
 
 interface TrackGridPanelProps {
   tracks: KGTrack[];
@@ -56,9 +57,17 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onOpenHybrid,
   onExternalDropComplete,
 }) => {
+  const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
+  const refreshProjectState = useProjectStore(state => state.refreshProjectState);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const pendingAudioImportRef = useRef<{ barNumber: number; trackIndex: number } | null>(null);
+
+  const getBulkSelectedRegionIds = (primaryRegionId: string) => (
+    selectedRegionIds.length > 1 && selectedRegionIds.includes(primaryRegionId)
+      ? selectedRegionIds
+      : [primaryRegionId]
+  );
 
   // Utility function to create a region at a specific position
   const createRegionAtPosition = async (e: React.MouseEvent<HTMLDivElement>, trackIndex: number) => {
@@ -252,7 +261,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   };
 
   // Handle region resize end
-  const handleRegionResizeEnd = (regionId: string, finalBarNumber: number, finalLength: number) => {
+  const handleRegionResizeEnd = async (regionId: string, finalBarNumber: number, finalLength: number) => {
     // Now we update the model with the final rounded values
     if (DEBUG_MODE.TRACK_GRID_PANEL) {
       console.log(`Finished resizing region ${regionId} to barNumber ${finalBarNumber}, length ${finalLength}`);
@@ -278,15 +287,17 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     if (coreRegion) {
       const oldStartBeat = coreRegion.getStartFromBeat();
       const oldBarNumber = region.barNumber;
+      const bulkRegionIds = getBulkSelectedRegionIds(regionId);
+      const isBulkEdit = bulkRegionIds.length > 1;
 
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`Updating KGRegion model - Before: startBeat=${oldStartBeat}, length=${coreRegion.getLength()}`);
         console.log(`Bar numbers - old: ${oldBarNumber}, new: ${finalBarNumber}`);
       }
 
-      // Clamp audio region resize to audio file boundaries
+      // Clamp audio region resize to audio file boundaries for single-region editing only.
       let newClipStartOffsetSeconds: number | undefined;
-      if (coreRegion instanceof KGAudioRegion) {
+      if (!isBulkEdit && coreRegion instanceof KGAudioRegion) {
         const bpm = KGCore.instance().getCurrentProject().getBpm();
         const secondsPerBeat = 60 / bpm;
         const clipOffset = coreRegion.getClipStartOffsetSeconds();
@@ -332,6 +343,20 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
       // Use command pattern to update the region position and length (note adjustments handled inside command)
       try {
+        if (isBulkEdit) {
+          const command = new ResizeMultipleRegionsCommand(
+            regionId,
+            clampedBarNumber !== oldBarNumber ? 'start' : 'end',
+            newStartBeat - oldStartBeat,
+            newLengthInBeats - coreRegion.getLength(),
+            bulkRegionIds
+          );
+
+          KGCore.instance().executeCommand(command, { rethrow: true });
+          refreshProjectState();
+          return;
+        }
+
         const command = ResizeRegionCommand.fromBarCoordinates(
           regionId,
           clampedBarNumber,
@@ -340,7 +365,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           newClipStartOffsetSeconds
         );
 
-        KGCore.instance().executeCommand(command);
+        KGCore.instance().executeCommand(command, { rethrow: true });
 
         if (DEBUG_MODE.TRACK_GRID_PANEL) {
           console.log(`Executed ResizeRegionCommand: region ${regionId} resized using command pattern`);
@@ -351,6 +376,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         }
       } catch (error) {
         console.error('Error resizing region:', error);
+        await showAlert(error instanceof Error ? error.message : 'Unable to resize the selected regions.');
         return;
       }
 
@@ -377,7 +403,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   };
 
   // Handle region drag end
-  const handleRegionDragEnd = (regionId: string, finalBarNumber: number, finalTrackIndex: number) => {
+  const handleRegionDragEnd = async (regionId: string, finalBarNumber: number, finalTrackIndex: number) => {
     // Now we update the model with the final rounded values
     if (DEBUG_MODE.TRACK_GRID_PANEL) {
       console.log(`Finished dragging region ${regionId} to barNumber ${finalBarNumber}, trackIndex ${finalTrackIndex}`);
@@ -386,8 +412,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Find the region
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
+    const bulkRegionIds = getBulkSelectedRegionIds(regionId);
+    const isBulkEdit = bulkRegionIds.length > 1;
+    const effectiveTrackIndex = isBulkEdit ? region.trackIndex : finalTrackIndex;
 
-    if (finalBarNumber === region.barNumber && finalTrackIndex === region.trackIndex) {
+    if (finalBarNumber === region.barNumber && effectiveTrackIndex === region.trackIndex) {
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`Skipping no-op move for region ${regionId}`);
       }
@@ -395,7 +424,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
     
     // Get the target track
-    const targetTrack = tracks[finalTrackIndex];
+    const targetTrack = tracks[effectiveTrackIndex];
     if (!targetTrack) return;
 
     // Block cross-type region moves (MIDI <-> Audio)
@@ -412,15 +441,29 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
     // Use command pattern to move the region
     try {
+      if (isBulkEdit) {
+        const oldStartBeat = (region.barNumber - 1) * timeSignature.numerator;
+        const newStartBeat = (finalBarNumber - 1) * timeSignature.numerator;
+        const command = new MoveMultipleRegionsCommand(
+          regionId,
+          newStartBeat - oldStartBeat,
+          bulkRegionIds
+        );
+
+        KGCore.instance().executeCommand(command, { rethrow: true });
+        refreshProjectState();
+        return;
+      }
+
       const command = MoveRegionCommand.fromBarCoordinates(
         regionId,
         finalBarNumber,
         targetTrack.getId().toString(),
-        finalTrackIndex,
+        effectiveTrackIndex,
         timeSignature
       );
       
-      KGCore.instance().executeCommand(command);
+      KGCore.instance().executeCommand(command, { rethrow: true });
 
       // Copy audio buffer to target track if this is a cross-track audio region move
       if (sourceTrack && targetTrack && sourceTrack.getId() !== targetTrack.getId()) {
@@ -444,6 +487,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       }
     } catch (error) {
       console.error('Error moving region:', error);
+      await showAlert(error instanceof Error ? error.message : 'Unable to move the selected regions.');
       return;
     }
     
@@ -454,7 +498,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Update the region in the parent component with expected model values
     if (onRegionUpdated) {
       // Find the updated region to get its length
-      const updatedTrack = tracks[finalTrackIndex];
+      const updatedTrack = tracks[effectiveTrackIndex];
       const updatedRegions = updatedTrack.getRegions();
       const updatedRegion = updatedRegions.find(r => r.getId() === regionId);
       
@@ -462,7 +506,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         regionId, 
         { 
           trackId: targetTrack.getId().toString(), 
-          trackIndex: finalTrackIndex, 
+          trackIndex: effectiveTrackIndex, 
           barNumber: finalBarNumber 
         },
         { 
@@ -474,19 +518,32 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   };
 
   // Handle fine-move end — execute MoveRegionCommand with float-precision beat position
-  const handleRegionFineMoveEnd = (regionId: string, deltaInBars: number) => {
+  const handleRegionFineMoveEnd = async (regionId: string, deltaInBars: number) => {
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
     const track = tracks.find(t => t.getId().toString() === region.trackId);
     if (!track) return;
     const coreRegion = track.getRegions().find(r => r.getId() === regionId);
     if (!coreRegion) return;
+    const bulkRegionIds = getBulkSelectedRegionIds(regionId);
+    const isBulkEdit = bulkRegionIds.length > 1;
 
     const beatsPerBar = timeSignature.numerator;
     const newStartFromBeat = Math.max(0, coreRegion.getStartFromBeat() + deltaInBars * beatsPerBar);
     if (newStartFromBeat === coreRegion.getStartFromBeat()) return;
 
     try {
+      if (isBulkEdit) {
+        const command = new MoveMultipleRegionsCommand(
+          regionId,
+          deltaInBars * beatsPerBar,
+          bulkRegionIds
+        );
+        KGCore.instance().executeCommand(command, { rethrow: true });
+        refreshProjectState();
+        return;
+      }
+
       // Use constructor directly (NOT fromBarCoordinates) to preserve float precision
       const command = new MoveRegionCommand(
         regionId,
@@ -494,7 +551,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         track.getId().toString(),
         region.trackIndex
       );
-      KGCore.instance().executeCommand(command);
+      KGCore.instance().executeCommand(command, { rethrow: true });
 
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`Fine-moved region ${regionId}: startFromBeat=${newStartFromBeat}`);
@@ -508,6 +565,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       );
     } catch (error) {
       console.error('Error executing fine-move:', error);
+      await showAlert(error instanceof Error ? error.message : 'Unable to move the selected regions.');
     }
   };
 

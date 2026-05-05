@@ -588,8 +588,8 @@ export class KGCore {
    * Execute a command through the command history system
    * @param command The command to execute
    */
-  public executeCommand(command: KGCommand): void {
-    this.commandHistory.executeCommand(command);
+  public executeCommand(command: KGCommand, options?: { rethrow?: boolean }): void {
+    this.commandHistory.executeCommand(command, options);
   }
 
   /**

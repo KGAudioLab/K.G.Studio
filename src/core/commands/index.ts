@@ -18,6 +18,7 @@ export { CreateRegionCommand } from './region/CreateRegionCommand';
 export { DeleteRegionCommand, DeleteMultipleRegionsCommand } from './region/DeleteRegionCommand';
 export { ResizeRegionCommand } from './region/ResizeRegionCommand';
 export { MoveRegionCommand } from './region/MoveRegionCommand';
+export { MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand } from './region/TransformRegionsCommand';
 export { PasteRegionsCommand } from './region/PasteRegionsCommand';
 export { UpdateRegionCommand, type RegionUpdateProperties } from './region/UpdateRegionCommand';
 export { ImportAudioCommand } from './region/ImportAudioCommand';

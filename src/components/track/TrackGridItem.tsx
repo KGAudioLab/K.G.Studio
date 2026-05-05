@@ -8,6 +8,7 @@ import type { RegionClickOptions, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
+import { useProjectStore } from '../../stores/projectStore';
 
 interface TrackGridItemProps {
   track: KGTrack;
@@ -60,6 +61,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   allTracks,
   onKGOneClipDrop,
 }) => {
+  const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
   const [containerWidth, setContainerWidth] = useState(0);
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
@@ -79,6 +81,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const currentDragTop = useRef<number | null>(null);
   const currentDragRegion = useRef<RegionUI | null>(null);
   const trackElementRef = useRef<HTMLDivElement | null>(null);
+
+  const isBulkRegionEdit = (regionId: string) => selectedRegionIds.length > 1 && selectedRegionIds.includes(regionId);
 
   // Update container width when the grid container changes size
   useEffect(() => {
@@ -393,6 +397,9 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Get the initial left position
     const initialLeft = (region.barNumber - 1) * barWidth;
     
+    const isBulkEdit = isBulkRegionEdit(regionId);
+    const appliedDeltaY = isBulkEdit ? 0 : deltaY;
+
     // Calculate new left position
     const newLeft = initialLeft + deltaX;
     
@@ -401,7 +408,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // Store the current drag position for use in handleRegionDragEnd
     currentDragLeft.current = newLeft;
-    currentDragTop.current = deltaY;
+    currentDragTop.current = appliedDeltaY;
     
     if (DEBUG_MODE.TRACK_GRID_ITEM) {
       console.log(`DRAG: regionId=${regionId}, deltaX=${deltaX}, deltaY=${deltaY}, newBarNumber=${newBarNumber}`);
@@ -413,7 +420,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       width: `${region.length * barWidth}px`,
       position: 'absolute' as const,
       zIndex: 100, // Keep on top during drag
-      transform: `translateY(${deltaY}px)`,
+      transform: `translateY(${appliedDeltaY}px)`,
     };
     
     setTempRegionStyles(prev => ({
@@ -449,13 +456,14 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // If the mouse was moved, calculate the final position
     if (mouseMoved.current && currentDragLeft.current !== null && currentDragTop.current !== null) {
+      const isBulkEdit = isBulkRegionEdit(regionId);
       // Calculate the new bar number; snap to nearest integer when snapping is on
       const snap = KGMainContentState.instance().isSnappingEnabled();
       const rawBarNumber = (currentDragLeft.current / barWidth) + 1;
       finalBarNumber = Math.max(1, snap ? Math.round(rawBarNumber) : rawBarNumber);
       
       // Calculate the closest track based on vertical position
-      if (allTracks && allTracks.length > 0 && gridContainerRef.current) {
+      if (!isBulkEdit && allTracks && allTracks.length > 0 && gridContainerRef.current) {
         const trackHeight = gridContainerRef.current.clientHeight / allTracks.length;
         
         // Calculate the absolute vertical position
@@ -476,6 +484,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             console.log(`Track change: from trackIndex=${region.trackIndex} (trackId=${region.trackId}) to trackIndex=${finalTrackIndex} (trackId=${allTracks[finalTrackIndex].getId()})`);
           }
         }
+      } else {
+        finalTrackIndex = region.trackIndex;
       }
       
       if (DEBUG_MODE.TRACK_GRID_ITEM) {
