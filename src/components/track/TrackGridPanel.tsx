@@ -32,6 +32,7 @@ interface TrackGridPanelProps {
   onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startBeat: number, length: number }) => void;
   onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onRegionLassoSelection?: (regionIds: string[], options: RegionClickOptions) => void;
+  onRegionLassoCommit?: () => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
@@ -53,6 +54,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onRegionUpdated,
   onRegionClick,
   onRegionLassoSelection,
+  onRegionLassoCommit,
   onOpenPianoRoll,
   onOpenSpectrogram,
   showHybridButtonForAudio,
@@ -160,12 +162,36 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       });
 
       const intersectedRegionIds = intersectedRegions.map(region => region.id);
-      if (releaseRegionIndex > -1) {
-        const [releaseRegionId] = intersectedRegionIds.splice(releaseRegionIndex, 1);
-        intersectedRegionIds.push(releaseRegionId);
+      if (intersectedRegionIds.length > 0) {
+        const primaryRegionIndex = releaseRegionIndex > -1
+          ? releaseRegionIndex
+          : intersectedRegions.reduce((closestIndex, region, index, allRegions) => {
+              const regionLeft = (region.barNumber - 1) * barWidth;
+              const regionRight = regionLeft + (region.length * barWidth);
+              const regionTop = region.trackIndex * 120;
+              const regionBottom = regionTop + 120;
+              const regionCenterX = (regionLeft + regionRight) / 2;
+              const regionCenterY = (regionTop + regionBottom) / 2;
+              const regionDistance = Math.hypot(releasePointX - regionCenterX, releasePointY - regionCenterY);
+
+              const closestRegion = allRegions[closestIndex];
+              const closestLeft = (closestRegion.barNumber - 1) * barWidth;
+              const closestRight = closestLeft + (closestRegion.length * barWidth);
+              const closestTop = closestRegion.trackIndex * 120;
+              const closestBottom = closestTop + 120;
+              const closestCenterX = (closestLeft + closestRight) / 2;
+              const closestCenterY = (closestTop + closestBottom) / 2;
+              const closestDistance = Math.hypot(releasePointX - closestCenterX, releasePointY - closestCenterY);
+
+              return regionDistance < closestDistance ? index : closestIndex;
+            }, 0);
+
+        const [primaryRegionId] = intersectedRegionIds.splice(primaryRegionIndex, 1);
+        intersectedRegionIds.push(primaryRegionId);
       }
 
       onRegionLassoSelection?.(intersectedRegionIds, { shiftKey: isLassoShiftPressedRef.current });
+      onRegionLassoCommit?.();
     }
 
     isLassoSelectingRef.current = false;

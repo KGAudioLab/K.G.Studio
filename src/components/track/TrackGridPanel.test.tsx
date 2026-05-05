@@ -119,6 +119,17 @@ describe('TrackGridPanel lasso selection', () => {
     expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-b', 'region-a'], { shiftKey: false });
   });
 
+  it('uses the closest intersected region as primary when release is outside all regions', () => {
+    const { container, onRegionLassoSelection } = renderPanel();
+    const firstTrackGrid = container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+
+    fireEvent.mouseDown(firstTrackGrid, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.mouseMove(document, { clientX: 150, clientY: 170 });
+    fireEvent.mouseUp(document, { clientX: 150, clientY: 170 });
+
+    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-a', 'region-b'], { shiftKey: false });
+  });
+
   it('clears selection on a plain empty-space click', () => {
     const { container, onRegionLassoSelection } = renderPanel();
     const firstTrackGrid = container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;

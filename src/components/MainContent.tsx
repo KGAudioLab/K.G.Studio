@@ -94,6 +94,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
+  const preventEmptyMainContentDeselectRef = useRef(false);
 
   // Refs for auto-scroll during playback
   const mainContentRef = useRef<HTMLDivElement | null>(null);
@@ -632,7 +633,16 @@ const MainContent: React.FC<MainContentProps> = ({
       return;
     }
 
+    if (preventEmptyMainContentDeselectRef.current) {
+      preventEmptyMainContentDeselectRef.current = false;
+      return;
+    }
+
     handleRegionLassoSelection([], { shiftKey: false });
+  };
+
+  const handleRegionLassoCommit = () => {
+    preventEmptyMainContentDeselectRef.current = true;
   };
 
   // Handle region single click: selection only (no piano roll opening)
@@ -990,6 +1000,7 @@ const MainContent: React.FC<MainContentProps> = ({
             onRegionUpdated={handleRegionUpdated}
             onRegionClick={handleRegionClick}
             onRegionLassoSelection={handleRegionLassoSelection}
+            onRegionLassoCommit={handleRegionLassoCommit}
             onOpenPianoRoll={handleOpenPianoRoll}
             onOpenSpectrogram={handleOpenSpectrogram}
             showHybridButtonForAudio={showHybridButtonForAudio}
