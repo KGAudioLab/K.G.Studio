@@ -202,6 +202,29 @@ interface ProjectState {
 let _recordingActiveNotes: Map<number, number> = new Map(); // pitch → region-relative startBeat
 let _recordingRegionStartBeat: number = 0;
 
+function getRecordingLoopEndBeatRelative(): number | null {
+  const project = KGCore.instance().getCurrentProject();
+  if (!project.getIsLooping()) {
+    return null;
+  }
+
+  const [startBar, endBarOriginal] = project.getLoopingRange();
+  const beatsPerBar = project.getTimeSignature().numerator;
+  const endBar = (startBar === 0 && endBarOriginal === 0) ? project.getMaxBars() : endBarOriginal;
+  const loopEndBeatAbsolute = (endBar + 1) * beatsPerBar;
+
+  return loopEndBeatAbsolute - _recordingRegionStartBeat;
+}
+
+function finalizeRecordedNote(startBeat: number, candidateEndBeat: number): number {
+  const loopEndBeatRelative = getRecordingLoopEndBeatRelative();
+  if (loopEndBeatRelative !== null && candidateEndBeat < startBeat) {
+    return loopEndBeatRelative;
+  }
+
+  return candidateEndBeat;
+}
+
 // Create the store
 export const useProjectStore = create<ProjectState>((set, get) => {
   const currentProject = KGCore.instance().getCurrentProject();
@@ -869,8 +892,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           const startBeat = _recordingActiveNotes.get(pitch);
           if (startBeat !== undefined) {
             _recordingActiveNotes.delete(pitch);
+            const finalizedEndBeat = finalizeRecordedNote(startBeat, endBeat);
             set(state => ({
-              recordingNotes: [...state.recordingNotes, { pitch, startBeat, endBeat }],
+              recordingNotes: [...state.recordingNotes, { pitch, startBeat, endBeat: finalizedEndBeat }],
             }));
           }
         }
@@ -902,7 +926,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const endBeatForHeld = KGAudioInterface.instance().getTransportPosition() - correctionBeats - _recordingRegionStartBeat;
 
       _recordingActiveNotes.forEach((startBeat, pitch) => {
-        finalNotes.push({ pitch, startBeat, endBeat: endBeatForHeld });
+        finalNotes.push({ pitch, startBeat, endBeat: finalizeRecordedNote(startBeat, endBeatForHeld) });
       });
       _recordingActiveNotes.clear();
 
@@ -1245,8 +1269,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   };
 }); 
-
-
 
 
 

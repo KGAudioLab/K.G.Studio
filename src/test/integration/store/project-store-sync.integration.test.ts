@@ -366,6 +366,53 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(setRecordingCallbacksSpy).toHaveBeenLastCalledWith(null, null);
       expect(testRegion.getNotes()).toHaveLength(1);
     });
+
+    it('should cut a held looped recording note at the loop end when note off arrives after wrap', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+      testProject.setIsLooping(true);
+      testProject.setLoopingRange([4, 7]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      vi.spyOn(mockAudioInterface, 'getTransportPosition')
+        .mockReturnValueOnce(31.4)
+        .mockReturnValueOnce(16.9);
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(18);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const noteOn = setRecordingCallbacksSpy.mock.calls.at(-1)?.[0];
+      const noteOff = setRecordingCallbacksSpy.mock.calls.at(-1)?.[1];
+
+      act(() => {
+        noteOn?.(60);
+        noteOff?.(60);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      const notes = testRegion.getNotes();
+      expect(notes).toHaveLength(1);
+      expect(notes[0].getStartBeat()).toBeCloseTo(15);
+      expect(notes[0].getEndBeat()).toBeCloseTo(16);
+    });
   });
 
   describe('Selection State Synchronization', () => {
