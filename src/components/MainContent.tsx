@@ -95,6 +95,7 @@ const MainContent: React.FC<MainContentProps> = ({
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
   const preventEmptyMainContentDeselectRef = useRef(false);
+  const pendingAutoSelectionRegionIdRef = useRef<string | null>(null);
 
   // Refs for auto-scroll during playback
   const mainContentRef = useRef<HTMLDivElement | null>(null);
@@ -288,6 +289,18 @@ const MainContent: React.FC<MainContentProps> = ({
     setRegions(updatedRegions);
   }, [tracks, timeSignature]);
 
+  // Apply auto-selection for newly created/imported regions after the regions state commits.
+  useEffect(() => {
+    const pendingRegionId = pendingAutoSelectionRegionIdRef.current;
+    if (!pendingRegionId) return;
+
+    const regionExists = regions.some(region => region.id === pendingRegionId);
+    if (!regionExists) return;
+
+    pendingAutoSelectionRegionIdRef.current = null;
+    selectRegion(pendingRegionId, { shiftKey: false }, regions);
+  }, [regions]);
+
   // Handle track name edit
   const handleTrackNameEdit = (track: KGTrack, newName: string) => {
     // Use the command pattern to update track name with undo support
@@ -347,28 +360,8 @@ const MainContent: React.FC<MainContentProps> = ({
     // Select the track that contains the new region
     setSelectedTrack(track.getId().toString());
 
-    // Add the new region to the UI state and select it immediately
-    setRegions(prevRegions => {
-      const updatedRegions = [...prevRegions, regionUI];
-
-      // Select the region using the updated regions array
-      selectRegion(regionUI.id, { shiftKey: false }, updatedRegions);
-
-      // Manually trigger selection sync to ensure UI updates immediately
-      const { syncSelectionFromCore } = useProjectStore.getState();
-      syncSelectionFromCore();
-
-      // If piano roll is visible, set this region as the active region
-      if (showPianoRoll) {
-        setActiveRegionId(regionUI.id);
-
-        if (DEBUG_MODE.MAIN_CONTENT) {
-          console.log(`Newly created region ${regionUI.id} set as active region in piano roll`);
-        }
-      }
-
-      return updatedRegions;
-    });
+    pendingAutoSelectionRegionIdRef.current = regionUI.id;
+    setRegions(prevRegions => [...prevRegions, regionUI]);
   };
 
   // Handle regions dropped from K.G.One panel (external drag-and-drop)
@@ -385,11 +378,8 @@ const MainContent: React.FC<MainContentProps> = ({
       document.documentElement.style.setProperty('--max-number-of-bars', coreMaxBars.toString());
     }
 
-    setRegions(prev => {
-      const updated = [...prev, regionUI];
-      selectRegion(regionUI.id, { shiftKey: false }, updated);
-      return updated;
-    });
+    pendingAutoSelectionRegionIdRef.current = regionUI.id;
+    setRegions(prev => [...prev, regionUI]);
   };
 
   // Handle region updates (resize, move, etc.)
