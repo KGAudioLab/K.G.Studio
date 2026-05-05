@@ -26,6 +26,7 @@ export { ImportMidiClipCommand } from './region/ImportMidiClipCommand';
 export { ImportStemsCommand } from './region/ImportStemsCommand';
 export type { StemImportEntry } from './region/ImportStemsCommand';
 export { SplitRegionCommand } from './region/SplitRegionCommand';
+export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';

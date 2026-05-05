@@ -12,7 +12,7 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog, FaMagnet, FaCut, FaCircle
+  FaCog, FaMagnet, FaCut, FaCircle, FaCompress
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
@@ -22,6 +22,7 @@ import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-i
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { SplitRegionCommand } from '../core/commands/region/SplitRegionCommand';
+import { MergeMidiRegionsCommand } from '../core/commands/region/MergeMidiRegionsCommand';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
@@ -762,6 +763,99 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  const handleMergeClick = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log('Merge button clicked');
+    }
+
+    if (selectedRegionIds.length < 2) {
+      await showAlert('Please select at least two MIDI regions on the same track to merge.');
+      return;
+    }
+
+    const tracks = KGCore.instance().getCurrentProject().getTracks();
+    const selectedRegionIdSet = new Set(selectedRegionIds);
+    const selectedMidiRegions: KGMidiRegion[] = [];
+    let targetTrackId: string | null = null;
+
+    for (const track of tracks) {
+      for (const region of track.getRegions()) {
+        if (!selectedRegionIdSet.has(region.getId())) {
+          continue;
+        }
+
+        if (!(region instanceof KGMidiRegion)) {
+          await showAlert('Only MIDI regions can be merged. Please adjust your selection and try again.');
+          return;
+        }
+
+        const regionTrackId = track.getId().toString();
+        if (targetTrackId && targetTrackId !== regionTrackId) {
+          await showAlert('Please select only MIDI regions from a single track before merging.');
+          return;
+        }
+
+        targetTrackId = regionTrackId;
+        selectedMidiRegions.push(region);
+      }
+    }
+
+    if (selectedMidiRegions.length !== selectedRegionIds.length || !targetTrackId) {
+      await showAlert('Some selected regions could not be found. Please reselect the MIDI regions and try again.');
+      return;
+    }
+
+    const sortedSelectedRegions = [...selectedMidiRegions].sort((a, b) => {
+      const startDelta = a.getStartFromBeat() - b.getStartFromBeat();
+      if (startDelta !== 0) return startDelta;
+      return a.getLength() - b.getLength();
+    });
+
+    let regionIdsToMerge = selectedRegionIds;
+    const firstSelectedRegion = sortedSelectedRegions[0];
+    const lastSelectedRegion = sortedSelectedRegions[sortedSelectedRegions.length - 1];
+    const spanStart = firstSelectedRegion.getStartFromBeat();
+    const spanEnd = lastSelectedRegion.getStartFromBeat() + lastSelectedRegion.getLength();
+
+    const targetTrack = tracks.find(track => track.getId().toString() === targetTrackId);
+    const inBetweenRegions = targetTrack
+      ?.getRegions()
+      .filter(region => (
+        region instanceof KGMidiRegion &&
+        !selectedRegionIdSet.has(region.getId()) &&
+        region.getStartFromBeat() >= spanStart &&
+        region.getStartFromBeat() <= spanEnd
+      )) ?? [];
+
+    if (inBetweenRegions.length > 0) {
+      const shouldIncludeInBetweenRegions = await showConfirm(
+        'There are additional MIDI regions between the first and last selected regions on this track. Would you like KGStudio to merge those as well?',
+        {
+          confirmLabel: 'Merge All In Between',
+          cancelLabel: 'Stop',
+        }
+      );
+
+      if (!shouldIncludeInBetweenRegions) {
+        return;
+      }
+
+      regionIdsToMerge = Array.from(new Set([
+        ...selectedRegionIds,
+        ...inBetweenRegions.map(region => region.getId()),
+      ]));
+    }
+
+    try {
+      const command = new MergeMidiRegionsCommand(regionIdsToMerge);
+      KGCore.instance().executeCommand(command, { rethrow: true });
+      refreshProjectState();
+      setStatus(`Merged ${regionIdsToMerge.length} MIDI regions`);
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : 'Unable to merge the selected MIDI regions.');
+    }
+  };
+
   // Handle undo button click
   const handleUndoClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
@@ -974,6 +1068,12 @@ const Toolbar: React.FC = () => {
           onClick={handleSplitClick}
         >
           <FaCut />
+        </button>
+        <button
+          title="Merge Selected MIDI Regions"
+          onClick={handleMergeClick}
+        >
+          <FaCompress />
         </button>
         <button
           title="Snap to Grid"
