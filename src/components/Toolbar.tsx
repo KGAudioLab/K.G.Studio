@@ -53,7 +53,8 @@ const Toolbar: React.FC = () => {
     // Selection state
     selectedRegionIds,
     // Playhead and refresh
-    playheadPosition, refreshProjectState
+    playheadPosition, refreshProjectState,
+    requestMainContentScroll, requestPianoRollScroll
   } = useProjectStore();
 
   // State for main content tools
@@ -533,6 +534,8 @@ const Toolbar: React.FC = () => {
       console.log("Back to beginning button clicked");
     }
     setPlayheadPosition(0);
+    requestMainContentScroll(0);
+    requestPianoRollScroll(0);
   };
 
   const handleLoopToggle = () => {
