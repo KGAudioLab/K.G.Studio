@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { KGAudioInterface } from '../../../core/audio-interface/KGAudioInterface';
+import {
+  normalizeSpectrogramHeightResolution,
+  type SpectrogramHeightResolution,
+} from '../../../util/spectrogramUtil';
 
 const BehaviorSettings: React.FC = () => {
   const [playheadUpdateFrequency, setPlayheadUpdateFrequency] = useState<number>(10);
+  const [spectrogramHeightResolution, setSpectrogramHeightResolution] = useState<SpectrogramHeightResolution>(3);
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
   const [audioLookaheadTime, setAudioLookaheadTime] = useState<string>('50');
   const [playbackDelay, setPlaybackDelay] = useState<string>('200');
@@ -23,6 +28,9 @@ const BehaviorSettings: React.FC = () => {
       }
 
       setPlayheadUpdateFrequency((configManager.get('editor.playhead_update_frequency') as number) ?? 10);
+      setSpectrogramHeightResolution(
+        normalizeSpectrogramHeightResolution(configManager.get('editor.spectrogram_height_resolution'))
+      );
       setChatboxDefaultOpen((configManager.get('chatbox.default_open') as boolean) ?? true);
       const lookaheadTimeSeconds = (configManager.get('audio.lookahead_time') as number) ?? 0.05;
       setAudioLookaheadTime(((lookaheadTimeSeconds * 1000).toFixed(0)));
@@ -48,6 +56,12 @@ const BehaviorSettings: React.FC = () => {
     const boolValue = value === 'yes';
     setChatboxDefaultOpen(boolValue);
     await configManager.set('chatbox.default_open', boolValue);
+  };
+
+  const handleSpectrogramHeightResolutionChange = async (value: string) => {
+    const nextValue = normalizeSpectrogramHeightResolution(parseInt(value, 10));
+    setSpectrogramHeightResolution(nextValue);
+    await configManager.set('editor.spectrogram_height_resolution', nextValue);
   };
 
   const handleAudioLookaheadTimeChange = async (value: string) => {
@@ -159,6 +173,24 @@ const BehaviorSettings: React.FC = () => {
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               Update frequency for the playhead animation during playback. Higher values (60 fps) provide smoother animation but use more CPU. Lower values (10 fps) are more efficient. Changes apply immediately without restart.
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Spectrogram Height Resolution
+            </label>
+            <select
+              className="settings-select"
+              value={spectrogramHeightResolution}
+              onChange={(e) => handleSpectrogramHeightResolutionChange(e.target.value)}
+            >
+              <option value="1">1x</option>
+              <option value="3">3x</option>
+              <option value="5">5x</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Controls vertical spectrogram detail across the visible pitch range. Higher values sharpen pitch contours but use more CPU and memory while computing the spectrogram.
             </div>
           </div>
         </div>

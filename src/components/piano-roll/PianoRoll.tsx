@@ -18,6 +18,10 @@ import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
 import { showAlert, showPrompt } from '../../util/dialogUtil';
+import {
+  normalizeSpectrogramHeightResolution,
+  type SpectrogramHeightResolution,
+} from '../../util/spectrogramUtil';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -50,6 +54,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Spectrogram controls (only used in spectrogram mode)
   const [spectrogramThresholdDb, setSpectrogramThresholdDb] = useState<number>(-25);
   const [spectrogramPower, setSpectrogramPower] = useState<number>(0.5);
+  const [spectrogramHeightResolution, setSpectrogramHeightResolution] =
+    useState<SpectrogramHeightResolution>(3);
 
   // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
@@ -200,6 +206,41 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       console.log(`Synced piano roll state on mount - snap: ${currentSnap}, tool: ${currentTool}`);
     }
   }, []); // Empty dependency array means this runs once on mount
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const initializeSpectrogramHeightResolution = async () => {
+      const configManager = ConfigManager.instance();
+      if (!configManager.getIsInitialized()) {
+        await configManager.initialize();
+      }
+
+      const applyResolutionFromConfig = () => {
+        setSpectrogramHeightResolution(
+          normalizeSpectrogramHeightResolution(
+            configManager.get('editor.spectrogram_height_resolution')
+          )
+        );
+      };
+
+      applyResolutionFromConfig();
+      unsubscribe = configManager.addChangeListener((changedKeys) => {
+        if (
+          changedKeys.includes('__all__') ||
+          changedKeys.includes('editor.spectrogram_height_resolution')
+        ) {
+          applyResolutionFromConfig();
+        }
+      });
+    };
+
+    void initializeSpectrogramHeightResolution();
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
 
   // Add keyboard event listener for Escape
   useEffect(() => {
@@ -1048,6 +1089,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         bpm={bpm}
         spectrogramThresholdDb={spectrogramThresholdDb}
         spectrogramPower={spectrogramPower}
+        spectrogramHeightResolution={spectrogramHeightResolution}
         pianoRollZoom={pianoRollZoom}
       />
       

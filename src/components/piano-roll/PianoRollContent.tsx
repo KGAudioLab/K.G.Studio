@@ -14,6 +14,7 @@ import { useNoteSelection } from '../../hooks/useNoteSelection';
 import type { KeySignature } from '../../core/KGProject';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { velocityToColor } from '../../util/velocityColor';
+import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 
 interface PianoRollContentProps {
   contentRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -35,6 +36,7 @@ interface PianoRollContentProps {
   bpm?: number;
   spectrogramThresholdDb?: number;
   spectrogramPower?: number;
+  spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
 }
 
@@ -58,6 +60,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   bpm = 120,
   spectrogramThresholdDb = -25,
   spectrogramPower = 0.5,
+  spectrogramHeightResolution = 3,
   pianoRollZoom = 1,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
@@ -295,6 +298,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
             bpm={bpm}
             spectrogramThresholdDb={spectrogramThresholdDb}
             spectrogramPower={spectrogramPower}
+            spectrogramHeightResolution={spectrogramHeightResolution}
             pianoRollZoom={pianoRollZoom}
             onSpectrogramLoadingChange={handleSpectrogramLoadingChange}
           >

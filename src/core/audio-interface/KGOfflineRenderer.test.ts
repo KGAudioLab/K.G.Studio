@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encodeWav } from './KGOfflineRenderer';
+import { encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
 
 /**
  * Create a minimal AudioBuffer-like object for testing.
@@ -143,5 +143,24 @@ describe('encodeWav', () => {
     expect(result.byteLength).toBe(44); // header only
     const view = new DataView(result);
     expect(view.getUint32(40, true)).toBe(0); // data size = 0
+  });
+});
+
+describe('offline track volume conversion', () => {
+  it('treats 0 dB as unity gain instead of silence', () => {
+    expect(getOfflineTrackVolumeDb(0, false)).toBe(0);
+    expect(getOfflineTrackGain(0, false)).toBe(1);
+  });
+
+  it('converts negative dB values to linear gain', () => {
+    expect(getOfflineTrackVolumeDb(-6, false)).toBe(-6);
+    expect(getOfflineTrackGain(-6, false)).toBeCloseTo(Math.pow(10, -6 / 20), 6);
+  });
+
+  it('silences muted tracks and floor-level volumes', () => {
+    expect(getOfflineTrackVolumeDb(0, true)).toBe(-Infinity);
+    expect(getOfflineTrackGain(0, true)).toBe(0);
+    expect(getOfflineTrackVolumeDb(-60, false)).toBe(-Infinity);
+    expect(getOfflineTrackGain(-60, false)).toBe(0);
   });
 });

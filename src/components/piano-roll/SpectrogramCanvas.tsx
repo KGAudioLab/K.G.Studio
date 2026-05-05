@@ -4,6 +4,12 @@ import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import type { SpectrogramRequest, SpectrogramResult } from '../../workers/spectrogramWorker';
+import {
+  getSpectrogramVisibleBinRange,
+  normalizeSpectrogramHeightResolution,
+  SPECTROGRAM_VISIBLE_SEMITONES,
+  type SpectrogramHeightResolution,
+} from '../../util/spectrogramUtil';
 
 interface SpectrogramCanvasProps {
   audioRegion: KGAudioRegion;
@@ -13,11 +19,9 @@ interface SpectrogramCanvasProps {
   thresholdDb: number;
   power: number;
   zoom: number;
+  heightResolution: SpectrogramHeightResolution;
   onLoadingChange?: (loading: boolean) => void;
 }
-
-const PITCH_BINS = 128;
-const HOP_SIZE = 1024;
 
 // Piecewise-linear RGB colormap: black → dark blue → blue → purple → red → orange → yellow
 // Hue rotates 240°→300°→0°→60°, bypassing green entirely.
@@ -56,6 +60,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
   thresholdDb,
   power,
   zoom,
+  heightResolution,
   onLoadingChange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -80,6 +85,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
     regionDurationSeconds: number,
     thresholdDb: number,
     power: number,
+    heightResolution: SpectrogramHeightResolution,
   ) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -92,31 +98,31 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
     const totalBeats = (regionDurationSeconds * bpm) / 60;
     // Always draw at 1x resolution; zoom is applied as CSS width stretch
     const canvasWidth = Math.ceil(totalBeats * 40);
-    const canvasHeight = PITCH_BINS * noteHeight;
+    const canvasHeight = SPECTROGRAM_VISIBLE_SEMITONES * noteHeight;
 
     // Convert dB threshold to linear: values below this → black
     const linearThreshold = Math.pow(10, thresholdDb / 20);
+    const visibleRange = getSpectrogramVisibleBinRange(heightResolution);
+    const visiblePitchBins = visibleRange.end - visibleRange.start;
 
-    // 1. Paint at natural STFT resolution onto an offscreen canvas (timeSteps × 128).
-    //    Row i = pitchIndex i = pitch (107 − i). Apply threshold then power curve.
+    // 1. Paint at natural spectrogram resolution onto an offscreen canvas.
+    //    Result data is low-to-high pitch; draw only the visible C0-B7 window, reversed for display.
     const offscreen = document.createElement('canvas');
     offscreen.width = result.timeSteps;
-    offscreen.height = PITCH_BINS;
+    offscreen.height = visiblePitchBins;
     const offCtx = offscreen.getContext('2d');
     if (!offCtx) return;
 
-    const imgData = offCtx.createImageData(result.timeSteps, PITCH_BINS);
+    const imgData = offCtx.createImageData(result.timeSteps, visiblePitchBins);
     const pixels = imgData.data;
 
-    for (let row = 0; row < PITCH_BINS; row++) {
-      const pitch = 107 - row;
+    for (let row = 0; row < visiblePitchBins; row++) {
+      const sourceRow = visibleRange.end - 1 - row;
       for (let col = 0; col < result.timeSteps; col++) {
         const idx = (row * result.timeSteps + col) * 4;
         pixels[idx + 3] = 255; // always opaque
 
-        if (pitch < 12 || pitch > 107) continue; // outside range → black
-
-        const raw = result.data[col * PITCH_BINS + pitch];
+        const raw = result.data[col * result.pitchBins + sourceRow];
 
         // Hard threshold: values below noise floor → 0 (black)
         // Re-scale surviving range to [0,1] then apply power curve
@@ -157,9 +163,10 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
         regionDurationRef.current,
         thresholdDb,
         power,
+        normalizeSpectrogramHeightResolution(heightResolution),
       );
     }
-  }, [thresholdDb, power, renderSpectrogram]);
+  }, [thresholdDb, power, renderSpectrogram, heightResolution]);
 
   // Zoom changes: stretch width only, pin height to canvas pixel height
   useEffect(() => {
@@ -211,7 +218,14 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
           rawResultRef.current = e.data;
           sampleRateRef.current = sampleRate;
           regionDurationRef.current = regionDurationSeconds;
-          renderSpectrogram(e.data, sampleRate, regionDurationSeconds, thresholdDb, power);
+          renderSpectrogram(
+            e.data,
+            sampleRate,
+            regionDurationSeconds,
+            thresholdDb,
+            power,
+            normalizeSpectrogramHeightResolution(heightResolution),
+          );
           setLoading(false);
           worker.terminate();
           workerRef.current = null;
@@ -223,6 +237,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
           clipStartOffsetSeconds: audioRegion.getClipStartOffsetSeconds(),
           regionDurationSeconds,
           bpm,
+          heightResolution: normalizeSpectrogramHeightResolution(heightResolution),
         };
         worker.postMessage(request, [request.pcm.buffer]);
       } catch (err) {
@@ -241,7 +256,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
       workerRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioRegion, trackId, projectName, bpm]);
+  }, [audioRegion, trackId, projectName, bpm, heightResolution]);
 
   return (
     <canvas

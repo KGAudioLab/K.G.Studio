@@ -3,6 +3,7 @@ import type { KGProject } from '../KGProject';
 import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { pitchToNoteNameString } from '../../util/midiUtil';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
@@ -254,9 +255,8 @@ export class KGOfflineRenderer {
               });
             });
 
-            // Apply volume
-            const volumeDb = trackInfo.volume > 0 ? 20 * Math.log10(trackInfo.volume) : -Infinity;
-            sampler.volume.value = volumeDb;
+            // Track volumes are stored in dB across the app, with 0 meaning unity gain.
+            sampler.volume.value = getOfflineTrackVolumeDb(trackInfo.volume, trackInfo.muted);
             sampler.connect(masterGain);
 
             // Schedule all notes for this track
@@ -288,7 +288,7 @@ export class KGOfflineRenderer {
       for (const trackInfo of audioTrackData) {
         if (!shouldPlay(trackInfo, hasSoloedTracks)) continue;
 
-        const trackGain = new Tone.Gain(trackInfo.volume);
+        const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
         trackGain.connect(masterGain);
 
         for (const regionInfo of trackInfo.regions) {
@@ -416,6 +416,16 @@ function shouldPlay(trackInfo: { muted: boolean; solo: boolean }, hasSoloedTrack
   if (trackInfo.muted) return false;
   if (hasSoloedTracks) return trackInfo.solo;
   return true;
+}
+
+export function getOfflineTrackVolumeDb(volumeDb: number, muted: boolean): number {
+  const isSilent = muted || volumeDb <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+  return isSilent ? -Infinity : volumeDb;
+}
+
+export function getOfflineTrackGain(volumeDb: number, muted: boolean): number {
+  const effectiveVolumeDb = getOfflineTrackVolumeDb(volumeDb, muted);
+  return Number.isFinite(effectiveVolumeDb) ? Math.pow(10, effectiveVolumeDb / 20) : 0;
 }
 
 // ===== WAV ENCODER =====

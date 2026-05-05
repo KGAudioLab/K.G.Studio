@@ -71,6 +71,7 @@ interface AppConfig {
   };
   editor: {
     playhead_update_frequency: number;
+    spectrogram_height_resolution: 1 | 3 | 5;
   };
   chatbox: {
     default_open: boolean;
@@ -243,7 +244,8 @@ export class ConfigManager {
           },
         },
         editor: {
-          playhead_update_frequency: 10
+          playhead_update_frequency: 10,
+          spectrogram_height_resolution: 3
         },
         chatbox: {
           default_open: true

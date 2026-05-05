@@ -8,6 +8,7 @@ import type { KeySignature } from '../../core/KGProject';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import SpectrogramCanvas from './SpectrogramCanvas';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -32,6 +33,7 @@ interface PianoGridProps {
   bpm?: number;
   spectrogramThresholdDb?: number;
   spectrogramPower?: number;
+  spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
   mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
   onSpectrogramLoadingChange?: (loading: boolean) => void;
@@ -62,6 +64,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   bpm = 120,
   spectrogramThresholdDb = -25,
   spectrogramPower = 0.5,
+  spectrogramHeightResolution = 3,
   pianoRollZoom = 1,
   onSpectrogramLoadingChange,
 }) => {
@@ -245,6 +248,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
             thresholdDb={spectrogramThresholdDb}
             power={spectrogramPower}
             zoom={pianoRollZoom}
+            heightResolution={spectrogramHeightResolution}
             onLoadingChange={onSpectrogramLoadingChange}
           />
         )}
