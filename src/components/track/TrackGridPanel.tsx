@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { KGTrack, TrackType } from '../../core/track/KGTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import TrackGridItem from './TrackGridItem';
 import { Playhead, FileImportModal } from '../common';
+import SelectionBox from '../piano-roll/SelectionBox';
 import type { RegionClickOptions, RegionUI } from '../interfaces';
-import { DEBUG_MODE, REGION_CONSTANTS } from '../../constants';
+import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand, ImportAudioCommand, ImportMidiClipCommand } from '../../core/commands';
@@ -30,6 +31,7 @@ interface TrackGridPanelProps {
   onRegionCreated: (trackIndex: number, region: RegionUI, midiRegion: KGMidiRegion) => void;
   onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startBeat: number, length: number }) => void;
   onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
+  onRegionLassoSelection?: (regionIds: string[], options: RegionClickOptions) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
@@ -50,6 +52,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onRegionCreated,
   onRegionUpdated,
   onRegionClick,
+  onRegionLassoSelection,
   onOpenPianoRoll,
   onOpenSpectrogram,
   showHybridButtonForAudio,
@@ -62,12 +65,121 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const pendingAudioImportRef = useRef<{ barNumber: number; trackIndex: number } | null>(null);
+  const isLassoSelectingRef = useRef(false);
+  const isLassoShiftPressedRef = useRef(false);
+  const lassoBoxRef = useRef({ startX: 0, startY: 0, endX: 0, endY: 0 });
+  const [lassoRenderTick, setLassoRenderTick] = useState(0);
 
   const getBulkSelectedRegionIds = (primaryRegionId: string) => (
     selectedRegionIds.length > 1 && selectedRegionIds.includes(primaryRegionId)
       ? selectedRegionIds
       : [primaryRegionId]
   );
+
+  const startLassoSelection = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (KGMainContentState.instance().getActiveTool() !== 'pointer') return;
+    if (isModifierKeyPressed(e)) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    if (!e.target.closest('.track-grid')) return;
+    if (e.target.closest('.track-region')) return;
+
+    const rect = gridContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+
+    isLassoSelectingRef.current = true;
+    isLassoShiftPressedRef.current = e.shiftKey;
+    lassoBoxRef.current = { startX, startY, endX: startX, endY: startY };
+    setLassoRenderTick(prev => prev + 1);
+
+    document.addEventListener('mousemove', handleLassoMouseMove);
+    document.addEventListener('mouseup', handleLassoMouseUp);
+  };
+
+  const handleLassoMouseMove = (e: MouseEvent) => {
+    if (!isLassoSelectingRef.current || !gridContainerRef.current) return;
+
+    const rect = gridContainerRef.current.getBoundingClientRect();
+    lassoBoxRef.current = {
+      ...lassoBoxRef.current,
+      endX: e.clientX - rect.left,
+      endY: e.clientY - rect.top,
+    };
+    setLassoRenderTick(prev => prev + 1);
+  };
+
+  const handleLassoMouseUp = () => {
+    if (!isLassoSelectingRef.current || !gridContainerRef.current) return;
+
+    const { startX, startY, endX, endY } = lassoBoxRef.current;
+    const left = Math.min(startX, endX);
+    const top = Math.min(startY, endY);
+    const right = Math.max(startX, endX);
+    const bottom = Math.max(startY, endY);
+    const isClick = (right - left < PIANO_ROLL_CONSTANTS.DRAG_THRESHOLD)
+      && (bottom - top < PIANO_ROLL_CONSTANTS.DRAG_THRESHOLD);
+
+    if (isClick) {
+      if (!isLassoShiftPressedRef.current) {
+        onRegionLassoSelection?.([], { shiftKey: false });
+      }
+    } else {
+      const containerWidth = gridContainerRef.current.clientWidth;
+      const barWidth = containerWidth > 0 ? containerWidth / maxBars : 0;
+      const releasePointX = endX;
+      const releasePointY = endY;
+      const intersectedRegions = barWidth > 0
+        ? regions.filter(region => {
+            const regionLeft = (region.barNumber - 1) * barWidth;
+            const regionRight = regionLeft + (region.length * barWidth);
+            const regionTop = region.trackIndex * 120;
+            const regionBottom = regionTop + 120;
+
+            return !(
+              regionRight < left ||
+              regionLeft > right ||
+              regionBottom < top ||
+              regionTop > bottom
+            );
+          })
+        : [];
+
+      const releaseRegionIndex = intersectedRegions.findIndex(region => {
+        const regionLeft = (region.barNumber - 1) * barWidth;
+        const regionRight = regionLeft + (region.length * barWidth);
+        const regionTop = region.trackIndex * 120;
+        const regionBottom = regionTop + 120;
+
+        return releasePointX >= regionLeft
+          && releasePointX <= regionRight
+          && releasePointY >= regionTop
+          && releasePointY <= regionBottom;
+      });
+
+      const intersectedRegionIds = intersectedRegions.map(region => region.id);
+      if (releaseRegionIndex > -1) {
+        const [releaseRegionId] = intersectedRegionIds.splice(releaseRegionIndex, 1);
+        intersectedRegionIds.push(releaseRegionId);
+      }
+
+      onRegionLassoSelection?.(intersectedRegionIds, { shiftKey: isLassoShiftPressedRef.current });
+    }
+
+    isLassoSelectingRef.current = false;
+    setLassoRenderTick(prev => prev + 1);
+    document.removeEventListener('mousemove', handleLassoMouseMove);
+    document.removeEventListener('mouseup', handleLassoMouseUp);
+  };
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleLassoMouseMove);
+      document.removeEventListener('mouseup', handleLassoMouseUp);
+    };
+  }, []);
 
   // Utility function to create a region at a specific position
   const createRegionAtPosition = async (e: React.MouseEvent<HTMLDivElement>, trackIndex: number) => {
@@ -738,7 +850,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   };
 
   return (
-    <div className="grid-container" ref={gridContainerRef}>
+    <div className="grid-container" ref={gridContainerRef} onMouseDownCapture={startLassoSelection}>
       {/* Playhead */}
       <Playhead context="main-grid" />
 
@@ -779,6 +891,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         acceptedTypes={['.wav', '.mp3', '.ogg', '.flac', '.aac']}
         title="Import Audio"
         description="Drag and drop your audio file here"
+      />
+      <SelectionBox
+        key={lassoRenderTick}
+        isSelecting={isLassoSelectingRef.current}
+        selectionBox={lassoBoxRef.current}
       />
     </div>
   );

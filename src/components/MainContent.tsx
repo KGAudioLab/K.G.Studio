@@ -520,46 +520,8 @@ const MainContent: React.FC<MainContentProps> = ({
   };
 
   // Helper function to select a region (clears previous selections)
-  const selectRegion = (
-    regionId: string,
-    options: RegionClickOptions = { shiftKey: false },
-    regionsToSearch?: RegionUI[]
-  ) => {
-    // Find the region in the UI state (use provided regions or current state)
-    const regionsToUse = regionsToSearch || regions;
-    const region = regionsToUse.find(r => r.id === regionId);
-    if (!region) {
-      if (DEBUG_MODE.MAIN_CONTENT) {
-        console.log(`Region not found in UI state: ${regionId}`);
-      }
-      return;
-    }
-
-    // Find the track that contains this region
-    const track = tracks.find(t => t.getId().toString() === region.trackId);
-    if (!track) {
-      if (DEBUG_MODE.MAIN_CONTENT) {
-        console.log(`Track not found for region: ${regionId}`);
-      }
-      return;
-    }
-
-    // Find the region in the track's model
-    const coreRegion = track.getRegions().find(r => r.getId() === regionId);
-
-    if (!coreRegion) {
-      if (DEBUG_MODE.MAIN_CONTENT) {
-        console.log(`Region not found in track model: ${regionId}`);
-      }
-      return;
-    }
-
+  const applyRegionSelection = (orderedSelectionIds: string[]) => {
     const core = KGCore.instance();
-    const orderedSelection = options.shiftKey
-      ? (selectedRegionIds.includes(regionId)
-        ? selectedRegionIds.filter(id => id !== regionId)
-        : [...selectedRegionIds, regionId])
-      : [regionId];
 
     tracks.forEach(projectTrack => {
       projectTrack.getRegions().forEach(projectRegion => projectRegion.deselect());
@@ -567,7 +529,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     clearAllSelections();
 
-    const selectedRegions: KGRegion[] = orderedSelection
+    const selectedRegions: KGRegion[] = orderedSelectionIds
       .map(selectedId => {
         for (const projectTrack of tracks) {
           const selectedRegion = projectTrack.getRegions().find(r => r.getId() === selectedId);
@@ -610,6 +572,67 @@ const MainContent: React.FC<MainContentProps> = ({
     } else if (lastSelectedRegion instanceof KGMidiRegion) {
       openMidiPianoRoll(lastSelectedRegionId);
     }
+  };
+
+  const selectRegion = (
+    regionId: string,
+    options: RegionClickOptions = { shiftKey: false },
+    regionsToSearch?: RegionUI[]
+  ) => {
+    const regionsToUse = regionsToSearch || regions;
+    const region = regionsToUse.find(r => r.id === regionId);
+    if (!region) {
+      if (DEBUG_MODE.MAIN_CONTENT) {
+        console.log(`Region not found in UI state: ${regionId}`);
+      }
+      return;
+    }
+
+    const track = tracks.find(t => t.getId().toString() === region.trackId);
+    if (!track) {
+      if (DEBUG_MODE.MAIN_CONTENT) {
+        console.log(`Track not found for region: ${regionId}`);
+      }
+      return;
+    }
+
+    const coreRegion = track.getRegions().find(r => r.getId() === regionId);
+    if (!coreRegion) {
+      if (DEBUG_MODE.MAIN_CONTENT) {
+        console.log(`Region not found in track model: ${regionId}`);
+      }
+      return;
+    }
+
+    const orderedSelection = options.shiftKey
+      ? (selectedRegionIds.includes(regionId)
+        ? selectedRegionIds.filter(id => id !== regionId)
+        : [...selectedRegionIds, regionId])
+      : [regionId];
+
+    applyRegionSelection(orderedSelection);
+  };
+
+  const handleRegionLassoSelection = (regionIds: string[], options: RegionClickOptions = { shiftKey: false }) => {
+    const orderedRegionIds = regionIds.filter(regionId => regions.some(region => region.id === regionId));
+    const orderedSelection = options.shiftKey
+      ? orderedRegionIds.reduce<string[]>((nextSelection, regionId) => {
+          if (nextSelection.includes(regionId)) {
+            return nextSelection.filter(id => id !== regionId);
+          }
+          return [...nextSelection, regionId];
+        }, [...selectedRegionIds])
+      : orderedRegionIds;
+
+    applyRegionSelection(orderedSelection);
+  };
+
+  const handleEmptyMainContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) {
+      return;
+    }
+
+    handleRegionLassoSelection([], { shiftKey: false });
   };
 
   // Handle region single click: selection only (no piano roll opening)
@@ -916,8 +939,12 @@ const MainContent: React.FC<MainContentProps> = ({
   };
 
   return (
-    <div className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`} ref={mainContentRef}>
-      <div className="main-content-wrapper">
+    <div
+      className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`}
+      ref={mainContentRef}
+      onClick={handleEmptyMainContentClick}
+    >
+      <div className="main-content-wrapper" onClick={handleEmptyMainContentClick}>
         {/* Top-left spacer */}
         <div className="top-left-spacer">
           <button className="add-track-btn" onClick={() => addTrack()}>+ MIDI</button>
@@ -940,7 +967,7 @@ const MainContent: React.FC<MainContentProps> = ({
           ))}
         </div>
 
-        <div className="main-content-body">
+        <div className="main-content-body" onClick={handleEmptyMainContentClick}>
           {/* Fixed left panel with track info */}
           <TrackInfoPanel
             tracks={tracks}
@@ -962,6 +989,7 @@ const MainContent: React.FC<MainContentProps> = ({
             onRegionCreated={handleRegionCreated}
             onRegionUpdated={handleRegionUpdated}
             onRegionClick={handleRegionClick}
+            onRegionLassoSelection={handleRegionLassoSelection}
             onOpenPianoRoll={handleOpenPianoRoll}
             onOpenSpectrogram={handleOpenSpectrogram}
             showHybridButtonForAudio={showHybridButtonForAudio}
