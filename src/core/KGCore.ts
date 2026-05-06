@@ -6,6 +6,7 @@ import { KGProjectStorage } from './io/KGProjectStorage';
 import { KGConfigUpgrader } from './config-upgrader/KGConfigUpgrader';
 import { KGMidiRegion } from './region/KGMidiRegion';
 import { KGMidiNote } from './midi/KGMidiNote';
+import { KGMidiPitchBend } from './midi/KGMidiPitchBend';
 import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
@@ -550,6 +551,13 @@ export class KGCore {
               note.getVelocity()
             );
             clonedRegion.addNote(clonedNote);
+          });
+          region.getPitchBends().forEach(pitchBend => {
+            clonedRegion.addPitchBend(new KGMidiPitchBend(
+              generateUniqueId('KGMidiPitchBend'),
+              pitchBend.getBeat(),
+              pitchBend.getValue()
+            ));
           });
           
           clonedItems.push(clonedRegion);

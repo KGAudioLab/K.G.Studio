@@ -3,6 +3,7 @@ import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
@@ -81,6 +82,13 @@ export class PasteRegionsCommand extends KGCommand {
             note.getVelocity()
           );
           (newRegion as KGMidiRegion).addNote(copiedNote);
+        });
+        originalRegion.getPitchBends().forEach(pitchBend => {
+          (newRegion as KGMidiRegion).addPitchBend(new KGMidiPitchBend(
+            generateUniqueId('KGMidiPitchBend'),
+            pitchBend.getBeat(),
+            pitchBend.getValue()
+          ));
         });
         
         console.log(`Created MIDI region "${newRegion.getName()}" with ${originalNotes.length} notes`);

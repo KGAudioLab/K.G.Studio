@@ -361,11 +361,57 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(storeState.isRecording).toBe(false);
       expect(storeState.isPlaying).toBe(false);
       expect(storeState.recordingNotes).toHaveLength(0);
+      expect(storeState.recordingPitchBends).toHaveLength(0);
       expect(executeCommandSpy).toHaveBeenCalled();
       expect(mockAudioInterface.stopPlayback).toHaveBeenCalled();
-      expect(setRecordingCallbacksSpy).toHaveBeenLastCalledWith(null, null);
+      expect(setRecordingCallbacksSpy).toHaveBeenLastCalledWith(null, null, null);
       expect(testRegion.getNotes()).toHaveLength(1);
       expect(testRegion.getNotes()[0].getVelocity()).toBe(96);
+    });
+
+    it('records pitch bends and skips consecutive duplicates', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      vi.spyOn(mockAudioInterface, 'getTransportPosition')
+        .mockReturnValueOnce(20)
+        .mockReturnValueOnce(20.5)
+        .mockReturnValueOnce(21);
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(18);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const onPitchBend = setRecordingCallbacksSpy.mock.calls.at(-1)?.[2];
+      expect(onPitchBend).toBeTypeOf('function');
+
+      act(() => {
+        onPitchBend?.(8192);
+        onPitchBend?.(8192);
+        onPitchBend?.(12288);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      expect(testRegion.getPitchBends()).toHaveLength(2);
+      expect(testRegion.getPitchBends().map(event => event.getValue())).toEqual([8192, 12288]);
     });
 
     it('should cut a held looped recording note at the loop end when note off arrives after wrap', async () => {

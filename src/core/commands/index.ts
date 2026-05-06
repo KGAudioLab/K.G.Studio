@@ -35,6 +35,8 @@ export { ResizeNotesCommand } from './note/ResizeNotesCommand';
 export { MoveNotesCommand } from './note/MoveNotesCommand';
 export { PasteNotesCommand } from './note/PasteNotesCommand';
 export { UpdateNotePropertiesCommand } from './note/UpdateNotePropertiesCommand';
+export { UpdatePitchBendPropertiesCommand } from './note/UpdatePitchBendPropertiesCommand';
+export { CreateMidiEventsCommand, type PitchBendCreationData, type NoteCreationData } from './note/CreateMidiEventsCommand';
 
 // Project commands
 export { ChangeProjectPropertyCommand, type ProjectUpdateProperties } from './project/ChangeProjectPropertyCommand';

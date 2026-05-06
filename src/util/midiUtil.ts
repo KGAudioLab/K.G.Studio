@@ -22,6 +22,11 @@ export const pianoRollIndexToPitch = (index: number) => {
 };
 
 export const MIDI_EVENT_TICKS_PER_BEAT = 480;
+export const MIDI_PITCH_BEND_MIN = 0;
+export const MIDI_PITCH_BEND_CENTER = 8192;
+export const MIDI_PITCH_BEND_MAX = 16383;
+export const MIDI_PITCH_BEND_MIN_SIGNED = -8192;
+export const MIDI_PITCH_BEND_MAX_SIGNED = 8191;
 
 export const pitchToNoteName = (pitch: number) => {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -35,6 +40,22 @@ export const pitchToNoteNameString = (pitch: number) => {
     const { note, octave } = pitchToNoteName(pitch);
     return `${note}${octave}`;
   };
+
+export const clampMidiPitchBendValue = (value: number): number => (
+  Math.max(MIDI_PITCH_BEND_MIN, Math.min(MIDI_PITCH_BEND_MAX, Math.round(value)))
+);
+
+export const midiPitchBendToSignedValue = (value: number): number => (
+  clampMidiPitchBendValue(value) - MIDI_PITCH_BEND_CENTER
+);
+
+export const signedPitchBendToMidiValue = (value: number): number => (
+  clampMidiPitchBendValue(value + MIDI_PITCH_BEND_CENTER)
+);
+
+export const midiPitchBendToNormalized = (value: number): number => (
+  midiPitchBendToSignedValue(value) / MIDI_PITCH_BEND_CENTER
+);
 
 export const noteNameToPitch = (noteName: string): number => {
   const noteMap: { [key: string]: number } = {

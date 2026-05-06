@@ -7,6 +7,9 @@ import { useProjectStore } from '../../stores/projectStore';
  * Handles Web MIDI API integration for keyboard input
  */
 export class KGMidiInput {
+  private static readonly PITCH_BEND_CENTER = 8192;
+  private static readonly PITCH_BEND_MAX_OFFSET = 8192;
+
   // Private static instance for singleton pattern
   private static _instance: KGMidiInput | null = null;
 
@@ -18,6 +21,7 @@ export class KGMidiInput {
   // Recording callbacks
   private onRecordNoteOn: ((pitch: number, velocity: number) => void) | null = null;
   private onRecordNoteOff: ((pitch: number) => void) | null = null;
+  private onRecordPitchBend: ((value: number) => void) | null = null;
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -182,7 +186,8 @@ export class KGMidiInput {
     else if (command === 0xe0) {
       const pitchBendValue = (velocity << 7) | pitch;
       console.log(`MIDI Pitch Bend: value=${pitchBendValue}, channel=${channel}`);
-      // TODO: Handle pitch bend
+      this.triggerPitchBend(this.normalizePitchBend(pitchBendValue));
+      this.onRecordPitchBend?.(pitchBendValue);
     }
   }
 
@@ -212,7 +217,7 @@ export class KGMidiInput {
 
         // Trigger note attack if audio context is ready
         if (audioInterface.getIsAudioContextStarted()) {
-          audioInterface.triggerNoteAttack(selectedTrackId, pitch, velocity);
+          audioInterface.triggerLiveMidiNoteAttack(selectedTrackId, pitch, velocity);
           console.log(`MIDI triggered note attack: pitch=${pitch}, velocity=${velocity}, track=${selectedTrackId}`);
         }
       }
@@ -237,12 +242,33 @@ export class KGMidiInput {
       // Get audio interface and stop playing the note
       const audioInterface = KGAudioInterface.instance();
       if (audioInterface.getIsInitialized() && audioInterface.getIsAudioContextStarted()) {
-        audioInterface.releaseNote(selectedTrackId, pitch);
+        audioInterface.releaseLiveMidiNote(selectedTrackId, pitch);
         console.log(`MIDI released note: pitch=${pitch}, track=${selectedTrackId}`);
       }
     } catch (error) {
       console.error(`Error triggering MIDI note off (pitch ${pitch}):`, error);
     }
+  }
+
+  private triggerPitchBend(normalizedBend: number): void {
+    try {
+      const selectedTrackId = useProjectStore.getState().selectedTrackId;
+      if (!selectedTrackId) {
+        return;
+      }
+
+      const audioInterface = KGAudioInterface.instance();
+      if (audioInterface.getIsInitialized() && audioInterface.getIsAudioContextStarted()) {
+        audioInterface.setLiveMidiPitchBend(selectedTrackId, normalizedBend);
+      }
+    } catch (error) {
+      console.error(`Error applying MIDI pitch bend (${normalizedBend}):`, error);
+    }
+  }
+
+  private normalizePitchBend(pitchBendValue: number): number {
+    const normalizedBend = (pitchBendValue - KGMidiInput.PITCH_BEND_CENTER) / KGMidiInput.PITCH_BEND_MAX_OFFSET;
+    return Math.max(-1, Math.min(1, normalizedBend));
   }
 
   /**
@@ -274,10 +300,12 @@ export class KGMidiInput {
 
   public setRecordingCallbacks(
     onNoteOn: ((pitch: number, velocity: number) => void) | null,
-    onNoteOff: ((pitch: number) => void) | null
+    onNoteOff: ((pitch: number) => void) | null,
+    onPitchBend: ((value: number) => void) | null = null
   ): void {
     this.onRecordNoteOn = onNoteOn;
     this.onRecordNoteOff = onNoteOff;
+    this.onRecordPitchBend = onPitchBend;
   }
 
   // ===== GETTERS =====

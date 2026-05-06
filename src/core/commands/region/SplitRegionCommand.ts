@@ -4,6 +4,7 @@ import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
@@ -110,6 +111,22 @@ export class SplitRegionCommand extends KGCommand {
             note.getEndBeat() - splitOffsetBeats,
             note.getPitch(),
             note.getVelocity()
+          ));
+        }
+      }
+
+      for (const pitchBend of originalRegion.getPitchBends()) {
+        if (pitchBend.getBeat() < splitOffsetBeats) {
+          region1.addPitchBend(new KGMidiPitchBend(
+            generateUniqueId('KGMidiPitchBend'),
+            pitchBend.getBeat(),
+            pitchBend.getValue()
+          ));
+        } else {
+          region2.addPitchBend(new KGMidiPitchBend(
+            generateUniqueId('KGMidiPitchBend'),
+            pitchBend.getBeat() - splitOffsetBeats,
+            pitchBend.getValue()
           ));
         }
       }

@@ -20,8 +20,9 @@ import { TOOLBAR_CONSTANTS } from '../constants/uiConstants';
 import * as Tone from 'tone';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
-import { CreateNotesCommand } from '../core/commands/note/CreateNotesCommand';
-import type { NoteCreationData } from '../core/commands/note/CreateNotesCommand';
+import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
+import { CreateMidiEventsCommand, type NoteCreationData, type PitchBendCreationData } from '../core/commands/note/CreateMidiEventsCommand';
+import { MIDI_PITCH_BEND_CENTER } from '../util/midiUtil';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -72,6 +73,7 @@ interface ProjectState {
   
   // Selection state for UI reactivity
   selectedNoteIds: string[];
+  selectedPitchBendIds: string[];
   selectedRegionIds: string[];
   selectedTrackId: string | null;
   
@@ -105,6 +107,7 @@ interface ProjectState {
   isRecording: boolean;
   recordingTargetRegionId: string | null;
   recordingNotes: Array<{ pitch: number; startBeat: number; endBeat: number; velocity: number }>;
+  recordingPitchBends: Array<{ beat: number; value: number }>;
   recordingOriginalPlayhead: number;
 
   // Undo/redo state
@@ -207,6 +210,7 @@ interface ProjectState {
 // Module-level recording state (not reactive — only used for timing during active recording)
 let _recordingActiveNotes: Map<number, { startBeat: number; velocity: number }> = new Map(); // pitch → note-on data
 let _recordingRegionStartBeat: number = 0;
+let _lastRecordedPitchBendValue: number | null = null;
 
 function getRecordingLoopEndBeatRelative(): number | null {
   const project = KGCore.instance().getCurrentProject();
@@ -270,11 +274,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     const noteIds = selectedItems
       .filter(item => item instanceof KGMidiNote)
       .map(item => item.getId());
+    const pitchBendIds = selectedItems
+      .filter(item => item instanceof KGMidiPitchBend)
+      .map(item => item.getId());
     const regionIds = selectedItems
       .filter(item => item instanceof KGRegion)
       .map(item => item.getId());
       
-    set({ selectedNoteIds: noteIds, selectedRegionIds: regionIds });
+    set({ selectedNoteIds: noteIds, selectedPitchBendIds: pitchBendIds, selectedRegionIds: regionIds });
   };
 
   // Register the sync callback with KGCore
@@ -339,6 +346,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     // Initial selection state
     selectedNoteIds: [],
+    selectedPitchBendIds: [],
     selectedRegionIds: [],
     selectedTrackId: initialSelectedTrackId,
     
@@ -377,6 +385,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     isRecording: false,
     recordingTargetRegionId: null,
     recordingNotes: [],
+    recordingPitchBends: [],
     recordingOriginalPlayhead: 0,
 
     // Initial cross-component scroll request state
@@ -875,10 +884,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       _recordingRegionStartBeat = targetRegion.getStartFromBeat();
       _recordingActiveNotes = new Map();
+      _lastRecordedPitchBendValue = null;
 
       set({
         isRecording: true,
         recordingNotes: [],
+        recordingPitchBends: [],
         recordingTargetRegionId: activeRegionId,
         recordingOriginalPlayhead: playheadPosition,
       });
@@ -911,6 +922,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               }],
             }));
           }
+        },
+        (value: number) => {
+          if (_lastRecordedPitchBendValue === value) {
+            return;
+          }
+
+          _lastRecordedPitchBendValue = value;
+          const beat = buildCorrectedBeat();
+          set(state => ({
+            recordingPitchBends: [...state.recordingPitchBends, { beat, value }],
+          }));
         }
       );
 
@@ -929,10 +951,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     stopRecording: async () => {
-      const { recordingNotes, recordingTargetRegionId, recordingOriginalPlayhead, stopPlaying, setPlayheadPosition, refreshProjectState } = get();
+      const { recordingNotes, recordingPitchBends, recordingTargetRegionId, recordingOriginalPlayhead, stopPlaying, setPlayheadPosition, refreshProjectState } = get();
 
       // Finalize any held keys
       const finalNotes = [...recordingNotes];
+      const finalPitchBends = [...recordingPitchBends];
       const bpm = get().bpm;
       const playbackDelaySec = (ConfigManager.instance().get('audio.playback_delay') as number) ?? 0.2;
       const recordingOffsetSec = (ConfigManager.instance().get('audio.recording_offset') as number) ?? 0;
@@ -949,9 +972,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       });
       _recordingActiveNotes.clear();
 
-      KGMidiInput.instance().setRecordingCallbacks(null, null);
+      if (_lastRecordedPitchBendValue !== null && _lastRecordedPitchBendValue !== MIDI_PITCH_BEND_CENTER) {
+        finalPitchBends.push({
+          beat: endBeatForHeld,
+          value: MIDI_PITCH_BEND_CENTER,
+        });
+        _lastRecordedPitchBendValue = MIDI_PITCH_BEND_CENTER;
+      }
 
-      if (finalNotes.length > 0 && recordingTargetRegionId) {
+      KGMidiInput.instance().setRecordingCallbacks(null, null, null);
+
+      if ((finalNotes.length > 0 || finalPitchBends.length > 0) && recordingTargetRegionId) {
         const noteData: NoteCreationData[] = finalNotes.map(n => ({
           regionId: recordingTargetRegionId,
           startBeat: n.startBeat,
@@ -959,14 +990,20 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           pitch: n.pitch,
           velocity: n.velocity,
         }));
-        const command = new CreateNotesCommand(noteData);
+        const pitchBendData: PitchBendCreationData[] = finalPitchBends.map(event => ({
+          regionId: recordingTargetRegionId,
+          beat: event.beat,
+          value: event.value,
+        }));
+        const command = new CreateMidiEventsCommand(noteData, pitchBendData);
         KGCore.instance().executeCommand(command);
         refreshProjectState();
       }
 
       await stopPlaying();
       setPlayheadPosition(recordingOriginalPlayhead);
-      set({ isRecording: false, recordingNotes: [], recordingTargetRegionId: null });
+      set({ isRecording: false, recordingNotes: [], recordingPitchBends: [], recordingTargetRegionId: null });
+      _lastRecordedPitchBendValue = null;
     },
 
     toggleLoop: () => {
@@ -1297,5 +1334,3 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   };
 }); 
-
-

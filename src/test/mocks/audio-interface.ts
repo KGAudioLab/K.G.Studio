@@ -27,6 +27,9 @@ export const mockAudioInterface = {
   scheduleNote: vi.fn().mockReturnValue(undefined),
   scheduleNotes: vi.fn().mockReturnValue(undefined),
   clearScheduledNotes: vi.fn().mockReturnValue(undefined),
+  triggerLiveMidiNoteAttack: vi.fn().mockReturnValue(undefined),
+  releaseLiveMidiNote: vi.fn().mockReturnValue(undefined),
+  setLiveMidiPitchBend: vi.fn().mockReturnValue(undefined),
   
   // Transport
   getCurrentBeat: vi.fn().mockReturnValue(0),

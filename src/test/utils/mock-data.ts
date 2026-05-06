@@ -1,4 +1,5 @@
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { KGMidiPitchBend } from '../../core/midi/KGMidiPitchBend';
 import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
@@ -41,6 +42,7 @@ export const createMockMidiRegion = (overrides: Partial<{
   startFromBeat: number
   length: number
   notes: KGMidiNote[]
+  pitchBends: KGMidiPitchBend[]
 }> = {}): KGMidiRegion => {
   const defaults = {
     id: 'test-region-1',
@@ -65,8 +67,26 @@ export const createMockMidiRegion = (overrides: Partial<{
   if (overrides.notes) {
     overrides.notes.forEach(note => region.addNote(note));
   }
+  if (overrides.pitchBends) {
+    overrides.pitchBends.forEach(pitchBend => region.addPitchBend(pitchBend));
+  }
   
   return region;
+};
+
+export const createMockMidiPitchBend = (overrides: Partial<{
+  id: string
+  beat: number
+  value: number
+}> = {}): KGMidiPitchBend => {
+  const defaults = {
+    id: 'test-bend-1',
+    beat: 0,
+    value: 8192,
+    ...overrides,
+  };
+
+  return new KGMidiPitchBend(defaults.id, defaults.beat, defaults.value);
 };
 
 export const createMockMidiTrack = (overrides: Partial<{

@@ -6,22 +6,31 @@ import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
+import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import {
+  clampMidiPitchBendValue,
   formatMidiEventLength,
   formatMidiEventPosition,
   MIDI_EVENT_TICKS_PER_BEAT,
+  MIDI_PITCH_BEND_CENTER,
+  MIDI_PITCH_BEND_MAX_SIGNED,
+  MIDI_PITCH_BEND_MIN_SIGNED,
+  midiPitchBendToNormalized,
+  midiPitchBendToSignedValue,
   noteNameToPitch,
   parseMidiEventLengthDelta,
   parseMidiEventLength,
   parseMidiEventPositionDelta,
   parseMidiEventPosition,
-  pitchToNoteNameString
+  pitchToNoteNameString,
+  signedPitchBendToMidiValue
 } from '../util/midiUtil';
 import { isModifierKeyPressed } from '../util/osUtil';
 import { PIANO_ROLL_CONSTANTS } from '../constants';
 import { CreateNoteCommand } from '../core/commands';
 import { UpdateNotePropertiesCommand } from '../core/commands/note/UpdateNotePropertiesCommand';
+import { UpdatePitchBendPropertiesCommand } from '../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { showAlert } from '../util/dialogUtil';
 
 interface ListEventPanelProps {
@@ -30,20 +39,27 @@ interface ListEventPanelProps {
 
 interface NoteRowData {
   id: string;
+  type: 'note';
   note: KGMidiNote;
   absoluteStartBeat: number;
   durationBeats: number;
 }
 
+interface PitchBendRowData {
+  id: string;
+  type: 'pitch-bend';
+  pitchBend: KGMidiPitchBend;
+  absoluteBeat: number;
+}
+
+type EventRowData = NoteRowData | PitchBendRowData;
 type EditableColumn = 'position' | 'num' | 'val' | 'length';
 
 interface EditingCell {
-  noteId: string;
+  eventId: string;
   column: EditableColumn;
   value: string;
 }
-
-const EVENT_TYPE_OPTIONS = [{ label: 'Notes', value: 'notes' }];
 
 const parseVelocityInput = (raw: string): { velocity: number } | { error: string } => {
   const trimmed = raw.trim();
@@ -85,6 +101,35 @@ const parsePitchDeltaInput = (raw: string): { delta: number } | { error: string 
   return { delta: parseInt(trimmed, 10) };
 };
 
+const parsePitchBendInput = (raw: string): { value: number } | { error: string } => {
+  const trimmed = raw.trim();
+  if (!/^[+-]?\d+$/.test(trimmed)) {
+    return { error: `Pitch bend value must be an integer between ${MIDI_PITCH_BEND_MIN_SIGNED} and ${MIDI_PITCH_BEND_MAX_SIGNED}.` };
+  }
+
+  const signedValue = parseInt(trimmed, 10);
+  if (signedValue < MIDI_PITCH_BEND_MIN_SIGNED || signedValue > MIDI_PITCH_BEND_MAX_SIGNED) {
+    return { error: `Pitch bend value must be between ${MIDI_PITCH_BEND_MIN_SIGNED} and ${MIDI_PITCH_BEND_MAX_SIGNED}.` };
+  }
+
+  return { value: signedPitchBendToMidiValue(signedValue) };
+};
+
+const parsePitchBendDeltaInput = (raw: string): { delta: number } | { error: string } => {
+  const trimmed = raw.trim();
+  if (!/^[+-]\d+$/.test(trimmed)) {
+    return { error: 'Use pitch bend delta like +256 or -512.' };
+  }
+
+  return { delta: parseInt(trimmed, 10) };
+};
+
+const formatPitchBendInfo = (value: number): string => {
+  const normalized = midiPitchBendToNormalized(value);
+  const semitones = normalized * 2;
+  return `Raw ${value} | ${normalized.toFixed(3)} | ${semitones.toFixed(2)} st`;
+};
+
 const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const {
     tracks,
@@ -92,16 +137,18 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     selectedRegionIds,
     timeSignature,
     selectedNoteIds,
+    selectedPitchBendIds,
     playheadPosition,
     updateTrack,
     refreshProjectState
   } = useProjectStore();
 
-  const [eventType, setEventType] = useState('notes');
+  const [showNotes, setShowNotes] = useState(true);
+  const [showPitchBends, setShowPitchBends] = useState(true);
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
   const [quantLength, setQuantLength] = useState<string>('1/8');
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
-  const rangeAnchorNoteIdRef = useRef<string | null>(null);
+  const rangeAnchorEventIdRef = useRef<string | null>(null);
   const editInputRef = useRef<HTMLInputElement | null>(null);
   const suppressBlurCommitRef = useRef(false);
   const pendingSingleClickSelectionRef = useRef<number | null>(null);
@@ -127,28 +174,45 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   }
 
   const noteRows: NoteRowData[] = activeMidiRegion
-    ? [...activeMidiRegion.getNotes()]
-      .sort((a, b) => {
-        if (a.getStartBeat() !== b.getStartBeat()) return a.getStartBeat() - b.getStartBeat();
-        if (a.getPitch() !== b.getPitch()) return a.getPitch() - b.getPitch();
-        return a.getId().localeCompare(b.getId());
-      })
-      .map(note => ({
-        id: note.getId(),
-        note,
-        absoluteStartBeat: activeMidiRegion!.getStartFromBeat() + note.getStartBeat(),
-        durationBeats: note.getEndBeat() - note.getStartBeat()
-      }))
+    ? activeMidiRegion.getNotes().map(note => ({
+      id: note.getId(),
+      type: 'note',
+      note,
+      absoluteStartBeat: activeMidiRegion!.getStartFromBeat() + note.getStartBeat(),
+      durationBeats: note.getEndBeat() - note.getStartBeat(),
+    }))
     : [];
 
+  const pitchBendRows: PitchBendRowData[] = activeMidiRegion
+    ? activeMidiRegion.getPitchBends().map(pitchBend => ({
+      id: pitchBend.getId(),
+      type: 'pitch-bend',
+      pitchBend,
+      absoluteBeat: activeMidiRegion!.getStartFromBeat() + pitchBend.getBeat(),
+    }))
+    : [];
+
+  const eventRows: EventRowData[] = [
+    ...(showNotes ? noteRows : []),
+    ...(showPitchBends ? pitchBendRows : []),
+  ].sort((a, b) => {
+    const beatDelta = (a.type === 'note' ? a.absoluteStartBeat : a.absoluteBeat)
+      - (b.type === 'note' ? b.absoluteStartBeat : b.absoluteBeat);
+    if (beatDelta !== 0) return beatDelta;
+    if (a.type !== b.type) return a.type === 'pitch-bend' ? -1 : 1;
+    return a.id.localeCompare(b.id);
+  });
+
   const selectedNoteIdSet = new Set(selectedNoteIds);
+  const selectedPitchBendIdSet = new Set(selectedPitchBendIds);
+  const selectedEventIdSet = new Set([...selectedNoteIds, ...selectedPitchBendIds]);
 
   useEffect(() => {
     if (editingCell) {
       editInputRef.current?.focus();
       editInputRef.current?.select();
     }
-  }, [editingCell?.noteId, editingCell?.column]);
+  }, [editingCell?.eventId, editingCell?.column]);
 
   useEffect(() => {
     return () => {
@@ -161,20 +225,23 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const commitSelection = (nextSelectedIds: Set<string>) => {
     if (!activeMidiRegion || !parentTrack) return;
 
-    const selectedNotes = activeMidiRegion.getNotes().filter(note => nextSelectedIds.has(note.getId()));
+    const selectedEvents = eventRows
+      .filter(row => nextSelectedIds.has(row.id))
+      .map(row => row.type === 'note' ? row.note : row.pitchBend);
     const core = KGCore.instance();
 
     activeMidiRegion.getNotes().forEach(note => {
-      if (nextSelectedIds.has(note.getId())) {
-        note.select();
-      } else {
-        note.deselect();
-      }
+      if (nextSelectedIds.has(note.getId())) note.select();
+      else note.deselect();
+    });
+    activeMidiRegion.getPitchBends().forEach(pitchBend => {
+      if (nextSelectedIds.has(pitchBend.getId())) pitchBend.select();
+      else pitchBend.deselect();
     });
 
     core.clearSelectedItems();
-    if (selectedNotes.length > 0) {
-      core.addSelectedItems(selectedNotes);
+    if (selectedEvents.length > 0) {
+      core.addSelectedItems(selectedEvents);
     }
 
     void updateTrack(parentTrack);
@@ -187,9 +254,9 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     }
   };
 
-  const startEditingCell = (noteId: string, column: EditableColumn, value: string) => {
+  const startEditingCell = (eventId: string, column: EditableColumn, value: string) => {
     clearPendingSingleClickSelection();
-    setEditingCell({ noteId, column, value });
+    setEditingCell({ eventId, column, value });
   };
 
   const cancelEditingCell = () => {
@@ -199,194 +266,283 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const commitEditingCell = async () => {
     if (!editingCell || !activeMidiRegion || !parentTrack) return;
 
-    const note = activeMidiRegion.getNotes().find(candidate => candidate.getId() === editingCell.noteId);
-    if (!note) {
+    const row = eventRows.find(candidate => candidate.id === editingCell.eventId);
+    if (!row) {
       setEditingCell(null);
       return;
     }
 
-    const targetNotes = selectedNoteIdSet.has(note.getId()) && selectedNoteIds.length > 1
-      ? activeMidiRegion.getNotes().filter(candidate => selectedNoteIdSet.has(candidate.getId()))
-      : [note];
-
-    const snapshots = targetNotes.map(targetNote => ({
-      noteId: targetNote.getId(),
-      pitch: targetNote.getPitch(),
-      velocity: targetNote.getVelocity(),
-      startBeat: targetNote.getStartBeat(),
-      endBeat: targetNote.getEndBeat()
-    }));
-
-    const updates: Array<{ noteId: string; pitch?: number; velocity?: number; startBeat?: number; endBeat?: number }> = [];
     const trimmedValue = editingCell.value.trim();
     const isDeltaEdit = trimmedValue.startsWith('+') || trimmedValue.startsWith('-');
 
-    if (editingCell.column === 'position') {
-      if (isDeltaEdit) {
-        const parsed = parseMidiEventPositionDelta(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
+    if (row.type === 'note') {
+      const note = row.note;
+      const targetNotes = selectedNoteIdSet.has(note.getId()) && selectedNoteIds.length > 1
+        ? activeMidiRegion.getNotes().filter(candidate => selectedNoteIdSet.has(candidate.getId()))
+        : [note];
 
-        for (const targetNote of targetNotes) {
-          const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
-          const nextStartBeat = targetNote.getStartBeat() + parsed.deltaBeats;
-          if (nextStartBeat < 0) {
-            await showAlert('Position delta would move one or more notes before the start of the current MIDI region.');
+      const snapshots = targetNotes.map(targetNote => ({
+        noteId: targetNote.getId(),
+        pitch: targetNote.getPitch(),
+        velocity: targetNote.getVelocity(),
+        startBeat: targetNote.getStartBeat(),
+        endBeat: targetNote.getEndBeat()
+      }));
+
+      const updates: Array<{ noteId: string; pitch?: number; velocity?: number; startBeat?: number; endBeat?: number }> = [];
+
+      if (editingCell.column === 'position') {
+        if (isDeltaEdit) {
+          const parsed = parseMidiEventPositionDelta(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
             return;
           }
 
-          updates.push({
-            noteId: targetNote.getId(),
-            startBeat: nextStartBeat,
-            endBeat: nextStartBeat + currentDuration
-          });
-        }
-      } else {
-        const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
+          for (const targetNote of targetNotes) {
+            const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
+            const nextStartBeat = targetNote.getStartBeat() + parsed.deltaBeats;
+            if (nextStartBeat < 0) {
+              await showAlert('Position delta would move one or more notes before the start of the current MIDI region.');
+              return;
+            }
 
-        const relativeStartBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
-        if (relativeStartBeat < 0) {
-          await showAlert('Position cannot be earlier than the start of the current MIDI region.');
-          return;
-        }
-
-        for (const targetNote of targetNotes) {
-          const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
-          updates.push({
-            noteId: targetNote.getId(),
-            startBeat: relativeStartBeat,
-            endBeat: relativeStartBeat + currentDuration
-          });
-        }
-      }
-    }
-
-    if (editingCell.column === 'num') {
-      if (isDeltaEdit) {
-        const parsed = parsePitchDeltaInput(trimmedValue);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
-
-        for (const targetNote of targetNotes) {
-          const nextPitch = targetNote.getPitch() + parsed.delta;
-          if (nextPitch < 0 || nextPitch > 127) {
-            await showAlert('Num delta would move one or more notes outside the MIDI pitch range 0–127.');
-            return;
+            updates.push({
+              noteId: targetNote.getId(),
+              startBeat: nextStartBeat,
+              endBeat: nextStartBeat + currentDuration
+            });
           }
-          updates.push({ noteId: targetNote.getId(), pitch: nextPitch });
-        }
-      } else {
-        const parsed = parseNoteNameInput(trimmedValue);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
-
-        for (const targetNote of targetNotes) {
-          updates.push({ noteId: targetNote.getId(), pitch: parsed.pitch });
-        }
-      }
-    }
-
-    if (editingCell.column === 'val') {
-      if (isDeltaEdit) {
-        const parsed = parseVelocityDeltaInput(trimmedValue);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
-
-        for (const targetNote of targetNotes) {
-          const nextVelocity = targetNote.getVelocity() + parsed.delta;
-          if (nextVelocity < 0 || nextVelocity > 127) {
-            await showAlert('Velocity delta would move one or more notes outside the valid range 0–127.');
-            return;
-          }
-          updates.push({ noteId: targetNote.getId(), velocity: nextVelocity });
-        }
-      } else {
-        const parsed = parseVelocityInput(trimmedValue);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
-
-        for (const targetNote of targetNotes) {
-          updates.push({ noteId: targetNote.getId(), velocity: parsed.velocity });
-        }
-      }
-    }
-
-    if (editingCell.column === 'length') {
-      if (isDeltaEdit) {
-        const parsed = parseMidiEventLengthDelta(trimmedValue, MIDI_EVENT_TICKS_PER_BEAT);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
-
-        for (const targetNote of targetNotes) {
-          const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
-          const nextDuration = currentDuration + parsed.deltaBeats;
-          if (nextDuration <= 0) {
-            await showAlert('Length delta would make one or more notes non-positive in duration.');
+        } else {
+          const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
             return;
           }
 
-          updates.push({
-            noteId: targetNote.getId(),
-            endBeat: targetNote.getStartBeat() + nextDuration
-          });
-        }
-      } else {
-        const parsed = parseMidiEventLength(trimmedValue, MIDI_EVENT_TICKS_PER_BEAT);
-        if ('error' in parsed) {
-          await showAlert(parsed.error);
-          return;
-        }
+          const relativeStartBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
+          if (relativeStartBeat < 0) {
+            await showAlert('Position cannot be earlier than the start of the current MIDI region.');
+            return;
+          }
 
-        for (const targetNote of targetNotes) {
-          updates.push({
-            noteId: targetNote.getId(),
-            endBeat: targetNote.getStartBeat() + parsed.duration
-          });
+          for (const targetNote of targetNotes) {
+            const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
+            updates.push({
+              noteId: targetNote.getId(),
+              startBeat: relativeStartBeat,
+              endBeat: relativeStartBeat + currentDuration
+            });
+          }
         }
       }
+
+      if (editingCell.column === 'num') {
+        if (isDeltaEdit) {
+          const parsed = parsePitchDeltaInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetNote of targetNotes) {
+            const nextPitch = targetNote.getPitch() + parsed.delta;
+            if (nextPitch < 0 || nextPitch > 127) {
+              await showAlert('Num delta would move one or more notes outside the MIDI pitch range 0–127.');
+              return;
+            }
+            updates.push({ noteId: targetNote.getId(), pitch: nextPitch });
+          }
+        } else {
+          const parsed = parseNoteNameInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetNote of targetNotes) {
+            updates.push({ noteId: targetNote.getId(), pitch: parsed.pitch });
+          }
+        }
+      }
+
+      if (editingCell.column === 'val') {
+        if (isDeltaEdit) {
+          const parsed = parseVelocityDeltaInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetNote of targetNotes) {
+            const nextVelocity = targetNote.getVelocity() + parsed.delta;
+            if (nextVelocity < 0 || nextVelocity > 127) {
+              await showAlert('Velocity delta would move one or more notes outside the valid range 0–127.');
+              return;
+            }
+            updates.push({ noteId: targetNote.getId(), velocity: nextVelocity });
+          }
+        } else {
+          const parsed = parseVelocityInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetNote of targetNotes) {
+            updates.push({ noteId: targetNote.getId(), velocity: parsed.velocity });
+          }
+        }
+      }
+
+      if (editingCell.column === 'length') {
+        if (isDeltaEdit) {
+          const parsed = parseMidiEventLengthDelta(trimmedValue, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetNote of targetNotes) {
+            const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
+            const nextDuration = currentDuration + parsed.deltaBeats;
+            if (nextDuration <= 0) {
+              await showAlert('Length delta would make one or more notes non-positive in duration.');
+              return;
+            }
+
+            updates.push({
+              noteId: targetNote.getId(),
+              endBeat: targetNote.getStartBeat() + nextDuration
+            });
+          }
+        } else {
+          const parsed = parseMidiEventLength(trimmedValue, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetNote of targetNotes) {
+            updates.push({
+              noteId: targetNote.getId(),
+              endBeat: targetNote.getStartBeat() + parsed.duration
+            });
+          }
+        }
+      }
+
+      if (updates.length === 0) {
+        setEditingCell(null);
+        return;
+      }
+
+      KGCore.instance().executeCommand(new UpdateNotePropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
+    } else {
+      const pitchBend = row.pitchBend;
+      const targetPitchBends = selectedPitchBendIdSet.has(pitchBend.getId()) && selectedPitchBendIds.length > 1
+        ? activeMidiRegion.getPitchBends().filter(candidate => selectedPitchBendIdSet.has(candidate.getId()))
+        : [pitchBend];
+
+      const snapshots = targetPitchBends.map(targetPitchBend => ({
+        pitchBendId: targetPitchBend.getId(),
+        beat: targetPitchBend.getBeat(),
+        value: targetPitchBend.getValue(),
+      }));
+      const updates: Array<{ pitchBendId: string; beat?: number; value?: number }> = [];
+
+      if (editingCell.column === 'position') {
+        if (isDeltaEdit) {
+          const parsed = parseMidiEventPositionDelta(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetPitchBend of targetPitchBends) {
+            const nextBeat = targetPitchBend.getBeat() + parsed.deltaBeats;
+            if (nextBeat < 0) {
+              await showAlert('Position delta would move one or more pitch bends before the start of the current MIDI region.');
+              return;
+            }
+            updates.push({ pitchBendId: targetPitchBend.getId(), beat: nextBeat });
+          }
+        } else {
+          const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          const relativeBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
+          if (relativeBeat < 0) {
+            await showAlert('Position cannot be earlier than the start of the current MIDI region.');
+            return;
+          }
+
+          for (const targetPitchBend of targetPitchBends) {
+            updates.push({ pitchBendId: targetPitchBend.getId(), beat: relativeBeat });
+          }
+        }
+      }
+
+      if (editingCell.column === 'val') {
+        if (isDeltaEdit) {
+          const parsed = parsePitchBendDeltaInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetPitchBend of targetPitchBends) {
+            const nextSignedValue = midiPitchBendToSignedValue(targetPitchBend.getValue()) + parsed.delta;
+            if (nextSignedValue < MIDI_PITCH_BEND_MIN_SIGNED || nextSignedValue > MIDI_PITCH_BEND_MAX_SIGNED) {
+              await showAlert(`Pitch bend delta would move one or more events outside the valid range ${MIDI_PITCH_BEND_MIN_SIGNED}–${MIDI_PITCH_BEND_MAX_SIGNED}.`);
+              return;
+            }
+            updates.push({
+              pitchBendId: targetPitchBend.getId(),
+              value: signedPitchBendToMidiValue(nextSignedValue),
+            });
+          }
+        } else {
+          const parsed = parsePitchBendInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const targetPitchBend of targetPitchBends) {
+            updates.push({ pitchBendId: targetPitchBend.getId(), value: clampMidiPitchBendValue(parsed.value) });
+          }
+        }
+      }
+
+      if (updates.length === 0) {
+        setEditingCell(null);
+        return;
+      }
+
+      KGCore.instance().executeCommand(new UpdatePitchBendPropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
     }
 
-    if (updates.length === 0) {
-      setEditingCell(null);
-      return;
-    }
-
-    const command = new UpdateNotePropertiesCommand(activeMidiRegion.getId(), snapshots, updates);
-    KGCore.instance().executeCommand(command);
     await updateTrack(parentTrack);
     refreshProjectState();
     setEditingCell(null);
   };
 
-  const handleRowClick = (noteId: string, rowIndex: number, event: React.MouseEvent<HTMLTableRowElement>) => {
+  const handleRowClick = (eventId: string, rowIndex: number, event: React.MouseEvent<HTMLTableRowElement>) => {
     event.stopPropagation();
     if (editingCell) return;
-    if (!activeMidiRegion) return;
 
     const isModifierPressed = isModifierKeyPressed(event);
-    const nextSelectedIds = new Set(selectedNoteIdSet);
-    const isAlreadySelected = selectedNoteIdSet.has(noteId);
-    const hasMultiSelection = selectedNoteIds.length > 1;
+    const nextSelectedIds = new Set(selectedEventIdSet);
+    const isAlreadySelected = selectedEventIdSet.has(eventId);
+    const hasMultiSelection = selectedEventIdSet.size > 1;
 
     if (event.shiftKey) {
       clearPendingSingleClickSelection();
-      const anchorIndex = noteRows.findIndex(row => row.id === rangeAnchorNoteIdRef.current);
+      const anchorIndex = eventRows.findIndex(row => row.id === rangeAnchorEventIdRef.current);
       const rangeStartIndex = anchorIndex >= 0 ? Math.min(anchorIndex, rowIndex) : rowIndex;
       const rangeEndIndex = anchorIndex >= 0 ? Math.max(anchorIndex, rowIndex) : rowIndex;
 
@@ -395,22 +551,22 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }
 
       for (let index = rangeStartIndex; index <= rangeEndIndex; index += 1) {
-        nextSelectedIds.add(noteRows[index].id);
+        nextSelectedIds.add(eventRows[index].id);
       }
     } else if (isModifierPressed) {
       clearPendingSingleClickSelection();
-      if (nextSelectedIds.has(noteId)) {
-        nextSelectedIds.delete(noteId);
+      if (nextSelectedIds.has(eventId)) {
+        nextSelectedIds.delete(eventId);
       } else {
-        nextSelectedIds.add(noteId);
+        nextSelectedIds.add(eventId);
       }
-      rangeAnchorNoteIdRef.current = noteId;
+      rangeAnchorEventIdRef.current = eventId;
     } else {
       if (isAlreadySelected && hasMultiSelection) {
         clearPendingSingleClickSelection();
         pendingSingleClickSelectionRef.current = window.setTimeout(() => {
-          const delayedSelection = new Set<string>([noteId]);
-          rangeAnchorNoteIdRef.current = noteId;
+          const delayedSelection = new Set<string>([eventId]);
+          rangeAnchorEventIdRef.current = eventId;
           commitSelection(delayedSelection);
           pendingSingleClickSelectionRef.current = null;
         }, 220);
@@ -419,12 +575,12 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
 
       clearPendingSingleClickSelection();
       nextSelectedIds.clear();
-      nextSelectedIds.add(noteId);
-      rangeAnchorNoteIdRef.current = noteId;
+      nextSelectedIds.add(eventId);
+      rangeAnchorEventIdRef.current = eventId;
     }
 
-    if (event.shiftKey && rangeAnchorNoteIdRef.current === null) {
-      rangeAnchorNoteIdRef.current = noteId;
+    if (event.shiftKey && rangeAnchorEventIdRef.current === null) {
+      rangeAnchorEventIdRef.current = eventId;
     }
 
     commitSelection(nextSelectedIds);
@@ -434,7 +590,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     event.stopPropagation();
     if (event.target !== event.currentTarget) return;
     clearPendingSingleClickSelection();
-    rangeAnchorNoteIdRef.current = null;
+    rangeAnchorEventIdRef.current = null;
     commitSelection(new Set());
   };
 
@@ -552,7 +708,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       createdNote.select();
       KGCore.instance().clearSelectedItems();
       KGCore.instance().addSelectedItem(createdNote);
-      rangeAnchorNoteIdRef.current = createdNote.getId();
+      rangeAnchorEventIdRef.current = createdNote.getId();
     }
     await updateTrack(parentTrack);
     refreshProjectState();
@@ -566,9 +722,23 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
 
       <div className="list-event-panel-body">
         <div className="list-event-tabs" role="tablist" aria-label="Event types">
-          <button className="list-event-tab active" aria-pressed="true">Notes</button>
-          <button className="list-event-tab" aria-pressed="false">Pitch Bends</button>
-          <button className="list-event-tab" aria-pressed="false">Controller</button>
+          <button
+            className={`list-event-tab${showNotes ? ' active' : ''}`}
+            aria-pressed={showNotes}
+            type="button"
+            onClick={() => setShowNotes(value => !value)}
+          >
+            Notes
+          </button>
+          <button
+            className={`list-event-tab${showPitchBends ? ' active' : ''}`}
+            aria-pressed={showPitchBends}
+            type="button"
+            onClick={() => setShowPitchBends(value => !value)}
+          >
+            Pitch Bends
+          </button>
+          <button className="list-event-tab" aria-pressed="false" type="button" disabled>Controller</button>
         </div>
 
         {!activeMidiRegion ? (
@@ -587,14 +757,6 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
                 >
                   <FaPlus />
                 </button>
-                <KGDropdown
-                  options={EVENT_TYPE_OPTIONS}
-                  value={eventType}
-                  onChange={setEventType}
-                  label="Event Type"
-                  buttonClassName="list-event-dropdown-button"
-                  showValueAsLabel={true}
-                />
               </div>
 
               <div className="list-event-toolbar-group list-event-toolbar-group-right">
@@ -638,113 +800,118 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {noteRows.map((row, index) => (
-                    (() => {
-                      const positionText = formatMidiEventPosition(row.absoluteStartBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-                      const statusText = 'Note';
-                      const noteText = pitchToNoteNameString(row.note.getPitch());
-                      const velocityText = String(row.note.getVelocity());
-                      const lengthText = formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT);
-                      const isEditingPosition = editingCell?.noteId === row.id && editingCell.column === 'position';
-                      const isEditingNum = editingCell?.noteId === row.id && editingCell.column === 'num';
-                      const isEditingVal = editingCell?.noteId === row.id && editingCell.column === 'val';
-                      const isEditingLength = editingCell?.noteId === row.id && editingCell.column === 'length';
+                  {eventRows.map((row, index) => {
+                    const absoluteBeat = row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat;
+                    const positionText = formatMidiEventPosition(absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+                    const statusText = row.type === 'note' ? 'Note' : 'Pitch Bend';
+                    const numText = row.type === 'note' ? pitchToNoteNameString(row.note.getPitch()) : '';
+                    const valText = row.type === 'note'
+                      ? String(row.note.getVelocity())
+                      : String(midiPitchBendToSignedValue(row.pitchBend.getValue()));
+                    const lengthText = row.type === 'note'
+                      ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT)
+                      : formatPitchBendInfo(row.pitchBend.getValue());
+                    const isEditingPosition = editingCell?.eventId === row.id && editingCell.column === 'position';
+                    const isEditingNum = editingCell?.eventId === row.id && editingCell.column === 'num';
+                    const isEditingVal = editingCell?.eventId === row.id && editingCell.column === 'val';
+                    const isEditingLength = editingCell?.eventId === row.id && editingCell.column === 'length';
 
-                      return (
-                        <tr
-                          key={row.id}
-                          className={selectedNoteIdSet.has(row.id) ? 'selected' : ''}
-                          onClick={(event) => handleRowClick(row.id, index, event)}
+                    return (
+                      <tr
+                        key={row.id}
+                        className={selectedEventIdSet.has(row.id) ? 'selected' : ''}
+                        onClick={(event) => handleRowClick(row.id, index, event)}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          clearPendingSingleClickSelection();
+                        }}
+                      >
+                        <td
+                          title={positionText}
                           onDoubleClick={(event) => {
                             event.stopPropagation();
-                            clearPendingSingleClickSelection();
+                            startEditingCell(row.id, 'position', positionText);
                           }}
                         >
-                          <td
-                            title={positionText}
-                            onDoubleClick={(event) => {
-                              event.stopPropagation();
-                              startEditingCell(row.id, 'position', positionText);
-                            }}
-                          >
-                            {isEditingPosition ? (
-                              <input
-                                ref={editInputRef}
-                                className="list-event-cell-input"
-                                value={editingCell.value}
-                                onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                                onBlur={handleEditInputBlur}
-                                onClick={(event) => event.stopPropagation()}
-                                onDoubleClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                              />
-                            ) : positionText}
-                          </td>
-                          <td title={statusText}>{statusText}</td>
-                          <td
-                            title={noteText}
-                            onDoubleClick={(event) => {
-                              event.stopPropagation();
-                              startEditingCell(row.id, 'num', noteText);
-                            }}
-                          >
-                            {isEditingNum ? (
-                              <input
-                                ref={editInputRef}
-                                className="list-event-cell-input"
-                                value={editingCell.value}
-                                onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                                onBlur={handleEditInputBlur}
-                                onClick={(event) => event.stopPropagation()}
-                                onDoubleClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                              />
-                            ) : noteText}
-                          </td>
-                          <td
-                            title={velocityText}
-                            onDoubleClick={(event) => {
-                              event.stopPropagation();
-                              startEditingCell(row.id, 'val', velocityText);
-                            }}
-                          >
-                            {isEditingVal ? (
-                              <input
-                                ref={editInputRef}
-                                className="list-event-cell-input"
-                                value={editingCell.value}
-                                onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                                onBlur={handleEditInputBlur}
-                                onClick={(event) => event.stopPropagation()}
-                                onDoubleClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                              />
-                            ) : velocityText}
-                          </td>
-                          <td
-                            title={lengthText}
-                            onDoubleClick={(event) => {
-                              event.stopPropagation();
-                              startEditingCell(row.id, 'length', lengthText);
-                            }}
-                          >
-                            {isEditingLength ? (
-                              <input
-                                ref={editInputRef}
-                                className="list-event-cell-input"
-                                value={editingCell.value}
-                                onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                                onBlur={handleEditInputBlur}
-                                onClick={(event) => event.stopPropagation()}
-                                onDoubleClick={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                              />
-                            ) : lengthText}
-                          </td>
-                        </tr>
-                      );
-                    })()
-                  ))}
+                          {isEditingPosition ? (
+                            <input
+                              ref={editInputRef}
+                              className="list-event-cell-input"
+                              value={editingCell.value}
+                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                              onBlur={handleEditInputBlur}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                            />
+                          ) : positionText}
+                        </td>
+                        <td title={statusText}>{statusText}</td>
+                        <td
+                          title={numText}
+                          onDoubleClick={(event) => {
+                            if (row.type !== 'note') return;
+                            event.stopPropagation();
+                            startEditingCell(row.id, 'num', numText);
+                          }}
+                        >
+                          {isEditingNum ? (
+                            <input
+                              ref={editInputRef}
+                              className="list-event-cell-input"
+                              value={editingCell.value}
+                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                              onBlur={handleEditInputBlur}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                            />
+                          ) : numText}
+                        </td>
+                        <td
+                          title={valText}
+                          onDoubleClick={(event) => {
+                            event.stopPropagation();
+                            startEditingCell(row.id, 'val', valText);
+                          }}
+                        >
+                          {isEditingVal ? (
+                            <input
+                              ref={editInputRef}
+                              className="list-event-cell-input"
+                              value={editingCell.value}
+                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                              onBlur={handleEditInputBlur}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                            />
+                          ) : valText}
+                        </td>
+                        <td
+                          title={lengthText}
+                          onDoubleClick={(event) => {
+                            if (row.type !== 'note') return;
+                            event.stopPropagation();
+                            startEditingCell(row.id, 'length', lengthText);
+                          }}
+                        >
+                          {isEditingLength ? (
+                            <input
+                              ref={editInputRef}
+                              className="list-event-cell-input"
+                              value={editingCell.value}
+                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                              onBlur={handleEditInputBlur}
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                            />
+                          ) : lengthText}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

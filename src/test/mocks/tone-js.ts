@@ -11,11 +11,23 @@ export const mockSampler = {
   triggerRelease: vi.fn(),
   dispose: vi.fn(),
   loaded: true,
+  attack: 0,
+  release: 0.1,
+  curve: 'exponential',
+  output: {},
   toDestination: vi.fn().mockReturnThis(),
   connect: vi.fn().mockReturnThis(),
   disconnect: vi.fn().mockReturnThis(),
   set: vi.fn().mockReturnThis(),
   get: vi.fn().mockReturnValue({}),
+};
+
+export const mockBufferSource = {
+  playbackRate: { value: 1 },
+  connect: vi.fn(),
+  start: vi.fn(),
+  stop: vi.fn(),
+  onended: undefined as (() => void) | undefined,
 };
 
 // Mock Transport
@@ -35,6 +47,26 @@ export const mockTransport = {
 // Mock Tone namespace
 export const mockTone = {
   Sampler: vi.fn().mockImplementation(() => mockSampler),
+  BufferSource: vi.fn().mockImplementation(() => {
+    const instance = {
+      ...mockBufferSource,
+      playbackRate: { value: 1 },
+    };
+    instance.connect.mockImplementation(() => instance);
+    instance.start.mockImplementation(() => instance);
+    instance.stop.mockImplementation(() => instance);
+    return instance;
+  }),
+  ToneBufferSource: vi.fn().mockImplementation(() => {
+    const instance = {
+      ...mockBufferSource,
+      playbackRate: { value: 1 },
+    };
+    instance.connect.mockImplementation(() => instance);
+    instance.start.mockImplementation(() => instance);
+    instance.stop.mockImplementation(() => instance);
+    return instance;
+  }),
   Transport: mockTransport,
   Buffer: vi.fn().mockImplementation(() => ({
     loaded: true,

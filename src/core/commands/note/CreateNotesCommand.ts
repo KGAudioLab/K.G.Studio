@@ -1,164 +1,28 @@
-import { KGCommand } from '../KGCommand';
-import { KGCore } from '../../KGCore';
 import { KGMidiNote } from '../../midi/KGMidiNote';
-import { KGMidiRegion } from '../../region/KGMidiRegion';
-import { generateUniqueId } from '../../../util/miscUtil';
+import { CreateMidiEventsCommand, type NoteCreationData } from './CreateMidiEventsCommand';
 
-/**
- * Data structure for a note to be created
- */
-export interface NoteCreationData {
-  regionId: string;
-  startBeat: number;
-  endBeat: number;
-  pitch: number;
-  velocity: number;
-  noteId?: string;
-}
+export type { NoteCreationData } from './CreateMidiEventsCommand';
 
 /**
  * Command to create multiple MIDI notes in regions
  * Handles bulk creation as a single undoable operation
  */
-export class CreateNotesCommand extends KGCommand {
-  private noteCreationData: NoteCreationData[];
-  private createdNotes: Array<{
-    note: KGMidiNote;
-    regionId: string;
-  }> = [];
-
+export class CreateNotesCommand extends CreateMidiEventsCommand {
   constructor(noteCreationData: NoteCreationData[]) {
-    super();
-    this.noteCreationData = noteCreationData.map(data => ({
-      ...data,
-      noteId: data.noteId || generateUniqueId('KGMidiNote')
-    }));
-  }
-
-  execute(): void {
-    const core = KGCore.instance();
-    const currentProject = core.getCurrentProject();
-    const tracks = currentProject.getTracks();
-
-    // Clear any existing created note data to prevent duplicates on re-execution
-    this.createdNotes = [];
-
-    // Create all notes
-    for (const noteData of this.noteCreationData) {
-      // Find the target region
-      let targetRegion: KGMidiRegion | null = null;
-      
-      for (const track of tracks) {
-        const regions = track.getRegions();
-        const region = regions.find(r => r.getId() === noteData.regionId);
-        if (region && region instanceof KGMidiRegion) {
-          targetRegion = region;
-          break;
-        }
-      }
-
-      if (!targetRegion) {
-        throw new Error(`MIDI region with ID ${noteData.regionId} not found`);
-      }
-
-      // Create the new MIDI note
-      const newNote = new KGMidiNote(
-        noteData.noteId!,
-        noteData.startBeat,
-        noteData.endBeat,
-        noteData.pitch,
-        noteData.velocity
-      );
-
-      // Add the note to the region
-      targetRegion.addNote(newNote);
-
-      // Store for undo
-      this.createdNotes.push({
-        note: newNote,
-        regionId: noteData.regionId
-      });
-    }
-
-    const noteCount = this.createdNotes.length;
-    const regionCount = new Set(this.createdNotes.map(data => data.regionId)).size;
-    console.log(`Created ${noteCount} notes in ${regionCount} region${regionCount > 1 ? 's' : ''}`);
-  }
-
-  undo(): void {
-    if (this.createdNotes.length === 0) {
-      throw new Error('Cannot undo: no notes were created');
-    }
-
-    const core = KGCore.instance();
-    const currentProject = core.getCurrentProject();
-    const tracks = currentProject.getTracks();
-
-    // Remove all created notes from their regions
-    for (const data of this.createdNotes) {
-      // Find the region
-      for (const track of tracks) {
-        const regions = track.getRegions();
-        const region = regions.find(r => r.getId() === data.regionId);
-        
-        if (region && region instanceof KGMidiRegion) {
-          region.removeNote(data.note.getId());
-          
-          // Clear selection if this note was selected
-          const selectedItems = core.getSelectedItems();
-          const selectedNote = selectedItems.find(item => 
-            item instanceof KGMidiNote && item.getId() === data.note.getId()
-          );
-          if (selectedNote) {
-            core.removeSelectedItem(selectedNote);
-          }
-          
-          break;
-        }
-      }
-    }
-
-    console.log(`Removed ${this.createdNotes.length} created notes from ${new Set(this.createdNotes.map(d => d.regionId)).size} regions`);
+    super(noteCreationData, []);
   }
 
   getDescription(): string {
-    if (this.noteCreationData.length === 1) {
-      const noteData = this.noteCreationData[0];
+    const noteCreationData = this.getNoteCreationData();
+    if (noteCreationData.length === 1) {
+      const noteData = noteCreationData[0];
       // Convert MIDI pitch to note name for user-friendly description
       const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       const octave = Math.floor(noteData.pitch / 12) - 1;
       const noteName = noteNames[noteData.pitch % 12];
       return `Create note ${noteName}${octave}`;
     }
-    return `Create ${this.noteCreationData.length} notes`;
-  }
-
-  /**
-   * Get the note creation data that was/will be processed
-   */
-  public getNoteCreationData(): NoteCreationData[] {
-    return this.noteCreationData;
-  }
-
-  /**
-   * Get the created note instances (only available after execute)
-   */
-  public getCreatedNotes(): Array<{note: KGMidiNote; regionId: string}> {
-    return this.createdNotes;
-  }
-
-  /**
-   * Get the regions that were affected by this creation
-   */
-  public getAffectedRegionIds(): string[] {
-    return Array.from(new Set(this.noteCreationData.map(data => data.regionId)));
-  }
-
-  /**
-   * Get the IDs of notes that were/will be created
-   */
-  public getCreatedNoteIds(): string[] {
-    return this.noteCreationData.map(data => data.noteId!);
+    return `Create ${noteCreationData.length} notes`;
   }
 }
 

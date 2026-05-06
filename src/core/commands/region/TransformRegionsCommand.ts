@@ -25,6 +25,11 @@ interface NoteAdjustment {
   originalEndBeat: number;
 }
 
+interface PitchBendAdjustment {
+  pitchBendId: string;
+  originalBeat: number;
+}
+
 const EPSILON = 1e-9;
 
 function getRegionById(tracks: KGTrack[], regionId: string): { region: KGRegion; track: KGTrack } | null {
@@ -168,6 +173,7 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
   private originalStates: RegionSnapshot[] = [];
   private targetRegions: KGRegion[] = [];
   private noteAdjustments = new Map<string, NoteAdjustment[]>();
+  private pitchBendAdjustments = new Map<string, PitchBendAdjustment[]>();
 
   constructor(
     primaryRegionId: string,
@@ -282,6 +288,13 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
           note.setStartBeat(note.getStartBeat() - beatOffset);
           note.setEndBeat(note.getEndBeat() - beatOffset);
         });
+        this.pitchBendAdjustments.set(region.getId(), region.getPitchBends().map(pitchBend => ({
+          pitchBendId: pitchBend.getId(),
+          originalBeat: pitchBend.getBeat(),
+        })));
+        region.getPitchBends().forEach(pitchBend => {
+          pitchBend.setBeat(pitchBend.getBeat() - beatOffset);
+        });
       }
 
       if (region instanceof KGAudioRegion && projectedState.clipStartOffsetSeconds !== undefined) {
@@ -313,6 +326,13 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
           if (note) {
             note.setStartBeat(adjustment.originalStartBeat);
             note.setEndBeat(adjustment.originalEndBeat);
+          }
+        });
+        const pitchBendAdjustments = this.pitchBendAdjustments.get(region.getId()) ?? [];
+        pitchBendAdjustments.forEach(adjustment => {
+          const pitchBend = region.getPitchBends().find(candidate => candidate.getId() === adjustment.pitchBendId);
+          if (pitchBend) {
+            pitchBend.setBeat(adjustment.originalBeat);
           }
         });
       }

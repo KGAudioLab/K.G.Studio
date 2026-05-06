@@ -1,9 +1,16 @@
 import * as Tone from 'tone';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
+import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import type { InstrumentType } from '../track/KGMidiTrack';
+import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 
 // InstrumentType is defined in KGMidiTrack and re-used here
+
+interface LiveMidiSource {
+  source: Tone.ToneBufferSource;
+  basePlaybackRate: number;
+}
 
 /**
  * KGAudioBus - Represents a complete audio bus for a track
@@ -11,14 +18,22 @@ import { KGToneSamplerFactory } from './KGToneSamplerFactory';
  * Each instance manages a single track's audio processing chain
  */
 export class KGAudioBus {
+  // Fixed at +/-2 semitones for now. Future work: make this user-configurable
+  // or honor MIDI RPN 0,0 (Pitch Bend Sensitivity).
+  private static readonly LIVE_MIDI_PITCH_BEND_RANGE_SEMITONES = 2;
+  private static readonly LIVE_MIDI_NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
   // Core audio components
   private sampler: Tone.Sampler;
+  private audioBuffers: Tone.ToneAudioBuffers;
   private instrument: InstrumentType;
   
   // Audio properties
   private volume: number;
   private muted: boolean;
   private solo: boolean;
+  private liveMidiPitchBend: number = 0;
+  private liveMidiSources: Map<number, LiveMidiSource[]> = new Map();
   
   // Audio processing chain (for future expansion)
   // private gain: Tone.Gain;
@@ -29,12 +44,14 @@ export class KGAudioBus {
    */
   private constructor(
     sampler: Tone.Sampler,
+    audioBuffers: Tone.ToneAudioBuffers,
     instrument: InstrumentType,
     volume: number,
     muted: boolean,
     solo: boolean
   ) {
     this.sampler = sampler;
+    this.audioBuffers = audioBuffers;
     this.instrument = instrument;
     this.volume = volume;
     this.muted = muted;
@@ -60,11 +77,15 @@ export class KGAudioBus {
       console.log(`Creating KGAudioBus for ${instrument}...`);
       
       // Create the sampler using the factory
-       const samplerFactory = KGToneSamplerFactory.instance();
-       const sampler = await samplerFactory.createSampler(String(instrument));
+      const samplerFactory = KGToneSamplerFactory.instance();
+      const buffersPool = KGToneBuffersPool.instance();
+      const [sampler, audioBuffers] = await Promise.all([
+        samplerFactory.createSampler(String(instrument)),
+        buffersPool.getToneAudioBuffers(String(instrument)),
+      ]);
       
       // Create the audio bus instance
-      const audioBus = new KGAudioBus(sampler, instrument, volume, muted, solo);
+      const audioBus = new KGAudioBus(sampler, audioBuffers, instrument, volume, muted, solo);
       
       console.log(`KGAudioBus created successfully for ${instrument}`);
       return audioBus;
@@ -118,6 +139,42 @@ export class KGAudioBus {
   }
 
   /**
+   * Trigger note attack for live MIDI keyboard monitoring.
+   * This path tracks the underlying buffer sources so pitch bend can retune held notes.
+   */
+  public triggerLiveMidiAttack(
+    pitch: number,
+    time?: number,
+    velocity?: number
+  ): void {
+    this.triggerPitchBendAwareAttack(pitch, time, velocity);
+  }
+
+  public triggerPitchBendAwareAttack(
+    pitch: number,
+    time?: number,
+    velocity?: number,
+    duration?: number
+  ): void {
+    if (!this.shouldPlay()) {
+      return;
+    }
+
+    try {
+      const liveSource = this.createPitchBendAwareSource(pitch, time, velocity, duration);
+      if (!liveSource) {
+        return;
+      }
+
+      const activeSources = this.liveMidiSources.get(pitch) ?? [];
+      activeSources.push(liveSource);
+      this.liveMidiSources.set(pitch, activeSources);
+    } catch (error) {
+      console.error(`Error triggering live MIDI attack for pitch ${pitch} on ${this.instrument}:`, error);
+    }
+  }
+
+  /**
    * Release a specific note
    * Used for ending sustained notes like piano key releases
    */
@@ -133,11 +190,60 @@ export class KGAudioBus {
   }
 
   /**
+   * Release a live MIDI note and forget any active bent sources tied to that pitch.
+   */
+  public releaseLiveMidiNote(pitch: number, time?: number): void {
+    try {
+      const activeSources = this.liveMidiSources.get(pitch);
+      if (!activeSources || activeSources.length === 0) {
+        return;
+      }
+
+      const stopTime = time ?? Tone.now();
+      activeSources.forEach(({ source }) => {
+        try {
+          source.stop(stopTime);
+        } catch (error) {
+          console.error(`Error stopping live MIDI source for pitch ${pitch} on ${this.instrument}:`, error);
+        }
+      });
+      this.liveMidiSources.delete(pitch);
+    } catch (error) {
+      console.error(`Error releasing live MIDI note ${pitch} on ${this.instrument}:`, error);
+    }
+  }
+
+  public setLiveMidiPitchBend(normalizedBend: number): void {
+    this.liveMidiPitchBend = Math.max(-1, Math.min(1, normalizedBend));
+
+    for (const activeSources of this.liveMidiSources.values()) {
+      activeSources.forEach(({ source, basePlaybackRate }) => {
+        source.playbackRate.value = this.applyPitchBendToPlaybackRate(basePlaybackRate);
+      });
+    }
+  }
+
+  public resetLiveMidiPitchBend(): void {
+    this.setLiveMidiPitchBend(0);
+  }
+
+  /**
    * Release all currently playing notes
    */
   public releaseAll(): void {
     try {
       this.sampler.releaseAll();
+      this.liveMidiSources.forEach((activeSources) => {
+        activeSources.forEach(({ source }) => {
+          try {
+            source.stop();
+          } catch (error) {
+            console.error(`Error stopping live MIDI source on ${this.instrument}:`, error);
+          }
+        });
+      });
+      this.liveMidiSources.clear();
+      this.resetLiveMidiPitchBend();
     } catch (error) {
       console.error(`Error releasing all notes on ${this.instrument}:`, error);
     }
@@ -206,12 +312,20 @@ export class KGAudioBus {
     try {
       console.log(`Changing instrument from ${this.instrument} to ${newInstrument}...`);
       
+      this.releaseAll();
+
       // Dispose of the current sampler
       this.sampler.dispose();
       
       // Create new sampler with new instrument
       const samplerFactory = KGToneSamplerFactory.instance();
-      this.sampler = await samplerFactory.createSampler(String(newInstrument));
+      const buffersPool = KGToneBuffersPool.instance();
+      const [sampler, audioBuffers] = await Promise.all([
+        samplerFactory.createSampler(String(newInstrument)),
+        buffersPool.getToneAudioBuffers(String(newInstrument)),
+      ]);
+      this.sampler = sampler;
+      this.audioBuffers = audioBuffers;
       this.instrument = newInstrument;
       
       // Restore volume settings
@@ -269,6 +383,7 @@ export class KGAudioBus {
    */
   public dispose(): void {
     try {
+      this.releaseAll();
       this.sampler.dispose();
       console.log(`Disposed KGAudioBus for ${this.instrument}`);
     } catch (error) {
@@ -351,5 +466,81 @@ export class KGAudioBus {
       muted: this.muted,
       solo: this.solo
     };
+  }
+
+  private createPitchBendAwareSource(
+    pitch: number,
+    time?: number,
+    velocity?: number,
+    duration?: number
+  ): LiveMidiSource | null {
+    const closestPitch = this.findClosestBufferedPitch(pitch);
+    if (closestPitch === null) {
+      console.warn(`No audio buffer found for live MIDI pitch ${pitch} on ${this.instrument}`);
+      return null;
+    }
+
+    const bufferKey = this.midiPitchToBufferKey(closestPitch);
+    const buffer = this.audioBuffers.get(bufferKey);
+    if (!buffer) {
+      console.warn(`Missing audio buffer ${bufferKey} for ${this.instrument}`);
+      return null;
+    }
+
+    const basePlaybackRate = Math.pow(2, (pitch - closestPitch) / 12);
+    const source = new Tone.ToneBufferSource({
+      url: buffer,
+      fadeIn: this.sampler.attack,
+      fadeOut: this.sampler.release,
+      curve: this.sampler.curve,
+      playbackRate: this.applyPitchBendToPlaybackRate(basePlaybackRate),
+    }).connect(this.sampler.output);
+
+    source.onended = () => {
+      const currentSources = this.liveMidiSources.get(pitch);
+      if (!currentSources) {
+        return;
+      }
+
+      const nextSources = currentSources.filter((entry) => entry.source !== source);
+      if (nextSources.length === 0) {
+        this.liveMidiSources.delete(pitch);
+      } else {
+        this.liveMidiSources.set(pitch, nextSources);
+      }
+    };
+
+    source.start(time, 0, duration ?? buffer.duration / basePlaybackRate, velocity ?? 1);
+    return { source, basePlaybackRate };
+  }
+
+  private applyPitchBendToPlaybackRate(basePlaybackRate: number): number {
+    const bendSemitones = this.liveMidiPitchBend * KGAudioBus.LIVE_MIDI_PITCH_BEND_RANGE_SEMITONES;
+    return basePlaybackRate * Math.pow(2, bendSemitones / 12);
+  }
+
+  private findClosestBufferedPitch(targetPitch: number): number | null {
+    const [minPitch, maxPitch] = FLUIDR3_INSTRUMENT_MAP[this.instrument]?.pitchRange || [21, 108];
+    const boundedPitch = Math.max(minPitch, Math.min(maxPitch, targetPitch));
+
+    for (let offset = 0; offset <= 96; offset++) {
+      const upwardPitch = boundedPitch + offset;
+      if (upwardPitch <= maxPitch && this.audioBuffers.has(this.midiPitchToBufferKey(upwardPitch))) {
+        return upwardPitch;
+      }
+
+      const downwardPitch = boundedPitch - offset;
+      if (downwardPitch >= minPitch && this.audioBuffers.has(this.midiPitchToBufferKey(downwardPitch))) {
+        return downwardPitch;
+      }
+    }
+
+    return null;
+  }
+
+  private midiPitchToBufferKey(pitch: number): string {
+    const octave = Math.floor((pitch - 12) / 12);
+    const noteIndex = (pitch - 12) % 12;
+    return `${KGAudioBus.LIVE_MIDI_NOTE_NAMES[noteIndex]}${octave}`;
   }
 }

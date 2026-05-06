@@ -2,6 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
 import { useProjectStore } from '../../../stores/projectStore';
 
@@ -15,6 +16,11 @@ interface RegionSnapshot {
     endBeat: number;
     pitch: number;
     velocity: number;
+  }>;
+  pitchBends: Array<{
+    id: string;
+    beat: number;
+    value: number;
   }>;
 }
 
@@ -30,6 +36,14 @@ function cloneNote(note: KGMidiNote, startBeat: number, endBeat: number): KGMidi
     endBeat,
     note.getPitch(),
     note.getVelocity()
+  );
+}
+
+function clonePitchBend(pitchBend: KGMidiPitchBend, beat: number): KGMidiPitchBend {
+  return new KGMidiPitchBend(
+    pitchBend.getId(),
+    beat,
+    pitchBend.getValue()
   );
 }
 
@@ -102,6 +116,11 @@ export class MergeMidiRegionsCommand extends KGCommand {
           pitch: note.getPitch(),
           velocity: note.getVelocity(),
         })),
+        pitchBends: region.getPitchBends().map(pitchBend => ({
+          id: pitchBend.getId(),
+          beat: pitchBend.getBeat(),
+          value: pitchBend.getValue(),
+        })),
       });
     });
 
@@ -116,6 +135,7 @@ export class MergeMidiRegionsCommand extends KGCommand {
     ), survivingRegionStart + this.survivingRegion.getLength());
 
     const mergedNotes = [...this.survivingRegion.getNotes()];
+    const mergedPitchBends = [...this.survivingRegion.getPitchBends()];
     for (const { region } of resolvedRegions.slice(1)) {
       const regionStart = region.getStartFromBeat();
       region.getNotes().forEach(note => {
@@ -127,10 +147,17 @@ export class MergeMidiRegionsCommand extends KGCommand {
           absoluteEnd - survivingRegionStart
         ));
       });
+      region.getPitchBends().forEach(pitchBend => {
+        mergedPitchBends.push(clonePitchBend(
+          pitchBend,
+          regionStart + pitchBend.getBeat() - survivingRegionStart
+        ));
+      });
     }
 
     this.survivingRegion.setLength(mergedEndBeat - survivingRegionStart);
     this.survivingRegion.setNotes(mergedNotes);
+    this.survivingRegion.setPitchBends(mergedPitchBends);
 
     const removedRegionIds = new Set(this.removedRegions.map(({ region }) => region.getId()));
     const nextRegions = resolvedTargetTrack.getRegions().filter(region => !removedRegionIds.has(region.getId()));
@@ -165,6 +192,11 @@ export class MergeMidiRegionsCommand extends KGCommand {
       note.pitch,
       note.velocity
     )));
+    this.survivingRegion.setPitchBends(survivingSnapshot.pitchBends.map(pitchBend => new KGMidiPitchBend(
+      pitchBend.id,
+      pitchBend.beat,
+      pitchBend.value
+    )));
 
     for (const { region } of this.removedRegions) {
       const snapshot = this.originalRegionSnapshots.get(region.getId());
@@ -179,6 +211,11 @@ export class MergeMidiRegionsCommand extends KGCommand {
         note.endBeat,
         note.pitch,
         note.velocity
+      )));
+      region.setPitchBends(snapshot.pitchBends.map(pitchBend => new KGMidiPitchBend(
+        pitchBend.id,
+        pitchBend.beat,
+        pitchBend.value
       )));
     }
 
