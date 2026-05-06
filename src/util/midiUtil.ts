@@ -21,6 +21,8 @@ export const pianoRollIndexToPitch = (index: number) => {
   return 107 /* MIDI note B7 */ - index;
 };
 
+export const MIDI_EVENT_TICKS_PER_BEAT = 480;
+
 export const pitchToNoteName = (pitch: number) => {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   return {
@@ -36,12 +38,13 @@ export const pitchToNoteNameString = (pitch: number) => {
 
 export const noteNameToPitch = (noteName: string): number => {
   const noteMap: { [key: string]: number } = {
-    'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
-    'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11
+    'C': 0, 'C#': 1, 'Cb': -1, 'D': 2, 'D#': 3, 'Db': 1, 'E': 4, 'E#': 5, 'Eb': 3,
+    'F': 5, 'F#': 6, 'Fb': 4, 'G': 7, 'G#': 8, 'Gb': 6, 'A': 9, 'A#': 10, 'Ab': 8,
+    'B': 11, 'B#': 12, 'Bb': 10
   };
   
-  // Parse note name (e.g., "C4", "F#2", "A#7")
-  const match = noteName.match(/^([A-G]#?)(\d+)$/);
+  // Parse note name (e.g., "C4", "F#2", "Cb3", "A#7")
+  const match = noteName.trim().match(/^([A-G](?:#|b)?)(-?\d+)$/);
   if (!match) {
     throw new Error(`Invalid note name: ${noteName}`);
   }
@@ -53,7 +56,11 @@ export const noteNameToPitch = (noteName: string): number => {
     throw new Error(`Invalid note: ${note}`);
   }
   
-  return noteMap[note] + (octave + 1) * 12;
+  const pitch = noteMap[note] + (octave + 1) * 12;
+  if (pitch < 0 || pitch > 127) {
+    throw new Error(`Note out of MIDI range: ${noteName}`);
+  }
+  return pitch;
 };
 
 export const beatsToBar = (beats: number, timeSignature: TimeSignature) => {
@@ -61,6 +68,203 @@ export const beatsToBar = (beats: number, timeSignature: TimeSignature) => {
     bar: Math.floor(beats / timeSignature.numerator),
     beatInBar: beats % timeSignature.numerator
   };
+};
+
+export const formatMidiEventPosition = (
+  beats: number,
+  timeSignature: TimeSignature,
+  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+): string => {
+  const { bar, beatInBar } = beatsToBar(beats, timeSignature);
+  const beatInteger = Math.floor(beatInBar);
+  let tick = Math.round((beatInBar - beatInteger) * ticksPerBeat);
+  let normalizedBeat = beatInteger;
+  let normalizedBar = bar;
+
+  if (tick >= ticksPerBeat) {
+    tick = 0;
+    normalizedBeat += 1;
+  }
+
+  if (normalizedBeat >= timeSignature.numerator) {
+    normalizedBeat = 0;
+    normalizedBar += 1;
+  }
+
+  return `${normalizedBar + 1} ${normalizedBeat + 1} ${tick}`;
+};
+
+export const formatMidiEventLength = (
+  beats: number,
+  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+): string => {
+  const fullBeats = Math.floor(beats);
+  let tick = Math.round((beats - fullBeats) * ticksPerBeat);
+  let normalizedBeats = fullBeats;
+
+  if (tick >= ticksPerBeat) {
+    tick = 0;
+    normalizedBeats += 1;
+  }
+
+  return `${normalizedBeats} ${tick}`;
+};
+
+export type MidiEventPositionParseResult =
+  | { absoluteBeat: number }
+  | { error: string };
+
+export const parseMidiEventPosition = (
+  raw: string,
+  timeSignature: TimeSignature,
+  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+): MidiEventPositionParseResult => {
+  const match = raw.trim().match(/^(\d+)\s+(\d+)\s+(\d+)$/);
+  if (!match) {
+    return { error: 'Use Position as "bar beat tick", for example "4 2 120".' };
+  }
+
+  const bar = parseInt(match[1], 10);
+  const beat = parseInt(match[2], 10);
+  let tick = parseInt(match[3], 10);
+
+  if (bar < 1) {
+    return { error: 'Bar number must be 1 or greater.' };
+  }
+  if (beat < 1 || beat > timeSignature.numerator) {
+    return { error: `Beat must be between 1 and ${timeSignature.numerator} for the current time signature.` };
+  }
+  if (tick < 0 || tick > ticksPerBeat) {
+    return { error: `Tick must be between 0 and ${ticksPerBeat}.` };
+  }
+
+  let normalizedBar = bar;
+  let normalizedBeat = beat;
+  if (tick === ticksPerBeat) {
+    tick = 0;
+    normalizedBeat += 1;
+    if (normalizedBeat > timeSignature.numerator) {
+      normalizedBeat = 1;
+      normalizedBar += 1;
+    }
+  }
+
+  const absoluteBeat = ((normalizedBar - 1) * timeSignature.numerator) +
+    (normalizedBeat - 1) +
+    (tick / ticksPerBeat);
+
+  return { absoluteBeat };
+};
+
+export type MidiEventPositionDeltaParseResult =
+  | { deltaBeats: number }
+  | { error: string };
+
+export const parseMidiEventPositionDelta = (
+  raw: string,
+  timeSignature: TimeSignature,
+  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+): MidiEventPositionDeltaParseResult => {
+  const match = raw.trim().match(/^([+-])(\d+)\s+(\d+)\s+(\d+)$/);
+  if (!match) {
+    return { error: 'Use position delta as "+bars beats tick" or "-bars beats tick", for example "+0 1 120".' };
+  }
+
+  const sign = match[1] === '-' ? -1 : 1;
+  const bars = parseInt(match[2], 10);
+  const beats = parseInt(match[3], 10);
+  let tick = parseInt(match[4], 10);
+
+  if (beats < 0 || beats > timeSignature.numerator) {
+    return { error: `Delta beat component must be between 0 and ${timeSignature.numerator}.` };
+  }
+  if (tick < 0 || tick > ticksPerBeat) {
+    return { error: `Delta tick must be between 0 and ${ticksPerBeat}.` };
+  }
+
+  let normalizedBars = bars;
+  let normalizedBeats = beats;
+  if (tick === ticksPerBeat) {
+    tick = 0;
+    normalizedBeats += 1;
+    if (normalizedBeats >= timeSignature.numerator) {
+      normalizedBars += Math.floor(normalizedBeats / timeSignature.numerator);
+      normalizedBeats = normalizedBeats % timeSignature.numerator;
+    }
+  }
+
+  const deltaBeats = sign * (
+    (normalizedBars * timeSignature.numerator) +
+    normalizedBeats +
+    (tick / ticksPerBeat)
+  );
+
+  return { deltaBeats };
+};
+
+export type MidiEventLengthParseResult =
+  | { duration: number }
+  | { error: string };
+
+export const parseMidiEventLength = (
+  raw: string,
+  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+): MidiEventLengthParseResult => {
+  const match = raw.trim().match(/^(\d+)\s+(\d+)$/);
+  if (!match) {
+    return { error: 'Use Length as "beats tick", for example "1 240".' };
+  }
+
+  let beats = parseInt(match[1], 10);
+  let tick = parseInt(match[2], 10);
+
+  if (beats < 0) {
+    return { error: 'Length beats must be 0 or greater.' };
+  }
+  if (tick < 0 || tick > ticksPerBeat) {
+    return { error: `Length tick must be between 0 and ${ticksPerBeat}.` };
+  }
+
+  if (tick === ticksPerBeat) {
+    tick = 0;
+    beats += 1;
+  }
+
+  const duration = beats + (tick / ticksPerBeat);
+  if (duration <= 0) {
+    return { error: 'Length must be greater than 0.' };
+  }
+
+  return { duration };
+};
+
+export type MidiEventLengthDeltaParseResult =
+  | { deltaBeats: number }
+  | { error: string };
+
+export const parseMidiEventLengthDelta = (
+  raw: string,
+  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+): MidiEventLengthDeltaParseResult => {
+  const match = raw.trim().match(/^([+-])(\d+)\s+(\d+)$/);
+  if (!match) {
+    return { error: 'Use length delta as "+beats tick" or "-beats tick", for example "+1 240".' };
+  }
+
+  const sign = match[1] === '-' ? -1 : 1;
+  let beats = parseInt(match[2], 10);
+  let tick = parseInt(match[3], 10);
+
+  if (tick < 0 || tick > ticksPerBeat) {
+    return { error: `Length delta tick must be between 0 and ${ticksPerBeat}.` };
+  }
+
+  if (tick === ticksPerBeat) {
+    tick = 0;
+    beats += 1;
+  }
+
+  return { deltaBeats: sign * (beats + (tick / ticksPerBeat)) };
 };
 
 export const midiPercussionKeyMap: Record<number, { fullName: string; shortName: string }> = {

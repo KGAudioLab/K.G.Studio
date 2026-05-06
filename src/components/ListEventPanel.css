@@ -187,3 +187,17 @@
   text-overflow: ellipsis;
   max-width: 0;
 }
+
+.list-event-cell-input {
+  width: calc(100% + 8px);
+  height: 16px;
+  margin: 0 -4px;
+  padding: 0 4px;
+  border: 1px solid #6d94ca;
+  border-radius: 3px;
+  background-color: #1f1f1f;
+  color: #f3f6fb;
+  font-size: 11px;
+  line-height: 16px;
+  outline: none;
+}

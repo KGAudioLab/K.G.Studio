@@ -16,6 +16,7 @@ interface NoteUpdate {
   noteId: string;
   pitch?: number;
   velocity?: number;
+  startBeat?: number;
   endBeat?: number;
 }
 
@@ -56,6 +57,7 @@ export class UpdateNotePropertiesCommand extends KGCommand {
       if (note) {
         if (update.pitch !== undefined) note.setPitch(update.pitch);
         if (update.velocity !== undefined) note.setVelocity(update.velocity);
+        if (update.startBeat !== undefined) note.setStartBeat(update.startBeat);
         if (update.endBeat !== undefined) note.setEndBeat(update.endBeat);
       }
     }
