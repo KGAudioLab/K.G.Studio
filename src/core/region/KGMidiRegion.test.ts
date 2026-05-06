@@ -397,5 +397,20 @@ describe('KGMidiRegion', () => {
       expect(restored.getPitchBends()[0]).toBeInstanceOf(KGMidiPitchBend);
       expect(restored.getPitchBends()[0].getValue()).toBe(12288);
     });
+
+    it('defaults missing legacy pitch bend data to an empty array', () => {
+      const restored = plainToInstance(KGMidiRegion, {
+        __type: 'KGMidiRegion',
+        id: 'legacy-region',
+        trackId: 'track-1',
+        trackIndex: 0,
+        name: 'Legacy Region',
+        startFromBeat: 0,
+        length: 4,
+        notes: [],
+      });
+
+      expect(restored.getPitchBends()).toEqual([]);
+    });
   });
 });

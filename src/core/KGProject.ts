@@ -52,7 +52,7 @@ export class KGProject {
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 7;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 8;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -181,4 +181,3 @@ export class KGProject {
     this.barWidthMultiplier = barWidthMultiplier;
   }
 }
-

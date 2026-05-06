@@ -26,38 +26,44 @@ export class KGMidiRegion extends KGRegion {
 
   // Getter
   public getNotes(): KGMidiNote[] {
+    if (!this.notes) {
+      this.notes = [];
+    }
     return this.notes;
   }
 
   // Setter
   public setNotes(notes: KGMidiNote[]): void {
-    this.notes = notes;
+    this.notes = notes ?? [];
   }
 
   public getPitchBends(): KGMidiPitchBend[] {
+    if (!this.pitchBends) {
+      this.pitchBends = [];
+    }
     return this.pitchBends;
   }
 
   public setPitchBends(pitchBends: KGMidiPitchBend[]): void {
-    this.pitchBends = pitchBends;
+    this.pitchBends = pitchBends ?? [];
   }
 
   // Add a single note
   public addNote(note: KGMidiNote): void {
-    this.notes.push(note);
+    this.getNotes().push(note);
   }
 
   // Remove a note by ID
   public removeNote(noteId: string): void {
-    this.notes = this.notes.filter(note => note.getId() !== noteId);
+    this.notes = this.getNotes().filter(note => note.getId() !== noteId);
   }
 
   public addPitchBend(pitchBend: KGMidiPitchBend): void {
-    this.pitchBends.push(pitchBend);
+    this.getPitchBends().push(pitchBend);
   }
 
   public removePitchBend(pitchBendId: string): void {
-    this.pitchBends = this.pitchBends.filter(pitchBend => pitchBend.getId() !== pitchBendId);
+    this.pitchBends = this.getPitchBends().filter(pitchBend => pitchBend.getId() !== pitchBendId);
   }
 
   // Override getCurrentType to return specific subclass type
