@@ -11,6 +11,7 @@ import ChatBox from './components/ChatBox';
 import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
 import KGOnePanel from './components/KGOnePanel';
+import ListEventPanel from './components/ListEventPanel';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
 import { KGOfflineRenderer } from './core/audio-interface/KGOfflineRenderer';
@@ -30,7 +31,7 @@ function App() {
   const {
     refreshStatus,
     loadProject, showChatBox, showSettings, setShowSettings, initializeFromConfig,
-    showInstrumentSelection, showKGOnePanel
+    showInstrumentSelection, showKGOnePanel, showListEventPanel
   } = useProjectStore();
 
   // Track if app has been initialized to prevent multiple initializations
@@ -168,6 +169,7 @@ function App() {
           </>
         )}
         <KGOnePanel isVisible={showKGOnePanel && !showSettings} />
+        <ListEventPanel isVisible={showListEventPanel && !showSettings} />
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 

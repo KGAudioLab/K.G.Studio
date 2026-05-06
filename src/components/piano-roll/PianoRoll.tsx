@@ -46,7 +46,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showListEventPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -140,7 +140,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
         
         let availableWidth = window.innerWidth;
-        if (showChatBox) availableWidth -= chatBoxWidth;
+        if (showChatBox || showKGOnePanel || showListEventPanel) availableWidth -= chatBoxWidth;
         if (showInstrumentSelection) availableWidth -= instrumentPanelWidth;
         
         // Ensure a sensible minimum starting width

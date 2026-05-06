@@ -18,7 +18,7 @@ import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { plainToInstance } from 'class-transformer';
-import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles, FaListUl } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { SplitRegionCommand } from '../core/commands/region/SplitRegionCommand';
@@ -48,7 +48,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleListEventPanel, showKGOnePanel, showListEventPanel, showChatBox, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
@@ -939,6 +939,13 @@ const Toolbar: React.FC = () => {
     toggleKGOnePanel();
   };
 
+  const handleListEventClick = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("List Event button clicked");
+    }
+    toggleListEventPanel();
+  };
+
   // Handle Piano button click: open piano roll if closed, targeting active or selected region
   const handlePianoButtonClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
@@ -1058,6 +1065,7 @@ const Toolbar: React.FC = () => {
           </div>
         </div>
         <button title="Import" onClick={handleImportProject}><FaUpload /></button>
+        <button title="Settings" onClick={handleSettingsClick}><FaCog /></button>
         <div className="toolbar-separator"></div>
         <button title="Undo" onClick={handleUndoClick}><FaUndo /></button>
         <button title="Redo" onClick={handleRedoClick}><FaRedo /></button>
@@ -1188,7 +1196,6 @@ const Toolbar: React.FC = () => {
             </div>
           </div>
         </div>
-        <button title="Settings" onClick={handleSettingsClick}><FaCog /></button>
         <button
           title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
           onClick={handleKGOneClick}
@@ -1198,7 +1205,20 @@ const Toolbar: React.FC = () => {
         >
           <FaWandMagicSparkles />
         </button>
-        <button title="Chat" onClick={handleChatClick}><FaComments /></button>
+        <button
+          title="Chat"
+          onClick={handleChatClick}
+          className={showChatBox ? 'active' : ''}
+        >
+          <FaComments />
+        </button>
+        <button
+          title="List Event Editor"
+          onClick={handleListEventClick}
+          className={showListEventPanel ? 'active' : ''}
+        >
+          <FaListUl />
+        </button>
       </div>
     </div>
     

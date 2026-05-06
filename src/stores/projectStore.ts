@@ -87,6 +87,9 @@ interface ProjectState {
   // K.G.One panel state
   showKGOnePanel: boolean;
 
+  // List event panel state
+  showListEventPanel: boolean;
+
   // Instrument selection panel state
   showInstrumentSelection: boolean;
   // instrumentSelectionTrackId removed; panel now follows selectedTrackId
@@ -168,6 +171,9 @@ interface ProjectState {
 
   // K.G.One panel actions
   toggleKGOnePanel: () => void;
+
+  // List event panel actions
+  toggleListEventPanel: () => void;
 
   // Instrument selection panel actions
   openInstrumentSelectionForTrack: () => void;
@@ -347,6 +353,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial K.G.One panel state
     showKGOnePanel: false,
+
+    // Initial List Event panel state
+    showListEventPanel: false,
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
@@ -1130,17 +1139,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     // ChatBox action implementations
     setShowChatBox: (show: boolean) => {
-      set({ showChatBox: show });
+      set({
+        showChatBox: show,
+        showKGOnePanel: show ? false : get().showKGOnePanel,
+        showListEventPanel: show ? false : get().showListEventPanel
+      });
     },
     
     toggleChatBox: () => {
       const { showChatBox } = get();
-      set({ showChatBox: !showChatBox, showKGOnePanel: false });
+      set({ showChatBox: !showChatBox, showKGOnePanel: false, showListEventPanel: false });
     },
 
     toggleKGOnePanel: () => {
       const { showKGOnePanel } = get();
-      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false });
+      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false, showListEventPanel: false });
+    },
+
+    toggleListEventPanel: () => {
+      const { showListEventPanel } = get();
+      set({ showListEventPanel: !showListEventPanel, showChatBox: false, showKGOnePanel: false });
     },
 
     // Instrument selection panel actions
@@ -1279,6 +1297,5 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   };
 }); 
-
 
 
