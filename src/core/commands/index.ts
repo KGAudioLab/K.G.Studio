@@ -30,6 +30,7 @@ export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';
+export { DeleteMidiEventsCommand } from './note/DeleteMidiEventsCommand';
 export { DeleteNotesCommand, DeleteNoteCommand } from './note/DeleteNotesCommand';
 export { ResizeNotesCommand } from './note/ResizeNotesCommand';
 export { MoveNotesCommand } from './note/MoveNotesCommand';

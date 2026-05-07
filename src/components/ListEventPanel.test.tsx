@@ -32,16 +32,18 @@ describe('ListEventPanel', () => {
   it('renders note and pitch bend rows and toggles them independently', () => {
     render(<ListEventPanel isVisible={true} />);
 
+    expect(screen.getByRole('button', { name: 'Note' })).toBeInTheDocument();
+    expect(screen.getByTitle('Delete visible selected rows')).toBeDisabled();
     expect(screen.getByText('Pitch Bend')).toBeInTheDocument();
-    expect(screen.getByText('Note')).toBeInTheDocument();
+    expect(screen.getAllByText('Note').length).toBeGreaterThan(0);
     expect(screen.getByText('Raw 12288 | 0.500 | 1.00 st')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Pitch Bends' }));
     expect(screen.queryByText('Pitch Bend')).not.toBeInTheDocument();
-    expect(screen.getByText('Note')).toBeInTheDocument();
+    expect(screen.getByText('C4')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Notes' }));
-    expect(screen.queryByText('Note')).not.toBeInTheDocument();
+    expect(screen.queryByText('C4')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Pitch Bends' }));
     expect(screen.getByText('Pitch Bend')).toBeInTheDocument();

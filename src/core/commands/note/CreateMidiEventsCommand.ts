@@ -114,6 +114,10 @@ export class CreateMidiEventsCommand extends KGCommand {
     return this.createdNotes;
   }
 
+  public getCreatedPitchBends(): Array<{ pitchBend: KGMidiPitchBend; regionId: string }> {
+    return this.createdPitchBends;
+  }
+
   public getCreatedNoteIds(): string[] {
     return this.noteCreationData.map(data => data.noteId!);
   }

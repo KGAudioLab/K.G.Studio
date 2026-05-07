@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './ListEventPanel.css';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaTrash } from 'react-icons/fa';
 import KGDropdown from './common/KGDropdown';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
@@ -28,7 +28,7 @@ import {
 } from '../util/midiUtil';
 import { isModifierKeyPressed } from '../util/osUtil';
 import { PIANO_ROLL_CONSTANTS } from '../constants';
-import { CreateNoteCommand } from '../core/commands';
+import { CreateMidiEventsCommand, CreateNoteCommand, DeleteMidiEventsCommand } from '../core/commands';
 import { UpdateNotePropertiesCommand } from '../core/commands/note/UpdateNotePropertiesCommand';
 import { UpdatePitchBendPropertiesCommand } from '../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { showAlert } from '../util/dialogUtil';
@@ -60,6 +60,13 @@ interface EditingCell {
   column: EditableColumn;
   value: string;
 }
+
+type AddEventType = 'note' | 'pitch-bend';
+
+const ADD_EVENT_TYPE_OPTIONS = [
+  { label: 'Note', value: 'note' },
+  { label: 'Pitch Bend', value: 'pitch-bend' },
+] as const;
 
 const parseVelocityInput = (raw: string): { velocity: number } | { error: string } => {
   const trimmed = raw.trim();
@@ -147,6 +154,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const [showPitchBends, setShowPitchBends] = useState(true);
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
   const [quantLength, setQuantLength] = useState<string>('1/8');
+  const [addEventType, setAddEventType] = useState<AddEventType>('note');
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const rangeAnchorEventIdRef = useRef<string | null>(null);
   const editInputRef = useRef<HTMLInputElement | null>(null);
@@ -206,6 +214,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const selectedNoteIdSet = new Set(selectedNoteIds);
   const selectedPitchBendIdSet = new Set(selectedPitchBendIds);
   const selectedEventIdSet = new Set([...selectedNoteIds, ...selectedPitchBendIds]);
+  const visibleSelectedRows = eventRows.filter(row => selectedEventIdSet.has(row.id));
 
   useEffect(() => {
     if (editingCell) {
@@ -675,41 +684,77 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     refreshProjectState();
   };
 
-  const handleAddNote = async (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleAddEvent = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (!activeMidiRegion || !parentTrack) return;
 
-    const lastSelectedNoteId = [...selectedNoteIds]
-      .reverse()
-      .find(noteId => activeMidiRegion.getNotes().some(note => note.getId() === noteId));
-    const lastSelectedNote = lastSelectedNoteId
-      ? activeMidiRegion.getNotes().find(note => note.getId() === lastSelectedNoteId) ?? null
-      : null;
-
-    const defaultLength = lastSelectedNote
-      ? lastSelectedNote.getEndBeat() - lastSelectedNote.getStartBeat()
-      : KGPianoRollState.instance().getLastEditedNoteLength();
-    const defaultPitch = lastSelectedNote ? lastSelectedNote.getPitch() : noteNameToPitch('C4');
-    const defaultVelocity = lastSelectedNote ? lastSelectedNote.getVelocity() : 127;
-
     const regionRelativePlayhead = Math.max(0, playheadPosition - activeMidiRegion.getStartFromBeat());
-    const command = new CreateNoteCommand(
-      activeMidiRegion.getId(),
-      regionRelativePlayhead,
-      regionRelativePlayhead + defaultLength,
-      defaultPitch,
-      defaultVelocity
-    );
 
-    KGCore.instance().executeCommand(command);
-    KGPianoRollState.instance().setLastEditedNoteLength(defaultLength);
-    const createdNote = command.getCreatedNote();
-    if (createdNote) {
-      createdNote.select();
-      KGCore.instance().clearSelectedItems();
-      KGCore.instance().addSelectedItem(createdNote);
-      rangeAnchorEventIdRef.current = createdNote.getId();
+    if (addEventType === 'note') {
+      const lastSelectedNoteId = [...selectedNoteIds]
+        .reverse()
+        .find(noteId => activeMidiRegion.getNotes().some(note => note.getId() === noteId));
+      const lastSelectedNote = lastSelectedNoteId
+        ? activeMidiRegion.getNotes().find(note => note.getId() === lastSelectedNoteId) ?? null
+        : null;
+
+      const defaultLength = lastSelectedNote
+        ? lastSelectedNote.getEndBeat() - lastSelectedNote.getStartBeat()
+        : KGPianoRollState.instance().getLastEditedNoteLength();
+      const defaultPitch = lastSelectedNote ? lastSelectedNote.getPitch() : noteNameToPitch('C4');
+      const defaultVelocity = lastSelectedNote ? lastSelectedNote.getVelocity() : 127;
+
+      const command = new CreateNoteCommand(
+        activeMidiRegion.getId(),
+        regionRelativePlayhead,
+        regionRelativePlayhead + defaultLength,
+        defaultPitch,
+        defaultVelocity
+      );
+
+      KGCore.instance().executeCommand(command);
+      KGPianoRollState.instance().setLastEditedNoteLength(defaultLength);
+      const createdNote = command.getCreatedNote();
+      if (createdNote) {
+        createdNote.select();
+        KGCore.instance().clearSelectedItems();
+        KGCore.instance().addSelectedItem(createdNote);
+        rangeAnchorEventIdRef.current = createdNote.getId();
+      }
+    } else {
+      const command = new CreateMidiEventsCommand([], [{
+        regionId: activeMidiRegion.getId(),
+        beat: regionRelativePlayhead,
+        value: MIDI_PITCH_BEND_CENTER,
+      }]);
+
+      KGCore.instance().executeCommand(command);
+      const createdPitchBend = command.getCreatedPitchBends()[0]?.pitchBend;
+      if (createdPitchBend) {
+        createdPitchBend.select();
+        KGCore.instance().clearSelectedItems();
+        KGCore.instance().addSelectedItem(createdPitchBend);
+        rangeAnchorEventIdRef.current = createdPitchBend.getId();
+      }
     }
+
+    await updateTrack(parentTrack);
+    refreshProjectState();
+  };
+
+  const handleDeleteSelectedRows = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (!activeMidiRegion || !parentTrack || visibleSelectedRows.length === 0) return;
+
+    const noteIds = visibleSelectedRows
+      .filter((row): row is NoteRowData => row.type === 'note')
+      .map(row => row.note.getId());
+    const pitchBendIds = visibleSelectedRows
+      .filter((row): row is PitchBendRowData => row.type === 'pitch-bend')
+      .map(row => row.pitchBend.getId());
+
+    KGCore.instance().executeCommand(new DeleteMidiEventsCommand(noteIds, pitchBendIds));
+    rangeAnchorEventIdRef.current = null;
     await updateTrack(parentTrack);
     refreshProjectState();
   };
@@ -751,12 +796,20 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
               <div className="list-event-toolbar-group">
                 <button
                   className="list-event-add-button"
-                  title="Add note at playhead"
+                  title={addEventType === 'note' ? 'Add note at playhead' : 'Add pitch bend at playhead'}
                   type="button"
-                  onClick={handleAddNote}
+                  onClick={handleAddEvent}
                 >
                   <FaPlus />
                 </button>
+                <KGDropdown
+                  options={[...ADD_EVENT_TYPE_OPTIONS]}
+                  value={addEventType}
+                  onChange={(value) => setAddEventType(value as AddEventType)}
+                  label="Note"
+                  buttonClassName="list-event-type-button"
+                  showValueAsLabel
+                />
               </div>
 
               <div className="list-event-toolbar-group list-event-toolbar-group-right">
@@ -780,6 +833,15 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
                   label="Qua. Len."
                   buttonClassName="list-event-quant-button"
                 />
+                <button
+                  className="list-event-delete-button"
+                  title="Delete visible selected rows"
+                  type="button"
+                  onClick={handleDeleteSelectedRows}
+                  disabled={visibleSelectedRows.length === 0}
+                >
+                  <FaTrash />
+                </button>
               </div>
             </div>
 
