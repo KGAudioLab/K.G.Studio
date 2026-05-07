@@ -914,6 +914,36 @@ export class KGAudioInterface {
     }
   }
 
+  public setLiveMidiExpression(trackId: string, normalizedValue: number): void {
+    try {
+      const audioBus = this.trackAudioBuses.get(trackId);
+      if (!audioBus) {
+        console.warn(`No audio bus found for track ${trackId}`);
+        return;
+      }
+
+      audioBus.setLiveMidiExpression(normalizedValue);
+      console.log(`Set live MIDI expression to ${normalizedValue} on track ${trackId}`);
+    } catch (error) {
+      console.error(`Error setting live MIDI expression for track ${trackId}:`, error);
+    }
+  }
+
+  public setLiveMidiSustain(trackId: string, isDown: boolean, time?: number): void {
+    try {
+      const audioBus = this.trackAudioBuses.get(trackId);
+      if (!audioBus) {
+        console.warn(`No audio bus found for track ${trackId}`);
+        return;
+      }
+
+      audioBus.setLiveMidiSustain(isDown, time);
+      console.log(`Set live MIDI sustain to ${isDown} on track ${trackId}`);
+    } catch (error) {
+      console.error(`Error setting live MIDI sustain for track ${trackId}:`, error);
+    }
+  }
+
   /**
    * Clear all scheduled events
    */

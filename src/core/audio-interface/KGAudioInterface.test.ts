@@ -214,3 +214,33 @@ describe('KGAudioInterface preroll playback', () => {
     expect(scheduledTimes).toContain(2);
   });
 });
+
+describe('KGAudioInterface live MIDI CC forwarding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ;(KGAudioInterface as unknown as { _instance: KGAudioInterface | null })._instance = null;
+  });
+
+  it('forwards live expression and sustain to the target audio bus', () => {
+    const audio = KGAudioInterface.instance();
+    const audioBus = {
+      setLiveMidiExpression: vi.fn(),
+      setLiveMidiSustain: vi.fn(),
+    };
+
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+
+    audio.setLiveMidiExpression('1', 0.5);
+    audio.setLiveMidiSustain('1', true, 2);
+
+    expect(audioBus.setLiveMidiExpression).toHaveBeenCalledWith(0.5);
+    expect(audioBus.setLiveMidiSustain).toHaveBeenCalledWith(true, 2);
+  });
+
+  it('safely ignores live expression and sustain when the bus is missing', () => {
+    const audio = KGAudioInterface.instance();
+
+    expect(() => audio.setLiveMidiExpression('missing', 0.5)).not.toThrow();
+    expect(() => audio.setLiveMidiSustain('missing', true)).not.toThrow();
+  });
+});

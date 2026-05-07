@@ -9,7 +9,10 @@ import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 
 interface LiveMidiSource {
   source: Tone.ToneBufferSource;
+  gainNode: Tone.Gain;
   basePlaybackRate: number;
+  isPressed: boolean;
+  pendingSustainRelease: boolean;
 }
 
 /**
@@ -33,6 +36,8 @@ export class KGAudioBus {
   private muted: boolean;
   private solo: boolean;
   private liveMidiPitchBend: number = 0;
+  private liveExpressionNormalized: number = 1;
+  private sustainPedalDown: boolean = false;
   private liveMidiSources: Map<number, LiveMidiSource[]> = new Map();
   
   // Audio processing chain (for future expansion)
@@ -199,15 +204,18 @@ export class KGAudioBus {
         return;
       }
 
-      const stopTime = time ?? Tone.now();
-      activeSources.forEach(({ source }) => {
-        try {
-          source.stop(stopTime);
-        } catch (error) {
-          console.error(`Error stopping live MIDI source for pitch ${pitch} on ${this.instrument}:`, error);
-        }
-      });
-      this.liveMidiSources.delete(pitch);
+      const liveSource = [...activeSources].reverse().find((entry) => entry.isPressed) ?? activeSources[activeSources.length - 1];
+      if (!liveSource) {
+        return;
+      }
+
+      liveSource.isPressed = false;
+      if (this.sustainPedalDown) {
+        liveSource.pendingSustainRelease = true;
+        return;
+      }
+
+      this.stopLiveMidiSource(pitch, liveSource, time ?? Tone.now());
     } catch (error) {
       console.error(`Error releasing live MIDI note ${pitch} on ${this.instrument}:`, error);
     }
@@ -237,6 +245,30 @@ export class KGAudioBus {
     this.setLiveMidiPitchBend(0);
   }
 
+  public setLiveMidiExpression(normalizedValue: number): void {
+    this.liveExpressionNormalized = Math.max(0, Math.min(1, normalizedValue));
+
+    for (const activeSources of this.liveMidiSources.values()) {
+      activeSources.forEach(({ gainNode }) => {
+        this.setGainValue(gainNode, this.liveExpressionNormalized);
+      });
+    }
+  }
+
+  public setLiveMidiSustain(isDown: boolean, time?: number): void {
+    this.sustainPedalDown = isDown;
+    if (isDown) {
+      return;
+    }
+
+    const releaseTime = time ?? Tone.now();
+    for (const [pitch, activeSources] of this.liveMidiSources.entries()) {
+      [...activeSources]
+        .filter((entry) => !entry.isPressed && entry.pendingSustainRelease)
+        .forEach((entry) => this.stopLiveMidiSource(pitch, entry, releaseTime));
+    }
+  }
+
   /**
    * Release all currently playing notes
    */
@@ -244,16 +276,19 @@ export class KGAudioBus {
     try {
       this.sampler.releaseAll();
       this.liveMidiSources.forEach((activeSources) => {
-        activeSources.forEach(({ source }) => {
+        activeSources.forEach(({ source, gainNode }) => {
           try {
             source.stop();
           } catch (error) {
             console.error(`Error stopping live MIDI source on ${this.instrument}:`, error);
           }
+          gainNode.dispose();
         });
       });
       this.liveMidiSources.clear();
       this.resetLiveMidiPitchBend();
+      this.liveExpressionNormalized = 1;
+      this.sustainPedalDown = false;
     } catch (error) {
       console.error(`Error releasing all notes on ${this.instrument}:`, error);
     }
@@ -498,17 +533,22 @@ export class KGAudioBus {
     }
 
     const basePlaybackRate = Math.pow(2, (pitch - closestPitch) / 12);
+    const gainNode = new Tone.Gain(this.liveExpressionNormalized);
     const source = new Tone.ToneBufferSource({
       url: buffer,
       fadeIn: this.sampler.attack,
       fadeOut: this.sampler.release,
       curve: this.sampler.curve,
       playbackRate: this.applyPitchBendToPlaybackRate(basePlaybackRate),
-    }).connect(this.sampler.output);
+    });
+
+    source.connect(gainNode);
+    gainNode.connect(this.sampler.output);
 
     source.onended = () => {
       const currentSources = this.liveMidiSources.get(pitch);
       if (!currentSources) {
+        gainNode.dispose();
         return;
       }
 
@@ -518,10 +558,17 @@ export class KGAudioBus {
       } else {
         this.liveMidiSources.set(pitch, nextSources);
       }
+      gainNode.dispose();
     };
 
     source.start(time, 0, duration ?? buffer.duration / basePlaybackRate, velocity ?? 1);
-    return { source, basePlaybackRate };
+    return {
+      source,
+      gainNode,
+      basePlaybackRate,
+      isPressed: true,
+      pendingSustainRelease: false,
+    };
   }
 
   public static applyNormalizedPitchBendToPlaybackRate(basePlaybackRate: number, normalizedBend: number): number {
@@ -574,5 +621,30 @@ export class KGAudioBus {
     }
 
     playbackRate.value = value;
+  }
+
+  private setGainValue(gainNode: Tone.Gain, value: number, time?: number): void {
+    if (time !== undefined && typeof gainNode.gain.setValueAtTime === 'function') {
+      gainNode.gain.setValueAtTime(value, time);
+      return;
+    }
+
+    gainNode.gain.value = value;
+  }
+
+  private stopLiveMidiSource(pitch: number, liveSource: LiveMidiSource, time: number): void {
+    try {
+      liveSource.pendingSustainRelease = false;
+      liveSource.source.stop(time);
+    } catch (error) {
+      console.error(`Error stopping live MIDI source for pitch ${pitch} on ${this.instrument}:`, error);
+      const remainingSources = this.liveMidiSources.get(pitch)?.filter((entry) => entry !== liveSource) ?? [];
+      if (remainingSources.length === 0) {
+        this.liveMidiSources.delete(pitch);
+      } else {
+        this.liveMidiSources.set(pitch, remainingSources);
+      }
+      liveSource.gainNode.dispose();
+    }
   }
 }

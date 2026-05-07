@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MockBufferSource, MockSampler } from '../../test/mocks/tone';
+import { MockBufferSource, MockGain, MockSampler } from '../../test/mocks/tone';
 
 vi.mock('tone', async () => {
   const { ToneMock } = await import('../../test/mocks/tone');
@@ -32,6 +32,7 @@ describe('KGAudioBus live MIDI pitch bend', () => {
     vi.clearAllMocks();
     MockSampler.mockClear();
     MockBufferSource.mockClear();
+    MockGain.mockClear();
 
     const sampler = MockSampler();
     createSamplerMock.mockResolvedValue(sampler);
@@ -76,5 +77,70 @@ describe('KGAudioBus live MIDI pitch bend', () => {
     audioBus.scheduleLiveMidiPitchBend(1, 2);
 
     expect(source.playbackRate.setValueAtTime).toHaveBeenCalledWith(Math.pow(2, 2 / 12), 2);
+  });
+
+  it('updates held live MIDI note gain when expression changes', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano');
+
+    audioBus.triggerLiveMidiAttack(60, 0, 1);
+    const gainNode = MockGain.mock.results[0].value;
+
+    audioBus.setLiveMidiExpression(0.25);
+
+    expect(gainNode.gain.value).toBeCloseTo(0.25, 5);
+  });
+
+  it('applies current expression to newly triggered notes', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano');
+
+    audioBus.setLiveMidiExpression(0.4);
+    audioBus.triggerLiveMidiAttack(60, 0, 1);
+
+    const gainNode = MockGain.mock.results[0].value;
+    expect(MockGain).toHaveBeenCalledWith(0.4);
+    expect(gainNode.gain.value).toBeCloseTo(0.4, 5);
+  });
+
+  it('defers release while sustain is held and flushes on pedal up', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano');
+
+    audioBus.triggerLiveMidiAttack(60, 0, 0.5);
+    const source = MockBufferSource.mock.results[0].value;
+
+    audioBus.setLiveMidiSustain(true);
+    audioBus.releaseLiveMidiNote(60, 1.25);
+    expect(source.stop).not.toHaveBeenCalled();
+
+    audioBus.setLiveMidiSustain(false, 2);
+    expect(source.stop).toHaveBeenCalledWith(2);
+  });
+
+  it('keeps physically held notes sounding when sustain is released', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano');
+
+    audioBus.triggerLiveMidiAttack(60, 0, 0.5);
+    const source = MockBufferSource.mock.results[0].value;
+
+    audioBus.setLiveMidiSustain(true);
+    audioBus.setLiveMidiSustain(false, 2);
+
+    expect(source.stop).not.toHaveBeenCalled();
+  });
+
+  it('resets live CC state on releaseAll', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano');
+
+    audioBus.triggerLiveMidiAttack(60, 0, 0.5);
+    const source = MockBufferSource.mock.results[0].value;
+    const gainNode = MockGain.mock.results[0].value;
+
+    audioBus.setLiveMidiExpression(0.2);
+    audioBus.setLiveMidiSustain(true);
+    audioBus.releaseAll();
+    audioBus.triggerLiveMidiAttack(60, 0, 0.5);
+
+    expect(source.stop).toHaveBeenCalled();
+    expect(gainNode.dispose).toHaveBeenCalled();
+    expect(MockGain.mock.calls[1]?.[0]).toBe(1);
   });
 });

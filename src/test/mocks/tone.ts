@@ -10,6 +10,7 @@ export const MockSampler = vi.fn().mockImplementation(() => ({
   triggerAttackRelease: vi.fn(),
   triggerAttack: vi.fn(),
   triggerRelease: vi.fn(),
+  releaseAll: vi.fn(),
   dispose: vi.fn(),
   loaded: true,
   attack: 0,
@@ -89,9 +90,9 @@ export const MockToneAudioBuffer = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock Gain node
-export const MockGain = vi.fn().mockImplementation(() => ({
+export const MockGain = vi.fn().mockImplementation((initialValue: number = 1) => ({
   gain: {
-    value: 1,
+    value: initialValue,
     setValueAtTime: vi.fn(),
     linearRampToValueAtTime: vi.fn(),
     exponentialRampToValueAtTime: vi.fn()
