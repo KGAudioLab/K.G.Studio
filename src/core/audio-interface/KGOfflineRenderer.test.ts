@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { applyOfflinePitchBendAutomation, encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
+import { bakeMidiAutomationPointsInWindow } from '../../util/midiAutomationUtil';
 
 /**
  * Create a minimal AudioBuffer-like object for testing.
@@ -191,5 +192,39 @@ describe('offline pitch bend automation', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0][1]).toBe(0.5);
     expect(calls[0][0]).toBeCloseTo(Math.pow(2, -2 / 12), 5);
+  });
+
+  it('applies only distinct quantized pitch bend transitions from a shallow ramp', () => {
+    const source = {
+      playbackRate: {
+        value: 1,
+        setValueAtTime: (..._args: unknown[]) => undefined,
+      },
+    } as unknown as Parameters<typeof applyOfflinePitchBendAutomation>[0];
+
+    const calls: Array<[number, number]> = [];
+    source.playbackRate.setValueAtTime = ((value: number, time: number) => {
+      calls.push([value, time]);
+      return source.playbackRate as never;
+    }) as typeof source.playbackRate.setValueAtTime;
+
+    const baked = bakeMidiAutomationPointsInWindow(
+      [
+        { beat: 0, value: 8192 },
+        { beat: 1, value: 8193 },
+      ],
+      0,
+      1,
+      {
+        maxIntervalMs: 20,
+        bpm: 120,
+        defaultValue: 8192,
+      }
+    );
+
+    applyOfflinePitchBendAutomation(source, 1, baked.filter(point => point.beat > 0), 0, 0.5);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toBe(0.26);
   });
 });

@@ -1,3 +1,5 @@
+import { clampMidiPitchBendValue } from './midiUtil';
+
 export interface MidiAutomationPoint {
   beat: number;
   value: number;
@@ -15,6 +17,10 @@ export interface MidiAutomationBakeOptions {
 }
 
 const BEAT_EPSILON = 1e-9;
+
+function quantizeBakedValue(value: number): number {
+  return clampMidiPitchBendValue(value);
+}
 
 function appendPoint(points: BakedMidiAutomationPoint[], nextPoint: BakedMidiAutomationPoint): void {
   const lastPoint = points[points.length - 1];
@@ -117,7 +123,7 @@ export function bakeMidiAutomationPointsInWindow(
   const normalizedPoints = normalizeMidiAutomationPoints(points);
   const anchorPoint = {
     beat: windowStartBeat,
-    value: resolveMidiAutomationValueAtBeat(normalizedPoints, windowStartBeat, options.defaultValue),
+    value: quantizeBakedValue(resolveMidiAutomationValueAtBeat(normalizedPoints, windowStartBeat, options.defaultValue)),
   };
 
   if (windowEndBeat <= windowStartBeat) {
@@ -131,7 +137,7 @@ export function bakeMidiAutomationPointsInWindow(
 
   const firstPoint = normalizedPoints[0];
   if (windowStartBeat < firstPoint.beat && firstPoint.beat < windowEndBeat) {
-    appendPoint(bakedPoints, { beat: firstPoint.beat, value: firstPoint.value });
+    appendPoint(bakedPoints, { beat: firstPoint.beat, value: quantizeBakedValue(firstPoint.value) });
   }
 
   const maxIntervalBeats = getMaxIntervalBeats(options);
@@ -145,6 +151,22 @@ export function bakeMidiAutomationPointsInWindow(
       continue;
     }
 
+    // MIDI pitch bend playback here is event-based, not continuous on its own.
+    // The last emitted value is held until a later baked event changes it.
+    //
+    // That means a flat authored span such as:
+    //   beat 1 -> value 0
+    //   beat 2 -> value 0
+    //   beat 3 -> value 100
+    // should *not* generate any intermediate events between beats 1 and 2.
+    // The value from beat 1 is simply held through beat 2, and the bend only
+    // begins once we emit the first baked point from the changing 2 -> 3 segment.
+    //
+    // In practice that first changing baked point may land slightly after beat 2
+    // depending on the bake interval (for example 10 ms), but it still does not
+    // cause an earlier gradual bend from beat 1. Skipping flat segments preserves
+    // the intended "hold, then change" behavior while also avoiding redundant
+    // scheduled pitch-bend events.
     if (startPoint.value === endPoint.value) {
       continue;
     }
@@ -162,7 +184,7 @@ export function bakeMidiAutomationPointsInWindow(
 
       appendPoint(bakedPoints, {
         beat,
-        value: interpolateBetweenPoints(startPoint, endPoint, beat),
+        value: quantizeBakedValue(interpolateBetweenPoints(startPoint, endPoint, beat)),
       });
     }
   }

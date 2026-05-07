@@ -71,6 +71,30 @@ describe('midiAutomationUtil', () => {
     expect(bakeMidiAutomationPointsInWindow(points, 0, 1, { ...defaultOptions, maxIntervalMs: 5 })).toHaveLength(100);
   });
 
+  it('quantizes the window anchor to an integer MIDI pitch-bend value', () => {
+    const points = [
+      { beat: 0, value: 8192 },
+      { beat: 1, value: 8193 },
+    ];
+
+    expect(bakeMidiAutomationPointsInWindow(points, 0.5, 1, { ...defaultOptions, maxIntervalMs: 20 })[0]).toEqual({
+      beat: 0.5,
+      value: 8193,
+    });
+  });
+
+  it('drops adjacent interpolated points that round to the same MIDI value', () => {
+    const points = [
+      { beat: 0, value: 8192 },
+      { beat: 1, value: 8193 },
+    ];
+
+    expect(bakeMidiAutomationPointsInWindow(points, 0, 1, { ...defaultOptions, maxIntervalMs: 20 })).toEqual([
+      { beat: 0, value: 8192 },
+      { beat: 0.52, value: 8193 },
+    ]);
+  });
+
   it('treats flat segments as holds without adding interior baked points', () => {
     const points = [
       { beat: 0, value: 4096 },
@@ -110,6 +134,17 @@ describe('midiAutomationUtil', () => {
       { beat: 0, value: 4096 },
       { beat: 3, value: 2048 },
     ]);
+  });
+
+  it('stores baked interpolated values as integers', () => {
+    const points = [
+      { beat: 0, value: 8192 },
+      { beat: 3, value: 8195 },
+    ];
+
+    const baked = bakeMidiAutomationPointsInWindow(points, 0, 3, { ...defaultOptions, maxIntervalMs: 500 });
+
+    expect(baked.every(point => Number.isInteger(point.value))).toBe(true);
   });
 
   it('adds a window anchor and preserves the correct loop boundary value', () => {

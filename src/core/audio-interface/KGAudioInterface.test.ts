@@ -140,6 +140,30 @@ describe('KGAudioInterface preroll playback', () => {
     expect(scheduledTimes).toContain(0.5);
   });
 
+  it('skips redundant scheduled pitch bend events when interpolated values round to the same MIDI value', () => {
+    const region = createMockMidiRegion({
+      pitchBends: [
+        createMockMidiPitchBend({ id: 'bend-1', beat: 0, value: MIDI_PITCH_BEND_CENTER }),
+        createMockMidiPitchBend({ id: 'bend-2', beat: 1, value: MIDI_PITCH_BEND_CENTER + 1 }),
+      ],
+    });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ tracks: [track] });
+    const audio = KGAudioInterface.instance();
+    const audioBus = {
+      resetLiveMidiPitchBend: vi.fn(),
+      setLiveMidiPitchBend: vi.fn(),
+      scheduleLiveMidiPitchBend: vi.fn(),
+      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
+    };
+
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+    audio.preparePlayback(project, 0);
+
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => time);
+    expect(scheduledTimes).toEqual([0.25]);
+  });
+
   it('computes the initial interpolated bend for non-zero playback starts', () => {
     const region = createMockMidiRegion({
       pitchBends: [
