@@ -42,7 +42,7 @@ const Toolbar: React.FC = () => {
     projectName, setProjectName,
     savedProjectName, setSavedProjectName,
     bpm, timeSignature, keySignature, setStatus,
-    isPlaying, startPlaying, stopTransport, setPlayheadPosition,
+    isPlaying, isPreparingPlayback, startPlaying, stopTransport, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
@@ -1110,7 +1110,7 @@ const Toolbar: React.FC = () => {
         <div className="toolbar-separator"></div>
         <button title="Back to beginning" className="button-back-to-beginning" onClick={handleBackToBeginningClick}><FaStepBackward /></button>
         {!isPlaying ? (
-          <button title="Play" className="button-play" onClick={handlePlayClick}><FaPlay /></button>
+          <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
         ) : (
           <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
         )}

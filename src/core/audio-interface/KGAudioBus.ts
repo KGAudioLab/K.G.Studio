@@ -20,7 +20,7 @@ interface LiveMidiSource {
 export class KGAudioBus {
   // Fixed at +/-2 semitones for now. Future work: make this user-configurable
   // or honor MIDI RPN 0,0 (Pitch Bend Sensitivity).
-  private static readonly LIVE_MIDI_PITCH_BEND_RANGE_SEMITONES = 2;
+  public static readonly LIVE_MIDI_PITCH_BEND_RANGE_SEMITONES = 2;
   private static readonly LIVE_MIDI_NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
   // Core audio components
@@ -218,7 +218,17 @@ export class KGAudioBus {
 
     for (const activeSources of this.liveMidiSources.values()) {
       activeSources.forEach(({ source, basePlaybackRate }) => {
-        source.playbackRate.value = this.applyPitchBendToPlaybackRate(basePlaybackRate);
+        this.setPlaybackRateValue(source, this.applyPitchBendToPlaybackRate(basePlaybackRate));
+      });
+    }
+  }
+
+  public scheduleLiveMidiPitchBend(normalizedBend: number, time: number): void {
+    this.liveMidiPitchBend = Math.max(-1, Math.min(1, normalizedBend));
+
+    for (const activeSources of this.liveMidiSources.values()) {
+      activeSources.forEach(({ source, basePlaybackRate }) => {
+        this.setPlaybackRateValue(source, this.applyPitchBendToPlaybackRate(basePlaybackRate), time);
       });
     }
   }
@@ -474,13 +484,13 @@ export class KGAudioBus {
     velocity?: number,
     duration?: number
   ): LiveMidiSource | null {
-    const closestPitch = this.findClosestBufferedPitch(pitch);
+    const closestPitch = KGAudioBus.findClosestBufferedPitch(this.instrument, this.audioBuffers, pitch);
     if (closestPitch === null) {
       console.warn(`No audio buffer found for live MIDI pitch ${pitch} on ${this.instrument}`);
       return null;
     }
 
-    const bufferKey = this.midiPitchToBufferKey(closestPitch);
+    const bufferKey = KGAudioBus.midiPitchToBufferKey(closestPitch);
     const buffer = this.audioBuffers.get(bufferKey);
     if (!buffer) {
       console.warn(`Missing audio buffer ${bufferKey} for ${this.instrument}`);
@@ -514,23 +524,31 @@ export class KGAudioBus {
     return { source, basePlaybackRate };
   }
 
-  private applyPitchBendToPlaybackRate(basePlaybackRate: number): number {
-    const bendSemitones = this.liveMidiPitchBend * KGAudioBus.LIVE_MIDI_PITCH_BEND_RANGE_SEMITONES;
+  public static applyNormalizedPitchBendToPlaybackRate(basePlaybackRate: number, normalizedBend: number): number {
+    const bendSemitones = normalizedBend * KGAudioBus.LIVE_MIDI_PITCH_BEND_RANGE_SEMITONES;
     return basePlaybackRate * Math.pow(2, bendSemitones / 12);
   }
 
-  private findClosestBufferedPitch(targetPitch: number): number | null {
-    const [minPitch, maxPitch] = FLUIDR3_INSTRUMENT_MAP[this.instrument]?.pitchRange || [21, 108];
+  private applyPitchBendToPlaybackRate(basePlaybackRate: number): number {
+    return KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, this.liveMidiPitchBend);
+  }
+
+  public static findClosestBufferedPitch(
+    instrument: InstrumentType,
+    audioBuffers: Tone.ToneAudioBuffers,
+    targetPitch: number
+  ): number | null {
+    const [minPitch, maxPitch] = FLUIDR3_INSTRUMENT_MAP[instrument]?.pitchRange || [21, 108];
     const boundedPitch = Math.max(minPitch, Math.min(maxPitch, targetPitch));
 
     for (let offset = 0; offset <= 96; offset++) {
       const upwardPitch = boundedPitch + offset;
-      if (upwardPitch <= maxPitch && this.audioBuffers.has(this.midiPitchToBufferKey(upwardPitch))) {
+      if (upwardPitch <= maxPitch && audioBuffers.has(KGAudioBus.midiPitchToBufferKey(upwardPitch))) {
         return upwardPitch;
       }
 
       const downwardPitch = boundedPitch - offset;
-      if (downwardPitch >= minPitch && this.audioBuffers.has(this.midiPitchToBufferKey(downwardPitch))) {
+      if (downwardPitch >= minPitch && audioBuffers.has(KGAudioBus.midiPitchToBufferKey(downwardPitch))) {
         return downwardPitch;
       }
     }
@@ -538,9 +556,23 @@ export class KGAudioBus {
     return null;
   }
 
-  private midiPitchToBufferKey(pitch: number): string {
+  public static midiPitchToBufferKey(pitch: number): string {
     const octave = Math.floor((pitch - 12) / 12);
     const noteIndex = (pitch - 12) % 12;
     return `${KGAudioBus.LIVE_MIDI_NOTE_NAMES[noteIndex]}${octave}`;
+  }
+
+  private setPlaybackRateValue(source: Tone.ToneBufferSource, value: number, time?: number): void {
+    const playbackRate = source.playbackRate as unknown as {
+      value: number;
+      setValueAtTime?: (nextValue: number, nextTime: number) => void;
+    };
+
+    if (time !== undefined && typeof playbackRate.setValueAtTime === 'function') {
+      playbackRate.setValueAtTime(value, time);
+      return;
+    }
+
+    playbackRate.value = value;
   }
 }

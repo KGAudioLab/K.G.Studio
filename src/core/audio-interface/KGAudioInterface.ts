@@ -3,7 +3,16 @@ import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import { TIME_CONSTANTS, AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
-import { midiPitchBendToNormalized, pitchToNoteNameString } from '../../util/midiUtil';
+import {
+  MIDI_PITCH_BEND_CENTER,
+  midiPitchBendToNormalized,
+  pitchToNoteNameString,
+} from '../../util/midiUtil';
+import {
+  bakeMidiAutomationPointsInWindow,
+  collectRegionMidiAutomationPoints,
+  resolveMidiAutomationValueAtBeat,
+} from '../../util/midiAutomationUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
 import { KGAudioPlayerBus } from './KGAudioPlayerBus';
@@ -473,29 +482,34 @@ export class KGAudioInterface {
       project.getTracks().forEach(track => {
         const trackId = track.getId().toString();
         const audioBus = this.trackAudioBuses.get(trackId);
+        const interpolationIntervalMs = (configManager.get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10;
 
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
         // Schedule MIDI track events
         if (audioBus && track.getType() === 'MIDI') {
-          const trackPitchBends: Array<{ pitchBend: KGMidiPitchBend; absoluteBeat: number }> = [];
           const trackNotes: Array<{ note: KGMidiNote; absoluteStartBeat: number; absoluteEndBeat: number }> = [];
+          const trackPitchBends = collectRegionMidiAutomationPoints(
+            track.getRegions()
+              .filter(region => region.getCurrentType() === 'KGMidiRegion')
+              .map(region => {
+                const midiRegion = region as unknown as { getPitchBends: () => KGMidiPitchBend[] };
+                return {
+                  startBeat: region.getStartFromBeat(),
+                  points: midiRegion.getPitchBends().map(pitchBend => ({
+                    beat: pitchBend.getBeat(),
+                    value: pitchBend.getValue(),
+                  })),
+                };
+              })
+          );
 
           track.getRegions().forEach(region => {
             console.log(`Region ${region.getId().toString()}: type: ${region.getCurrentType()}`);
 
             if (region.getCurrentType() === 'KGMidiRegion') {
-              const midiRegion = region as unknown as { getNotes: () => KGMidiNote[]; getPitchBends: () => KGMidiPitchBend[] };
+              const midiRegion = region as unknown as { getNotes: () => KGMidiNote[] };
               const regionStartBeat = region.getStartFromBeat();
-
-              if (midiRegion.getPitchBends) {
-                midiRegion.getPitchBends().forEach((pitchBend: KGMidiPitchBend) => {
-                  trackPitchBends.push({
-                    pitchBend,
-                    absoluteBeat: regionStartBeat + pitchBend.getBeat(),
-                  });
-                });
-              }
 
               // Get notes from region (assuming it has a getNotes method)
               if (midiRegion.getNotes) {
@@ -523,35 +537,37 @@ export class KGAudioInterface {
             }
           });
 
-          const boundedTrackPitchBends = trackPitchBends
-            .filter(({ absoluteBeat }) => absoluteBeat >= scheduleStartBeat && absoluteBeat < scheduleEndBeat)
-            .sort((a, b) => a.absoluteBeat - b.absoluteBeat);
-          const initialPitchBend = [...boundedTrackPitchBends]
-            .reverse()
-            .find(({ absoluteBeat }) => absoluteBeat <= startPosition);
-          audioBus.setLiveMidiPitchBend(midiPitchBendToNormalized(initialPitchBend?.pitchBend.getValue() ?? 8192));
+          const initialPitchBendBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
+          const initialPitchBendValue = resolveMidiAutomationValueAtBeat(
+            trackPitchBends,
+            initialPitchBendBeat,
+            MIDI_PITCH_BEND_CENTER
+          );
+          audioBus.setLiveMidiPitchBend(midiPitchBendToNormalized(initialPitchBendValue));
 
-          if (isLooping && !boundedTrackPitchBends.some(({ absoluteBeat }) => absoluteBeat === scheduleStartBeat)) {
-            const eventId = Tone.Transport.schedule((time) => {
-              const hasSoloedTracks = this.hasSoloedTracks();
-              if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                audioBus.setLiveMidiPitchBend(0);
-              }
-            }, this.beatsToToneTime(scheduleStartBeat));
-            this.scheduledEvents.add(eventId);
-          }
+          const pitchBendWindowStartBeat = isLooping ? scheduleStartBeat : Math.max(startPosition, 0);
+          const bakedTrackPitchBends = bakeMidiAutomationPointsInWindow(
+            trackPitchBends,
+            pitchBendWindowStartBeat,
+            scheduleEndBeat,
+            {
+              maxIntervalMs: interpolationIntervalMs,
+              bpm: project.getBpm(),
+              defaultValue: MIDI_PITCH_BEND_CENTER,
+            }
+          );
 
-          boundedTrackPitchBends.forEach(({ pitchBend, absoluteBeat }) => {
-            if (absoluteBeat < startPosition) {
+          bakedTrackPitchBends.forEach(({ beat, value }) => {
+            if (!isLooping && beat <= pitchBendWindowStartBeat) {
               return;
             }
 
-            const eventId = Tone.Transport.schedule(() => {
+            const eventId = Tone.Transport.schedule((time) => {
               const hasSoloedTracks = this.hasSoloedTracks();
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                audioBus.setLiveMidiPitchBend(midiPitchBendToNormalized(pitchBend.getValue()));
+                audioBus.scheduleLiveMidiPitchBend(midiPitchBendToNormalized(value), time);
               }
-            }, this.beatsToToneTime(absoluteBeat));
+            }, this.beatsToToneTime(beat));
 
             this.scheduledEvents.add(eventId);
           });

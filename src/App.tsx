@@ -185,6 +185,9 @@ function App() {
 
       {/* Bounce/Render Overlay */}
       <BounceOverlayContainer />
+
+      {/* Playback Preparation Overlay */}
+      <PlaybackPreparationOverlayContainer />
     </div>
   );
 }
@@ -292,6 +295,45 @@ const BounceOverlayContainer: React.FC = () => {
     <LoadingOverlay
       visible={renderMessage !== null}
       message={renderMessage ?? 'Rendering...'}
+    />
+  );
+};
+
+const PLAYBACK_PREPARATION_OVERLAY_DELAY_MS = 150;
+
+export const PlaybackPreparationOverlayContainer: React.FC = () => {
+  const isPreparingPlayback = useProjectStore(state => state.isPreparingPlayback);
+  const [visible, setVisible] = useState<boolean>(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffectReact(() => {
+    if (isPreparingPlayback) {
+      if (timeoutRef.current === null) {
+        timeoutRef.current = window.setTimeout(() => {
+          setVisible(true);
+          timeoutRef.current = null;
+        }, PLAYBACK_PREPARATION_OVERLAY_DELAY_MS);
+      }
+    } else {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setVisible(false);
+    }
+
+    return () => {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [isPreparingPlayback]);
+
+  return (
+    <LoadingOverlay
+      visible={visible}
+      message="Preparing playback..."
     />
   );
 };

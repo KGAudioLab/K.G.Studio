@@ -31,6 +31,8 @@ const mockCore = {
   getStatus: () => 'Ready',
   getPlayheadPosition: () => 0,
   getIsPlaying: () => false,
+  startPlaying: vi.fn().mockResolvedValue(undefined),
+  stopPlaying: vi.fn().mockResolvedValue(undefined),
 };
 
 vi.mock('../core/KGCore', () => ({
@@ -51,6 +53,10 @@ vi.mock('../core/config/ConfigManager', () => ({
 describe('projectStore piano roll state', () => {
   beforeEach(() => {
     vi.resetModules();
+    mockCore.startPlaying.mockReset();
+    mockCore.startPlaying.mockResolvedValue(undefined);
+    mockCore.stopPlaying.mockReset();
+    mockCore.stopPlaying.mockResolvedValue(undefined);
   });
 
   it('clears hybrid state when opening a MIDI region', async () => {
@@ -74,5 +80,77 @@ describe('projectStore piano roll state', () => {
     expect(state.pianoRollMode).toBe('midi-edit');
     expect(state.activeRegionId).toBe('midi-b');
     expect(state.hybridAudioRegionId).toBeNull();
+  });
+
+  it('tracks playback preparation around startPlaying success', async () => {
+    let resolveStart: (() => void) | null = null;
+    mockCore.startPlaying.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveStart = resolve;
+    }));
+
+    const { useProjectStore } = await import('./projectStore');
+
+    const startPromise = useProjectStore.getState().startPlaying();
+    expect(useProjectStore.getState().isPreparingPlayback).toBe(true);
+
+    await act(async () => {
+      resolveStart?.();
+      await startPromise;
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.isPreparingPlayback).toBe(false);
+    expect(state.isPlaying).toBe(true);
+  });
+
+  it('clears playback preparation if startPlaying fails', async () => {
+    mockCore.startPlaying.mockRejectedValueOnce(new Error('prepare failed'));
+
+    const { useProjectStore } = await import('./projectStore');
+
+    await expect(useProjectStore.getState().startPlaying()).rejects.toThrow('prepare failed');
+    expect(useProjectStore.getState().isPreparingPlayback).toBe(false);
+  });
+
+  it('ignores repeated startPlaying calls while already preparing', async () => {
+    let resolveStart: (() => void) | null = null;
+    mockCore.startPlaying.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveStart = resolve;
+    }));
+
+    const { useProjectStore } = await import('./projectStore');
+
+    const firstStart = useProjectStore.getState().startPlaying();
+    const secondStart = useProjectStore.getState().startPlaying();
+
+    expect(mockCore.startPlaying).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveStart?.();
+      await Promise.all([firstStart, secondStart]);
+    });
+  });
+
+  it('clears playback preparation when stopTransport is called during prepare', async () => {
+    let resolveStart: (() => void) | null = null;
+    mockCore.startPlaying.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveStart = resolve;
+    }));
+
+    const { useProjectStore } = await import('./projectStore');
+
+    const startPromise = useProjectStore.getState().startPlaying();
+    expect(useProjectStore.getState().isPreparingPlayback).toBe(true);
+
+    await act(async () => {
+      await useProjectStore.getState().stopTransport();
+    });
+
+    expect(useProjectStore.getState().isPreparingPlayback).toBe(false);
+
+    await act(async () => {
+      resolveStart?.();
+      await startPromise;
+    });
   });
 });

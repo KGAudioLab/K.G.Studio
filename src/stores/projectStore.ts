@@ -68,6 +68,7 @@ interface ProjectState {
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
+  isPreparingPlayback: boolean;
   autoScrollEnabled: boolean;
   currentTime: string; // formatted time string
   
@@ -341,6 +342,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
+    isPreparingPlayback: false,
     autoScrollEnabled: true,
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
     
@@ -854,13 +856,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     startPlaying: async () => {
-      await KGCore.instance().startPlaying();
-      set({ isPlaying: true, autoScrollEnabled: true });
+      if (get().isPreparingPlayback) {
+        return;
+      }
+
+      set({ isPreparingPlayback: true });
+      try {
+        await KGCore.instance().startPlaying();
+        set({ isPlaying: true, autoScrollEnabled: true });
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     stopPlaying: async () => {
-      await KGCore.instance().stopPlaying();
-      set({ isPlaying: false });
+      try {
+        await KGCore.instance().stopPlaying();
+        set({ isPlaying: false });
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     stopTransport: async () => {
@@ -868,7 +883,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         await get().stopRecording();
         return;
       }
-      await get().stopPlaying();
+      try {
+        await get().stopPlaying();
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     startRecording: async () => {
@@ -944,10 +963,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         : playheadPosition - timeSignature.numerator;
 
       setPlayheadPosition(recordingStartBeat);
-      await KGCore.instance().startPlaying({
-        preserveLoopPreroll: projectLooping,
-      });
-      set({ isPlaying: true, autoScrollEnabled: true });
+      set({ isPreparingPlayback: true });
+      try {
+        await KGCore.instance().startPlaying({
+          preserveLoopPreroll: projectLooping,
+        });
+        set({ isPlaying: true, autoScrollEnabled: true });
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     stopRecording: async () => {
@@ -1002,7 +1026,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       await stopPlaying();
       setPlayheadPosition(recordingOriginalPlayhead);
-      set({ isRecording: false, recordingNotes: [], recordingPitchBends: [], recordingTargetRegionId: null });
+      set({
+        isRecording: false,
+        isPreparingPlayback: false,
+        recordingNotes: [],
+        recordingPitchBends: [],
+        recordingTargetRegionId: null
+      });
       _lastRecordedPitchBendValue = null;
     },
 

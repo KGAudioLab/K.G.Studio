@@ -75,6 +75,7 @@
     "audio": {
         "enable_audio_capture_for_screen_sharing": false,
         "lookahead_time": 0.05,
+        "midi_automation_interpolation_interval_ms": 10,
         "playback_delay": 0.2,
         "recording_offset": 0
     },

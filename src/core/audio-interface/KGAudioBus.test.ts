@@ -66,4 +66,15 @@ describe('KGAudioBus live MIDI pitch bend', () => {
     audioBus.releaseLiveMidiNote(60, 1.25);
     expect(source.stop).toHaveBeenCalledWith(1.25);
   });
+
+  it('uses timed playback-rate automation when scheduling pitch bend updates', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano');
+
+    audioBus.triggerLiveMidiAttack(60, 0, 1);
+
+    const source = MockBufferSource.mock.results[0].value;
+    audioBus.scheduleLiveMidiPitchBend(1, 2);
+
+    expect(source.playbackRate.setValueAtTime).toHaveBeenCalledWith(Math.pow(2, 2 / 12), 2);
+  });
 });

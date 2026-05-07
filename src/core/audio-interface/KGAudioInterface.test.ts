@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMockProject } from '../../test/utils/mock-data';
+import { createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
 import { MockTransport } from '../../test/mocks/tone';
 
 vi.mock('tone', async () => {
@@ -22,6 +22,7 @@ vi.mock('../config/ConfigManager', () => ({
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 import { KGAudioInterface } from './KGAudioInterface';
+import { MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 
 describe('KGAudioInterface preroll playback', () => {
   beforeEach(() => {
@@ -50,6 +51,7 @@ describe('KGAudioInterface preroll playback', () => {
       get: (key: string) => {
         if (key === 'audio.playback_delay') return 0.2;
         if (key === 'audio.lookahead_time') return 0.05;
+        if (key === 'audio.midi_automation_interpolation_interval_ms') return 250;
         return null;
       },
     } as unknown as ConfigManager)
@@ -111,5 +113,80 @@ describe('KGAudioInterface preroll playback', () => {
     audio.preparePlayback(project, 12, { allowStartBeforeLoopStart: true });
 
     expect(MockTransport.position).toBe(6);
+  });
+
+  it('schedules baked pitch bend points instead of authored step changes only', () => {
+    const region = createMockMidiRegion({
+      pitchBends: [
+        createMockMidiPitchBend({ id: 'bend-1', beat: 0, value: MIDI_PITCH_BEND_CENTER }),
+        createMockMidiPitchBend({ id: 'bend-2', beat: 1, value: 0 }),
+      ],
+    });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ tracks: [track] });
+    const audio = KGAudioInterface.instance();
+    const audioBus = {
+      resetLiveMidiPitchBend: vi.fn(),
+      setLiveMidiPitchBend: vi.fn(),
+      scheduleLiveMidiPitchBend: vi.fn(),
+      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
+    };
+
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+    audio.preparePlayback(project, 0);
+
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => time);
+    expect(scheduledTimes).toContain(0.25);
+    expect(scheduledTimes).toContain(0.5);
+  });
+
+  it('computes the initial interpolated bend for non-zero playback starts', () => {
+    const region = createMockMidiRegion({
+      pitchBends: [
+        createMockMidiPitchBend({ id: 'bend-1', beat: 0, value: MIDI_PITCH_BEND_CENTER }),
+        createMockMidiPitchBend({ id: 'bend-2', beat: 4, value: 0 }),
+      ],
+    });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ tracks: [track] });
+    const audio = KGAudioInterface.instance();
+    const audioBus = {
+      resetLiveMidiPitchBend: vi.fn(),
+      setLiveMidiPitchBend: vi.fn(),
+      scheduleLiveMidiPitchBend: vi.fn(),
+      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
+    };
+
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+    audio.preparePlayback(project, 2);
+
+    expect(audioBus.setLiveMidiPitchBend).toHaveBeenCalledWith(midiPitchBendToNormalized(4096));
+  });
+
+  it('adds a loop-start re-anchor for interpolated pitch bend state', () => {
+    const region = createMockMidiRegion({
+      pitchBends: [
+        createMockMidiPitchBend({ id: 'bend-1', beat: 2, value: 0 }),
+        createMockMidiPitchBend({ id: 'bend-2', beat: 6, value: MIDI_PITCH_BEND_CENTER }),
+      ],
+    });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ tracks: [track] });
+    project.setIsLooping(true);
+    project.setLoopingRange([1, 1]);
+
+    const audio = KGAudioInterface.instance();
+    const audioBus = {
+      resetLiveMidiPitchBend: vi.fn(),
+      setLiveMidiPitchBend: vi.fn(),
+      scheduleLiveMidiPitchBend: vi.fn(),
+      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
+    };
+
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+    audio.preparePlayback(project, 5);
+
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => time);
+    expect(scheduledTimes).toContain(2);
   });
 });

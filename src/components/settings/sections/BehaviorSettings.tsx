@@ -11,6 +11,7 @@ const BehaviorSettings: React.FC = () => {
   const [spectrogramHeightResolution, setSpectrogramHeightResolution] = useState<SpectrogramHeightResolution>(3);
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
   const [audioLookaheadTime, setAudioLookaheadTime] = useState<string>('50');
+  const [midiAutomationInterpolationIntervalMs, setMidiAutomationInterpolationIntervalMs] = useState<number>(10);
   const [playbackDelay, setPlaybackDelay] = useState<string>('200');
   const [recordingOffset, setRecordingOffset] = useState<string>('0');
   const [enableAudioCapture, setEnableAudioCapture] = useState<boolean>(false);
@@ -34,6 +35,9 @@ const BehaviorSettings: React.FC = () => {
       setChatboxDefaultOpen((configManager.get('chatbox.default_open') as boolean) ?? true);
       const lookaheadTimeSeconds = (configManager.get('audio.lookahead_time') as number) ?? 0.05;
       setAudioLookaheadTime(((lookaheadTimeSeconds * 1000).toFixed(0)));
+      setMidiAutomationInterpolationIntervalMs(
+        (configManager.get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10
+      );
       const playbackDelaySeconds = (configManager.get('audio.playback_delay') as number) ?? 0.2;
       setPlaybackDelay(((playbackDelaySeconds * 1000).toFixed(0)));
       const recordingOffsetSeconds = (configManager.get('audio.recording_offset') as number) ?? 0;
@@ -120,6 +124,12 @@ const BehaviorSettings: React.FC = () => {
     }
   };
 
+  const handleMidiAutomationInterpolationIntervalChange = async (value: string) => {
+    const nextValue = parseInt(value, 10);
+    setMidiAutomationInterpolationIntervalMs(nextValue);
+    await configManager.set('audio.midi_automation_interpolation_interval_ms', nextValue);
+  };
+
   const handleRecordingOffsetChange = async (value: string) => {
     const numValueMs = value === '' ? 0 : parseFloat(value);
     const numValueSeconds = numValueMs / 1000;
@@ -197,13 +207,13 @@ const BehaviorSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>Chat Box</h4>
-          
+
           <div className="settings-item">
             <label className="settings-label">
               Open at Start Up
             </label>
-            <select 
-              className="settings-select" 
+            <select
+              className="settings-select"
               value={chatboxDefaultOpen ? 'yes' : 'no'}
               onChange={(e) => handleChatboxDefaultOpenChange(e.target.value)}
             >
@@ -272,6 +282,24 @@ const BehaviorSettings: React.FC = () => {
 
           <div className="settings-item">
             <label className="settings-label">
+              MIDI Automation Interpolation
+            </label>
+            <select
+              className="settings-select"
+              value={midiAutomationInterpolationIntervalMs}
+              onChange={(e) => handleMidiAutomationInterpolationIntervalChange(e.target.value)}
+            >
+              <option value="20">Low-end (20 ms)</option>
+              <option value="10">Balanced (10 ms)</option>
+              <option value="5">High quality (5 ms)</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Controls how densely MIDI automation are baked for playback and bounce. Smaller intervals sound smoother but schedule more events.
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
               MIDI Input Latency (ms)
             </label>
             <input
@@ -301,8 +329,8 @@ const BehaviorSettings: React.FC = () => {
             <label className="settings-label">
               Capture Audio for Screen Sharing
             </label>
-            <select 
-              className="settings-select" 
+            <select
+              className="settings-select"
               value={enableAudioCapture ? 'yes' : 'no'}
               onChange={(e) => handleEnableAudioCaptureChange(e.target.value)}
             >
@@ -310,7 +338,7 @@ const BehaviorSettings: React.FC = () => {
               <option value="yes">Yes</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Restart KGStudio (refresh the page) to take effect. Enable this option when KGStudio's audio cannot be captured during screen sharing in video calls (e.g., Zoom, Teams). This creates an additional audio stream that screen capture applications can detect. 
+              Restart KGStudio (refresh the page) to take effect. Enable this option when KGStudio's audio cannot be captured during screen sharing in video calls (e.g., Zoom, Teams). This creates an additional audio stream that screen capture applications can detect.
               <br />
               <b>It is important to make sure when screen sharing in Zoom, the "Share Sound" option is enabled.</b>
             </div>

@@ -23,7 +23,7 @@ export const mockSampler = {
 };
 
 export const mockBufferSource = {
-  playbackRate: { value: 1 },
+  playbackRate: { value: 1, setValueAtTime: vi.fn() },
   connect: vi.fn(),
   start: vi.fn(),
   stop: vi.fn(),
@@ -50,7 +50,7 @@ export const mockTone = {
   BufferSource: vi.fn().mockImplementation(() => {
     const instance = {
       ...mockBufferSource,
-      playbackRate: { value: 1 },
+      playbackRate: { value: 1, setValueAtTime: vi.fn() },
     };
     instance.connect.mockImplementation(() => instance);
     instance.start.mockImplementation(() => instance);
@@ -60,7 +60,7 @@ export const mockTone = {
   ToneBufferSource: vi.fn().mockImplementation(() => {
     const instance = {
       ...mockBufferSource,
-      playbackRate: { value: 1 },
+      playbackRate: { value: 1, setValueAtTime: vi.fn() },
     };
     instance.connect.mockImplementation(() => instance);
     instance.start.mockImplementation(() => instance);

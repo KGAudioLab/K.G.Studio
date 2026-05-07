@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
+import { applyOfflinePitchBendAutomation, encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
 
 /**
  * Create a minimal AudioBuffer-like object for testing.
@@ -162,5 +162,34 @@ describe('offline track volume conversion', () => {
     expect(getOfflineTrackGain(0, true)).toBe(0);
     expect(getOfflineTrackVolumeDb(-60, false)).toBe(-Infinity);
     expect(getOfflineTrackGain(-60, false)).toBe(0);
+  });
+});
+
+describe('offline pitch bend automation', () => {
+  it('applies baked pitch bends to source playback rate automation', () => {
+    const source = {
+      playbackRate: {
+        value: 1,
+        setValueAtTime: (..._args: unknown[]) => undefined,
+      },
+    } as unknown as Parameters<typeof applyOfflinePitchBendAutomation>[0];
+
+    const calls: Array<[number, number]> = [];
+    source.playbackRate.setValueAtTime = ((value: number, time: number) => {
+      calls.push([value, time]);
+      return source.playbackRate as never;
+    }) as typeof source.playbackRate.setValueAtTime;
+
+    applyOfflinePitchBendAutomation(
+      source,
+      1,
+      [{ beat: 1, value: 0 }],
+      0,
+      0.5
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toBe(0.5);
+    expect(calls[0][0]).toBeCloseTo(Math.pow(2, -2 / 12), 5);
   });
 });

@@ -1,13 +1,24 @@
 import * as Tone from 'tone';
 import type { KGProject } from '../KGProject';
 import type { KGMidiNote } from '../midi/KGMidiNote';
+import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
+import type { InstrumentType } from '../track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
-import { pitchToNoteNameString } from '../../util/midiUtil';
+import { MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
+import {
+  bakeMidiAutomationPointsInWindow,
+  collectRegionMidiAutomationPoints,
+  resolveMidiAutomationValueAtBeat,
+  type BakedMidiAutomationPoint,
+  type MidiAutomationPoint,
+} from '../../util/midiAutomationUtil';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { KGAudioInterface } from './KGAudioInterface';
+import { KGAudioBus } from './KGAudioBus';
+import { ConfigManager } from '../config/ConfigManager';
 import { Mp3Encoder } from '@breezystack/lamejs';
 
 export interface RenderOptions {
@@ -104,7 +115,7 @@ export class KGOfflineRenderer {
     // Pre-collect all the data we need before entering the offline context
     const midiTrackData: Array<{
       trackId: string;
-      instrumentName: string;
+      instrumentName: InstrumentType;
       volume: number;
       muted: boolean;
       solo: boolean;
@@ -112,6 +123,7 @@ export class KGOfflineRenderer {
         startBeat: number;
         notes: Array<{ startBeat: number; endBeat: number; durationBeats: number; pitch: number; velocity: number }>;
       }>;
+      pitchBends: MidiAutomationPoint[];
     }> = [];
 
     const audioTrackData: Array<{
@@ -130,13 +142,14 @@ export class KGOfflineRenderer {
     }> = [];
 
     let hasSoloedTracks = false;
+    const interpolationIntervalMs = (ConfigManager.instance().get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10;
 
     for (const track of tracks) {
       const trackId = track.getId().toString();
 
       if (track.getType() === 'MIDI') {
-        const midiTrack = track as unknown as { getInstrument: () => string };
-        const instrumentName = String(midiTrack.getInstrument());
+        const midiTrack = track as unknown as { getInstrument: () => InstrumentType };
+        const instrumentName = midiTrack.getInstrument();
 
         // Get live bus state for volume/mute/solo via public getters
         const volume = audioInterface.getTrackVolume(trackId);
@@ -147,7 +160,7 @@ export class KGOfflineRenderer {
         const regions: typeof midiTrackData[0]['regions'] = [];
         for (const region of track.getRegions()) {
           if (region.getCurrentType() === 'KGMidiRegion') {
-            const midiRegion = region as unknown as { getNotes: () => KGMidiNote[] };
+            const midiRegion = region as unknown as { getNotes: () => KGMidiNote[]; getPitchBends: () => KGMidiPitchBend[] };
             if (midiRegion.getNotes) {
               const notes = midiRegion.getNotes().map(note => ({
                 startBeat: note.getStartBeat() + region.getStartFromBeat(),
@@ -160,8 +173,22 @@ export class KGOfflineRenderer {
             }
           }
         }
+        const pitchBends = collectRegionMidiAutomationPoints(
+          track.getRegions()
+            .filter(region => region.getCurrentType() === 'KGMidiRegion')
+            .map(region => {
+              const midiRegion = region as unknown as { getPitchBends: () => KGMidiPitchBend[] };
+              return {
+                startBeat: region.getStartFromBeat(),
+                points: midiRegion.getPitchBends().map(pitchBend => ({
+                  beat: pitchBend.getBeat(),
+                  value: pitchBend.getValue(),
+                })),
+              };
+            })
+        );
 
-        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, regions });
+        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, regions, pitchBends });
       } else if (track.getType() === 'Wave') {
         const volume = audioInterface.getTrackVolume(trackId);
         const muted = audioInterface.getTrackMuted(trackId);
@@ -241,7 +268,7 @@ export class KGOfflineRenderer {
         const promise = (async () => {
           try {
             // Get cached buffers from pool
-            const audioBuffers = await KGToneBuffersPool.instance().getToneAudioBuffers(trackInfo.instrumentName);
+            const audioBuffers = await KGToneBuffersPool.instance().getToneAudioBuffers(String(trackInfo.instrumentName));
             const pitchRange = FLUIDR3_INSTRUMENT_MAP[trackInfo.instrumentName]?.pitchRange || [21, 108];
             const urlMap = KGToneSamplerFactory.instance().convertBuffersToUrls(audioBuffers, pitchRange);
 
@@ -258,6 +285,16 @@ export class KGOfflineRenderer {
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
             sampler.volume.value = getOfflineTrackVolumeDb(trackInfo.volume, trackInfo.muted);
             sampler.connect(masterGain);
+            const bakedTrackPitchBends = bakeMidiAutomationPointsInWindow(
+              trackInfo.pitchBends,
+              renderStartBeat,
+              renderEndBeat,
+              {
+                maxIntervalMs: interpolationIntervalMs,
+                bpm: project.getBpm(),
+                defaultValue: MIDI_PITCH_BEND_CENTER,
+              }
+            );
 
             // Schedule all notes for this track
             for (const regionInfo of trackInfo.regions) {
@@ -268,11 +305,32 @@ export class KGOfflineRenderer {
                 const offsetBeat = note.startBeat - renderStartBeat;
                 const noteStartTime = offsetBeat * secondsPerBeat;
                 const noteDuration = note.durationBeats * secondsPerBeat;
-                const noteName = pitchToNoteNameString(note.pitch);
                 const velocity = note.velocity / 127;
+                const initialNormalizedPitchBend = midiPitchBendToNormalized(
+                  resolveMidiAutomationValueAtBeat(trackInfo.pitchBends, note.startBeat, MIDI_PITCH_BEND_CENTER)
+                );
+                const offlineSource = createOfflinePitchBendAwareSource(
+                  sampler,
+                  audioBuffers,
+                  trackInfo.instrumentName,
+                  note.pitch,
+                  initialNormalizedPitchBend
+                );
+                if (!offlineSource) {
+                  continue;
+                }
+
+                const { source, basePlaybackRate } = offlineSource;
+                applyOfflinePitchBendAutomation(
+                  source,
+                  basePlaybackRate,
+                  bakedTrackPitchBends.filter(point => point.beat > note.startBeat && point.beat < note.endBeat),
+                  renderStartBeat,
+                  secondsPerBeat
+                );
 
                 context.transport.schedule((time) => {
-                  sampler.triggerAttackRelease(noteName, noteDuration, time, velocity);
+                  source.start(time, 0, noteDuration, velocity);
                 }, noteStartTime);
               }
             }
@@ -416,6 +474,76 @@ function shouldPlay(trackInfo: { muted: boolean; solo: boolean }, hasSoloedTrack
   if (trackInfo.muted) return false;
   if (hasSoloedTracks) return trackInfo.solo;
   return true;
+}
+
+function setOfflinePlaybackRate(
+  source: Tone.ToneBufferSource,
+  value: number,
+  time: number
+): void {
+  const playbackRate = source.playbackRate as unknown as {
+    value: number;
+    setValueAtTime?: (nextValue: number, nextTime: number) => void;
+  };
+
+  if (typeof playbackRate.setValueAtTime === 'function') {
+    playbackRate.setValueAtTime(value, time);
+    return;
+  }
+
+  playbackRate.value = value;
+}
+
+function createOfflinePitchBendAwareSource(
+  sampler: Tone.Sampler,
+  audioBuffers: Tone.ToneAudioBuffers,
+  instrumentName: InstrumentType,
+  pitch: number,
+  initialNormalizedPitchBend: number
+): { source: Tone.ToneBufferSource; basePlaybackRate: number } | null {
+  const closestPitch = KGAudioBus.findClosestBufferedPitch(instrumentName, audioBuffers, pitch);
+  if (closestPitch === null) {
+    return null;
+  }
+
+  const bufferKey = KGAudioBus.midiPitchToBufferKey(closestPitch);
+  const buffer = audioBuffers.get(bufferKey);
+  if (!buffer) {
+    return null;
+  }
+
+  const basePlaybackRate = Math.pow(2, (pitch - closestPitch) / 12);
+  const source = new Tone.ToneBufferSource({
+    url: buffer,
+    fadeIn: sampler.attack,
+    fadeOut: sampler.release,
+    curve: sampler.curve,
+    playbackRate: KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, initialNormalizedPitchBend),
+  }).connect(sampler.output);
+  setOfflinePlaybackRate(
+    source,
+    KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, initialNormalizedPitchBend),
+    0
+  );
+
+  return { source, basePlaybackRate };
+}
+
+export function applyOfflinePitchBendAutomation(
+  source: Tone.ToneBufferSource,
+  basePlaybackRate: number,
+  bakedPitchBends: BakedMidiAutomationPoint[],
+  renderStartBeat: number,
+  secondsPerBeat: number
+): void {
+  bakedPitchBends.forEach(point => {
+    const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+    setOfflinePlaybackRate(
+      source,
+      KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, midiPitchBendToNormalized(point.value)),
+      automationTime
+    );
+  });
 }
 
 export function getOfflineTrackVolumeDb(volumeDb: number, muted: boolean): number {

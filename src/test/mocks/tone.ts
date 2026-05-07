@@ -28,6 +28,7 @@ export const MockBufferSource = vi.fn().mockImplementation((options?: { playback
   const instance = {
     playbackRate: {
       value: options?.playbackRate ?? 1,
+      setValueAtTime: vi.fn(),
     },
     connect: vi.fn(() => instance),
     start: vi.fn(() => instance),
