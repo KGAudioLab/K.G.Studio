@@ -671,7 +671,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const handleZoomChange = useCallback((nextZoom: number) => {
     if (nextZoom === pianoRollZoom) return;
 
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     pendingZoomAnchorBeatRef.current = null;
     if (container) {
       const keysWidth = parseInt(
@@ -742,7 +742,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Detect manual horizontal scroll during playback
   useEffect(() => {
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
     const handleScroll = () => {
@@ -761,7 +761,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   useEffect(() => {
     if (!isPlaying || !autoScrollEnabled) return;
 
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
     const beatWidth = parseInt(
@@ -787,7 +787,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   useEffect(() => {
     if (pianoRollScrollRequest === null) return;
 
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
     const beatWidth = parseInt(
@@ -820,7 +820,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
 
     const anchorBeat = pendingZoomAnchorBeatRef.current;
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (anchorBeat !== null && container) {
       const keysWidth = parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
@@ -845,7 +845,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Scroll horizontally to the active region's starting bar
   useEffect(() => {
-    if (pianoRollContentRef.current && activeRegion) {
+    if (pianoRollNoteScrollRef.current && activeRegion) {
       // Get the starting beat of the region
       const startBeat = activeRegion.getStartFromBeat();
       
@@ -866,7 +866,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const scrollPosition = barNumber * barWidth;
       
       // Scroll to the calculated position
-      pianoRollContentRef.current.scrollLeft = Math.max(0, scrollPosition);
+      pianoRollNoteScrollRef.current.scrollLeft = Math.max(0, scrollPosition);
     }
   }, [activeRegion, timeSignature]);
 

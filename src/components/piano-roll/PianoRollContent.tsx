@@ -76,7 +76,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   const isSpectrogram = mode === 'spectrogram';
   const showAutomationLane = automationEnabled && !isSpectrogram;
   const [spectrogramLoading, setSpectrogramLoading] = useState(false);
-  const [noteScrollTop, setNoteScrollTop] = useState(0);
+  const [noteScrollLeft, setNoteScrollLeft] = useState(0);
   const handleSpectrogramLoadingChange = useCallback((loading: boolean) => {
     setSpectrogramLoading(loading);
   }, []);
@@ -87,6 +87,15 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   // Recording state
   const isRecording = useProjectStore(s => s.isRecording);
   const recordingNotes = useProjectStore(s => s.recordingNotes);
+  const forwardAutomationHorizontalWheel = useCallback((delta: number) => {
+    const container = noteScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollLeft += delta;
+    setNoteScrollLeft(container.scrollLeft);
+  }, [noteScrollRef]);
 
   // Use the note operations hook for resize and drag functionality
   const {
@@ -290,23 +299,14 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
         data-testid={showAutomationLane ? 'piano-roll-content-split' : 'piano-roll-content-single'}
       >
         <div className={`piano-roll-main-section ${showAutomationLane ? 'with-automation' : ''}`}>
-          <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
-
-          <div className="piano-roll-body-shell">
-            <div className="piano-roll-keys-viewport">
-              <div
-                className="piano-roll-keys-offset"
-                style={{ transform: `translateY(-${noteScrollTop}px)` }}
-              >
-                <PianoKeys activeRegion={activeRegion} />
-              </div>
-            </div>
-            <div
-              className="piano-roll-note-scroll"
-              ref={noteScrollRef}
-              onScroll={(event) => setNoteScrollTop(event.currentTarget.scrollTop)}
-            >
-              <div className="piano-roll-body">
+          <div
+            className="piano-roll-note-scroll"
+            ref={noteScrollRef}
+            onScroll={(event) => setNoteScrollLeft(event.currentTarget.scrollLeft)}
+          >
+            <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
+            <div className="piano-roll-body">
+              <PianoKeys activeRegion={activeRegion} />
               <PianoGrid
                 gridRef={pianoGridRef}
                 onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
@@ -331,7 +331,6 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                 {memoizedNotes}
                 {!isSpectrogram && recordingNoteOverlays}
               </PianoGrid>
-              </div>
             </div>
           </div>
         </div>
@@ -344,6 +343,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
               timeSignature={timeSignature}
               bpm={bpm}
               redrawVersion={automationRedrawVersion}
+              horizontalScrollLeft={noteScrollLeft}
+              onHorizontalWheel={forwardAutomationHorizontalWheel}
             />
           </div>
         )}

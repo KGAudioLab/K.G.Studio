@@ -48,7 +48,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleListEventPanel, showKGOnePanel, showListEventPanel, showChatBox, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleListEventPanel, showKGOnePanel, showListEventPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
@@ -1065,7 +1065,13 @@ const Toolbar: React.FC = () => {
           </div>
         </div>
         <button title="Import" onClick={handleImportProject}><FaUpload /></button>
-        <button title="Settings" onClick={handleSettingsClick}><FaCog /></button>
+        <button
+          title="Settings"
+          className={`tool-button ${showSettings ? 'active' : ''}`}
+          onClick={handleSettingsClick}
+        >
+          <FaCog />
+        </button>
         <div className="toolbar-separator"></div>
         <button title="Undo" onClick={handleUndoClick}><FaUndo /></button>
         <button title="Redo" onClick={handleRedoClick}><FaRedo /></button>

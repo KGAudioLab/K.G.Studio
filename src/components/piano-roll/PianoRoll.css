@@ -180,6 +180,14 @@
   --toolbar-button-bg: #d6d6d6;
 }
 
+.piano-roll-toolbar button:focus,
+.piano-roll-toolbar button:focus-visible,
+.piano-roll-toolbar .tool-button:focus,
+.piano-roll-toolbar .tool-button:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Override pointer-events for piano roll toolbar sections */
 .piano-roll-toolbar .toolbar-left,
 .piano-roll-toolbar .toolbar-right {
@@ -310,8 +318,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
 }
 
 .piano-roll-main-section {
@@ -319,7 +326,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+  min-width: 0;
 }
 
 .piano-roll-main-section.with-automation {
@@ -329,34 +336,12 @@
 .piano-roll-note-scroll {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: visible;
-}
-
-.piano-roll-body-shell {
-  display: flex;
-  min-height: 0;
-}
-
-.piano-roll-keys-viewport {
-  position: sticky;
-  left: 0;
-  z-index: 15;
-  width: var(--region-piano-key-width);
-  flex: 0 0 var(--region-piano-key-width);
-  overflow: hidden;
-  border-right: 1px solid #3a3a3a;
-  background-color: #252525;
-}
-
-.piano-roll-keys-offset {
-  will-change: transform;
+  overflow: auto;
 }
 
 .piano-roll-automation-section {
   flex: 0 0 50%;
   min-height: 0;
-  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
   border-top: 1px solid #3a3a3a;
   overflow: hidden;
 }
@@ -416,7 +401,11 @@
   width: var(--region-piano-key-width);
   flex-shrink: 0;
   overflow: hidden;
+  border-right: 1px solid #3a3a3a;
   background-color: #252525;
+  position: sticky;
+  left: 0;
+  z-index: 15;
 }
 
 .piano-grid-container {
@@ -523,6 +512,13 @@
   min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
 }
 
+.piano-roll-automation-scroll-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  z-index: 0;
+}
+
 .piano-roll-automation-track::before {
   content: '';
   position: absolute;
@@ -540,6 +536,7 @@
   left: 0;
   width: var(--region-piano-key-width);
   background: linear-gradient(180deg, #343434 0%, #2e2e2e 100%);
+  z-index: 2;
 }
 
 .piano-roll-automation-grid {
@@ -561,7 +558,7 @@
   position: absolute;
   top: 8px;
   left: 10px;
-  z-index: 1;
+  z-index: 3;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;

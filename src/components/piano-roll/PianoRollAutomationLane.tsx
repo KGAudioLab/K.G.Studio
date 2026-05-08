@@ -26,6 +26,8 @@ interface PianoRollAutomationLaneProps {
   timeSignature: { numerator: number; denominator: number };
   bpm?: number;
   redrawVersion?: number;
+  horizontalScrollLeft?: number;
+  onHorizontalWheel?: (delta: number) => void;
 }
 
 const AUTOMATION_COLOR = '#87CEFA';
@@ -38,6 +40,8 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   maxBars,
   timeSignature,
   redrawVersion = 0,
+  horizontalScrollLeft = 0,
+  onHorizontalWheel,
 }) => {
   const laneRef = useRef<HTMLDivElement | null>(null);
   const [laneHeight, setLaneHeight] = useState(MIN_LANE_HEIGHT);
@@ -65,6 +69,28 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const element = laneRef.current;
+    if (!element) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      const horizontalDelta = Math.abs(event.deltaX) > 0 ? event.deltaX : (event.shiftKey ? event.deltaY : 0);
+      if (horizontalDelta === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      onHorizontalWheel?.(horizontalDelta);
+    };
+
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      element.removeEventListener('wheel', handleWheel);
+    };
+  }, [onHorizontalWheel]);
 
   const points = useMemo<AutomationPoint[]>(() => {
     if (!activeRegion) {
@@ -160,62 +186,67 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     >
       <div className="piano-roll-automation-track" style={{ width: totalWidth }}>
         <div className="piano-roll-automation-gutter" />
-        <div className="piano-roll-automation-grid" />
         <div className="piano-roll-automation-lane-label">{laneLabel}</div>
-        <svg
-          className="piano-roll-automation-svg"
-          width="100%"
-          height={laneHeight}
-          viewBox={`0 0 ${beatWidth * totalBeats + keyWidth} ${laneHeight}`}
-          preserveAspectRatio="none"
+        <div
+          className="piano-roll-automation-scroll-layer"
+          style={{ transform: `translateX(-${horizontalScrollLeft}px)` }}
         >
-          {interpolationMode === 'linear' && points.length > 0 && (
-            <polyline
-              className="piano-roll-automation-line"
-              fill="none"
-              stroke={AUTOMATION_COLOR}
-              strokeWidth="2"
-              points={polylinePoints}
-            />
-          )}
-          {interpolationMode === 'step' && stepSegments.map(segment => (
-            <line
-              key={segment.id}
-              className="piano-roll-automation-line"
-              x1={segment.x1}
-              y1={segment.y1}
-              x2={segment.x2}
-              y2={segment.y1}
-              stroke={AUTOMATION_COLOR}
-              strokeWidth="2"
-            />
-          ))}
-          {svgPoints.map(point => {
-            const labelY = Math.max(14, Math.min(laneHeight - 6, point.y - 10));
+          <div className="piano-roll-automation-grid" />
+          <svg
+            className="piano-roll-automation-svg"
+            width="100%"
+            height={laneHeight}
+            viewBox={`0 0 ${beatWidth * totalBeats + keyWidth} ${laneHeight}`}
+            preserveAspectRatio="none"
+          >
+            {interpolationMode === 'linear' && points.length > 0 && (
+              <polyline
+                className="piano-roll-automation-line"
+                fill="none"
+                stroke={AUTOMATION_COLOR}
+                strokeWidth="2"
+                points={polylinePoints}
+              />
+            )}
+            {interpolationMode === 'step' && stepSegments.map(segment => (
+              <line
+                key={segment.id}
+                className="piano-roll-automation-line"
+                x1={segment.x1}
+                y1={segment.y1}
+                x2={segment.x2}
+                y2={segment.y1}
+                stroke={AUTOMATION_COLOR}
+                strokeWidth="2"
+              />
+            ))}
+            {svgPoints.map(point => {
+              const labelY = Math.max(14, Math.min(laneHeight - 6, point.y - 10));
 
-            return (
-              <g key={point.id}>
-                <circle
-                  className="piano-roll-automation-point"
-                  cx={point.x}
-                  cy={point.y}
-                  r="5"
-                  fill={AUTOMATION_COLOR}
-                  stroke="#1d2428"
-                  strokeWidth="2"
-                />
-                <text
-                  className="piano-roll-automation-value"
-                  x={point.x + 6}
-                  y={labelY}
-                  fill={AUTOMATION_COLOR}
-                >
-                  {point.label}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+              return (
+                <g key={point.id}>
+                  <circle
+                    className="piano-roll-automation-point"
+                    cx={point.x}
+                    cy={point.y}
+                    r="5"
+                    fill={AUTOMATION_COLOR}
+                    stroke="#1d2428"
+                    strokeWidth="2"
+                  />
+                  <text
+                    className="piano-roll-automation-value"
+                    x={point.x + 6}
+                    y={labelY}
+                    fill={AUTOMATION_COLOR}
+                  >
+                    {point.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
         {points.length === 0 && (
           <div className="piano-roll-automation-empty-state">
             No {laneLabel} events in this region
