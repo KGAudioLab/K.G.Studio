@@ -457,6 +457,10 @@
   cursor: crosshair;
 }
 
+.piano-roll-automation-scroll-layer.pencil-cursor {
+  cursor: crosshair;
+}
+
 /* Piano Grid Cursor Highlights */
 .piano-grid-pitch-highlight {
   position: absolute;
@@ -570,10 +574,20 @@
   position: absolute;
   inset: 0;
   overflow: visible;
+  z-index: 1;
 }
 
 .piano-roll-automation-line {
   filter: drop-shadow(0 0 2px rgba(135, 206, 250, 0.3));
+  pointer-events: none;
+}
+
+.piano-roll-automation-point {
+  cursor: pointer;
+}
+
+.piano-roll-automation-point.selected {
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
 .piano-roll-automation-value {
@@ -583,6 +597,14 @@
   stroke: rgba(30, 30, 30, 0.8);
   stroke-width: 2px;
   pointer-events: none;
+}
+
+.piano-roll-automation-selection-box {
+  position: absolute;
+  border: 1px solid rgba(135, 206, 250, 0.95);
+  background: rgba(135, 206, 250, 0.18);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .piano-roll-automation-empty-state {

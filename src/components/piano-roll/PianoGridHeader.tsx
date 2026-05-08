@@ -3,6 +3,7 @@ import { KGCore } from '../../core/KGCore';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { useProjectStore } from '../../stores/projectStore';
 import { DEBUG_MODE } from '../../constants';
+import { getSnappedBeatPosition } from './pianoRollSnap';
 
 interface PianoGridHeaderProps {
   maxBars: number;
@@ -19,35 +20,6 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
   // Refs for drag functionality
   const isDraggingRef = useRef(false);
   const headerElementRef = useRef<HTMLDivElement | null>(null);
-
-  // Utility function to calculate snapped beat position (based on useNoteOperations.ts)
-  const getSnappedBeatPosition = (beatPosition: number): number => {
-    const currentSnap = KGPianoRollState.instance().getCurrentSnap();
-    
-    // If no snapping is enabled, return the original position
-    if (currentSnap === 'NO SNAP') {
-      return beatPosition;
-    }
-    
-    // Parse the snap value (e.g., "1/4", "1/8", "1/16", "1/32")
-    const denominator = parseInt(currentSnap.split('/')[1]);
-    if (isNaN(denominator)) {
-      return beatPosition; // Fallback to no snapping if invalid
-    }
-    
-    // Calculate the snap step in beats
-    // snapStep should ALWAYS be 4 / denominator regardless of time signature
-    const snapStep = 4 / denominator;
-    
-    // Use round snapping for playhead positioning
-    const snappedPosition = Math.round(beatPosition / snapStep) * snapStep;
-    
-    if (DEBUG_MODE.PIANO_ROLL) {
-      console.log(`Piano Grid Header Snapping: ${beatPosition} -> ${snappedPosition} (snap: ${currentSnap}, step: ${snapStep})`);
-    }
-    
-    return snappedPosition;
-  };
 
   // Utility function to calculate playhead position from mouse coordinates
   const calculatePlayheadFromMouse = useCallback((clientX: number): number | null => {
@@ -77,7 +49,7 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     const rawBeatPosition = adjustedX / beatWidth;
     
     // Apply quantization if enabled
-    return getSnappedBeatPosition(rawBeatPosition);
+    return getSnappedBeatPosition(rawBeatPosition, KGPianoRollState.instance().getCurrentSnap());
   }, []);
 
   // Handle mouse down to start dragging

@@ -41,6 +41,19 @@ export const useNoteSelection = ({
   
   // Get KGCore instance
   const core = KGCore.instance();
+
+  const deselectAutomationEvents = () => {
+    if (!activeRegion) return;
+
+    activeRegion.getPitchBends().forEach(pitchBend => {
+      pitchBend.deselect();
+    });
+    activeRegion.getControllerEventsByType().forEach(events => {
+      events.forEach(controllerEvent => {
+        controllerEvent.deselect();
+      });
+    });
+  };
   
   // Handle note click for selection
   const handleNoteClick = (noteId: string, e: React.MouseEvent) => {
@@ -58,6 +71,8 @@ export const useNoteSelection = ({
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`NOTE CLICKED: noteId=${noteId}, shift key: ${e.shiftKey}`);
     }
+
+    deselectAutomationEvents();
     
     // Create a new Set for selected note IDs
     let newSelectedNoteIds: Set<string>;
@@ -110,6 +125,7 @@ export const useNoteSelection = ({
       
       // Clear KGCore selection using store method
       clearAllSelections();
+      deselectAutomationEvents();
       
       // Create new selection with only this note
       newSelectedNoteIds = new Set([noteId]);
@@ -191,6 +207,8 @@ export const useNoteSelection = ({
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log('Starting box selection');
       }
+
+      deselectAutomationEvents();
       
       // Store shift key state for box selection
       isShiftKeyPressedRef.current = e.shiftKey;
@@ -295,6 +313,7 @@ export const useNoteSelection = ({
         
         // Clear KGCore selection using store method
         clearAllSelections();
+        deselectAutomationEvents();
         
         // Start with empty selection
         newSelectedNoteIds = new Set<string>();
