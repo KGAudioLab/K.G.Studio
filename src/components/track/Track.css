@@ -265,6 +265,15 @@
   background: rgba(0, 0, 0, 0.35);
 }
 
+.track-automation-center-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
 .track-automation-svg {
   position: absolute;
   inset: 0;

@@ -42,16 +42,102 @@ const TRACK_AUTOMATION_COLORS: Record<TrackAutomationType, string> = {
 
 function formatAutomationValue(automationType: TrackAutomationType, value: number): string {
   if (automationType === 'volume') {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
+    if (value <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB) {
+      return '−∞';
+    }
+
+    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}dB`;
   }
 
-  const magnitude = Math.round(Math.abs(value) * 100);
-  if (magnitude === 0) {
-    return 'C';
-  }
-
-  return `${value < 0 ? 'L' : 'R'}${magnitude}`;
+  const logicPanValue = value <= 0
+    ? Math.round(value * 64)
+    : Math.round(value * 63);
+  return `${logicPanValue >= 0 ? '+' : ''}${logicPanValue}`;
 }
+
+function getLaneMetrics(laneHeight: number) {
+  const top = LANE_PADDING_Y;
+  const bottom = laneHeight - LANE_PADDING_Y;
+  const middle = Math.round((top + bottom) / 2);
+  return { top, middle, bottom };
+}
+
+function volumeToY(value: number, laneHeight: number): number {
+  const clamped = Math.max(
+    AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB,
+    Math.min(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB, value)
+  );
+  const { top, middle, bottom } = getLaneMetrics(laneHeight);
+
+  if (clamped >= 0) {
+    const normalized = clamped / AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB;
+    return middle - (middle - top) * normalized;
+  }
+
+  const normalized = clamped / AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+  return middle + (bottom - middle) * normalized;
+}
+
+function yToVolume(y: number, laneHeight: number): number {
+  const { top, middle, bottom } = getLaneMetrics(laneHeight);
+  const clampedY = Math.min(bottom, Math.max(top, y));
+
+  if (clampedY <= middle) {
+    const normalized = middle === top ? 0 : (middle - clampedY) / (middle - top);
+    return Math.min(
+      AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB,
+      Math.max(0, normalized * AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB)
+    );
+  }
+
+  const normalized = bottom === middle ? 0 : (clampedY - middle) / (bottom - middle);
+  return Math.max(
+    AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB,
+    Math.min(0, normalized * AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB)
+  );
+}
+
+function panToY(value: number, laneHeight: number): number {
+  const clamped = Math.max(-1, Math.min(1, value));
+  const { top, middle, bottom } = getLaneMetrics(laneHeight);
+
+  if (clamped === 0) {
+    return middle;
+  }
+
+  if (clamped > 0) {
+    return middle - (middle - top) * clamped;
+  }
+
+  return middle + (bottom - middle) * Math.abs(clamped);
+}
+
+function yToPan(y: number, laneHeight: number): number {
+  const { top, middle, bottom } = getLaneMetrics(laneHeight);
+  const clampedY = Math.min(bottom, Math.max(top, y));
+
+  // Reserve a full pixel around the midpoint for exact center.
+  if (Math.abs(clampedY - middle) <= 0.5) {
+    return 0;
+  }
+
+  if (clampedY < middle) {
+    const normalized = middle === top ? 0 : (middle - clampedY) / (middle - top);
+    return Math.max(0, Math.min(1, normalized));
+  }
+
+  const normalized = bottom === middle ? 0 : (clampedY - middle) / (bottom - middle);
+  return Math.max(-1, Math.min(0, -normalized));
+}
+
+export const __trackAutomationTestUtils = {
+  formatAutomationValue,
+  getLaneMetrics,
+  volumeToY,
+  yToVolume,
+  panToY,
+  yToPan,
+};
 
 const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
   track,
@@ -133,20 +219,20 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
 
   const toY = (value: number): number => {
     const laneHeight = laneRef.current?.clientHeight ?? 120;
-    const usableHeight = laneHeight - LANE_PADDING_Y * 2;
-    const normalized = (value - minValue) / (maxValue - minValue);
-    return laneHeight - LANE_PADDING_Y - normalized * usableHeight;
+    if (automationType === 'volume') {
+      return volumeToY(value, laneHeight);
+    }
+
+    return panToY(value, laneHeight);
   };
 
   const toValue = (y: number): number => {
     const laneHeight = laneRef.current?.clientHeight ?? 120;
-    const usableHeight = laneHeight - LANE_PADDING_Y * 2;
-    const clampedY = Math.min(laneHeight - LANE_PADDING_Y, Math.max(LANE_PADDING_Y, y));
-    const normalized = (laneHeight - LANE_PADDING_Y - clampedY) / usableHeight;
-    const rawValue = minValue + normalized * (maxValue - minValue);
-    return automationType === 'volume'
-      ? Math.max(AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB, Math.min(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB, rawValue))
-      : Math.max(-1, Math.min(1, rawValue));
+    if (automationType === 'volume') {
+      return yToVolume(y, laneHeight);
+    }
+
+    return yToPan(y, laneHeight);
   };
 
   const renderedPoints = points.map(point => {
@@ -502,6 +588,10 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
       onDoubleClick={(event) => { void handleBackgroundDoubleClick(event); }}
     >
       <div className="track-automation-overlay" />
+      <div
+        className="track-automation-center-line"
+        style={{ top: `${getLaneMetrics(laneRef.current?.clientHeight ?? 120).middle}px` }}
+      />
       <svg
         className="track-automation-svg"
         width="100%"
