@@ -4,6 +4,7 @@ import {
   collectRegionMidiAutomationPoints,
   normalizeMidiAutomationPoints,
   resolveMidiAutomationValueAtBeat,
+  resolveSustainExtendedEndBeat,
   type MidiAutomationPoint,
 } from './midiAutomationUtil';
 
@@ -158,5 +159,34 @@ describe('midiAutomationUtil', () => {
     expect(baked[0]).toEqual({ beat: 4, value: 4096 });
     expect(baked.some(point => point.beat === 5 && point.value === 6144)).toBe(true);
     expect(baked.some(point => point.beat === 6 && point.value === 8192)).toBe(true);
+  });
+
+  it('uses step interpolation for switch-style automation', () => {
+    const points = [
+      { beat: 1, value: 127 },
+      { beat: 3, value: 0 },
+    ];
+
+    expect(resolveMidiAutomationValueAtBeat(points, 2, 0, 'step')).toBe(127);
+    expect(bakeMidiAutomationPointsInWindow(points, 0, 4, {
+      ...defaultOptions,
+      defaultValue: 0,
+      interpolationMode: 'step',
+      quantizeValue: (value) => value,
+    })).toEqual([
+      { beat: 0, value: 0 },
+      { beat: 1, value: 127 },
+      { beat: 3, value: 0 },
+    ]);
+  });
+
+  it('extends note ends until the next sustain release', () => {
+    const points = [
+      { beat: 1, value: 127 },
+      { beat: 4, value: 0 },
+    ];
+
+    expect(resolveSustainExtendedEndBeat(points, 2, 0)).toBe(4);
+    expect(resolveSustainExtendedEndBeat(points, 5, 0)).toBe(5);
   });
 });

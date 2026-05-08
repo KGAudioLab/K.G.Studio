@@ -27,6 +27,8 @@ export const MIDI_PITCH_BEND_CENTER = 8192;
 export const MIDI_PITCH_BEND_MAX = 16383;
 export const MIDI_PITCH_BEND_MIN_SIGNED = -8192;
 export const MIDI_PITCH_BEND_MAX_SIGNED = 8191;
+export const MIDI_CONTROLLER_MIN = 0;
+export const MIDI_CONTROLLER_MAX = 127;
 
 export const pitchToNoteName = (pitch: number) => {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -43,6 +45,10 @@ export const pitchToNoteNameString = (pitch: number) => {
 
 export const clampMidiPitchBendValue = (value: number): number => (
   Math.max(MIDI_PITCH_BEND_MIN, Math.min(MIDI_PITCH_BEND_MAX, Math.round(value)))
+);
+
+export const clampMidiControllerValue = (value: number): number => (
+  Math.max(MIDI_CONTROLLER_MIN, Math.min(MIDI_CONTROLLER_MAX, Math.round(value)))
 );
 
 export const midiPitchBendToSignedValue = (value: number): number => (

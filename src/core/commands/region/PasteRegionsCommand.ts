@@ -2,6 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
+import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
@@ -89,6 +90,15 @@ export class PasteRegionsCommand extends KGCommand {
             pitchBend.getBeat(),
             pitchBend.getValue()
           ));
+        });
+        originalRegion.getControllerEventsByType().forEach((events, controller) => {
+          events.forEach(controllerEvent => {
+            (newRegion as KGMidiRegion).addControllerEvent(controller, new KGMidiControllerEvent(
+              generateUniqueId('KGMidiControllerEvent'),
+              controllerEvent.getBeat(),
+              controllerEvent.getValue()
+            ));
+          });
         });
         
         console.log(`Created MIDI region "${newRegion.getName()}" with ${originalNotes.length} notes`);

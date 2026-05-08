@@ -14,12 +14,18 @@ export interface MidiAutomationBakeOptions {
   maxIntervalMs: number;
   bpm: number;
   defaultValue: number;
+  interpolationMode?: 'linear' | 'step';
+  quantizeValue?: (value: number) => number;
 }
 
 const BEAT_EPSILON = 1e-9;
 
 function quantizeBakedValue(value: number): number {
   return clampMidiPitchBendValue(value);
+}
+
+function quantizeValue(value: number, options: MidiAutomationBakeOptions): number {
+  return options.quantizeValue ? options.quantizeValue(value) : quantizeBakedValue(value);
 }
 
 function appendPoint(points: BakedMidiAutomationPoint[], nextPoint: BakedMidiAutomationPoint): void {
@@ -91,7 +97,8 @@ export function collectRegionMidiAutomationPoints(
 export function resolveMidiAutomationValueAtBeat(
   points: MidiAutomationPoint[],
   beat: number,
-  defaultValue: number
+  defaultValue: number,
+  interpolationMode: 'linear' | 'step' = 'linear'
 ): number {
   const normalizedPoints = normalizeMidiAutomationPoints(points);
   if (normalizedPoints.length === 0) {
@@ -103,6 +110,10 @@ export function resolveMidiAutomationValueAtBeat(
     if (beat < point.beat) {
       if (!previousPoint) {
         return defaultValue;
+      }
+
+      if (interpolationMode === 'step') {
+        return previousPoint.value;
       }
 
       return interpolateBetweenPoints(previousPoint, point, beat);
@@ -121,9 +132,13 @@ export function bakeMidiAutomationPointsInWindow(
   options: MidiAutomationBakeOptions
 ): BakedMidiAutomationPoint[] {
   const normalizedPoints = normalizeMidiAutomationPoints(points);
+  const interpolationMode = options.interpolationMode ?? 'linear';
   const anchorPoint = {
     beat: windowStartBeat,
-    value: quantizeBakedValue(resolveMidiAutomationValueAtBeat(normalizedPoints, windowStartBeat, options.defaultValue)),
+    value: quantizeValue(
+      resolveMidiAutomationValueAtBeat(normalizedPoints, windowStartBeat, options.defaultValue, interpolationMode),
+      options
+    ),
   };
 
   if (windowEndBeat <= windowStartBeat) {
@@ -137,7 +152,22 @@ export function bakeMidiAutomationPointsInWindow(
 
   const firstPoint = normalizedPoints[0];
   if (windowStartBeat < firstPoint.beat && firstPoint.beat < windowEndBeat) {
-    appendPoint(bakedPoints, { beat: firstPoint.beat, value: quantizeBakedValue(firstPoint.value) });
+    appendPoint(bakedPoints, { beat: firstPoint.beat, value: quantizeValue(firstPoint.value, options) });
+  }
+
+  if (interpolationMode === 'step') {
+    normalizedPoints.forEach(point => {
+      if (point.beat <= windowStartBeat + BEAT_EPSILON || point.beat >= windowEndBeat - BEAT_EPSILON) {
+        return;
+      }
+
+      appendPoint(bakedPoints, {
+        beat: point.beat,
+        value: quantizeValue(point.value, options),
+      });
+    });
+
+    return bakedPoints;
   }
 
   const maxIntervalBeats = getMaxIntervalBeats(options);
@@ -184,10 +214,29 @@ export function bakeMidiAutomationPointsInWindow(
 
       appendPoint(bakedPoints, {
         beat,
-        value: quantizeBakedValue(interpolateBetweenPoints(startPoint, endPoint, beat)),
+        value: quantizeValue(interpolateBetweenPoints(startPoint, endPoint, beat), options),
       });
     }
   }
 
   return bakedPoints;
+}
+
+export function resolveSustainExtendedEndBeat(
+  points: MidiAutomationPoint[],
+  noteEndBeat: number,
+  defaultValue: number
+): number {
+  const normalizedPoints = normalizeMidiAutomationPoints(points);
+  if (normalizedPoints.length === 0) {
+    return noteEndBeat;
+  }
+
+  const sustainValueAtEnd = resolveMidiAutomationValueAtBeat(normalizedPoints, noteEndBeat, defaultValue, 'step');
+  if (sustainValueAtEnd < 64) {
+    return noteEndBeat;
+  }
+
+  const releasePoint = normalizedPoints.find(point => point.beat > noteEndBeat && point.value < 64);
+  return releasePoint?.beat ?? noteEndBeat;
 }

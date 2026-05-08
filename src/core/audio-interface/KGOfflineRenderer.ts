@@ -6,11 +6,13 @@ import type { KGAudioRegion } from '../region/KGAudioRegion';
 import type { InstrumentType } from '../track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
-import { MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
+import { clampMidiControllerValue, MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 import {
   bakeMidiAutomationPointsInWindow,
   collectRegionMidiAutomationPoints,
+  normalizeMidiAutomationPoints,
   resolveMidiAutomationValueAtBeat,
+  resolveSustainExtendedEndBeat,
   type BakedMidiAutomationPoint,
   type MidiAutomationPoint,
 } from '../../util/midiAutomationUtil';
@@ -124,6 +126,7 @@ export class KGOfflineRenderer {
         notes: Array<{ startBeat: number; endBeat: number; durationBeats: number; pitch: number; velocity: number }>;
       }>;
       pitchBends: MidiAutomationPoint[];
+      controllerEventsByType: MidiAutomationPoint[][];
     }> = [];
 
     const audioTrackData: Array<{
@@ -187,8 +190,24 @@ export class KGOfflineRenderer {
               };
             })
         );
+        const controllerEventsByType = Array.from({ length: 128 }, (_, controller) => (
+          collectRegionMidiAutomationPoints(
+            track.getRegions()
+              .filter(region => region.getCurrentType() === 'KGMidiRegion')
+              .map(region => {
+                const midiRegion = region as unknown as { getControllerEvents: (controller: number) => Array<{ getBeat: () => number; getValue: () => number }> };
+                return {
+                  startBeat: region.getStartFromBeat(),
+                  points: midiRegion.getControllerEvents(controller).map(event => ({
+                    beat: event.getBeat(),
+                    value: event.getValue(),
+                  })),
+                };
+              })
+          )
+        ));
 
-        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, regions, pitchBends });
+        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, regions, pitchBends, controllerEventsByType });
       } else if (track.getType() === 'Wave') {
         const volume = audioInterface.getTrackVolume(trackId);
         const muted = audioInterface.getTrackMuted(trackId);
@@ -285,6 +304,9 @@ export class KGOfflineRenderer {
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
             sampler.volume.value = getOfflineTrackVolumeDb(trackInfo.volume, trackInfo.muted);
             sampler.connect(masterGain);
+            const mergedExpressionEvents = normalizeMidiAutomationPoints(
+              [1, 2, 7, 11].flatMap(controller => trackInfo.controllerEventsByType[controller])
+            );
             const bakedTrackPitchBends = bakeMidiAutomationPointsInWindow(
               trackInfo.pitchBends,
               renderStartBeat,
@@ -293,6 +315,18 @@ export class KGOfflineRenderer {
                 maxIntervalMs: interpolationIntervalMs,
                 bpm: project.getBpm(),
                 defaultValue: MIDI_PITCH_BEND_CENTER,
+              }
+            );
+            const bakedExpressionEvents = bakeMidiAutomationPointsInWindow(
+              mergedExpressionEvents,
+              renderStartBeat,
+              renderEndBeat,
+              {
+                maxIntervalMs: interpolationIntervalMs,
+                bpm: project.getBpm(),
+                defaultValue: 127,
+                interpolationMode: 'linear',
+                quantizeValue: clampMidiControllerValue,
               }
             );
 
@@ -304,27 +338,42 @@ export class KGOfflineRenderer {
 
                 const offsetBeat = note.startBeat - renderStartBeat;
                 const noteStartTime = offsetBeat * secondsPerBeat;
-                const noteDuration = note.durationBeats * secondsPerBeat;
+                const sustainedEndBeat = resolveSustainExtendedEndBeat(
+                  trackInfo.controllerEventsByType[64],
+                  note.endBeat,
+                  0
+                );
+                const noteDuration = Math.max(0, sustainedEndBeat - note.startBeat) * secondsPerBeat;
                 const velocity = note.velocity / 127;
                 const initialNormalizedPitchBend = midiPitchBendToNormalized(
                   resolveMidiAutomationValueAtBeat(trackInfo.pitchBends, note.startBeat, MIDI_PITCH_BEND_CENTER)
                 );
+                const initialExpression = clampMidiControllerValue(
+                  resolveMidiAutomationValueAtBeat(mergedExpressionEvents, note.startBeat, 127, 'linear')
+                ) / 127;
                 const offlineSource = createOfflinePitchBendAwareSource(
                   sampler,
                   audioBuffers,
                   trackInfo.instrumentName,
                   note.pitch,
-                  initialNormalizedPitchBend
+                  initialNormalizedPitchBend,
+                  initialExpression
                 );
                 if (!offlineSource) {
                   continue;
                 }
 
-                const { source, basePlaybackRate } = offlineSource;
+                const { source, basePlaybackRate, gainNode } = offlineSource;
                 applyOfflinePitchBendAutomation(
                   source,
                   basePlaybackRate,
-                  bakedTrackPitchBends.filter(point => point.beat > note.startBeat && point.beat < note.endBeat),
+                  bakedTrackPitchBends.filter(point => point.beat > note.startBeat && point.beat < sustainedEndBeat),
+                  renderStartBeat,
+                  secondsPerBeat
+                );
+                applyOfflineExpressionAutomation(
+                  gainNode,
+                  bakedExpressionEvents.filter(point => point.beat > note.startBeat && point.beat < sustainedEndBeat),
                   renderStartBeat,
                   secondsPerBeat
                 );
@@ -494,13 +543,23 @@ function setOfflinePlaybackRate(
   playbackRate.value = value;
 }
 
+function setOfflineGainValue(gainNode: Tone.Gain, value: number, time: number): void {
+  if (typeof gainNode.gain.setValueAtTime === 'function') {
+    gainNode.gain.setValueAtTime(value, time);
+    return;
+  }
+
+  gainNode.gain.value = value;
+}
+
 function createOfflinePitchBendAwareSource(
   sampler: Tone.Sampler,
   audioBuffers: Tone.ToneAudioBuffers,
   instrumentName: InstrumentType,
   pitch: number,
-  initialNormalizedPitchBend: number
-): { source: Tone.ToneBufferSource; basePlaybackRate: number } | null {
+  initialNormalizedPitchBend: number,
+  initialExpression: number
+): { source: Tone.ToneBufferSource; gainNode: Tone.Gain; basePlaybackRate: number } | null {
   const closestPitch = KGAudioBus.findClosestBufferedPitch(instrumentName, audioBuffers, pitch);
   if (closestPitch === null) {
     return null;
@@ -513,20 +572,22 @@ function createOfflinePitchBendAwareSource(
   }
 
   const basePlaybackRate = Math.pow(2, (pitch - closestPitch) / 12);
+  const gainNode = new Tone.Gain(initialExpression).connect(sampler.output);
   const source = new Tone.ToneBufferSource({
     url: buffer,
     fadeIn: sampler.attack,
     fadeOut: sampler.release,
     curve: sampler.curve,
     playbackRate: KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, initialNormalizedPitchBend),
-  }).connect(sampler.output);
+  }).connect(gainNode);
   setOfflinePlaybackRate(
     source,
     KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, initialNormalizedPitchBend),
     0
   );
+  setOfflineGainValue(gainNode, initialExpression, 0);
 
-  return { source, basePlaybackRate };
+  return { source, gainNode, basePlaybackRate };
 }
 
 export function applyOfflinePitchBendAutomation(
@@ -543,6 +604,18 @@ export function applyOfflinePitchBendAutomation(
       KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, midiPitchBendToNormalized(point.value)),
       automationTime
     );
+  });
+}
+
+export function applyOfflineExpressionAutomation(
+  gainNode: Tone.Gain,
+  bakedExpressionEvents: BakedMidiAutomationPoint[],
+  renderStartBeat: number,
+  secondsPerBeat: number
+): void {
+  bakedExpressionEvents.forEach(point => {
+    const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+    setOfflineGainValue(gainNode, clampMidiControllerValue(point.value) / 127, automationTime);
   });
 }
 

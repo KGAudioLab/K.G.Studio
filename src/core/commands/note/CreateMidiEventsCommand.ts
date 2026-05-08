@@ -1,6 +1,7 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGTrack } from '../../track/KGTrack';
@@ -22,13 +23,27 @@ export interface PitchBendCreationData {
   pitchBendId?: string;
 }
 
+export interface ControllerEventCreationData {
+  regionId: string;
+  controller: number;
+  beat: number;
+  value: number;
+  controllerEventId?: string;
+}
+
 export class CreateMidiEventsCommand extends KGCommand {
   private noteCreationData: NoteCreationData[];
   private pitchBendCreationData: PitchBendCreationData[];
+  private controllerEventCreationData: ControllerEventCreationData[];
   private createdNotes: Array<{ note: KGMidiNote; regionId: string }> = [];
   private createdPitchBends: Array<{ pitchBend: KGMidiPitchBend; regionId: string }> = [];
+  private createdControllerEvents: Array<{ controller: number; controllerEvent: KGMidiControllerEvent; regionId: string }> = [];
 
-  constructor(noteCreationData: NoteCreationData[], pitchBendCreationData: PitchBendCreationData[] = []) {
+  constructor(
+    noteCreationData: NoteCreationData[],
+    pitchBendCreationData: PitchBendCreationData[] = [],
+    controllerEventCreationData: ControllerEventCreationData[] = []
+  ) {
     super();
     this.noteCreationData = noteCreationData.map(data => ({
       ...data,
@@ -38,12 +53,17 @@ export class CreateMidiEventsCommand extends KGCommand {
       ...data,
       pitchBendId: data.pitchBendId || generateUniqueId('KGMidiPitchBend'),
     }));
+    this.controllerEventCreationData = controllerEventCreationData.map(data => ({
+      ...data,
+      controllerEventId: data.controllerEventId || generateUniqueId('KGMidiControllerEvent'),
+    }));
   }
 
   execute(): void {
     const tracks = KGCore.instance().getCurrentProject().getTracks();
     this.createdNotes = [];
     this.createdPitchBends = [];
+    this.createdControllerEvents = [];
 
     for (const noteData of this.noteCreationData) {
       const targetRegion = this.resolveRegion(tracks, noteData.regionId);
@@ -68,6 +88,21 @@ export class CreateMidiEventsCommand extends KGCommand {
       targetRegion.addPitchBend(newPitchBend);
       this.createdPitchBends.push({ pitchBend: newPitchBend, regionId: pitchBendData.regionId });
     }
+
+    for (const controllerEventData of this.controllerEventCreationData) {
+      const targetRegion = this.resolveRegion(tracks, controllerEventData.regionId);
+      const newControllerEvent = new KGMidiControllerEvent(
+        controllerEventData.controllerEventId!,
+        controllerEventData.beat,
+        controllerEventData.value
+      );
+      targetRegion.addControllerEvent(controllerEventData.controller, newControllerEvent);
+      this.createdControllerEvents.push({
+        controller: controllerEventData.controller,
+        controllerEvent: newControllerEvent,
+        regionId: controllerEventData.regionId,
+      });
+    }
   }
 
   undo(): void {
@@ -91,19 +126,40 @@ export class CreateMidiEventsCommand extends KGCommand {
         core.removeSelectedItem(selectedPitchBend);
       }
     }
+
+    for (const data of this.createdControllerEvents) {
+      const region = this.resolveRegion(tracks, data.regionId);
+      region.removeControllerEvent(data.controller, data.controllerEvent.getId());
+      const selectedControllerEvent = core.getSelectedItems().find(
+        item => item instanceof KGMidiControllerEvent && item.getId() === data.controllerEvent.getId()
+      );
+      if (selectedControllerEvent) {
+        core.removeSelectedItem(selectedControllerEvent);
+      }
+    }
   }
 
   getDescription(): string {
     const noteCount = this.noteCreationData.length;
     const pitchBendCount = this.pitchBendCreationData.length;
+    const controllerEventCount = this.controllerEventCreationData.length;
 
-    if (noteCount > 0 && pitchBendCount > 0) {
-      return `Create ${noteCount} note${noteCount === 1 ? '' : 's'} and ${pitchBendCount} pitch bend${pitchBendCount === 1 ? '' : 's'}`;
+    const parts: string[] = [];
+    if (noteCount > 0) {
+      parts.push(`${noteCount} note${noteCount === 1 ? '' : 's'}`);
     }
     if (pitchBendCount > 0) {
-      return pitchBendCount === 1 ? 'Create pitch bend' : `Create ${pitchBendCount} pitch bends`;
+      parts.push(`${pitchBendCount} pitch bend${pitchBendCount === 1 ? '' : 's'}`);
     }
-    return noteCount === 1 ? 'Create note' : `Create ${noteCount} notes`;
+    if (controllerEventCount > 0) {
+      parts.push(`${controllerEventCount} controller event${controllerEventCount === 1 ? '' : 's'}`);
+    }
+
+    if (parts.length === 0) {
+      return 'Create MIDI events';
+    }
+
+    return `Create ${parts.join(' and ')}`;
   }
 
   public getNoteCreationData(): NoteCreationData[] {
@@ -116,6 +172,10 @@ export class CreateMidiEventsCommand extends KGCommand {
 
   public getCreatedPitchBends(): Array<{ pitchBend: KGMidiPitchBend; regionId: string }> {
     return this.createdPitchBends;
+  }
+
+  public getCreatedControllerEvents(): Array<{ controller: number; controllerEvent: KGMidiControllerEvent; regionId: string }> {
+    return this.createdControllerEvents;
   }
 
   public getCreatedNoteIds(): string[] {

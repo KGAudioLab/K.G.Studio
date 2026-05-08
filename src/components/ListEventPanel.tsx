@@ -5,10 +5,12 @@ import KGDropdown from './common/KGDropdown';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import {
+  clampMidiControllerValue,
   clampMidiPitchBendValue,
   formatMidiEventLength,
   formatMidiEventPosition,
@@ -29,6 +31,7 @@ import {
 import { isModifierKeyPressed } from '../util/osUtil';
 import { PIANO_ROLL_CONSTANTS } from '../constants';
 import { CreateMidiEventsCommand, CreateNoteCommand, DeleteMidiEventsCommand } from '../core/commands';
+import { UpdateControllerEventPropertiesCommand } from '../core/commands/note/UpdateControllerEventPropertiesCommand';
 import { UpdateNotePropertiesCommand } from '../core/commands/note/UpdateNotePropertiesCommand';
 import { UpdatePitchBendPropertiesCommand } from '../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { showAlert } from '../util/dialogUtil';
@@ -52,7 +55,15 @@ interface PitchBendRowData {
   absoluteBeat: number;
 }
 
-type EventRowData = NoteRowData | PitchBendRowData;
+interface ControllerRowData {
+  id: string;
+  type: 'controller';
+  controller: number;
+  controllerEvent: KGMidiControllerEvent;
+  absoluteBeat: number;
+}
+
+type EventRowData = NoteRowData | PitchBendRowData | ControllerRowData;
 type EditableColumn = 'position' | 'num' | 'val' | 'length';
 
 interface EditingCell {
@@ -61,11 +72,12 @@ interface EditingCell {
   value: string;
 }
 
-type AddEventType = 'note' | 'pitch-bend';
+type AddEventType = 'note' | 'pitch-bend' | 'controller';
 
 const ADD_EVENT_TYPE_OPTIONS = [
   { label: 'Note', value: 'note' },
   { label: 'Pitch Bend', value: 'pitch-bend' },
+  { label: 'Controller', value: 'controller' },
 ] as const;
 
 const parseVelocityInput = (raw: string): { velocity: number } | { error: string } => {
@@ -137,6 +149,38 @@ const formatPitchBendInfo = (value: number): string => {
   return `Raw ${value} | ${normalized.toFixed(3)} | ${semitones.toFixed(2)} st`;
 };
 
+const parseControllerNumberInput = (raw: string): { controller: number } | { error: string } => {
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return { error: 'Controller number must be an integer between 0 and 127.' };
+  }
+
+  const controller = parseInt(trimmed, 10);
+  if (controller < 0 || controller > 127) {
+    return { error: 'Controller number must be between 0 and 127.' };
+  }
+
+  return { controller };
+};
+
+const parseControllerValueInput = (raw: string): { value: number } | { error: string } => {
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return { error: 'Controller value must be an integer between 0 and 127.' };
+  }
+
+  return { value: clampMidiControllerValue(parseInt(trimmed, 10)) };
+};
+
+const parseControllerValueDeltaInput = (raw: string): { delta: number } | { error: string } => {
+  const trimmed = raw.trim();
+  if (!/^[+-]\d+$/.test(trimmed)) {
+    return { error: 'Use controller value delta like +10 or -5.' };
+  }
+
+  return { delta: parseInt(trimmed, 10) };
+};
+
 const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const {
     tracks,
@@ -145,6 +189,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     timeSignature,
     selectedNoteIds,
     selectedPitchBendIds,
+    selectedControllerEventIds,
     playheadPosition,
     updateTrack,
     refreshProjectState
@@ -152,6 +197,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
 
   const [showNotes, setShowNotes] = useState(true);
   const [showPitchBends, setShowPitchBends] = useState(true);
+  const [showControllers, setShowControllers] = useState(true);
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
   const [quantLength, setQuantLength] = useState<string>('1/8');
   const [addEventType, setAddEventType] = useState<AddEventType>('note');
@@ -200,9 +246,20 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     }))
     : [];
 
+  const controllerRows: ControllerRowData[] = activeMidiRegion
+    ? activeMidiRegion.getAllControllerEventsFlattened().map(({ controller, event }) => ({
+      id: event.getId(),
+      type: 'controller',
+      controller,
+      controllerEvent: event,
+      absoluteBeat: activeMidiRegion!.getStartFromBeat() + event.getBeat(),
+    }))
+    : [];
+
   const eventRows: EventRowData[] = [
     ...(showNotes ? noteRows : []),
     ...(showPitchBends ? pitchBendRows : []),
+    ...(showControllers ? controllerRows : []),
   ].sort((a, b) => {
     const beatDelta = (a.type === 'note' ? a.absoluteStartBeat : a.absoluteBeat)
       - (b.type === 'note' ? b.absoluteStartBeat : b.absoluteBeat);
@@ -213,7 +270,8 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
 
   const selectedNoteIdSet = new Set(selectedNoteIds);
   const selectedPitchBendIdSet = new Set(selectedPitchBendIds);
-  const selectedEventIdSet = new Set([...selectedNoteIds, ...selectedPitchBendIds]);
+  const selectedControllerEventIdSet = new Set(selectedControllerEventIds);
+  const selectedEventIdSet = new Set([...selectedNoteIds, ...selectedPitchBendIds, ...selectedControllerEventIds]);
   const visibleSelectedRows = eventRows.filter(row => selectedEventIdSet.has(row.id));
 
   useEffect(() => {
@@ -236,7 +294,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
 
     const selectedEvents = eventRows
       .filter(row => nextSelectedIds.has(row.id))
-      .map(row => row.type === 'note' ? row.note : row.pitchBend);
+      .map(row => row.type === 'note' ? row.note : row.type === 'pitch-bend' ? row.pitchBend : row.controllerEvent);
     const core = KGCore.instance();
 
     activeMidiRegion.getNotes().forEach(note => {
@@ -246,6 +304,12 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     activeMidiRegion.getPitchBends().forEach(pitchBend => {
       if (nextSelectedIds.has(pitchBend.getId())) pitchBend.select();
       else pitchBend.deselect();
+    });
+    activeMidiRegion.getControllerEventsByType().forEach(events => {
+      events.forEach(controllerEvent => {
+        if (nextSelectedIds.has(controllerEvent.getId())) controllerEvent.select();
+        else controllerEvent.deselect();
+      });
     });
 
     core.clearSelectedItems();
@@ -447,7 +511,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }
 
       KGCore.instance().executeCommand(new UpdateNotePropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
-    } else {
+    } else if (row.type === 'pitch-bend') {
       const pitchBend = row.pitchBend;
       const targetPitchBends = selectedPitchBendIdSet.has(pitchBend.getId()) && selectedPitchBendIds.length > 1
         ? activeMidiRegion.getPitchBends().filter(candidate => selectedPitchBendIdSet.has(candidate.getId()))
@@ -533,6 +597,103 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }
 
       KGCore.instance().executeCommand(new UpdatePitchBendPropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
+    } else {
+      const controllerEvent = row.controllerEvent;
+      const targetControllerEvents = selectedControllerEventIdSet.has(controllerEvent.getId()) && selectedControllerEventIds.length > 1
+        ? activeMidiRegion.getAllControllerEventsFlattened()
+          .filter(candidate => selectedControllerEventIdSet.has(candidate.event.getId()))
+        : [{ controller: row.controller, event: controllerEvent }];
+
+      const snapshots = targetControllerEvents.map(({ controller, event }) => ({
+        controllerEventId: event.getId(),
+        controller,
+        beat: event.getBeat(),
+        value: event.getValue(),
+      }));
+      const updates: Array<{ controllerEventId: string; controller?: number; beat?: number; value?: number }> = [];
+
+      if (editingCell.column === 'position') {
+        if (isDeltaEdit) {
+          const parsed = parseMidiEventPositionDelta(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const { event } of targetControllerEvents) {
+            const nextBeat = event.getBeat() + parsed.deltaBeats;
+            if (nextBeat < 0) {
+              await showAlert('Position delta would move one or more controller events before the start of the current MIDI region.');
+              return;
+            }
+            updates.push({ controllerEventId: event.getId(), beat: nextBeat });
+          }
+        } else {
+          const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          const relativeBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
+          if (relativeBeat < 0) {
+            await showAlert('Position cannot be earlier than the start of the current MIDI region.');
+            return;
+          }
+
+          for (const { event } of targetControllerEvents) {
+            updates.push({ controllerEventId: event.getId(), beat: relativeBeat });
+          }
+        }
+      }
+
+      if (editingCell.column === 'num') {
+        const parsed = parseControllerNumberInput(trimmedValue);
+        if ('error' in parsed) {
+          await showAlert(parsed.error);
+          return;
+        }
+
+        for (const { event } of targetControllerEvents) {
+          updates.push({ controllerEventId: event.getId(), controller: parsed.controller });
+        }
+      }
+
+      if (editingCell.column === 'val') {
+        if (isDeltaEdit) {
+          const parsed = parseControllerValueDeltaInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const { event } of targetControllerEvents) {
+            const nextValue = event.getValue() + parsed.delta;
+            if (nextValue < 0 || nextValue > 127) {
+              await showAlert('Controller delta would move one or more events outside the valid range 0–127.');
+              return;
+            }
+            updates.push({ controllerEventId: event.getId(), value: clampMidiControllerValue(nextValue) });
+          }
+        } else {
+          const parsed = parseControllerValueInput(trimmedValue);
+          if ('error' in parsed) {
+            await showAlert(parsed.error);
+            return;
+          }
+
+          for (const { event } of targetControllerEvents) {
+            updates.push({ controllerEventId: event.getId(), value: parsed.value });
+          }
+        }
+      }
+
+      if (updates.length === 0) {
+        setEditingCell(null);
+        return;
+      }
+
+      KGCore.instance().executeCommand(new UpdateControllerEventPropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
     }
 
     await updateTrack(parentTrack);
@@ -721,7 +882,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
         KGCore.instance().addSelectedItem(createdNote);
         rangeAnchorEventIdRef.current = createdNote.getId();
       }
-    } else {
+    } else if (addEventType === 'pitch-bend') {
       const command = new CreateMidiEventsCommand([], [{
         regionId: activeMidiRegion.getId(),
         beat: regionRelativePlayhead,
@@ -735,6 +896,26 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
         KGCore.instance().clearSelectedItems();
         KGCore.instance().addSelectedItem(createdPitchBend);
         rangeAnchorEventIdRef.current = createdPitchBend.getId();
+      }
+    } else {
+      const lastSelectedController = [...selectedControllerEventIds]
+        .reverse()
+        .map(id => activeMidiRegion.getAllControllerEventsFlattened().find(candidate => candidate.event.getId() === id))
+        .find(Boolean)?.controller ?? 11;
+      const command = new CreateMidiEventsCommand([], [], [{
+        regionId: activeMidiRegion.getId(),
+        controller: lastSelectedController,
+        beat: regionRelativePlayhead,
+        value: 127,
+      }]);
+
+      KGCore.instance().executeCommand(command);
+      const createdControllerEvent = command.getCreatedControllerEvents()[0]?.controllerEvent;
+      if (createdControllerEvent) {
+        createdControllerEvent.select();
+        KGCore.instance().clearSelectedItems();
+        KGCore.instance().addSelectedItem(createdControllerEvent);
+        rangeAnchorEventIdRef.current = createdControllerEvent.getId();
       }
     }
 
@@ -752,8 +933,11 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     const pitchBendIds = visibleSelectedRows
       .filter((row): row is PitchBendRowData => row.type === 'pitch-bend')
       .map(row => row.pitchBend.getId());
+    const controllerEventIds = visibleSelectedRows
+      .filter((row): row is ControllerRowData => row.type === 'controller')
+      .map(row => row.controllerEvent.getId());
 
-    KGCore.instance().executeCommand(new DeleteMidiEventsCommand(noteIds, pitchBendIds));
+    KGCore.instance().executeCommand(new DeleteMidiEventsCommand(noteIds, pitchBendIds, controllerEventIds));
     rangeAnchorEventIdRef.current = null;
     await updateTrack(parentTrack);
     refreshProjectState();
@@ -783,7 +967,14 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
           >
             Pitch Bends
           </button>
-          <button className="list-event-tab" aria-pressed="false" type="button" disabled>Controller</button>
+          <button
+            className={`list-event-tab${showControllers ? ' active' : ''}`}
+            aria-pressed={showControllers}
+            type="button"
+            onClick={() => setShowControllers(value => !value)}
+          >
+            Controller
+          </button>
         </div>
 
         {!activeMidiRegion ? (
@@ -796,7 +987,13 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
               <div className="list-event-toolbar-group">
                 <button
                   className="list-event-add-button"
-                  title={addEventType === 'note' ? 'Add note at playhead' : 'Add pitch bend at playhead'}
+                  title={
+                    addEventType === 'note'
+                      ? 'Add note at playhead'
+                      : addEventType === 'pitch-bend'
+                        ? 'Add pitch bend at playhead'
+                        : 'Add controller event at playhead'
+                  }
                   type="button"
                   onClick={handleAddEvent}
                 >
@@ -865,14 +1062,22 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
                   {eventRows.map((row, index) => {
                     const absoluteBeat = row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat;
                     const positionText = formatMidiEventPosition(absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-                    const statusText = row.type === 'note' ? 'Note' : 'Pitch Bend';
-                    const numText = row.type === 'note' ? pitchToNoteNameString(row.note.getPitch()) : '';
+                    const statusText = row.type === 'note' ? 'Note' : row.type === 'pitch-bend' ? 'Pitch Bend' : 'Controller';
+                    const numText = row.type === 'note'
+                      ? pitchToNoteNameString(row.note.getPitch())
+                      : row.type === 'controller'
+                        ? String(row.controller)
+                        : '';
                     const valText = row.type === 'note'
                       ? String(row.note.getVelocity())
-                      : String(midiPitchBendToSignedValue(row.pitchBend.getValue()));
+                      : row.type === 'pitch-bend'
+                        ? String(midiPitchBendToSignedValue(row.pitchBend.getValue()))
+                        : String(row.controllerEvent.getValue());
                     const lengthText = row.type === 'note'
                       ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT)
-                      : formatPitchBendInfo(row.pitchBend.getValue());
+                      : row.type === 'pitch-bend'
+                        ? formatPitchBendInfo(row.pitchBend.getValue())
+                        : `Raw ${row.controllerEvent.getValue()}`;
                     const isEditingPosition = editingCell?.eventId === row.id && editingCell.column === 'position';
                     const isEditingNum = editingCell?.eventId === row.id && editingCell.column === 'num';
                     const isEditingVal = editingCell?.eventId === row.id && editingCell.column === 'val';
@@ -912,7 +1117,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
                         <td
                           title={numText}
                           onDoubleClick={(event) => {
-                            if (row.type !== 'note') return;
+                            if (row.type === 'pitch-bend') return;
                             event.stopPropagation();
                             startEditingCell(row.id, 'num', numText);
                           }}

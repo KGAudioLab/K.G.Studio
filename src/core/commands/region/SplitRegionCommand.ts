@@ -3,6 +3,7 @@ import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
+import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
@@ -127,6 +128,22 @@ export class SplitRegionCommand extends KGCommand {
             generateUniqueId('KGMidiPitchBend'),
             pitchBend.getBeat() - splitOffsetBeats,
             pitchBend.getValue()
+          ));
+        }
+      }
+
+      for (const { controller, event } of originalRegion.getAllControllerEventsFlattened()) {
+        if (event.getBeat() < splitOffsetBeats) {
+          region1.addControllerEvent(controller, new KGMidiControllerEvent(
+            generateUniqueId('KGMidiControllerEvent'),
+            event.getBeat(),
+            event.getValue()
+          ));
+        } else {
+          region2.addControllerEvent(controller, new KGMidiControllerEvent(
+            generateUniqueId('KGMidiControllerEvent'),
+            event.getBeat() - splitOffsetBeats,
+            event.getValue()
           ));
         }
       }

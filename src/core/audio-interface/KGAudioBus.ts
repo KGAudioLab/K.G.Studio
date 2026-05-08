@@ -255,6 +255,16 @@ export class KGAudioBus {
     }
   }
 
+  public scheduleLiveMidiExpression(normalizedValue: number, time: number): void {
+    this.liveExpressionNormalized = Math.max(0, Math.min(1, normalizedValue));
+
+    for (const activeSources of this.liveMidiSources.values()) {
+      activeSources.forEach(({ gainNode }) => {
+        this.setGainValue(gainNode, this.liveExpressionNormalized, time);
+      });
+    }
+  }
+
   public setLiveMidiSustain(isDown: boolean, time?: number): void {
     this.sustainPedalDown = isDown;
     if (isDown) {

@@ -6,6 +6,7 @@ import { KGProjectStorage } from './io/KGProjectStorage';
 import { KGConfigUpgrader } from './config-upgrader/KGConfigUpgrader';
 import { KGMidiRegion } from './region/KGMidiRegion';
 import { KGMidiNote } from './midi/KGMidiNote';
+import { KGMidiControllerEvent } from './midi/KGMidiControllerEvent';
 import { KGMidiPitchBend } from './midi/KGMidiPitchBend';
 import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
@@ -558,6 +559,15 @@ export class KGCore {
               pitchBend.getBeat(),
               pitchBend.getValue()
             ));
+          });
+          region.getControllerEventsByType().forEach((events, controller) => {
+            events.forEach(controllerEvent => {
+              clonedRegion.addControllerEvent(controller, new KGMidiControllerEvent(
+                generateUniqueId('KGMidiControllerEvent'),
+                controllerEvent.getBeat(),
+                controllerEvent.getValue()
+              ));
+            });
           });
           
           clonedItems.push(clonedRegion);

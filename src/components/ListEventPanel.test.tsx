@@ -22,6 +22,7 @@ vi.mock('../stores/projectStore', () => ({
     timeSignature: { numerator: 4, denominator: 4 },
     selectedNoteIds: [],
     selectedPitchBendIds: [],
+    selectedControllerEventIds: [],
     playheadPosition: 4,
     updateTrack: vi.fn().mockResolvedValue(undefined),
     refreshProjectState: vi.fn(),

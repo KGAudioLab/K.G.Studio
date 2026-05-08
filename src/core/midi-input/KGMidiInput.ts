@@ -29,6 +29,7 @@ export class KGMidiInput {
   private onRecordNoteOn: ((pitch: number, velocity: number) => void) | null = null;
   private onRecordNoteOff: ((pitch: number) => void) | null = null;
   private onRecordPitchBend: ((value: number) => void) | null = null;
+  private onRecordControlChange: ((controller: number, value: number) => void) | null = null;
   private liveNoteTrackOwnership: Map<number, string[]> = new Map();
   private sustainPolarityInverted: boolean | null = null;
 
@@ -288,12 +289,16 @@ export class KGMidiInput {
     }
 
     if (controller === KGMidiInput.CONTROL_CHANGE_SUSTAIN) {
+      const isPressed = this.normalizeSustainPedalValue(value);
+      this.onRecordControlChange?.(controller, isPressed ? 127 : 0);
       audioInterface.setLiveMidiSustain(
         selectedTrackId,
-        this.normalizeSustainPedalValue(value)
+        isPressed
       );
       return;
     }
+
+    this.onRecordControlChange?.(controller, value);
 
     if (
       controller === KGMidiInput.CONTROL_CHANGE_MODULATION ||
@@ -381,11 +386,13 @@ export class KGMidiInput {
   public setRecordingCallbacks(
     onNoteOn: ((pitch: number, velocity: number) => void) | null,
     onNoteOff: ((pitch: number) => void) | null,
-    onPitchBend: ((value: number) => void) | null = null
+    onPitchBend: ((value: number) => void) | null = null,
+    onControlChange: ((controller: number, value: number) => void) | null = null
   ): void {
     this.onRecordNoteOn = onNoteOn;
     this.onRecordNoteOff = onNoteOff;
     this.onRecordPitchBend = onPitchBend;
+    this.onRecordControlChange = onControlChange;
   }
 
   // ===== GETTERS =====

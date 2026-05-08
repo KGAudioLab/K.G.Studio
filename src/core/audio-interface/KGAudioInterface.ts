@@ -4,6 +4,7 @@ import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import { TIME_CONSTANTS, AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import {
+  clampMidiControllerValue,
   MIDI_PITCH_BEND_CENTER,
   midiPitchBendToNormalized,
   pitchToNoteNameString,
@@ -11,7 +12,9 @@ import {
 import {
   bakeMidiAutomationPointsInWindow,
   collectRegionMidiAutomationPoints,
+  normalizeMidiAutomationPoints,
   resolveMidiAutomationValueAtBeat,
+  resolveSustainExtendedEndBeat,
 } from '../../util/midiAutomationUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
@@ -503,6 +506,26 @@ export class KGAudioInterface {
                 };
               })
           );
+          const trackControllerEvents = Array.from({ length: 128 }, (_, controller) => (
+            collectRegionMidiAutomationPoints(
+              track.getRegions()
+                .filter(region => region.getCurrentType() === 'KGMidiRegion')
+                .map(region => {
+                  const midiRegion = region as unknown as { getControllerEvents: (controller: number) => Array<{ getBeat: () => number; getValue: () => number }> };
+                  return {
+                    startBeat: region.getStartFromBeat(),
+                    points: midiRegion.getControllerEvents(controller).map(event => ({
+                      beat: event.getBeat(),
+                      value: event.getValue(),
+                    })),
+                  };
+              })
+            )
+          ));
+          const expressionControllers = [1, 2, 7, 11];
+          const mergedExpressionEvents = normalizeMidiAutomationPoints(
+            expressionControllers.flatMap(controller => trackControllerEvents[controller])
+          );
 
           track.getRegions().forEach(region => {
             console.log(`Region ${region.getId().toString()}: type: ${region.getCurrentType()}`);
@@ -517,9 +540,14 @@ export class KGAudioInterface {
                   // Calculate absolute note timing in beats (note position + region start position)
                   const noteStartBeat = note.getStartBeat() + regionStartBeat;
                   const noteEndBeat = note.getEndBeat() + regionStartBeat;
+                  const sustainedEndBeat = resolveSustainExtendedEndBeat(
+                    trackControllerEvents[64],
+                    noteEndBeat,
+                    0
+                  );
 
                   // Skip notes outside loop range when looping
-                  if (noteStartBeat >= scheduleEndBeat || noteEndBeat <= scheduleStartBeat) {
+                  if (noteStartBeat >= scheduleEndBeat || sustainedEndBeat <= scheduleStartBeat) {
                     return; // Skip notes outside the loop range
                   }
 
@@ -530,7 +558,7 @@ export class KGAudioInterface {
                   trackNotes.push({
                     note,
                     absoluteStartBeat: noteStartBeat,
-                    absoluteEndBeat: noteEndBeat,
+                    absoluteEndBeat: sustainedEndBeat,
                   });
                 });
               }
@@ -544,6 +572,20 @@ export class KGAudioInterface {
             MIDI_PITCH_BEND_CENTER
           );
           audioBus.setLiveMidiPitchBend(midiPitchBendToNormalized(initialPitchBendValue));
+          const expressionInitialValue = resolveMidiAutomationValueAtBeat(
+            mergedExpressionEvents,
+            initialPitchBendBeat,
+            127,
+            'linear'
+          );
+          audioBus.setLiveMidiExpression(clampMidiControllerValue(expressionInitialValue) / 127);
+          const sustainInitialValue = resolveMidiAutomationValueAtBeat(
+            trackControllerEvents[64],
+            initialPitchBendBeat,
+            0,
+            'step'
+          );
+          audioBus.setLiveMidiSustain(sustainInitialValue >= 64);
 
           const pitchBendWindowStartBeat = isLooping ? scheduleStartBeat : Math.max(startPosition, 0);
           const bakedTrackPitchBends = bakeMidiAutomationPointsInWindow(
@@ -566,6 +608,62 @@ export class KGAudioInterface {
               const hasSoloedTracks = this.hasSoloedTracks();
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
                 audioBus.scheduleLiveMidiPitchBend(midiPitchBendToNormalized(value), time);
+              }
+            }, this.beatsToToneTime(beat));
+
+            this.scheduledEvents.add(eventId);
+          });
+
+          const bakedExpressionEvents = bakeMidiAutomationPointsInWindow(
+            mergedExpressionEvents,
+            pitchBendWindowStartBeat,
+            scheduleEndBeat,
+            {
+              maxIntervalMs: interpolationIntervalMs,
+              bpm: project.getBpm(),
+              defaultValue: 127,
+              interpolationMode: 'linear',
+              quantizeValue: clampMidiControllerValue,
+            }
+          );
+
+          bakedExpressionEvents.forEach(({ beat, value }) => {
+            if (!isLooping && beat <= pitchBendWindowStartBeat) {
+              return;
+            }
+
+            const eventId = Tone.Transport.schedule((time) => {
+              const hasSoloedTracks = this.hasSoloedTracks();
+              if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
+                audioBus.scheduleLiveMidiExpression(value / 127, time);
+              }
+            }, this.beatsToToneTime(beat));
+
+            this.scheduledEvents.add(eventId);
+          });
+
+          const bakedSustainEvents = bakeMidiAutomationPointsInWindow(
+            trackControllerEvents[64],
+            pitchBendWindowStartBeat,
+            scheduleEndBeat,
+            {
+              maxIntervalMs: interpolationIntervalMs,
+              bpm: project.getBpm(),
+              defaultValue: 0,
+              interpolationMode: 'step',
+              quantizeValue: clampMidiControllerValue,
+            }
+          );
+
+          bakedSustainEvents.forEach(({ beat, value }) => {
+            if (!isLooping && beat <= pitchBendWindowStartBeat) {
+              return;
+            }
+
+            const eventId = Tone.Transport.schedule((time) => {
+              const hasSoloedTracks = this.hasSoloedTracks();
+              if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
+                audioBus.setLiveMidiSustain(value >= 64, time);
               }
             }, this.beatsToToneTime(beat));
 
@@ -926,6 +1024,21 @@ export class KGAudioInterface {
       console.log(`Set live MIDI expression to ${normalizedValue} on track ${trackId}`);
     } catch (error) {
       console.error(`Error setting live MIDI expression for track ${trackId}:`, error);
+    }
+  }
+
+  public scheduleLiveMidiExpression(trackId: string, normalizedValue: number, time: number): void {
+    try {
+      const audioBus = this.trackAudioBuses.get(trackId);
+      if (!audioBus) {
+        console.warn(`No audio bus found for track ${trackId}`);
+        return;
+      }
+
+      audioBus.scheduleLiveMidiExpression(normalizedValue, time);
+      console.log(`Scheduled live MIDI expression to ${normalizedValue} on track ${trackId}`);
+    } catch (error) {
+      console.error(`Error scheduling live MIDI expression for track ${trackId}:`, error);
     }
   }
 

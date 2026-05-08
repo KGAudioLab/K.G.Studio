@@ -4,6 +4,7 @@ import { KGMidiRegion } from './KGMidiRegion';
 import { KGRegion } from './KGRegion';
 import { KGMidiNote } from '../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
+import { KGMidiControllerEvent } from '../midi/KGMidiControllerEvent';
 import { createMockMidiNote } from '../../test/utils/mock-data';
 
 describe('KGMidiRegion', () => {
@@ -249,6 +250,40 @@ describe('KGMidiRegion', () => {
     });
   });
 
+  describe('controller event management', () => {
+    let controllerEvent1: KGMidiControllerEvent;
+    let controllerEvent2: KGMidiControllerEvent;
+
+    beforeEach(() => {
+      controllerEvent1 = new KGMidiControllerEvent('cc-1', 0.5, 127);
+      controllerEvent2 = new KGMidiControllerEvent('cc-2', 1.5, 32);
+    });
+
+    it('adds and returns controller events by controller number', () => {
+      region.addControllerEvent(11, controllerEvent1);
+      region.addControllerEvent(11, controllerEvent2);
+
+      expect(region.getControllerEvents(11)).toEqual([controllerEvent1, controllerEvent2]);
+    });
+
+    it('removes controller events by id within a controller bucket', () => {
+      region.setControllerEvents(11, [controllerEvent1, controllerEvent2]);
+      region.removeControllerEvent(11, 'cc-1');
+
+      expect(region.getControllerEvents(11)).toEqual([controllerEvent2]);
+    });
+
+    it('flattens controller events with their controller numbers for UI use', () => {
+      region.addControllerEvent(2, controllerEvent1);
+      region.addControllerEvent(11, controllerEvent2);
+
+      expect(region.getAllControllerEventsFlattened()).toEqual([
+        { controller: 2, event: controllerEvent1 },
+        { controller: 11, event: controllerEvent2 },
+      ]);
+    });
+  });
+
   describe('inheritance from KGRegion', () => {
     it('should inherit all base region properties', () => {
       expect(region.getId()).toBe('test-region-1');
@@ -388,6 +423,7 @@ describe('KGMidiRegion', () => {
     it('preserves pitch bends through class-transformer serialization', () => {
       region.addNote(createMockMidiNote({ id: 'note-1', pitch: 60, startBeat: 0, endBeat: 1 }));
       region.addPitchBend(new KGMidiPitchBend('bend-1', 0.5, 12288));
+      region.addControllerEvent(11, new KGMidiControllerEvent('cc-1', 0.25, 96));
 
       const plain = instanceToPlain(region);
       const restored = plainToInstance(KGMidiRegion, plain);
@@ -396,6 +432,9 @@ describe('KGMidiRegion', () => {
       expect(restored.getPitchBends()).toHaveLength(1);
       expect(restored.getPitchBends()[0]).toBeInstanceOf(KGMidiPitchBend);
       expect(restored.getPitchBends()[0].getValue()).toBe(12288);
+      expect(restored.getControllerEvents(11)).toHaveLength(1);
+      expect(restored.getControllerEvents(11)[0]).toBeInstanceOf(KGMidiControllerEvent);
+      expect(restored.getControllerEvents(11)[0].getValue()).toBe(96);
     });
 
     it('defaults missing legacy pitch bend data to an empty array', () => {
@@ -411,6 +450,7 @@ describe('KGMidiRegion', () => {
       });
 
       expect(restored.getPitchBends()).toEqual([]);
+      expect(restored.getControllerEventsByType()).toHaveLength(128);
     });
   });
 });

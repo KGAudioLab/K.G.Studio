@@ -57,7 +57,8 @@ describe('upgradeToV8', () => {
 
     const upgraded = upgradeProjectToLatest(project);
 
-    expect(upgraded.getProjectStructureVersion()).toBe(8);
+    expect(upgraded.getProjectStructureVersion()).toBe(9);
     expect((upgraded.getTracks()[0].getRegions()[0] as KGMidiRegion).getPitchBends()).toEqual([]);
+    expect((upgraded.getTracks()[0].getRegions()[0] as KGMidiRegion).getControllerEventsByType()).toHaveLength(128);
   });
 });

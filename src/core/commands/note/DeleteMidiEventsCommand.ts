@@ -1,5 +1,6 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
+import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
@@ -16,16 +17,26 @@ interface DeletedPitchBendData {
   originalIndex: number;
 }
 
+interface DeletedControllerEventData {
+  controller: number;
+  controllerEvent: KGMidiControllerEvent;
+  regionId: string;
+  originalIndex: number;
+}
+
 export class DeleteMidiEventsCommand extends KGCommand {
   private noteIds: string[];
   private pitchBendIds: string[];
+  private controllerEventIds: string[];
   private deletedNoteData: DeletedNoteData[] = [];
   private deletedPitchBendData: DeletedPitchBendData[] = [];
+  private deletedControllerEventData: DeletedControllerEventData[] = [];
 
-  constructor(noteIds: string[] = [], pitchBendIds: string[] = []) {
+  constructor(noteIds: string[] = [], pitchBendIds: string[] = [], controllerEventIds: string[] = []) {
     super();
     this.noteIds = noteIds;
     this.pitchBendIds = pitchBendIds;
+    this.controllerEventIds = controllerEventIds;
   }
 
   execute(): void {
@@ -34,6 +45,7 @@ export class DeleteMidiEventsCommand extends KGCommand {
 
     this.deletedNoteData = [];
     this.deletedPitchBendData = [];
+    this.deletedControllerEventData = [];
 
     for (const noteId of this.noteIds) {
       for (const track of tracks) {
@@ -71,12 +83,35 @@ export class DeleteMidiEventsCommand extends KGCommand {
       }
     }
 
-    if (this.deletedNoteData.length === 0 && this.deletedPitchBendData.length === 0) {
+    for (const controllerEventId of this.controllerEventIds) {
+      for (const track of tracks) {
+        for (const region of track.getRegions()) {
+          if (!(region instanceof KGMidiRegion)) continue;
+
+          const flattened = region.getAllControllerEventsFlattened();
+          const flattenedIndex = flattened.findIndex(({ event }) => event.getId() === controllerEventId);
+          if (flattenedIndex === -1) continue;
+
+          const { controller, event } = flattened[flattenedIndex];
+          const originalIndex = region.getControllerEvents(controller).findIndex(candidate => candidate.getId() === controllerEventId);
+          this.deletedControllerEventData.push({
+            controller,
+            controllerEvent: event,
+            regionId: region.getId(),
+            originalIndex,
+          });
+          break;
+        }
+      }
+    }
+
+    if (this.deletedNoteData.length === 0 && this.deletedPitchBendData.length === 0 && this.deletedControllerEventData.length === 0) {
       throw new Error('No MIDI events found to delete');
     }
 
     this.deletedNoteData.sort((a, b) => b.originalIndex - a.originalIndex);
     this.deletedPitchBendData.sort((a, b) => b.originalIndex - a.originalIndex);
+    this.deletedControllerEventData.sort((a, b) => b.originalIndex - a.originalIndex);
 
     for (const data of this.deletedNoteData) {
       const region = this.resolveRegion(tracks, data.regionId);
@@ -97,6 +132,18 @@ export class DeleteMidiEventsCommand extends KGCommand {
       );
       if (selectedPitchBend) {
         core.removeSelectedItem(selectedPitchBend);
+      }
+    }
+
+    for (const data of this.deletedControllerEventData) {
+      const region = this.resolveRegion(tracks, data.regionId);
+      region.removeControllerEvent(data.controller, data.controllerEvent.getId());
+
+      const selectedControllerEvent = core.getSelectedItems().find(
+        item => item instanceof KGMidiControllerEvent && item.getId() === data.controllerEvent.getId()
+      );
+      if (selectedControllerEvent) {
+        core.removeSelectedItem(selectedControllerEvent);
       }
     }
   }
@@ -125,19 +172,39 @@ export class DeleteMidiEventsCommand extends KGCommand {
         region.addPitchBend(data.pitchBend);
       }
     }
+
+    for (const data of [...this.deletedControllerEventData].sort((a, b) => a.originalIndex - b.originalIndex)) {
+      const region = this.resolveRegion(tracks, data.regionId);
+      const controllerEvents = region.getControllerEvents(data.controller);
+      if (data.originalIndex >= 0 && data.originalIndex <= controllerEvents.length) {
+        controllerEvents.splice(data.originalIndex, 0, data.controllerEvent);
+        region.setControllerEvents(data.controller, controllerEvents);
+      } else {
+        region.addControllerEvent(data.controller, data.controllerEvent);
+      }
+    }
   }
 
   getDescription(): string {
     const noteCount = this.noteIds.length;
     const pitchBendCount = this.pitchBendIds.length;
-
-    if (noteCount > 0 && pitchBendCount > 0) {
-      return `Delete ${noteCount} note${noteCount === 1 ? '' : 's'} and ${pitchBendCount} pitch bend${pitchBendCount === 1 ? '' : 's'}`;
+    const controllerEventCount = this.controllerEventIds.length;
+    const parts: string[] = [];
+    if (noteCount > 0) {
+      parts.push(`${noteCount} note${noteCount === 1 ? '' : 's'}`);
     }
     if (pitchBendCount > 0) {
-      return pitchBendCount === 1 ? 'Delete pitch bend' : `Delete ${pitchBendCount} pitch bends`;
+      parts.push(`${pitchBendCount} pitch bend${pitchBendCount === 1 ? '' : 's'}`);
     }
-    return noteCount === 1 ? 'Delete note' : `Delete ${noteCount} notes`;
+    if (controllerEventCount > 0) {
+      parts.push(`${controllerEventCount} controller event${controllerEventCount === 1 ? '' : 's'}`);
+    }
+
+    if (parts.length === 0) {
+      return 'Delete MIDI events';
+    }
+
+    return `Delete ${parts.join(' and ')}`;
   }
 
   private resolveRegion(tracks: Array<{ getRegions(): unknown[] }>, regionId: string): KGMidiRegion {

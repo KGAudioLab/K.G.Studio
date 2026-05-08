@@ -3,6 +3,7 @@ import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
+import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 
@@ -26,6 +27,11 @@ export class ResizeRegionCommand extends KGCommand {
   }> = [];
   private pitchBendAdjustments: Array<{
     pitchBendId: string;
+    originalBeat: number;
+  }> = [];
+  private controllerEventAdjustments: Array<{
+    controller: number;
+    controllerEventId: string;
     originalBeat: number;
   }> = [];
 
@@ -93,6 +99,16 @@ export class ResizeRegionCommand extends KGCommand {
         });
         pitchBend.setBeat(pitchBend.getBeat() - beatOffset);
       });
+      targetRegion.getControllerEventsByType().forEach((events, controller) => {
+        events.forEach((controllerEvent: KGMidiControllerEvent) => {
+          this.controllerEventAdjustments.push({
+            controller,
+            controllerEventId: controllerEvent.getId(),
+            originalBeat: controllerEvent.getBeat(),
+          });
+          controllerEvent.setBeat(controllerEvent.getBeat() - beatOffset);
+        });
+      });
 
       console.log(`Adjusted ${notes.length} notes by offset ${-beatOffset} beats to maintain absolute positions`);
     }
@@ -140,6 +156,16 @@ export class ResizeRegionCommand extends KGCommand {
         const pitchBend = pitchBends.find(candidate => candidate.getId() === adjustment.pitchBendId);
         if (pitchBend) {
           pitchBend.setBeat(adjustment.originalBeat);
+        }
+      });
+    }
+    if (this.controllerEventAdjustments.length > 0 && this.targetRegion instanceof KGMidiRegion) {
+      const midiRegion = this.targetRegion;
+      this.controllerEventAdjustments.forEach(adjustment => {
+        const controllerEvent = midiRegion.getControllerEvents(adjustment.controller)
+          .find(candidate => candidate.getId() === adjustment.controllerEventId);
+        if (controllerEvent) {
+          controllerEvent.setBeat(adjustment.originalBeat);
         }
       });
     }

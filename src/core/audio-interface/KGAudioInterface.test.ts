@@ -129,6 +129,8 @@ describe('KGAudioInterface preroll playback', () => {
       resetLiveMidiPitchBend: vi.fn(),
       setLiveMidiPitchBend: vi.fn(),
       scheduleLiveMidiPitchBend: vi.fn(),
+      setLiveMidiExpression: vi.fn(),
+      setLiveMidiSustain: vi.fn(),
       shouldPlayWithSolo: vi.fn().mockReturnValue(true),
     };
 
@@ -154,6 +156,8 @@ describe('KGAudioInterface preroll playback', () => {
       resetLiveMidiPitchBend: vi.fn(),
       setLiveMidiPitchBend: vi.fn(),
       scheduleLiveMidiPitchBend: vi.fn(),
+      setLiveMidiExpression: vi.fn(),
+      setLiveMidiSustain: vi.fn(),
       shouldPlayWithSolo: vi.fn().mockReturnValue(true),
     };
 
@@ -178,6 +182,8 @@ describe('KGAudioInterface preroll playback', () => {
       resetLiveMidiPitchBend: vi.fn(),
       setLiveMidiPitchBend: vi.fn(),
       scheduleLiveMidiPitchBend: vi.fn(),
+      setLiveMidiExpression: vi.fn(),
+      setLiveMidiSustain: vi.fn(),
       shouldPlayWithSolo: vi.fn().mockReturnValue(true),
     };
 
@@ -204,6 +210,8 @@ describe('KGAudioInterface preroll playback', () => {
       resetLiveMidiPitchBend: vi.fn(),
       setLiveMidiPitchBend: vi.fn(),
       scheduleLiveMidiPitchBend: vi.fn(),
+      setLiveMidiExpression: vi.fn(),
+      setLiveMidiSustain: vi.fn(),
       shouldPlayWithSolo: vi.fn().mockReturnValue(true),
     };
 

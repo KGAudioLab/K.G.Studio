@@ -30,6 +30,12 @@ interface PitchBendAdjustment {
   originalBeat: number;
 }
 
+interface ControllerEventAdjustment {
+  controller: number;
+  controllerEventId: string;
+  originalBeat: number;
+}
+
 const EPSILON = 1e-9;
 
 function getRegionById(tracks: KGTrack[], regionId: string): { region: KGRegion; track: KGTrack } | null {
@@ -174,6 +180,7 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
   private targetRegions: KGRegion[] = [];
   private noteAdjustments = new Map<string, NoteAdjustment[]>();
   private pitchBendAdjustments = new Map<string, PitchBendAdjustment[]>();
+  private controllerEventAdjustments = new Map<string, ControllerEventAdjustment[]>();
 
   constructor(
     primaryRegionId: string,
@@ -272,6 +279,8 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
     }));
     this.targetRegions = resolvedRegions.map(({ region }) => region);
     this.noteAdjustments.clear();
+    this.pitchBendAdjustments.clear();
+    this.controllerEventAdjustments.clear();
 
     projectedStates.forEach(projectedState => {
       const region = projectedState.region;
@@ -294,6 +303,16 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         })));
         region.getPitchBends().forEach(pitchBend => {
           pitchBend.setBeat(pitchBend.getBeat() - beatOffset);
+        });
+        this.controllerEventAdjustments.set(region.getId(), region.getAllControllerEventsFlattened().map(({ controller, event }) => ({
+          controller,
+          controllerEventId: event.getId(),
+          originalBeat: event.getBeat(),
+        })));
+        region.getControllerEventsByType().forEach(events => {
+          events.forEach(event => {
+            event.setBeat(event.getBeat() - beatOffset);
+          });
         });
       }
 
@@ -333,6 +352,14 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
           const pitchBend = region.getPitchBends().find(candidate => candidate.getId() === adjustment.pitchBendId);
           if (pitchBend) {
             pitchBend.setBeat(adjustment.originalBeat);
+          }
+        });
+        const controllerEventAdjustments = this.controllerEventAdjustments.get(region.getId()) ?? [];
+        controllerEventAdjustments.forEach(adjustment => {
+          const controllerEvent = region.getControllerEvents(adjustment.controller)
+            .find(candidate => candidate.getId() === adjustment.controllerEventId);
+          if (controllerEvent) {
+            controllerEvent.setBeat(adjustment.originalBeat);
           }
         });
       }
