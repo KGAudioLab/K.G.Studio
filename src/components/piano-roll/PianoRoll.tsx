@@ -114,25 +114,23 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const calculateInitialPosition = () => {
         // Dynamically get heights from CSS computed styles
         const statusBarElement = document.querySelector('.status-bar');
-        const trackControlElement = document.querySelector('.track-control');
-        
+
         // Get actual heights from DOM elements, or use fallback values if elements don't exist yet
         const statusBarHeight = statusBarElement ? statusBarElement.clientHeight : 30;
-        const trackControlHeight = trackControlElement ? trackControlElement.clientHeight : 30;
         const pianoRollHeight = PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT;
-        
+
         // Compute left offset when instrument selection panel is open
         const rootStyles = getComputedStyle(document.documentElement);
         const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
         const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-        
+
         if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Positioning piano roll with heights - statusBar: ${statusBarHeight}px, trackControl: ${trackControlHeight}px, pianoRoll: ${pianoRollHeight}px`);
+          console.log(`Positioning piano roll with heights - statusBar: ${statusBarHeight}px, pianoRoll: ${pianoRollHeight}px`);
         }
-        
+
         return {
           x: showInstrumentSelection ? instrumentPanelWidth : 0,
-          y: window.innerHeight - statusBarHeight - trackControlHeight - pianoRollHeight
+          y: window.innerHeight - statusBarHeight - pianoRollHeight
         };
       };
       
