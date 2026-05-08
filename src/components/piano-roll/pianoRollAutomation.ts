@@ -9,15 +9,16 @@ export type PianoRollAutomationType =
 export interface PianoRollAutomationOption {
   label: string;
   value: PianoRollAutomationType;
+  interpolationMode: 'linear' | 'step';
 }
 
 export const PIANO_ROLL_AUTOMATION_OPTIONS: PianoRollAutomationOption[] = [
-  { label: 'Pitch Bend', value: 'pitch-bend' },
-  { label: 'CC1', value: 'cc-1' },
-  { label: 'CC2', value: 'cc-2' },
-  { label: 'CC7', value: 'cc-7' },
-  { label: 'CC11', value: 'cc-11' },
-  { label: 'CC64', value: 'cc-64' },
+  { label: 'Pitch Bend', value: 'pitch-bend', interpolationMode: 'linear' },
+  { label: 'CC1', value: 'cc-1', interpolationMode: 'linear' },
+  { label: 'CC2', value: 'cc-2', interpolationMode: 'linear' },
+  { label: 'CC7', value: 'cc-7', interpolationMode: 'linear' },
+  { label: 'CC11', value: 'cc-11', interpolationMode: 'linear' },
+  { label: 'CC64', value: 'cc-64', interpolationMode: 'step' },
 ];
 
 export function getControllerNumberForAutomationType(type: PianoRollAutomationType): number | null {
@@ -36,4 +37,8 @@ export function getControllerNumberForAutomationType(type: PianoRollAutomationTy
     default:
       return null;
   }
+}
+
+export function getAutomationInterpolationMode(type: PianoRollAutomationType): 'linear' | 'step' {
+  return PIANO_ROLL_AUTOMATION_OPTIONS.find(option => option.value === type)?.interpolationMode ?? 'linear';
 }

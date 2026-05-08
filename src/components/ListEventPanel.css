@@ -106,8 +106,13 @@
   width: 22px;
   height: 22px;
   border: 1px solid #444;
-  border-radius: 3px;
-  background-color: #3a3a3a;
+  border-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+  background-color: #2f2f2f;
+  box-sizing: border-box;
   color: #e0e0e0;
   display: flex;
   align-items: center;
@@ -120,8 +125,8 @@
 }
 
 .list-event-add-button:hover {
-  background-color: #464646;
-  border-color: #5a5a5a;
+  background-color: #3b3b3b;
+  border-right: 0;
 }
 
 .list-event-dropdown-button,
@@ -142,6 +147,8 @@
 .list-event-type-button {
   min-width: 88px;
   margin-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .list-event-delete-button {

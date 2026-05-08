@@ -76,6 +76,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   const isSpectrogram = mode === 'spectrogram';
   const showAutomationLane = automationEnabled && !isSpectrogram;
   const [spectrogramLoading, setSpectrogramLoading] = useState(false);
+  const [noteScrollTop, setNoteScrollTop] = useState(0);
   const handleSpectrogramLoadingChange = useCallback((loading: boolean) => {
     setSpectrogramLoading(loading);
   }, []);
@@ -291,10 +292,21 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
         <div className={`piano-roll-main-section ${showAutomationLane ? 'with-automation' : ''}`}>
           <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
 
-          <div className="piano-roll-note-scroll" ref={noteScrollRef}>
-            <div className="piano-roll-body">
-              <PianoKeys activeRegion={activeRegion} />
-
+          <div className="piano-roll-body-shell">
+            <div className="piano-roll-keys-viewport">
+              <div
+                className="piano-roll-keys-offset"
+                style={{ transform: `translateY(-${noteScrollTop}px)` }}
+              >
+                <PianoKeys activeRegion={activeRegion} />
+              </div>
+            </div>
+            <div
+              className="piano-roll-note-scroll"
+              ref={noteScrollRef}
+              onScroll={(event) => setNoteScrollTop(event.currentTarget.scrollTop)}
+            >
+              <div className="piano-roll-body">
               <PianoGrid
                 gridRef={pianoGridRef}
                 onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
@@ -319,6 +331,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                 {memoizedNotes}
                 {!isSpectrogram && recordingNoteOverlays}
               </PianoGrid>
+              </div>
             </div>
           </div>
         </div>

@@ -74,4 +74,30 @@ describe('PianoRollAutomationLane', () => {
 
     expect(screen.getByText('No CC64 events in this region')).toBeInTheDocument();
   });
+
+  it('renders step-style hold segments for non-interpolatable automation', () => {
+    const controllerEventsByType: KGMidiControllerEvent[][] = Array.from({ length: 128 }, () => []);
+    controllerEventsByType[64] = [
+      createMockMidiControllerEvent({ id: 'cc64-1', beat: 0.5, value: 127 }),
+      createMockMidiControllerEvent({ id: 'cc64-2', beat: 2, value: 0 }),
+    ];
+
+    const region = createMockMidiRegion({
+      startFromBeat: 0,
+      controllerEventsByType,
+    });
+
+    const { container } = render(
+      <PianoRollAutomationLane
+        activeRegion={region}
+        automationType="cc-64"
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+      />
+    );
+
+    expect(container.querySelector('.piano-roll-automation-line')).not.toBeNull();
+    expect(container.querySelector('polyline.piano-roll-automation-line')).toBeNull();
+    expect(container.querySelectorAll('line.piano-roll-automation-line')).toHaveLength(2);
+  });
 });

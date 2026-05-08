@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import {
   MIDI_PITCH_BEND_MAX,
@@ -6,6 +6,7 @@ import {
   midiPitchBendToSignedValue,
 } from '../../util/midiUtil';
 import {
+  getAutomationInterpolationMode,
   getControllerNumberForAutomationType,
   PIANO_ROLL_AUTOMATION_OPTIONS,
   type PianoRollAutomationType,
@@ -28,8 +29,8 @@ interface PianoRollAutomationLaneProps {
 }
 
 const AUTOMATION_COLOR = '#87CEFA';
-const LANE_HEIGHT = 160;
 const LANE_PADDING_Y = 16;
+const MIN_LANE_HEIGHT = 160;
 
 const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   activeRegion,
@@ -38,8 +39,33 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   timeSignature,
   redrawVersion = 0,
 }) => {
+  const laneRef = useRef<HTMLDivElement | null>(null);
+  const [laneHeight, setLaneHeight] = useState(MIN_LANE_HEIGHT);
   const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
   const keyWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')) || 60;
+
+  useEffect(() => {
+    const element = laneRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateHeight = () => {
+      setLaneHeight(Math.max(Math.round(element.clientHeight), MIN_LANE_HEIGHT));
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   const points = useMemo<AutomationPoint[]>(() => {
     if (!activeRegion) {
       return [];
@@ -70,15 +96,16 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
 
   const selectedOption = PIANO_ROLL_AUTOMATION_OPTIONS.find(option => option.value === automationType);
   const laneLabel = selectedOption?.label ?? automationType;
+  const interpolationMode = getAutomationInterpolationMode(automationType);
   const totalBeats = maxBars * timeSignature.numerator;
   const totalWidth = 'calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width))';
 
   const toY = (value: number): number => {
     const minValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MIN : 0;
     const maxValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MAX : 127;
-    const usableHeight = LANE_HEIGHT - LANE_PADDING_Y * 2;
+    const usableHeight = laneHeight - LANE_PADDING_Y * 2;
     const normalized = (value - minValue) / (maxValue - minValue);
-    return LANE_HEIGHT - LANE_PADDING_Y - normalized * usableHeight;
+    return laneHeight - LANE_PADDING_Y - normalized * usableHeight;
   };
 
   const svgPoints = points.map(point => {
@@ -90,6 +117,10 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   });
 
   const polylinePoints = (() => {
+    if (interpolationMode === 'step') {
+      return '';
+    }
+
     if (svgPoints.length === 0) {
       return '';
     }
@@ -107,11 +138,25 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       .join(' ');
   })();
 
+  const stepSegments = (() => {
+    if (interpolationMode !== 'step' || svgPoints.length === 0) {
+      return [];
+    }
+
+    return svgPoints.map((point, index) => ({
+      id: `${point.id}-step`,
+      x1: point.x,
+      y1: point.y,
+      x2: index < svgPoints.length - 1 ? svgPoints[index + 1].x : beatWidth * totalBeats + keyWidth,
+    }));
+  })();
+
   return (
     <div
       className="piano-roll-automation-lane"
       data-testid="piano-roll-automation-lane"
       aria-label={`${laneLabel} automation lane`}
+      ref={laneRef}
     >
       <div className="piano-roll-automation-track" style={{ width: totalWidth }}>
         <div className="piano-roll-automation-gutter" />
@@ -120,11 +165,11 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
         <svg
           className="piano-roll-automation-svg"
           width="100%"
-          height={LANE_HEIGHT}
-          viewBox={`0 0 ${beatWidth * totalBeats + keyWidth} ${LANE_HEIGHT}`}
+          height={laneHeight}
+          viewBox={`0 0 ${beatWidth * totalBeats + keyWidth} ${laneHeight}`}
           preserveAspectRatio="none"
         >
-          {points.length > 0 && (
+          {interpolationMode === 'linear' && points.length > 0 && (
             <polyline
               className="piano-roll-automation-line"
               fill="none"
@@ -133,8 +178,20 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
               points={polylinePoints}
             />
           )}
+          {interpolationMode === 'step' && stepSegments.map(segment => (
+            <line
+              key={segment.id}
+              className="piano-roll-automation-line"
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y1}
+              stroke={AUTOMATION_COLOR}
+              strokeWidth="2"
+            />
+          ))}
           {svgPoints.map(point => {
-            const labelY = Math.max(14, Math.min(LANE_HEIGHT - 6, point.y - 10));
+            const labelY = Math.max(14, Math.min(laneHeight - 6, point.y - 10));
 
             return (
               <g key={point.id}>

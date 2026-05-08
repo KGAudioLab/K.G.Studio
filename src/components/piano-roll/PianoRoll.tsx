@@ -205,6 +205,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     // Sync tool state
     const currentTool = pianoRollState.getActiveTool() as 'pointer' | 'pencil';
     setActiveTool(currentTool);
+    setAutomationEnabled(pianoRollState.getAutomationViewEnabled());
+    setAutomationType(pianoRollState.getCurrentAutomationType() as PianoRollAutomationType);
     
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Synced piano roll state on mount - snap: ${currentSnap}, tool: ${currentTool}`);
@@ -691,11 +693,16 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [pianoRollZoom]);
 
   const handleAutomationToggle = useCallback(() => {
-    setAutomationEnabled(current => !current);
+    setAutomationEnabled(current => {
+      const next = !current;
+      KGPianoRollState.instance().setAutomationViewEnabled(next);
+      return next;
+    });
   }, []);
 
   const handleAutomationTypeChange = useCallback((value: PianoRollAutomationType) => {
     setAutomationType(value);
+    KGPianoRollState.instance().setCurrentAutomationType(value);
   }, []);
 
   // Calculate C4 position and scroll to it when piano roll opens
@@ -745,7 +752,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
 
     container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   // Auto-scroll to keep playhead centered during playback
