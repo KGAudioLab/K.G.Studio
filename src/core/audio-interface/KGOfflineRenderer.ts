@@ -16,6 +16,11 @@ import {
   type BakedMidiAutomationPoint,
   type MidiAutomationPoint,
 } from '../../util/midiAutomationUtil';
+import {
+  bakeTrackAutomationPointsInWindow,
+  getTrackAutomationDefaultValue,
+  resolveTrackAutomationValueAtBeat,
+} from '../../util/trackAutomationUtil';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { KGAudioInterface } from './KGAudioInterface';
@@ -121,6 +126,8 @@ export class KGOfflineRenderer {
       volume: number;
       muted: boolean;
       solo: boolean;
+      volumeAutomation: MidiAutomationPoint[];
+      panAutomation: MidiAutomationPoint[];
       regions: Array<{
         startBeat: number;
         notes: Array<{ startBeat: number; endBeat: number; durationBeats: number; pitch: number; velocity: number }>;
@@ -134,6 +141,8 @@ export class KGOfflineRenderer {
       volume: number;
       muted: boolean;
       solo: boolean;
+      volumeAutomation: MidiAutomationPoint[];
+      panAutomation: MidiAutomationPoint[];
       regions: Array<{
         startBeat: number;
         lengthBeats: number;
@@ -207,7 +216,9 @@ export class KGOfflineRenderer {
           )
         ));
 
-        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, regions, pitchBends, controllerEventsByType });
+        const volumeAutomation = track.getVolumeAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+        const panAutomation = track.getPanAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, volumeAutomation, panAutomation, regions, pitchBends, controllerEventsByType });
       } else if (track.getType() === 'Wave') {
         const volume = audioInterface.getTrackVolume(trackId);
         const muted = audioInterface.getTrackMuted(trackId);
@@ -233,7 +244,9 @@ export class KGOfflineRenderer {
           }
         }
 
-        audioTrackData.push({ trackId, volume, muted, solo, regions });
+        const volumeAutomation = track.getVolumeAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+        const panAutomation = track.getPanAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+        audioTrackData.push({ trackId, volume, muted, solo, volumeAutomation, panAutomation, regions });
       }
     }
 
@@ -302,8 +315,24 @@ export class KGOfflineRenderer {
             });
 
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
-            sampler.volume.value = getOfflineTrackVolumeDb(trackInfo.volume, trackInfo.muted);
-            sampler.connect(masterGain);
+            sampler.volume.value = 0;
+            const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
+            const trackPanner = new Tone.Panner(0);
+            sampler.connect(trackGain);
+            trackGain.connect(trackPanner);
+            trackPanner.connect(masterGain);
+            applyOfflineTrackAutomation(
+              trackGain,
+              trackPanner,
+              trackInfo.volumeAutomation,
+              trackInfo.panAutomation,
+              trackInfo.volume,
+              renderStartBeat,
+              renderEndBeat,
+              secondsPerBeat,
+              interpolationIntervalMs,
+              bpm
+            );
             const mergedExpressionEvents = normalizeMidiAutomationPoints(
               [1, 2, 7, 11].flatMap(controller => trackInfo.controllerEventsByType[controller])
             );
@@ -396,7 +425,21 @@ export class KGOfflineRenderer {
         if (!shouldPlay(trackInfo, hasSoloedTracks)) continue;
 
         const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
-        trackGain.connect(masterGain);
+        const trackPanner = new Tone.Panner(0);
+        trackGain.connect(trackPanner);
+        trackPanner.connect(masterGain);
+        applyOfflineTrackAutomation(
+          trackGain,
+          trackPanner,
+          trackInfo.volumeAutomation,
+          trackInfo.panAutomation,
+          trackInfo.volume,
+          renderStartBeat,
+          renderEndBeat,
+          secondsPerBeat,
+          interpolationIntervalMs,
+          bpm
+        );
 
         for (const regionInfo of trackInfo.regions) {
           const regionStartBeat = regionInfo.startBeat;
@@ -552,6 +595,15 @@ function setOfflineGainValue(gainNode: Tone.Gain, value: number, time: number): 
   gainNode.gain.value = value;
 }
 
+function setOfflinePanValue(panner: Tone.Panner, value: number, time: number): void {
+  if (typeof panner.pan.setValueAtTime === 'function') {
+    panner.pan.setValueAtTime(value, time);
+    return;
+  }
+
+  panner.pan.value = value;
+}
+
 function createOfflinePitchBendAwareSource(
   sampler: Tone.Sampler,
   audioBuffers: Tone.ToneAudioBuffers,
@@ -617,6 +669,73 @@ export function applyOfflineExpressionAutomation(
     const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
     setOfflineGainValue(gainNode, clampMidiControllerValue(point.value) / 127, automationTime);
   });
+}
+
+function applyOfflineTrackAutomation(
+  gainNode: Tone.Gain,
+  pannerNode: Tone.Panner,
+  volumeAutomation: MidiAutomationPoint[],
+  panAutomation: MidiAutomationPoint[],
+  baseVolume: number,
+  renderStartBeat: number,
+  renderEndBeat: number,
+  secondsPerBeat: number,
+  interpolationIntervalMs: number,
+  bpm: number
+): void {
+  if (volumeAutomation.length > 0) {
+    const initialVolume = resolveTrackAutomationValueAtBeat(
+      volumeAutomation,
+      'volume',
+      renderStartBeat,
+      getTrackAutomationDefaultValue('volume')
+    );
+    setOfflineGainValue(gainNode, getOfflineTrackGain(initialVolume, false), 0);
+    bakeTrackAutomationPointsInWindow(
+      volumeAutomation,
+      'volume',
+      renderStartBeat,
+      renderEndBeat,
+      interpolationIntervalMs,
+      bpm
+    ).forEach(point => {
+      if (point.beat <= renderStartBeat) {
+        return;
+      }
+
+      const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+      setOfflineGainValue(gainNode, getOfflineTrackGain(point.value, false), automationTime);
+    });
+  } else {
+    setOfflineGainValue(gainNode, getOfflineTrackGain(baseVolume, false), 0);
+  }
+
+  if (panAutomation.length > 0) {
+    const initialPan = resolveTrackAutomationValueAtBeat(
+      panAutomation,
+      'pan',
+      renderStartBeat,
+      getTrackAutomationDefaultValue('pan')
+    );
+    setOfflinePanValue(pannerNode, initialPan, 0);
+    bakeTrackAutomationPointsInWindow(
+      panAutomation,
+      'pan',
+      renderStartBeat,
+      renderEndBeat,
+      interpolationIntervalMs,
+      bpm
+    ).forEach(point => {
+      if (point.beat <= renderStartBeat) {
+        return;
+      }
+
+      const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+      setOfflinePanValue(pannerNode, point.value, automationTime);
+    });
+  } else {
+    setOfflinePanValue(pannerNode, 0, 0);
+  }
 }
 
 export function getOfflineTrackVolumeDb(volumeDb: number, muted: boolean): number {

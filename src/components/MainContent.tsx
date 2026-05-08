@@ -16,6 +16,7 @@ import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { ChangeLoopSettingsCommand } from '../core/commands';
+import { DeleteTrackAutomationPointsCommand } from '../core/commands';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -55,6 +56,11 @@ const MainContent: React.FC<MainContentProps> = ({
     savedProjectName,
     requestPianoRollScroll,
     mainContentScrollRequest,
+    activeTrackAutomationTrackId,
+    activeTrackAutomationType,
+    selectedTrackAutomationPointIds,
+    bumpTrackAutomationRedrawVersion,
+    refreshProjectState,
   } = useProjectStore();
 
   // State to store regions
@@ -82,15 +88,54 @@ const MainContent: React.FC<MainContentProps> = ({
     setActiveRegionId
   });
 
+  const deleteSelectedTrackAutomationPoints = useCallback((): boolean => {
+    if (!activeTrackAutomationTrackId || !activeTrackAutomationType || selectedTrackAutomationPointIds.length === 0) {
+      return false;
+    }
+
+    const track = tracks.find(candidate => candidate.getId().toString() === activeTrackAutomationTrackId);
+    if (!track) {
+      return false;
+    }
+
+    try {
+      KGCore.instance().executeCommand(new DeleteTrackAutomationPointsCommand(
+        track.getId(),
+        activeTrackAutomationType,
+        selectedTrackAutomationPointIds
+      ));
+      bumpTrackAutomationRedrawVersion();
+      updateTrack(track);
+      refreshProjectState();
+      return true;
+    } catch (error) {
+      console.error('Error deleting track automation points:', error);
+      return false;
+    }
+  }, [
+    activeTrackAutomationTrackId,
+    activeTrackAutomationType,
+    selectedTrackAutomationPointIds,
+    tracks,
+    updateTrack,
+    bumpTrackAutomationRedrawVersion,
+    refreshProjectState,
+  ]);
+
   // Register the delete function with the global manager
   useEffect(() => {
-    regionDeleteManager.registerDeleteCallback(deleteSelectedRegions);
+    regionDeleteManager.registerDeleteCallback(() => {
+      if (deleteSelectedTrackAutomationPoints()) {
+        return true;
+      }
+      return deleteSelectedRegions();
+    });
 
     // Cleanup on unmount
     return () => {
       regionDeleteManager.unregisterDeleteCallback();
     };
-  }, [deleteSelectedRegions]);
+  }, [deleteSelectedRegions, deleteSelectedTrackAutomationPoints]);
 
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
@@ -726,7 +771,7 @@ const MainContent: React.FC<MainContentProps> = ({
         const isPianoRollOpen = showPianoRoll;
 
         if (!isInPianoRoll && !isPianoRollOpen) {
-          const deleted = deleteSelectedRegions();
+          const deleted = deleteSelectedTrackAutomationPoints() || deleteSelectedRegions();
           if (deleted) {
             // Prevent default behavior only if regions were actually deleted
             event.preventDefault();
@@ -742,7 +787,7 @@ const MainContent: React.FC<MainContentProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [deleteSelectedRegions, showPianoRoll]); // Dependencies for the effect
+  }, [deleteSelectedRegions, deleteSelectedTrackAutomationPoints, showPianoRoll]); // Dependencies for the effect
 
   // Utility function to calculate playhead position from mouse coordinates (bar-level snapping)
   const calculatePlayheadFromMouse = useCallback((clientX: number): number | null => {

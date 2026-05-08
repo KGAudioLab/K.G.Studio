@@ -10,6 +10,7 @@ import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 export class KGAudioPlayerBus {
   // Gain node for volume/mute routing
   private gainNode: Tone.Gain;
+  private pannerNode: Tone.Panner;
 
   // Cached audio buffers keyed by audioFileId
   private audioBuffers: Map<string, Tone.ToneAudioBuffer> = new Map();
@@ -19,6 +20,9 @@ export class KGAudioPlayerBus {
 
   // Audio properties
   private volume: number;
+  private automationVolume: number | null = null;
+  private pan: number;
+  private automationPan: number | null = null;
   private muted: boolean;
   private solo: boolean;
 
@@ -27,16 +31,21 @@ export class KGAudioPlayerBus {
    */
   private constructor(
     gainNode: Tone.Gain,
+    pannerNode: Tone.Panner,
     volume: number,
+    pan: number,
     muted: boolean,
     solo: boolean
   ) {
     this.gainNode = gainNode;
+    this.pannerNode = pannerNode;
     this.volume = volume;
+    this.pan = pan;
     this.muted = muted;
     this.solo = solo;
 
     this.updateGainVolume();
+    this.updatePanValue();
 
     console.log(`KGAudioPlayerBus created - volume: ${volume}, muted: ${muted}, solo: ${solo}`);
   }
@@ -46,12 +55,15 @@ export class KGAudioPlayerBus {
    */
   public static async create(
     volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME,
+    pan: number = 0,
     muted: boolean = false,
     solo: boolean = false
   ): Promise<KGAudioPlayerBus> {
     try {
       const gainNode = new Tone.Gain(1);
-      const bus = new KGAudioPlayerBus(gainNode, volume, muted, solo);
+      const pannerNode = new Tone.Panner(pan);
+      gainNode.connect(pannerNode);
+      const bus = new KGAudioPlayerBus(gainNode, pannerNode, volume, pan, muted, solo);
       console.log('KGAudioPlayerBus created successfully');
       return bus;
     } catch (error) {
@@ -172,8 +184,38 @@ export class KGAudioPlayerBus {
     console.log(`Set audio player bus volume to ${volume}`);
   }
 
+  public setAutomationVolume(volume: number | null): void {
+    this.automationVolume = volume;
+    this.updateGainVolume();
+  }
+
   public getVolume(): number {
     return this.volume;
+  }
+
+  public setPan(pan: number): void {
+    this.pan = Math.max(-1, Math.min(1, pan));
+    this.updatePanValue();
+  }
+
+  public setAutomationPan(pan: number | null): void {
+    this.automationPan = pan === null ? null : Math.max(-1, Math.min(1, pan));
+    this.updatePanValue();
+  }
+
+  public scheduleAutomationPan(pan: number, time: number): void {
+    const clampedPan = Math.max(-1, Math.min(1, pan));
+    this.automationPan = clampedPan;
+    if (typeof this.pannerNode.pan.setValueAtTime === 'function') {
+      this.pannerNode.pan.setValueAtTime(clampedPan, time);
+      return;
+    }
+
+    this.pannerNode.pan.value = clampedPan;
+  }
+
+  public getPan(): number {
+    return this.pan;
   }
 
   public setMuted(muted: boolean): void {
@@ -200,8 +242,9 @@ export class KGAudioPlayerBus {
    */
   public applyEffectiveVolume(hasSoloedTracks: boolean): void {
     try {
-      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
-      this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, this.volume / 20);
+      const effectiveVolume = this.automationVolume ?? this.volume;
+      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, effectiveVolume / 20);
     } catch (error) {
       console.error('Error applying effective volume for audio player bus:', error);
     }
@@ -224,7 +267,7 @@ export class KGAudioPlayerBus {
 
   public connect(destination: Tone.InputNode): void {
     try {
-      this.gainNode.connect(destination);
+      this.pannerNode.connect(destination);
       console.log('Connected audio player bus to destination');
     } catch (error) {
       console.error('Error connecting audio player bus:', error);
@@ -233,7 +276,7 @@ export class KGAudioPlayerBus {
 
   public disconnect(): void {
     try {
-      this.gainNode.disconnect();
+      this.pannerNode.disconnect();
       console.log('Disconnected audio player bus');
     } catch (error) {
       console.error('Error disconnecting audio player bus:', error);
@@ -250,6 +293,7 @@ export class KGAudioPlayerBus {
       }
       this.audioBuffers.clear();
       this.gainNode.dispose();
+      this.pannerNode.dispose();
       console.log('Disposed KGAudioPlayerBus');
     } catch (error) {
       console.error('Error disposing KGAudioPlayerBus:', error);
@@ -260,10 +304,24 @@ export class KGAudioPlayerBus {
 
   private updateGainVolume(): void {
     try {
-      const isSilent = this.muted || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
-      this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, this.volume / 20);
+      const effectiveVolume = this.automationVolume ?? this.volume;
+      const isSilent = this.muted || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, effectiveVolume / 20);
     } catch (error) {
       console.error('Error updating gain volume:', error);
+    }
+  }
+
+  private updatePanValue(): void {
+    try {
+      const effectivePan = this.automationPan ?? this.pan;
+      if (typeof this.pannerNode.pan.setValueAtTime === 'function') {
+        this.pannerNode.pan.setValueAtTime(effectivePan, Tone.now());
+      } else {
+        this.pannerNode.pan.value = effectivePan;
+      }
+    } catch (error) {
+      console.error('Error updating audio player pan:', error);
     }
   }
 
@@ -271,6 +329,7 @@ export class KGAudioPlayerBus {
 
   public getState(): {
     volume: number;
+    pan: number;
     muted: boolean;
     solo: boolean;
     bufferCount: number;
@@ -278,6 +337,7 @@ export class KGAudioPlayerBus {
   } {
     return {
       volume: this.volume,
+      pan: this.pan,
       muted: this.muted,
       solo: this.solo,
       bufferCount: this.audioBuffers.size,

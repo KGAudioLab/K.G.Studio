@@ -4,6 +4,8 @@ import { KGMidiRegion } from '../region/KGMidiRegion';
 import { KGAudioRegion } from '../region/KGAudioRegion';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { WithDefault } from '../../types/projectTypes';
+import { KGTrackAutomationPoint, type TrackAutomationType } from './KGTrackAutomationPoint';
+import { clampTrackAutomationValue } from '../../util/trackAutomationUtil';
 
 // Track type enum
 export enum TrackType {
@@ -48,6 +50,14 @@ export class KGTrack {
     },
   })
   protected regions: KGRegion[] = [];
+
+  @Expose()
+  @Type(() => KGTrackAutomationPoint)
+  protected volumeAutomation: KGTrackAutomationPoint[] = [];
+
+  @Expose()
+  @Type(() => KGTrackAutomationPoint)
+  protected panAutomation: KGTrackAutomationPoint[] = [];
 
   constructor(name: string = 'Untitled Track', id: number = 0, type: TrackType = TrackType.MIDI, volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME) {
     this.name = name;
@@ -112,6 +122,45 @@ export class KGTrack {
 
   public setRegions(regions: KGRegion[]): void {
     this.regions = regions;
+  }
+
+  public getVolumeAutomation(): KGTrackAutomationPoint[] {
+    return this.volumeAutomation;
+  }
+
+  public setVolumeAutomation(points: KGTrackAutomationPoint[]): void {
+    this.volumeAutomation = points
+      .map(point => {
+        point.setValue(clampTrackAutomationValue('volume', point.getValue()));
+        return point;
+      })
+      .sort((left, right) => left.getBeat() - right.getBeat());
+  }
+
+  public getPanAutomation(): KGTrackAutomationPoint[] {
+    return this.panAutomation;
+  }
+
+  public setPanAutomation(points: KGTrackAutomationPoint[]): void {
+    this.panAutomation = points
+      .map(point => {
+        point.setValue(clampTrackAutomationValue('pan', point.getValue()));
+        return point;
+      })
+      .sort((left, right) => left.getBeat() - right.getBeat());
+  }
+
+  public getAutomationPoints(type: TrackAutomationType): KGTrackAutomationPoint[] {
+    return type === 'volume' ? this.volumeAutomation : this.panAutomation;
+  }
+
+  public setAutomationPoints(type: TrackAutomationType, points: KGTrackAutomationPoint[]): void {
+    if (type === 'volume') {
+      this.setVolumeAutomation(points);
+      return;
+    }
+
+    this.setPanAutomation(points);
   }
 
   // Add a single region

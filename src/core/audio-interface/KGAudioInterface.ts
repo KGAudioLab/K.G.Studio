@@ -16,6 +16,11 @@ import {
   resolveMidiAutomationValueAtBeat,
   resolveSustainExtendedEndBeat,
 } from '../../util/midiAutomationUtil';
+import {
+  bakeTrackAutomationPointsInWindow,
+  getTrackAutomationDefaultValue,
+  resolveTrackAutomationValueAtBeat,
+} from '../../util/trackAutomationUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
 import { KGAudioPlayerBus } from './KGAudioPlayerBus';
@@ -230,7 +235,7 @@ export class KGAudioInterface {
       const project = KGCore.instance().getCurrentProject();
       const track = project.getTracks().find(t => t.getId().toString() === trackId);
       const initialVolume = track ? track.getVolume() : AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
-      const audioBus = await KGAudioBus.create(instrumentType, initialVolume);
+      const audioBus = await KGAudioBus.create(instrumentType, initialVolume, 0);
       
       // Connect to master gain if available, otherwise to destination
       if (this.masterGain) {
@@ -283,7 +288,7 @@ export class KGAudioInterface {
 
     try {
       console.log(`Creating audio player bus for track ${trackId}`);
-      const playerBus = await KGAudioPlayerBus.create(volume);
+      const playerBus = await KGAudioPlayerBus.create(volume, 0);
 
       if (this.masterGain) {
         playerBus.connect(this.masterGain);
@@ -413,6 +418,7 @@ export class KGAudioInterface {
     this.clearScheduledEvents();
     this.clearDelayedTransportStart();
     this.trackAudioBuses.forEach(audioBus => audioBus.resetLiveMidiPitchBend());
+    this.clearTrackAutomationOverrides();
 
     console.log("Preparing playback");
 
@@ -485,7 +491,12 @@ export class KGAudioInterface {
       project.getTracks().forEach(track => {
         const trackId = track.getId().toString();
         const audioBus = this.trackAudioBuses.get(trackId);
+        const playerBus = this.trackAudioPlayerBuses.get(trackId);
         const interpolationIntervalMs = (configManager.get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10;
+        const automationWindowStartBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
+
+        this.applyTrackAutomationAtBeat(track, automationWindowStartBeat);
+        this.scheduleTrackAutomation(track, automationWindowStartBeat, scheduleEndBeat, interpolationIntervalMs, project.getBpm());
 
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
@@ -693,7 +704,6 @@ export class KGAudioInterface {
         }
 
         // Schedule audio/wav track events
-        const playerBus = this.trackAudioPlayerBuses.get(trackId);
         if (playerBus && track.getType() === 'Wave') {
           track.getRegions().forEach(region => {
             if (region.getCurrentType() === 'KGAudioRegion') {
@@ -868,6 +878,7 @@ export class KGAudioInterface {
       this.trackAudioPlayerBuses.forEach(playerBus => {
         playerBus.stopAll();
       });
+      this.clearTrackAutomationOverrides();
 
       this.isPlaying = false;
       
@@ -895,6 +906,7 @@ export class KGAudioInterface {
       const durationInBeats = note.getEndBeat() - note.getStartBeat();
       const duration = this.beatsToToneTime(durationInBeats);
       const triggerTime = time ?? Tone.now();
+      this.applyTrackAutomationForCurrentBeat(trackId);
       
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
@@ -922,6 +934,7 @@ export class KGAudioInterface {
       const noteName = pitchToNoteNameString(pitch);
       const normalizedVelocity = velocity / 127; // Normalize to 0-1
       const triggerTime = time ?? Tone.now();
+      this.applyTrackAutomationForCurrentBeat(trackId);
       
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
@@ -948,6 +961,7 @@ export class KGAudioInterface {
 
       const normalizedVelocity = velocity / 127;
       const triggerTime = time ?? Tone.now();
+      this.applyTrackAutomationForCurrentBeat(trackId);
 
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
@@ -1166,6 +1180,24 @@ export class KGAudioInterface {
     }
   }
 
+  public setTrackPan(trackId: string, pan: number): void {
+    try {
+      const audioBus = this.trackAudioBuses.get(trackId);
+      const playerBus = this.trackAudioPlayerBuses.get(trackId);
+      if (audioBus) {
+        audioBus.setPan(pan);
+      }
+      if (playerBus) {
+        playerBus.setPan(pan);
+      }
+      if (!audioBus && !playerBus) {
+        console.warn(`No audio bus found for track ${trackId}`);
+      }
+    } catch (error) {
+      console.error(`Error setting track ${trackId} pan:`, error);
+    }
+  }
+
   /**
    * Set track mute state
    */
@@ -1253,6 +1285,12 @@ export class KGAudioInterface {
     return audioBus?.getVolume() ?? playerBus?.getVolume() ?? AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
   }
 
+  public getTrackPan(trackId: string): number {
+    const audioBus = this.trackAudioBuses.get(trackId);
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    return audioBus?.getPan() ?? playerBus?.getPan() ?? 0;
+  }
+
   public getTrackMuted(trackId: string): boolean {
     const audioBus = this.trackAudioBuses.get(trackId);
     const playerBus = this.trackAudioPlayerBuses.get(trackId);
@@ -1289,6 +1327,106 @@ export class KGAudioInterface {
   }
 
   // ===== PRIVATE UTILITY METHODS =====
+
+  private applyTrackAutomationAtBeat(track: { getId(): number; getVolumeAutomation(): Array<{ getBeat(): number; getValue(): number }>; getPanAutomation(): Array<{ getBeat(): number; getValue(): number }> }, beat: number): void {
+    const trackId = track.getId().toString();
+    const audioBus = this.trackAudioBuses.get(trackId);
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    const volumePoints = track.getVolumeAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+    const panPoints = track.getPanAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+
+    const nextVolume = volumePoints.length > 0
+      ? resolveTrackAutomationValueAtBeat(volumePoints, 'volume', beat, getTrackAutomationDefaultValue('volume'))
+      : null;
+    const nextPan = panPoints.length > 0
+      ? resolveTrackAutomationValueAtBeat(panPoints, 'pan', beat, getTrackAutomationDefaultValue('pan'))
+      : null;
+
+    if (audioBus) {
+      audioBus.setAutomationVolume(nextVolume);
+      audioBus.setAutomationPan(nextPan);
+    }
+    if (playerBus) {
+      playerBus.setAutomationVolume(nextVolume);
+      playerBus.setAutomationPan(nextPan);
+    }
+    this.updateAllEffectiveVolumes();
+  }
+
+  private applyTrackAutomationForCurrentBeat(trackId: string): void {
+    const project = KGCore.instance().getCurrentProject();
+    const track = project.getTracks().find(candidate => candidate.getId().toString() === trackId);
+    if (!track) {
+      return;
+    }
+
+    this.applyTrackAutomationAtBeat(track, this.getTransportPosition());
+  }
+
+  private scheduleTrackAutomation(
+    track: { getId(): number; getVolumeAutomation(): Array<{ getBeat(): number; getValue(): number }>; getPanAutomation(): Array<{ getBeat(): number; getValue(): number }> },
+    windowStartBeat: number,
+    windowEndBeat: number,
+    interpolationIntervalMs: number,
+    bpm: number
+  ): void {
+    const trackId = track.getId().toString();
+    const audioBus = this.trackAudioBuses.get(trackId);
+    const playerBus = this.trackAudioPlayerBuses.get(trackId);
+    if (!audioBus && !playerBus) {
+      return;
+    }
+
+    const volumePoints = track.getVolumeAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+    const panPoints = track.getPanAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+
+    bakeTrackAutomationPointsInWindow(volumePoints, 'volume', windowStartBeat, windowEndBeat, interpolationIntervalMs, bpm)
+      .forEach(({ beat, value }) => {
+        if (beat <= windowStartBeat) {
+          return;
+        }
+
+        const eventId = Tone.Transport.schedule(() => {
+          if (audioBus) {
+            audioBus.setAutomationVolume(value);
+          }
+          if (playerBus) {
+            playerBus.setAutomationVolume(value);
+          }
+          this.updateAllEffectiveVolumes();
+        }, this.beatsToToneTime(beat));
+        this.scheduledEvents.add(eventId);
+      });
+
+    bakeTrackAutomationPointsInWindow(panPoints, 'pan', windowStartBeat, windowEndBeat, interpolationIntervalMs, bpm)
+      .forEach(({ beat, value }) => {
+        if (beat <= windowStartBeat) {
+          return;
+        }
+
+        const eventId = Tone.Transport.schedule((time) => {
+          if (audioBus) {
+            audioBus.scheduleAutomationPan(value, time);
+          }
+          if (playerBus) {
+            playerBus.scheduleAutomationPan(value, time);
+          }
+        }, this.beatsToToneTime(beat));
+        this.scheduledEvents.add(eventId);
+      });
+  }
+
+  private clearTrackAutomationOverrides(): void {
+    this.trackAudioBuses.forEach(audioBus => {
+      audioBus.setAutomationVolume(null);
+      audioBus.setAutomationPan(null);
+    });
+    this.trackAudioPlayerBuses.forEach(playerBus => {
+      playerBus.setAutomationVolume(null);
+      playerBus.setAutomationPan(null);
+    });
+    this.updateAllEffectiveVolumes();
+  }
 
   /**
    * Setup audio capture for screen sharing

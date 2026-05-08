@@ -4,6 +4,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import RegionItem from './RegionItem';
+import TrackAutomationLane from './TrackAutomationLane';
 import type { RegionClickOptions, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
@@ -62,6 +63,9 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onKGOneClipDrop,
 }) => {
   const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
+  const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
+  const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
+  const trackAutomationRedrawVersion = useProjectStore(state => state.trackAutomationRedrawVersion);
   const [containerWidth, setContainerWidth] = useState(0);
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
@@ -538,13 +542,22 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
 
   // Filter regions for this track
   const trackRegions = regions.filter(region => region.trackIndex === index);
+  const isAutomationActive = activeTrackAutomationTrackId === track.getId().toString() && activeTrackAutomationType !== null;
 
   return (
     <div
-      className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''}`}
+      className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''} ${isAutomationActive ? 'automation-active' : ''}`}
       data-test-id={`track-grid-${track.getId()}`}
-      onDoubleClick={(e) => onDoubleClick(e, index)}
-      onClick={(e) => onClick && onClick(e, index)}
+      onDoubleClick={(e) => {
+        if (!isAutomationActive) {
+          onDoubleClick(e, index);
+        }
+      }}
+      onClick={(e) => {
+        if (!isAutomationActive) {
+          onClick && onClick(e, index);
+        }
+      }}
       ref={trackElementRef}
       onDragOver={(e) => {
         if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
@@ -613,6 +626,15 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           />
         );
       })}
+      {isAutomationActive && activeTrackAutomationType && (
+        <TrackAutomationLane
+          track={track}
+          automationType={activeTrackAutomationType}
+          maxBars={maxBars}
+          timeSignature={useProjectStore.getState().timeSignature}
+          redrawVersion={trackAutomationRedrawVersion}
+        />
+      )}
     </div>
   );
 };

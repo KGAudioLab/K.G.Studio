@@ -24,6 +24,7 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
 import { CreateMidiEventsCommand, type NoteCreationData, type PitchBendCreationData, type ControllerEventCreationData } from '../core/commands/note/CreateMidiEventsCommand';
 import { MIDI_PITCH_BEND_CENTER } from '../util/midiUtil';
+import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/KGTrackAutomationPoint';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -77,6 +78,7 @@ interface ProjectState {
   selectedNoteIds: string[];
   selectedPitchBendIds: string[];
   selectedControllerEventIds: string[];
+  selectedTrackAutomationPointIds: string[];
   selectedRegionIds: string[];
   selectedTrackId: string | null;
   
@@ -86,6 +88,9 @@ interface ProjectState {
   pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
   automationRedrawVersion: number;
+  activeTrackAutomationTrackId: string | null;
+  activeTrackAutomationType: TrackAutomationType | null;
+  trackAutomationRedrawVersion: number;
   
   // ChatBox state
   showChatBox: boolean;
@@ -162,6 +167,7 @@ interface ProjectState {
   syncSelectionFromCore: () => void;
   clearAllSelections: () => void;
   setSelectedTrack: (trackId: string | null) => void;
+  setTrackAutomationView: (trackId: string | null, automationType: TrackAutomationType | null) => void;
   
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
@@ -170,6 +176,7 @@ interface ProjectState {
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
   bumpAutomationRedrawVersion: () => void;
+  bumpTrackAutomationRedrawVersion: () => void;
   
   // Project state cleanup
   cleanupProjectState: () => void;
@@ -291,6 +298,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     const controllerEventIds = selectedItems
       .filter(item => item instanceof KGMidiControllerEvent)
       .map(item => item.getId());
+    const trackAutomationPointIds = selectedItems
+      .filter(item => item instanceof KGTrackAutomationPoint)
+      .map(item => item.getId());
     const regionIds = selectedItems
       .filter(item => item instanceof KGRegion)
       .map(item => item.getId());
@@ -299,6 +309,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       selectedNoteIds: noteIds,
       selectedPitchBendIds: pitchBendIds,
       selectedControllerEventIds: controllerEventIds,
+      selectedTrackAutomationPointIds: trackAutomationPointIds,
       selectedRegionIds: regionIds
     });
   };
@@ -368,6 +379,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     selectedNoteIds: [],
     selectedPitchBendIds: [],
     selectedControllerEventIds: [],
+    selectedTrackAutomationPointIds: [],
     selectedRegionIds: [],
     selectedTrackId: initialSelectedTrackId,
     
@@ -377,6 +389,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
     automationRedrawVersion: 0,
+    activeTrackAutomationTrackId: null,
+    activeTrackAutomationType: null,
+    trackAutomationRedrawVersion: 0,
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
@@ -829,6 +844,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           selectedMode: projectToLoad.getSelectedMode(),
           isLooping: projectToLoad.getIsLooping(),
           loopingRange: projectToLoad.getLoopingRange(),
+          activeTrackAutomationTrackId: null,
+          activeTrackAutomationType: null,
+          trackAutomationRedrawVersion: 0,
           playheadPosition: 0, // Ensure store state is also updated
           currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
         });
@@ -1232,6 +1250,30 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // Update selected track id
       set({ selectedTrackId: trackId });
     },
+
+    setTrackAutomationView: (trackId: string | null, automationType: TrackAutomationType | null) => {
+      const core = KGCore.instance();
+      core.getSelectedItems()
+        .filter(item => item instanceof KGTrackAutomationPoint)
+        .forEach(item => core.removeSelectedItem(item));
+
+      if (trackId && automationType === null) {
+        set({
+          activeTrackAutomationTrackId: null,
+          activeTrackAutomationType: null,
+          selectedTrackAutomationPointIds: [],
+          selectedTrackId: trackId,
+        });
+        return;
+      }
+
+      set({
+        activeTrackAutomationTrackId: trackId,
+        activeTrackAutomationType: trackId ? automationType : null,
+        selectedTrackAutomationPointIds: [],
+        selectedTrackId: trackId,
+      });
+    },
     
     // Piano roll actions
     setShowPianoRoll: (show: boolean) => {
@@ -1256,6 +1298,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     bumpAutomationRedrawVersion: () => {
       set(state => ({ automationRedrawVersion: state.automationRedrawVersion + 1 }));
     },
+    bumpTrackAutomationRedrawVersion: () => {
+      set(state => ({ trackAutomationRedrawVersion: state.trackAutomationRedrawVersion + 1 }));
+    },
     
     // Project state cleanup - used when starting new/loading projects
     cleanupProjectState: () => {
@@ -1263,7 +1308,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ showPianoRoll: false });
 
       // Clear active region and hybrid state
-      set({ activeRegionId: null, hybridAudioRegionId: null, pianoRollMode: 'midi-edit' });
+      set({
+        activeRegionId: null,
+        hybridAudioRegionId: null,
+        pianoRollMode: 'midi-edit',
+        activeTrackAutomationTrackId: null,
+        activeTrackAutomationType: null,
+        trackAutomationRedrawVersion: 0,
+      });
       
       // Clear any selected items
       KGCore.instance().clearSelectedItems();

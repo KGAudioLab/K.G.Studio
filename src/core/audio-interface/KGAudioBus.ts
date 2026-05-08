@@ -30,9 +30,13 @@ export class KGAudioBus {
   private sampler: Tone.Sampler;
   private audioBuffers: Tone.ToneAudioBuffers;
   private instrument: InstrumentType;
+  private panner: Tone.Panner;
   
   // Audio properties
   private volume: number;
+  private automationVolume: number | null = null;
+  private pan: number;
+  private automationPan: number | null = null;
   private muted: boolean;
   private solo: boolean;
   private liveMidiPitchBend: number = 0;
@@ -51,19 +55,24 @@ export class KGAudioBus {
     sampler: Tone.Sampler,
     audioBuffers: Tone.ToneAudioBuffers,
     instrument: InstrumentType,
+    panner: Tone.Panner,
     volume: number,
+    pan: number,
     muted: boolean,
     solo: boolean
   ) {
     this.sampler = sampler;
     this.audioBuffers = audioBuffers;
     this.instrument = instrument;
+    this.panner = panner;
     this.volume = volume;
+    this.pan = pan;
     this.muted = muted;
     this.solo = solo;
     
     // Set initial volume on the sampler
     this.updateSamplerVolume();
+    this.updatePanValue();
     
     console.log(`KGAudioBus created for ${instrument} - volume: ${volume}, muted: ${muted}, solo: ${solo}`);
   }
@@ -75,6 +84,7 @@ export class KGAudioBus {
   public static async create(
     instrument: InstrumentType = 'acoustic_grand_piano',
     volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME,
+    pan: number = 0,
     muted: boolean = false,
     solo: boolean = false
   ): Promise<KGAudioBus> {
@@ -90,7 +100,9 @@ export class KGAudioBus {
       ]);
       
       // Create the audio bus instance
-      const audioBus = new KGAudioBus(sampler, audioBuffers, instrument, volume, muted, solo);
+      const panner = new Tone.Panner(pan);
+      sampler.connect(panner);
+      const audioBus = new KGAudioBus(sampler, audioBuffers, instrument, panner, volume, pan, muted, solo);
       
       console.log(`KGAudioBus created successfully for ${instrument}`);
       return audioBus;
@@ -315,11 +327,41 @@ export class KGAudioBus {
     console.log(`Set ${this.instrument} volume to ${volume}`);
   }
 
+  public setAutomationVolume(volume: number | null): void {
+    this.automationVolume = volume;
+    this.updateSamplerVolume();
+  }
+
   /**
    * Get the current volume
    */
   public getVolume(): number {
     return this.volume;
+  }
+
+  public setPan(pan: number): void {
+    this.pan = Math.max(-1, Math.min(1, pan));
+    this.updatePanValue();
+  }
+
+  public setAutomationPan(pan: number | null): void {
+    this.automationPan = pan === null ? null : Math.max(-1, Math.min(1, pan));
+    this.updatePanValue();
+  }
+
+  public scheduleAutomationPan(pan: number, time: number): void {
+    const clampedPan = Math.max(-1, Math.min(1, pan));
+    this.automationPan = clampedPan;
+    if (typeof this.panner.pan.setValueAtTime === 'function') {
+      this.panner.pan.setValueAtTime(clampedPan, time);
+      return;
+    }
+
+    this.panner.pan.value = clampedPan;
+  }
+
+  public getPan(): number {
+    return this.pan;
   }
 
   /**
@@ -382,9 +424,11 @@ export class KGAudioBus {
       this.sampler = sampler;
       this.audioBuffers = audioBuffers;
       this.instrument = newInstrument;
+      this.sampler.connect(this.panner);
       
       // Restore volume settings
       this.updateSamplerVolume();
+      this.updatePanValue();
       
       console.log(`Instrument changed successfully to ${newInstrument}`);
     } catch (error) {
@@ -400,7 +444,7 @@ export class KGAudioBus {
    */
   public connect(destination: Tone.InputNode): void {
     try {
-      this.sampler.connect(destination);
+      this.panner.connect(destination);
       console.log(`Connected ${this.instrument} to audio destination`);
     } catch (error) {
       console.error(`Error connecting ${this.instrument} to destination:`, error);
@@ -412,7 +456,7 @@ export class KGAudioBus {
    */
   public disconnect(): void {
     try {
-      this.sampler.disconnect();
+      this.panner.disconnect();
       console.log(`Disconnected ${this.instrument} from all destinations`);
     } catch (error) {
       console.error(`Error disconnecting ${this.instrument}:`, error);
@@ -424,7 +468,7 @@ export class KGAudioBus {
    */
   public toDestination(): void {
     try {
-      this.sampler.toDestination();
+      this.panner.toDestination();
       console.log(`Connected ${this.instrument} to main output`);
     } catch (error) {
       console.error(`Error connecting ${this.instrument} to main output:`, error);
@@ -440,6 +484,7 @@ export class KGAudioBus {
     try {
       this.releaseAll();
       this.sampler.dispose();
+      this.panner.dispose();
       console.log(`Disposed KGAudioBus for ${this.instrument}`);
     } catch (error) {
       console.error(`Error disposing KGAudioBus for ${this.instrument}:`, error);
@@ -453,10 +498,24 @@ export class KGAudioBus {
    */
   private updateSamplerVolume(): void {
     try {
-      const isSilent = this.muted || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
-      this.sampler.volume.value = isSilent ? -Infinity : this.volume;
+      const effectiveVolume = this.automationVolume ?? this.volume;
+      const isSilent = this.muted || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.sampler.volume.value = isSilent ? -Infinity : effectiveVolume;
     } catch (error) {
       console.error(`Error updating volume for ${this.instrument}:`, error);
+    }
+  }
+
+  private updatePanValue(): void {
+    try {
+      const effectivePan = this.automationPan ?? this.pan;
+      if (typeof this.panner.pan.setValueAtTime === 'function') {
+        this.panner.pan.setValueAtTime(effectivePan, Tone.now());
+      } else {
+        this.panner.pan.value = effectivePan;
+      }
+    } catch (error) {
+      console.error(`Error updating pan for ${this.instrument}:`, error);
     }
   }
 
@@ -466,8 +525,9 @@ export class KGAudioBus {
    */
   public applyEffectiveVolume(hasSoloedTracks: boolean): void {
     try {
-      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || this.volume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
-      this.sampler.volume.value = isSilent ? -Infinity : this.volume;
+      const effectiveVolume = this.automationVolume ?? this.volume;
+      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      this.sampler.volume.value = isSilent ? -Infinity : effectiveVolume;
     } catch (error) {
       console.error(`Error applying effective volume for ${this.instrument}:`, error);
     }
@@ -512,12 +572,14 @@ export class KGAudioBus {
   public getState(): {
     instrument: InstrumentType;
     volume: number;
+    pan: number;
     muted: boolean;
     solo: boolean;
   } {
     return {
       instrument: this.instrument,
       volume: this.volume,
+      pan: this.pan,
       muted: this.muted,
       solo: this.solo
     };

@@ -12,6 +12,12 @@ export { AddAudioTrackCommand } from './track/AddAudioTrackCommand';
 export { RemoveTrackCommand } from './track/RemoveTrackCommand';
 export { ReorderTracksCommand } from './track/ReorderTracksCommand';
 export { UpdateTrackCommand, type TrackUpdateProperties } from './track/UpdateTrackCommand';
+export {
+  CreateTrackAutomationPointsCommand,
+  type TrackAutomationPointCreationData,
+} from './track/CreateTrackAutomationPointsCommand';
+export { DeleteTrackAutomationPointsCommand } from './track/DeleteTrackAutomationPointsCommand';
+export { UpdateTrackAutomationPointsCommand } from './track/UpdateTrackAutomationPointsCommand';
 
 // Region commands
 export { CreateRegionCommand } from './region/CreateRegionCommand';
