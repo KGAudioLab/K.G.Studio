@@ -1,0 +1,39 @@
+export type PianoRollAutomationType =
+  | 'pitch-bend'
+  | 'cc-1'
+  | 'cc-2'
+  | 'cc-7'
+  | 'cc-11'
+  | 'cc-64';
+
+export interface PianoRollAutomationOption {
+  label: string;
+  value: PianoRollAutomationType;
+}
+
+export const PIANO_ROLL_AUTOMATION_OPTIONS: PianoRollAutomationOption[] = [
+  { label: 'Pitch Bend', value: 'pitch-bend' },
+  { label: 'CC1', value: 'cc-1' },
+  { label: 'CC2', value: 'cc-2' },
+  { label: 'CC7', value: 'cc-7' },
+  { label: 'CC11', value: 'cc-11' },
+  { label: 'CC64', value: 'cc-64' },
+];
+
+export function getControllerNumberForAutomationType(type: PianoRollAutomationType): number | null {
+  switch (type) {
+    case 'cc-1':
+      return 1;
+    case 'cc-2':
+      return 2;
+    case 'cc-7':
+      return 7;
+    case 'cc-11':
+      return 11;
+    case 'cc-64':
+      return 64;
+    case 'pitch-bend':
+    default:
+      return null;
+  }
+}

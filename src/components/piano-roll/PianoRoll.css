@@ -201,6 +201,34 @@
   left: 0;
 }
 
+.piano-roll-automation-toolbar-group {
+  display: flex;
+  align-items: center;
+  margin-right: 5px;
+}
+
+.piano-roll-toolbar .automation-toggle-button {
+  width: 20px;
+  min-width: 20px;
+  margin: 0px 0px 0px 3px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border: 1px solid #444;
+  border-right: 0px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.piano-roll-toolbar .automation-type-dropdown {
+  min-width: 92px;
+  height: 20px;
+  margin: 0;
+  padding: 0 6px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  font-size: 10px;
+}
+
 /* Spectrogram toolbar controls */
 .spectrogram-toolbar-controls {
   display: flex;
@@ -267,7 +295,35 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.piano-roll-main-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+}
+
+.piano-roll-main-section.with-automation {
+  flex: 0 0 50%;
+}
+
+.piano-roll-note-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: visible;
+}
+
+.piano-roll-automation-section {
+  flex: 0 0 50%;
+  min-height: 0;
+  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+  border-top: 1px solid #3a3a3a;
+  overflow: hidden;
 }
 
 .spectrogram-loading-overlay {
@@ -421,6 +477,96 @@
   border: 1px solid transparent;
   pointer-events: none;
   z-index: 3;
+}
+
+.piano-roll-automation-lane {
+  position: relative;
+  height: 100%;
+  background: linear-gradient(180deg, #343434 0%, #2e2e2e 100%);
+  overflow: hidden;
+}
+
+.piano-roll-automation-track {
+  position: relative;
+  height: 100%;
+  min-height: 160px;
+  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+}
+
+.piano-roll-automation-track::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--region-piano-key-width);
+  width: 1px;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.piano-roll-automation-gutter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--region-piano-key-width);
+  background: linear-gradient(180deg, #343434 0%, #2e2e2e 100%);
+}
+
+.piano-roll-automation-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--region-piano-key-width);
+  right: 0;
+  background: linear-gradient(180deg, #343434 0%, #2e2e2e 100%);
+  background-image:
+    repeating-linear-gradient(to right,
+      transparent,
+      transparent calc(var(--region-grid-beat-width) - 1px),
+      rgba(255, 255, 255, 0.08) calc(var(--region-grid-beat-width) - 1px),
+      rgba(255, 255, 255, 0.08) var(--region-grid-beat-width));
+}
+
+.piano-roll-automation-lane-label {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 1;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #87cefa;
+  text-transform: uppercase;
+}
+
+.piano-roll-automation-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.piano-roll-automation-line {
+  filter: drop-shadow(0 0 2px rgba(135, 206, 250, 0.3));
+}
+
+.piano-roll-automation-value {
+  font-size: 11px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(30, 30, 30, 0.8);
+  stroke-width: 2px;
+  pointer-events: none;
+}
+
+.piano-roll-automation-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7893a5;
+  font-size: 11px;
+  pointer-events: none;
 }
 
 .resize-handle {

@@ -85,6 +85,7 @@ interface ProjectState {
   activeRegionId: string | null;
   pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
+  automationRedrawVersion: number;
   
   // ChatBox state
   showChatBox: boolean;
@@ -168,6 +169,7 @@ interface ProjectState {
   openMidiPianoRoll: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
+  bumpAutomationRedrawVersion: () => void;
   
   // Project state cleanup
   cleanupProjectState: () => void;
@@ -374,6 +376,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
+    automationRedrawVersion: 0,
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
@@ -1249,6 +1252,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     openHybridMode: (midiRegionId: string, audioRegionId: string) => {
       set({ showPianoRoll: true, activeRegionId: midiRegionId, hybridAudioRegionId: audioRegionId, pianoRollMode: 'hybrid' });
+    },
+    bumpAutomationRedrawVersion: () => {
+      set(state => ({ automationRedrawVersion: state.automationRedrawVersion + 1 }));
     },
     
     // Project state cleanup - used when starting new/loading projects

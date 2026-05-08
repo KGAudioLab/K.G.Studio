@@ -192,7 +192,8 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     selectedControllerEventIds,
     playheadPosition,
     updateTrack,
-    refreshProjectState
+    refreshProjectState,
+    bumpAutomationRedrawVersion
   } = useProjectStore();
 
   const [showNotes, setShowNotes] = useState(true);
@@ -597,6 +598,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }
 
       KGCore.instance().executeCommand(new UpdatePitchBendPropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
+      bumpAutomationRedrawVersion();
     } else {
       const controllerEvent = row.controllerEvent;
       const targetControllerEvents = selectedControllerEventIdSet.has(controllerEvent.getId()) && selectedControllerEventIds.length > 1
@@ -694,6 +696,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }
 
       KGCore.instance().executeCommand(new UpdateControllerEventPropertiesCommand(activeMidiRegion.getId(), snapshots, updates));
+      bumpAutomationRedrawVersion();
     }
 
     await updateTrack(parentTrack);
@@ -890,6 +893,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }]);
 
       KGCore.instance().executeCommand(command);
+      bumpAutomationRedrawVersion();
       const createdPitchBend = command.getCreatedPitchBends()[0]?.pitchBend;
       if (createdPitchBend) {
         createdPitchBend.select();
@@ -910,6 +914,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       }]);
 
       KGCore.instance().executeCommand(command);
+      bumpAutomationRedrawVersion();
       const createdControllerEvent = command.getCreatedControllerEvents()[0]?.controllerEvent;
       if (createdControllerEvent) {
         createdControllerEvent.select();
@@ -938,6 +943,9 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       .map(row => row.controllerEvent.getId());
 
     KGCore.instance().executeCommand(new DeleteMidiEventsCommand(noteIds, pitchBendIds, controllerEventIds));
+    if (pitchBendIds.length > 0 || controllerEventIds.length > 0) {
+      bumpAutomationRedrawVersion();
+    }
     rangeAnchorEventIdRef.current = null;
     await updateTrack(parentTrack);
     refreshProjectState();

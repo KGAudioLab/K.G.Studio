@@ -15,9 +15,12 @@ import type { KeySignature } from '../../core/KGProject';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { velocityToColor } from '../../util/velocityColor';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
+import PianoRollAutomationLane from './PianoRollAutomationLane';
+import type { PianoRollAutomationType } from './pianoRollAutomation';
 
 interface PianoRollContentProps {
   contentRef: React.MutableRefObject<HTMLDivElement | null>;
+  noteScrollRef: React.MutableRefObject<HTMLDivElement | null>;
   pianoGridRef: React.MutableRefObject<HTMLDivElement | null>;
   maxBars: number;
   timeSignature: { numerator: number; denominator: number };
@@ -38,10 +41,14 @@ interface PianoRollContentProps {
   spectrogramPower?: number;
   spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
+  automationEnabled?: boolean;
+  automationType?: PianoRollAutomationType;
+  automationRedrawVersion?: number;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
   contentRef,
+  noteScrollRef,
   pianoGridRef,
   maxBars,
   timeSignature,
@@ -62,8 +69,12 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   spectrogramPower = 0.5,
   spectrogramHeightResolution = 3,
   pianoRollZoom = 1,
+  automationEnabled = false,
+  automationType = 'pitch-bend',
+  automationRedrawVersion = 0,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
+  const showAutomationLane = automationEnabled && !isSpectrogram;
   const [spectrogramLoading, setSpectrogramLoading] = useState(false);
   const handleSpectrogramLoadingChange = useCallback((loading: boolean) => {
     setSpectrogramLoading(loading);
@@ -275,37 +286,54 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
       <div
         className="piano-roll-content"
         ref={contentRef}
+        data-testid={showAutomationLane ? 'piano-roll-content-split' : 'piano-roll-content-single'}
       >
-        <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
+        <div className={`piano-roll-main-section ${showAutomationLane ? 'with-automation' : ''}`}>
+          <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
 
-        <div className="piano-roll-body">
-          <PianoKeys activeRegion={activeRegion} />
+          <div className="piano-roll-note-scroll" ref={noteScrollRef}>
+            <div className="piano-roll-body">
+              <PianoKeys activeRegion={activeRegion} />
 
-          <PianoGrid
-            gridRef={pianoGridRef}
-            onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
-            onClick={isSpectrogram ? () => {} : handleCombinedClick}
-            onMouseDown={isSpectrogram ? () => {} : handleBackgroundMouseDown}
-            isBoxSelecting={isSpectrogram ? false : isBoxSelectingRef.current}
-            selectionBox={isSpectrogram ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
-            regionStartBeat={activeRegion?.getStartFromBeat() || 0}
-            selectedMode={selectedMode}
-            keySignature={keySignature}
-            chordGuide={chordGuide}
-            audioRegion={audioRegion}
-            trackId={trackId}
-            projectName={projectName}
-            bpm={bpm}
-            spectrogramThresholdDb={spectrogramThresholdDb}
-            spectrogramPower={spectrogramPower}
-            spectrogramHeightResolution={spectrogramHeightResolution}
-            pianoRollZoom={pianoRollZoom}
-            onSpectrogramLoadingChange={handleSpectrogramLoadingChange}
-          >
-            {memoizedNotes}
-            {!isSpectrogram && recordingNoteOverlays}
-          </PianoGrid>
+              <PianoGrid
+                gridRef={pianoGridRef}
+                onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
+                onClick={isSpectrogram ? () => {} : handleCombinedClick}
+                onMouseDown={isSpectrogram ? () => {} : handleBackgroundMouseDown}
+                isBoxSelecting={isSpectrogram ? false : isBoxSelectingRef.current}
+                selectionBox={isSpectrogram ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
+                regionStartBeat={activeRegion?.getStartFromBeat() || 0}
+                selectedMode={selectedMode}
+                keySignature={keySignature}
+                chordGuide={chordGuide}
+                audioRegion={audioRegion}
+                trackId={trackId}
+                projectName={projectName}
+                bpm={bpm}
+                spectrogramThresholdDb={spectrogramThresholdDb}
+                spectrogramPower={spectrogramPower}
+                spectrogramHeightResolution={spectrogramHeightResolution}
+                pianoRollZoom={pianoRollZoom}
+                onSpectrogramLoadingChange={handleSpectrogramLoadingChange}
+              >
+                {memoizedNotes}
+                {!isSpectrogram && recordingNoteOverlays}
+              </PianoGrid>
+            </div>
+          </div>
         </div>
+        {showAutomationLane && (
+          <div className="piano-roll-automation-section">
+            <PianoRollAutomationLane
+              activeRegion={activeRegion}
+              automationType={automationType}
+              maxBars={maxBars}
+              timeSignature={timeSignature}
+              bpm={bpm}
+              redrawVersion={automationRedrawVersion}
+            />
+          </div>
+        )}
       </div>
       {spectrogramLoading && (
         <div className="spectrogram-loading-overlay">

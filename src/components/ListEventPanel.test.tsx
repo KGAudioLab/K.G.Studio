@@ -26,6 +26,7 @@ vi.mock('../stores/projectStore', () => ({
     playheadPosition: 4,
     updateTrack: vi.fn().mockResolvedValue(undefined),
     refreshProjectState: vi.fn(),
+    bumpAutomationRedrawVersion: vi.fn(),
   }),
 }));
 
