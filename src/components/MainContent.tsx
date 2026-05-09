@@ -587,6 +587,7 @@ const MainContent: React.FC<MainContentProps> = ({
       : null;
 
     setSelectedRegionId(lastSelectedRegionId);
+    setActiveRegionId(lastSelectedRegionId);
 
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Selected regions: ${selectedRegions.map(selectedRegion => selectedRegion.getId()).join(', ')}`);
@@ -598,7 +599,6 @@ const MainContent: React.FC<MainContentProps> = ({
 
     if (!lastSelectedRegionId) {
       setShowPianoRoll(false);
-      setActiveRegionId(null);
       return;
     }
 

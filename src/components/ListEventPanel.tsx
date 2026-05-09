@@ -297,6 +297,11 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       .filter(row => nextSelectedIds.has(row.id))
       .map(row => row.type === 'note' ? row.note : row.type === 'pitch-bend' ? row.pitchBend : row.controllerEvent);
     const core = KGCore.instance();
+    const previouslySelectedRegionEvents = core.getSelectedItems().filter(item =>
+      (item instanceof KGMidiNote && activeMidiRegion.getNotes().some(note => note.getId() === item.getId())) ||
+      (item instanceof KGMidiPitchBend && activeMidiRegion.getPitchBends().some(pitchBend => pitchBend.getId() === item.getId())) ||
+      (item instanceof KGMidiControllerEvent && activeMidiRegion.getAllControllerEventsFlattened().some(({ event }) => event.getId() === item.getId()))
+    );
 
     activeMidiRegion.getNotes().forEach(note => {
       if (nextSelectedIds.has(note.getId())) note.select();
@@ -313,7 +318,9 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       });
     });
 
-    core.clearSelectedItems();
+    if (previouslySelectedRegionEvents.length > 0) {
+      core.removeSelectedItems(previouslySelectedRegionEvents);
+    }
     if (selectedEvents.length > 0) {
       core.addSelectedItems(selectedEvents);
     }
