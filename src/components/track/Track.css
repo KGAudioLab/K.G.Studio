@@ -238,3 +238,74 @@
   /* red */
   color: #ffffff;
 }
+
+.pan-controls button.automation.active {
+  background: #d7eef9;
+  color: #101010;
+}
+
+.track-grid.automation-active {
+  position: relative;
+}
+
+.track-automation-lane {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  cursor: default;
+}
+
+.track-automation-lane.pencil-cursor {
+  cursor: crosshair;
+}
+
+.track-automation-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.track-automation-center-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.track-automation-svg {
+  position: absolute;
+  inset: 0;
+}
+
+.track-automation-line {
+  pointer-events: none;
+}
+
+.track-automation-point {
+  cursor: pointer;
+}
+
+.track-automation-point.selected {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.35));
+}
+
+.track-automation-value {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+}
+
+.track-automation-selection-box {
+  position: absolute;
+  border: 1px solid rgba(135, 206, 250, 0.85);
+  background: rgba(135, 206, 250, 0.15);
+  pointer-events: none;
+}

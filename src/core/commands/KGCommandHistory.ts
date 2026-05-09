@@ -33,7 +33,7 @@ export class KGCommandHistory {
    * Execute a command and add it to the history
    * @param command The command to execute
    */
-  public executeCommand(command: KGCommand): void {
+  public executeCommand(command: KGCommand, options?: { rethrow?: boolean }): void {
     try {
       // Execute the command
       command.execute();
@@ -76,6 +76,9 @@ export class KGCommandHistory {
       this.notifyHistoryChanged();
     } catch (error) {
       console.error('Failed to execute command:', error);
+      if (options?.rethrow) {
+        throw error;
+      }
       // Don't add failed commands to history
     }
   }

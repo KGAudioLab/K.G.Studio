@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { encodeWav } from './KGOfflineRenderer';
+import { applyOfflinePitchBendAutomation, encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
+import { bakeMidiAutomationPointsInWindow } from '../../util/midiAutomationUtil';
 
 /**
  * Create a minimal AudioBuffer-like object for testing.
@@ -143,5 +144,87 @@ describe('encodeWav', () => {
     expect(result.byteLength).toBe(44); // header only
     const view = new DataView(result);
     expect(view.getUint32(40, true)).toBe(0); // data size = 0
+  });
+});
+
+describe('offline track volume conversion', () => {
+  it('treats 0 dB as unity gain instead of silence', () => {
+    expect(getOfflineTrackVolumeDb(0, false)).toBe(0);
+    expect(getOfflineTrackGain(0, false)).toBe(1);
+  });
+
+  it('converts negative dB values to linear gain', () => {
+    expect(getOfflineTrackVolumeDb(-6, false)).toBe(-6);
+    expect(getOfflineTrackGain(-6, false)).toBeCloseTo(Math.pow(10, -6 / 20), 6);
+  });
+
+  it('silences muted tracks and floor-level volumes', () => {
+    expect(getOfflineTrackVolumeDb(0, true)).toBe(-Infinity);
+    expect(getOfflineTrackGain(0, true)).toBe(0);
+    expect(getOfflineTrackVolumeDb(-60, false)).toBe(-Infinity);
+    expect(getOfflineTrackGain(-60, false)).toBe(0);
+  });
+});
+
+describe('offline pitch bend automation', () => {
+  it('applies baked pitch bends to source playback rate automation', () => {
+    const source = {
+      playbackRate: {
+        value: 1,
+        setValueAtTime: (..._args: unknown[]) => undefined,
+      },
+    } as unknown as Parameters<typeof applyOfflinePitchBendAutomation>[0];
+
+    const calls: Array<[number, number]> = [];
+    source.playbackRate.setValueAtTime = ((value: number, time: number) => {
+      calls.push([value, time]);
+      return source.playbackRate as never;
+    }) as typeof source.playbackRate.setValueAtTime;
+
+    applyOfflinePitchBendAutomation(
+      source,
+      1,
+      [{ beat: 1, value: 0 }],
+      0,
+      0.5
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toBe(0.5);
+    expect(calls[0][0]).toBeCloseTo(Math.pow(2, -2 / 12), 5);
+  });
+
+  it('applies only distinct quantized pitch bend transitions from a shallow ramp', () => {
+    const source = {
+      playbackRate: {
+        value: 1,
+        setValueAtTime: (..._args: unknown[]) => undefined,
+      },
+    } as unknown as Parameters<typeof applyOfflinePitchBendAutomation>[0];
+
+    const calls: Array<[number, number]> = [];
+    source.playbackRate.setValueAtTime = ((value: number, time: number) => {
+      calls.push([value, time]);
+      return source.playbackRate as never;
+    }) as typeof source.playbackRate.setValueAtTime;
+
+    const baked = bakeMidiAutomationPointsInWindow(
+      [
+        { beat: 0, value: 8192 },
+        { beat: 1, value: 8193 },
+      ],
+      0,
+      1,
+      {
+        maxIntervalMs: 20,
+        bpm: 120,
+        defaultValue: 8192,
+      }
+    );
+
+    applyOfflinePitchBendAutomation(source, 1, baked.filter(point => point.beat > 0), 0, 0.5);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toBe(0.26);
   });
 });

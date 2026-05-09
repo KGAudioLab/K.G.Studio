@@ -8,13 +8,15 @@ import { selectAllNotesInActiveRegion } from '../util/selectionUtil';
 import { KGCore } from '../core/KGCore';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { showAlert } from '../util/dialogUtil';
 
 /**
  * Global keyboard handler for copy/paste, undo/redo, play/pause, and save operations
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRoll, openSpectrogramViewer } = useProjectStore();
+  const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -134,8 +136,8 @@ export const useGlobalKeyboardHandler = () => {
             startPlaying();
             setStatus('Playback started');
           } else {
-            stopPlaying();
-            setStatus('Playback stopped');
+            stopTransport();
+            setStatus(isRecording ? 'Recording stopped — notes committed' : 'Playback stopped');
           }
         } catch (error) {
           console.error('Play/pause failed:', error);
@@ -165,7 +167,7 @@ export const useGlobalKeyboardHandler = () => {
           setStatus('Recording stopped — notes committed');
           return;
         }
-        const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+        const candidateId = activeRegionId ?? lastSelectedRegionId;
         if (!candidateId) {
           setStatus('Select a MIDI region before recording');
           return;
@@ -193,6 +195,37 @@ export const useGlobalKeyboardHandler = () => {
         return;
       }
 
+      // Check for edit/view shortcut (E) — open piano roll for MIDI, spectrogram for audio
+      if (event.key.toLowerCase() === 'e' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        if (showPianoRoll) {
+          setShowPianoRoll(false);
+          return;
+        }
+        const candidateId = activeRegionId ?? lastSelectedRegionId;
+        if (!candidateId) {
+          void showAlert('Please select a region to open the editor.');
+          return;
+        }
+        const tracks = KGCore.instance().getCurrentProject().getTracks();
+        let foundMidi = false;
+        let foundAudio = false;
+        for (const track of tracks) {
+          const region = track.getRegions().find(r => r.getId() === candidateId);
+          if (region) {
+            if (region instanceof KGMidiRegion) foundMidi = true;
+            else foundAudio = true;
+            break;
+          }
+        }
+        if (foundMidi) {
+          openMidiPianoRoll(candidateId);
+        } else if (foundAudio) {
+          openSpectrogramViewer(candidateId);
+        }
+        return;
+      }
+
       // Check for save shortcut
       if (saveShortcut && matchesKeyboardShortcut(event, saveShortcut)) {
         event.preventDefault();
@@ -216,5 +249,27 @@ export const useGlobalKeyboardHandler = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [undo, redo, setStatus, isPlaying, startPlaying, stopPlaying, toggleLoop, projectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll]); // Include dependencies for store actions
+  }, [
+    undo,
+    redo,
+    setStatus,
+    isPlaying,
+    startPlaying,
+    stopTransport,
+    toggleLoop,
+    projectName,
+    savedProjectName,
+    setSavedProjectName,
+    setProjectName,
+    isRecording,
+    startRecording,
+    stopRecording,
+    activeRegionId,
+    lastSelectedRegionId,
+    setActiveRegionId,
+    setShowPianoRoll,
+    showPianoRoll,
+    openMidiPianoRoll,
+    openSpectrogramViewer,
+  ]); // Include dependencies for store actions
 };

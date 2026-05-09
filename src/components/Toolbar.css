@@ -42,9 +42,12 @@
 }
 
 .toolbar button {
+  --toolbar-button-bg: transparent;
+  --toolbar-button-fg: #e0e0e0;
   background: transparent;
   border: none;
-  color: #e0e0e0;
+  background-color: var(--toolbar-button-bg);
+  color: var(--toolbar-button-fg);
   margin: 0 5px;
   width: 28px;
   height: 28px;
@@ -55,10 +58,48 @@
   border-radius: 3px;
   font-size: 14px;
   pointer-events: auto;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+
+.toolbar button svg {
+  transition: color 0.18s ease, fill 0.18s ease;
 }
 
 .toolbar button:hover {
-  background-color: #3a3a3a;
+  --toolbar-button-bg: #3a3a3a;
+}
+
+.toolbar button.active,
+.toolbar .tool-button.active {
+  --toolbar-button-bg: #e0e0e0;
+  --toolbar-button-fg: #2d2d2d;
+}
+
+.toolbar button.tool-button.active {
+  background-color: var(--toolbar-button-bg);
+  color: var(--toolbar-button-fg);
+}
+
+.toolbar button.active:hover,
+.toolbar .tool-button.active:hover {
+  --toolbar-button-bg: #f0f0f0;
+}
+
+.toolbar button.active:active,
+.toolbar .tool-button.active:active {
+  --toolbar-button-bg: #d6d6d6;
+}
+
+.toolbar button:focus,
+.toolbar button:focus-visible,
+.toolbar .tool-button:focus,
+.toolbar .tool-button:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .toolbar button:disabled {
@@ -67,12 +108,27 @@
 }
 
 .toolbar button:active {
-  background-color: #5a5a5a;
+  --toolbar-button-bg: #5a5a5a;
   transform: scale(0.95);
 }
 
 .record-btn {
   color: #ff4444;
+}
+
+.toolbar .record-button.active {
+  --toolbar-button-bg: #ffd7d9;
+  --toolbar-button-fg: #d9363e;
+}
+
+.toolbar .record-button.active:hover {
+  --toolbar-button-bg: #ffc4c7;
+  --toolbar-button-fg: #c92d35;
+}
+
+.toolbar .record-button.active:active {
+  --toolbar-button-bg: #ffb0b4;
+  --toolbar-button-fg: #b8242d;
 }
 
 .toolbar-separator {

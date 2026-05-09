@@ -3,7 +3,7 @@
  * Tests the critical data flow: Store Actions → Core Models → UI State Updates
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act } from '@testing-library/react';
 
 // Import core classes
 import { KGCore } from '../../../core/KGCore';
@@ -314,6 +314,195 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(storeState.isPlaying).toBe(true);
       expect(recordingCallbacksSpy).toHaveBeenCalled();
       expect(startPlayingSpy).toHaveBeenCalledWith({ preserveLoopPreroll: true });
+    });
+
+    it('should commit recording when transport is stopped during recording', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      const executeCommandSpy = vi.spyOn(core, 'executeCommand');
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      vi.spyOn(mockAudioInterface, 'getTransportPosition').mockReturnValue(5);
+
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(4);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const noteOn = setRecordingCallbacksSpy.mock.calls.at(-1)?.[0];
+      const noteOff = setRecordingCallbacksSpy.mock.calls.at(-1)?.[1];
+      expect(noteOn).toBeTypeOf('function');
+      expect(noteOff).toBeTypeOf('function');
+
+      act(() => {
+        noteOn?.(60, 96);
+        noteOff?.(60);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      const storeState = useProjectStore.getState();
+      expect(storeState.isRecording).toBe(false);
+      expect(storeState.isPlaying).toBe(false);
+      expect(storeState.recordingNotes).toHaveLength(0);
+      expect(storeState.recordingPitchBends).toHaveLength(0);
+      expect(executeCommandSpy).toHaveBeenCalled();
+      expect(mockAudioInterface.stopPlayback).toHaveBeenCalled();
+      expect(setRecordingCallbacksSpy).toHaveBeenLastCalledWith(null, null, null);
+      expect(testRegion.getNotes()).toHaveLength(1);
+      expect(testRegion.getNotes()[0].getVelocity()).toBe(96);
+    });
+
+    it('records pitch bends and skips consecutive duplicates', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      vi.spyOn(mockAudioInterface, 'getTransportPosition')
+        .mockReturnValueOnce(20)
+        .mockReturnValueOnce(20.5)
+        .mockReturnValueOnce(21);
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(18);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const onPitchBend = setRecordingCallbacksSpy.mock.calls.at(-1)?.[2];
+      expect(onPitchBend).toBeTypeOf('function');
+
+      act(() => {
+        onPitchBend?.(8192);
+        onPitchBend?.(8192);
+        onPitchBend?.(12288);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      expect(testRegion.getPitchBends()).toHaveLength(2);
+      expect(testRegion.getPitchBends().map(event => event.getValue())).toEqual([8192, 12288]);
+    });
+
+    it('should cut a held looped recording note at the loop end when note off arrives after wrap', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+      testProject.setIsLooping(true);
+      testProject.setLoopingRange([4, 7]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      vi.spyOn(mockAudioInterface, 'getTransportPosition')
+        .mockReturnValueOnce(31.4)
+        .mockReturnValueOnce(16.9);
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(18);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const noteOn = setRecordingCallbacksSpy.mock.calls.at(-1)?.[0];
+      const noteOff = setRecordingCallbacksSpy.mock.calls.at(-1)?.[1];
+
+      act(() => {
+        noteOn?.(60, 72);
+        noteOff?.(60);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      const notes = testRegion.getNotes();
+      expect(notes).toHaveLength(1);
+      expect(notes[0].getStartBeat()).toBeCloseTo(15);
+      expect(notes[0].getEndBeat()).toBeCloseTo(16);
+      expect(notes[0].getVelocity()).toBe(72);
+    });
+
+    it('should preserve velocity when finalizing a held recording note on stop', async () => {
+      const testTrack = new KGMidiTrack('Recording Track', 0, 'acoustic_grand_piano');
+      const testRegion = new KGMidiRegion('record-region', 'track-0', 0, 'Recording Region', 16, 16);
+      testTrack.addRegion(testRegion);
+      testProject.setTracks([testTrack]);
+
+      await act(async () => {
+        await useProjectStore.getState().loadProject(testProject);
+      });
+
+      const core = KGCore.instance();
+      vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
+      vi.spyOn(mockAudioInterface, 'getTransportPosition')
+        .mockReturnValueOnce(5)
+        .mockReturnValueOnce(6.5);
+      const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
+      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+
+      act(() => {
+        setActiveRegionId(testRegion.getId());
+        setPlayheadPosition(4);
+      });
+
+      await act(async () => {
+        await startRecording();
+      });
+
+      const noteOn = setRecordingCallbacksSpy.mock.calls.at(-1)?.[0];
+      expect(noteOn).toBeTypeOf('function');
+
+      act(() => {
+        noteOn?.(60, 48);
+      });
+
+      await act(async () => {
+        await stopTransport();
+      });
+
+      const notes = testRegion.getNotes();
+      expect(notes).toHaveLength(1);
+      expect(notes[0].getVelocity()).toBe(48);
     });
   });
 

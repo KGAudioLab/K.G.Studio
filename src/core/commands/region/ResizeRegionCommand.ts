@@ -3,7 +3,9 @@ import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
+import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 
 /**
  * Command to resize a region (change start position and/or length)
@@ -22,6 +24,15 @@ export class ResizeRegionCommand extends KGCommand {
     noteId: string;
     originalStartBeat: number;
     originalEndBeat: number;
+  }> = [];
+  private pitchBendAdjustments: Array<{
+    pitchBendId: string;
+    originalBeat: number;
+  }> = [];
+  private controllerEventAdjustments: Array<{
+    controller: number;
+    controllerEventId: string;
+    originalBeat: number;
   }> = [];
 
   // Audio region clip offset support
@@ -81,6 +92,23 @@ export class ResizeRegionCommand extends KGCommand {
         note.setStartBeat(note.getStartBeat() - beatOffset);
         note.setEndBeat(note.getEndBeat() - beatOffset);
       });
+      targetRegion.getPitchBends().forEach((pitchBend: KGMidiPitchBend) => {
+        this.pitchBendAdjustments.push({
+          pitchBendId: pitchBend.getId(),
+          originalBeat: pitchBend.getBeat(),
+        });
+        pitchBend.setBeat(pitchBend.getBeat() - beatOffset);
+      });
+      targetRegion.getControllerEventsByType().forEach((events, controller) => {
+        events.forEach((controllerEvent: KGMidiControllerEvent) => {
+          this.controllerEventAdjustments.push({
+            controller,
+            controllerEventId: controllerEvent.getId(),
+            originalBeat: controllerEvent.getBeat(),
+          });
+          controllerEvent.setBeat(controllerEvent.getBeat() - beatOffset);
+        });
+      });
 
       console.log(`Adjusted ${notes.length} notes by offset ${-beatOffset} beats to maintain absolute positions`);
     }
@@ -121,6 +149,25 @@ export class ResizeRegionCommand extends KGCommand {
       });
 
       console.log(`Restored ${this.noteAdjustments.length} notes to their original positions`);
+    }
+    if (this.pitchBendAdjustments.length > 0 && this.targetRegion instanceof KGMidiRegion) {
+      const pitchBends = this.targetRegion.getPitchBends();
+      this.pitchBendAdjustments.forEach(adjustment => {
+        const pitchBend = pitchBends.find(candidate => candidate.getId() === adjustment.pitchBendId);
+        if (pitchBend) {
+          pitchBend.setBeat(adjustment.originalBeat);
+        }
+      });
+    }
+    if (this.controllerEventAdjustments.length > 0 && this.targetRegion instanceof KGMidiRegion) {
+      const midiRegion = this.targetRegion;
+      this.controllerEventAdjustments.forEach(adjustment => {
+        const controllerEvent = midiRegion.getControllerEvents(adjustment.controller)
+          .find(candidate => candidate.getId() === adjustment.controllerEventId);
+        if (controllerEvent) {
+          controllerEvent.setBeat(adjustment.originalBeat);
+        }
+      });
     }
 
     // Restore clip offset for audio regions

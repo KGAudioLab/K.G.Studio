@@ -10,8 +10,13 @@ export const MockSampler = vi.fn().mockImplementation(() => ({
   triggerAttackRelease: vi.fn(),
   triggerAttack: vi.fn(),
   triggerRelease: vi.fn(),
+  releaseAll: vi.fn(),
   dispose: vi.fn(),
   loaded: true,
+  attack: 0,
+  release: 0.1,
+  curve: 'exponential',
+  output: {},
   volume: {
     value: -12
   },
@@ -19,6 +24,20 @@ export const MockSampler = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
   toDestination: vi.fn()
 }));
+
+export const MockBufferSource = vi.fn().mockImplementation((options?: { playbackRate?: number }) => {
+  const instance = {
+    playbackRate: {
+      value: options?.playbackRate ?? 1,
+      setValueAtTime: vi.fn(),
+    },
+    connect: vi.fn(() => instance),
+    start: vi.fn(() => instance),
+    stop: vi.fn(() => instance),
+    onended: undefined as (() => void) | undefined,
+  };
+  return instance;
+});
 
 // Mock Transport object
 export const MockTransport = {
@@ -71,9 +90,9 @@ export const MockToneAudioBuffer = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock Gain node
-export const MockGain = vi.fn().mockImplementation(() => ({
+export const MockGain = vi.fn().mockImplementation((initialValue: number = 1) => ({
   gain: {
-    value: 1,
+    value: initialValue,
     setValueAtTime: vi.fn(),
     linearRampToValueAtTime: vi.fn(),
     exponentialRampToValueAtTime: vi.fn()
@@ -94,6 +113,8 @@ export const MockMeter = vi.fn().mockImplementation(() => ({
 // Complete Tone.js mock
 export const ToneMock = {
   Sampler: MockSampler,
+  BufferSource: MockBufferSource,
+  ToneBufferSource: MockBufferSource,
   Loop: MockLoop,
   Transport: MockTransport,
   Destination: MockDestination,

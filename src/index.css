@@ -50,6 +50,12 @@ button {
   transition: border-color 0.25s;
 }
 
+button:focus,
+button:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 textarea {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 12px;

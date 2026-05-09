@@ -71,15 +71,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #3a3a3a;
-  background-color: #252525;
+  padding: 10px;
+  /* border-bottom: 1px solid #3a3a3a;
+  background-color: #252525; */
 }
 
 .file-import-title {
   color: #e0e0e0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: bold;
+  padding-left: 10px;
   margin: 0;
 }
 
@@ -103,9 +104,9 @@
 }
 
 .file-import-drop-zone {
-  padding: 40px 20px;
-  margin: 20px;
-  border: 2px dashed #555;
+  padding: 0px 20px 40px 20px;
+  /* margin: 20px; */
+  /* border: 2px dashed #555; */
   border-radius: 8px;
   background-color: #1e1e1e;
   transition: all 0.3s ease;

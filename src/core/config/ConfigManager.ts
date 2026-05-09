@@ -71,6 +71,7 @@ interface AppConfig {
   };
   editor: {
     playhead_update_frequency: number;
+    spectrogram_height_resolution: 1 | 3 | 5;
   };
   chatbox: {
     default_open: boolean;
@@ -78,6 +79,7 @@ interface AppConfig {
   audio: {
     enable_audio_capture_for_screen_sharing: boolean;
     lookahead_time: number;
+    midi_automation_interpolation_interval_ms: number;
     playback_delay: number;
     recording_offset: number;
   };
@@ -243,7 +245,8 @@ export class ConfigManager {
           },
         },
         editor: {
-          playhead_update_frequency: 10
+          playhead_update_frequency: 10,
+          spectrogram_height_resolution: 3
         },
         chatbox: {
           default_open: true
@@ -251,6 +254,7 @@ export class ConfigManager {
         audio: {
           enable_audio_capture_for_screen_sharing: false,
           lookahead_time: 0.05,
+          midi_automation_interpolation_interval_ms: 10,
           playback_delay: 0.2,
           recording_offset: 0
         },

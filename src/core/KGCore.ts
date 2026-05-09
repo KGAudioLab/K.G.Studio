@@ -6,6 +6,8 @@ import { KGProjectStorage } from './io/KGProjectStorage';
 import { KGConfigUpgrader } from './config-upgrader/KGConfigUpgrader';
 import { KGMidiRegion } from './region/KGMidiRegion';
 import { KGMidiNote } from './midi/KGMidiNote';
+import { KGMidiControllerEvent } from './midi/KGMidiControllerEvent';
+import { KGMidiPitchBend } from './midi/KGMidiPitchBend';
 import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
@@ -450,11 +452,14 @@ export class KGCore {
   }
 
   public addSelectedItem(item: Selectable): void {
+    this.selectedItems = this.selectedItems.filter(i => i.getId() !== item.getId());
     this.selectedItems.push(item);
     this.notifySelectionChanged();
   }
 
   public addSelectedItems(items: Selectable[]): void {
+    const seenIds = new Set(items.map(item => item.getId()));
+    this.selectedItems = this.selectedItems.filter(item => !seenIds.has(item.getId()));
     this.selectedItems.push(...items);
     this.notifySelectionChanged();
   }
@@ -548,6 +553,22 @@ export class KGCore {
             );
             clonedRegion.addNote(clonedNote);
           });
+          region.getPitchBends().forEach(pitchBend => {
+            clonedRegion.addPitchBend(new KGMidiPitchBend(
+              generateUniqueId('KGMidiPitchBend'),
+              pitchBend.getBeat(),
+              pitchBend.getValue()
+            ));
+          });
+          region.getControllerEventsByType().forEach((events, controller) => {
+            events.forEach(controllerEvent => {
+              clonedRegion.addControllerEvent(controller, new KGMidiControllerEvent(
+                generateUniqueId('KGMidiControllerEvent'),
+                controllerEvent.getBeat(),
+                controllerEvent.getValue()
+              ));
+            });
+          });
           
           clonedItems.push(clonedRegion);
           break;
@@ -585,8 +606,8 @@ export class KGCore {
    * Execute a command through the command history system
    * @param command The command to execute
    */
-  public executeCommand(command: KGCommand): void {
-    this.commandHistory.executeCommand(command);
+  public executeCommand(command: KGCommand, options?: { rethrow?: boolean }): void {
+    this.commandHistory.executeCommand(command, options);
   }
 
   /**

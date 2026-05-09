@@ -8,6 +8,7 @@ import { beatsToTimeString } from '../util/timeUtil';
 import { KGAudioInterface } from '../core/audio-interface/KGAudioInterface';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
+import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGRegion } from '../core/region/KGRegion';
 import { AddTrackCommand, AddAudioTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand } from '../core/commands';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
@@ -20,8 +21,10 @@ import { TOOLBAR_CONSTANTS } from '../constants/uiConstants';
 import * as Tone from 'tone';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
-import { CreateNotesCommand } from '../core/commands/note/CreateNotesCommand';
-import type { NoteCreationData } from '../core/commands/note/CreateNotesCommand';
+import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
+import { CreateMidiEventsCommand, type NoteCreationData, type PitchBendCreationData, type ControllerEventCreationData } from '../core/commands/note/CreateMidiEventsCommand';
+import { MIDI_PITCH_BEND_CENTER } from '../util/midiUtil';
+import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/KGTrackAutomationPoint';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -67,11 +70,15 @@ interface ProjectState {
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
+  isPreparingPlayback: boolean;
   autoScrollEnabled: boolean;
   currentTime: string; // formatted time string
   
   // Selection state for UI reactivity
   selectedNoteIds: string[];
+  selectedPitchBendIds: string[];
+  selectedControllerEventIds: string[];
+  selectedTrackAutomationPointIds: string[];
   selectedRegionIds: string[];
   selectedTrackId: string | null;
   
@@ -80,12 +87,19 @@ interface ProjectState {
   activeRegionId: string | null;
   pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
+  automationRedrawVersion: number;
+  activeTrackAutomationTrackId: string | null;
+  activeTrackAutomationType: TrackAutomationType | null;
+  trackAutomationRedrawVersion: number;
   
   // ChatBox state
   showChatBox: boolean;
 
   // K.G.One panel state
   showKGOnePanel: boolean;
+
+  // List event panel state
+  showListEventPanel: boolean;
 
   // Instrument selection panel state
   showInstrumentSelection: boolean;
@@ -101,7 +115,9 @@ interface ProjectState {
   // Recording state
   isRecording: boolean;
   recordingTargetRegionId: string | null;
-  recordingNotes: Array<{ pitch: number; startBeat: number; endBeat: number }>;
+  recordingNotes: Array<{ pitch: number; startBeat: number; endBeat: number; velocity: number }>;
+  recordingPitchBends: Array<{ beat: number; value: number }>;
+  recordingControllerEventsByType: Array<Array<{ beat: number; value: number }>>;
   recordingOriginalPlayhead: number;
 
   // Undo/redo state
@@ -137,6 +153,7 @@ interface ProjectState {
   setAutoScrollEnabled: (enabled: boolean) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
+  stopTransport: () => Promise<void>;
   toggleLoop: () => void;
   toggleMetronome: () => void;
   setBpm: (bpm: number) => void;
@@ -150,6 +167,7 @@ interface ProjectState {
   syncSelectionFromCore: () => void;
   clearAllSelections: () => void;
   setSelectedTrack: (trackId: string | null) => void;
+  setTrackAutomationView: (trackId: string | null, automationType: TrackAutomationType | null) => void;
   
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
@@ -157,6 +175,8 @@ interface ProjectState {
   openMidiPianoRoll: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
+  bumpAutomationRedrawVersion: () => void;
+  bumpTrackAutomationRedrawVersion: () => void;
   
   // Project state cleanup
   cleanupProjectState: () => void;
@@ -167,6 +187,9 @@ interface ProjectState {
 
   // K.G.One panel actions
   toggleKGOnePanel: () => void;
+
+  // List event panel actions
+  toggleListEventPanel: () => void;
 
   // Instrument selection panel actions
   openInstrumentSelectionForTrack: () => void;
@@ -198,8 +221,37 @@ interface ProjectState {
 }
 
 // Module-level recording state (not reactive — only used for timing during active recording)
-let _recordingActiveNotes: Map<number, number> = new Map(); // pitch → region-relative startBeat
+let _recordingActiveNotes: Map<number, { startBeat: number; velocity: number }> = new Map(); // pitch → note-on data
 let _recordingRegionStartBeat: number = 0;
+let _lastRecordedPitchBendValue: number | null = null;
+let _lastRecordedControllerValues: Map<number, number> = new Map();
+
+function createEmptyRecordedControllerBuckets(): Array<Array<{ beat: number; value: number }>> {
+  return Array.from({ length: 128 }, () => []);
+}
+
+function getRecordingLoopEndBeatRelative(): number | null {
+  const project = KGCore.instance().getCurrentProject();
+  if (!project.getIsLooping()) {
+    return null;
+  }
+
+  const [startBar, endBarOriginal] = project.getLoopingRange();
+  const beatsPerBar = project.getTimeSignature().numerator;
+  const endBar = (startBar === 0 && endBarOriginal === 0) ? project.getMaxBars() : endBarOriginal;
+  const loopEndBeatAbsolute = (endBar + 1) * beatsPerBar;
+
+  return loopEndBeatAbsolute - _recordingRegionStartBeat;
+}
+
+function finalizeRecordedNote(startBeat: number, candidateEndBeat: number): number {
+  const loopEndBeatRelative = getRecordingLoopEndBeatRelative();
+  if (loopEndBeatRelative !== null && candidateEndBeat < startBeat) {
+    return loopEndBeatRelative;
+  }
+
+  return candidateEndBeat;
+}
 
 // Create the store
 export const useProjectStore = create<ProjectState>((set, get) => {
@@ -240,11 +292,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     const noteIds = selectedItems
       .filter(item => item instanceof KGMidiNote)
       .map(item => item.getId());
+    const pitchBendIds = selectedItems
+      .filter(item => item instanceof KGMidiPitchBend)
+      .map(item => item.getId());
+    const controllerEventIds = selectedItems
+      .filter(item => item instanceof KGMidiControllerEvent)
+      .map(item => item.getId());
+    const trackAutomationPointIds = selectedItems
+      .filter(item => item instanceof KGTrackAutomationPoint)
+      .map(item => item.getId());
     const regionIds = selectedItems
       .filter(item => item instanceof KGRegion)
       .map(item => item.getId());
       
-    set({ selectedNoteIds: noteIds, selectedRegionIds: regionIds });
+    set({
+      selectedNoteIds: noteIds,
+      selectedPitchBendIds: pitchBendIds,
+      selectedControllerEventIds: controllerEventIds,
+      selectedTrackAutomationPointIds: trackAutomationPointIds,
+      selectedRegionIds: regionIds
+    });
   };
 
   // Register the sync callback with KGCore
@@ -304,11 +371,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
+    isPreparingPlayback: false,
     autoScrollEnabled: true,
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
     
     // Initial selection state
     selectedNoteIds: [],
+    selectedPitchBendIds: [],
+    selectedControllerEventIds: [],
+    selectedTrackAutomationPointIds: [],
     selectedRegionIds: [],
     selectedTrackId: initialSelectedTrackId,
     
@@ -317,12 +388,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
+    automationRedrawVersion: 0,
+    activeTrackAutomationTrackId: null,
+    activeTrackAutomationType: null,
+    trackAutomationRedrawVersion: 0,
     
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
 
     // Initial K.G.One panel state
     showKGOnePanel: false,
+
+    // Initial List Event panel state
+    showListEventPanel: false,
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
@@ -344,6 +422,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     isRecording: false,
     recordingTargetRegionId: null,
     recordingNotes: [],
+    recordingPitchBends: [],
+    recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
     recordingOriginalPlayhead: 0,
 
     // Initial cross-component scroll request state
@@ -764,6 +844,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           selectedMode: projectToLoad.getSelectedMode(),
           isLooping: projectToLoad.getIsLooping(),
           loopingRange: projectToLoad.getLoopingRange(),
+          activeTrackAutomationTrackId: null,
+          activeTrackAutomationType: null,
+          trackAutomationRedrawVersion: 0,
           playheadPosition: 0, // Ensure store state is also updated
           currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
         });
@@ -812,13 +895,38 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     startPlaying: async () => {
-      await KGCore.instance().startPlaying();
-      set({ isPlaying: true, autoScrollEnabled: true });
+      if (get().isPreparingPlayback) {
+        return;
+      }
+
+      set({ isPreparingPlayback: true });
+      try {
+        await KGCore.instance().startPlaying();
+        set({ isPlaying: true, autoScrollEnabled: true });
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     stopPlaying: async () => {
-      await KGCore.instance().stopPlaying();
-      set({ isPlaying: false });
+      try {
+        await KGCore.instance().stopPlaying();
+        set({ isPlaying: false });
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
+    },
+
+    stopTransport: async () => {
+      if (get().isRecording) {
+        await get().stopRecording();
+        return;
+      }
+      try {
+        await get().stopPlaying();
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     startRecording: async () => {
@@ -834,10 +942,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
       _recordingRegionStartBeat = targetRegion.getStartFromBeat();
       _recordingActiveNotes = new Map();
+      _lastRecordedPitchBendValue = null;
+      _lastRecordedControllerValues = new Map();
 
       set({
         isRecording: true,
         recordingNotes: [],
+        recordingPitchBends: [],
+        recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
         recordingTargetRegionId: activeRegionId,
         recordingOriginalPlayhead: playheadPosition,
       });
@@ -851,19 +963,49 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       };
 
       KGMidiInput.instance().setRecordingCallbacks(
-        (pitch: number) => {
+        (pitch: number, velocity: number) => {
           const beat = buildCorrectedBeat();
-          _recordingActiveNotes.set(pitch, beat);
+          _recordingActiveNotes.set(pitch, { startBeat: beat, velocity });
         },
         (pitch: number) => {
           const endBeat = buildCorrectedBeat();
-          const startBeat = _recordingActiveNotes.get(pitch);
-          if (startBeat !== undefined) {
+          const activeNote = _recordingActiveNotes.get(pitch);
+          if (activeNote !== undefined) {
             _recordingActiveNotes.delete(pitch);
+            const finalizedEndBeat = finalizeRecordedNote(activeNote.startBeat, endBeat);
             set(state => ({
-              recordingNotes: [...state.recordingNotes, { pitch, startBeat, endBeat }],
+              recordingNotes: [...state.recordingNotes, {
+                pitch,
+                startBeat: activeNote.startBeat,
+                endBeat: finalizedEndBeat,
+                velocity: activeNote.velocity,
+              }],
             }));
           }
+        },
+        (value: number) => {
+          if (_lastRecordedPitchBendValue === value) {
+            return;
+          }
+
+          _lastRecordedPitchBendValue = value;
+          const beat = buildCorrectedBeat();
+          set(state => ({
+            recordingPitchBends: [...state.recordingPitchBends, { beat, value }],
+          }));
+        },
+        (controller: number, value: number) => {
+          if (_lastRecordedControllerValues.get(controller) === value) {
+            return;
+          }
+
+          _lastRecordedControllerValues.set(controller, value);
+          const beat = buildCorrectedBeat();
+          set(state => {
+            const nextRecordingControllerEventsByType = state.recordingControllerEventsByType.map(events => [...events]);
+            nextRecordingControllerEventsByType[controller].push({ beat, value });
+            return { recordingControllerEventsByType: nextRecordingControllerEventsByType };
+          });
         }
       );
 
@@ -875,46 +1017,106 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         : playheadPosition - timeSignature.numerator;
 
       setPlayheadPosition(recordingStartBeat);
-      await KGCore.instance().startPlaying({
-        preserveLoopPreroll: projectLooping,
-      });
-      set({ isPlaying: true, autoScrollEnabled: true });
+      set({ isPreparingPlayback: true });
+      try {
+        await KGCore.instance().startPlaying({
+          preserveLoopPreroll: projectLooping,
+        });
+        set({ isPlaying: true, autoScrollEnabled: true });
+      } finally {
+        set({ isPreparingPlayback: false });
+      }
     },
 
     stopRecording: async () => {
-      const { recordingNotes, recordingTargetRegionId, recordingOriginalPlayhead, stopPlaying, setPlayheadPosition, refreshProjectState } = get();
+      const {
+        recordingNotes,
+        recordingPitchBends,
+        recordingControllerEventsByType,
+        recordingTargetRegionId,
+        recordingOriginalPlayhead,
+        stopPlaying,
+        setPlayheadPosition,
+        refreshProjectState
+      } = get();
 
       // Finalize any held keys
       const finalNotes = [...recordingNotes];
+      const finalPitchBends = [...recordingPitchBends];
+      const finalControllerEventsByType = recordingControllerEventsByType.map(events => [...events]);
       const bpm = get().bpm;
       const playbackDelaySec = (ConfigManager.instance().get('audio.playback_delay') as number) ?? 0.2;
       const recordingOffsetSec = (ConfigManager.instance().get('audio.recording_offset') as number) ?? 0;
       const correctionBeats = (playbackDelaySec + recordingOffsetSec) * (bpm / 60);
       const endBeatForHeld = KGAudioInterface.instance().getTransportPosition() - correctionBeats - _recordingRegionStartBeat;
 
-      _recordingActiveNotes.forEach((startBeat, pitch) => {
-        finalNotes.push({ pitch, startBeat, endBeat: endBeatForHeld });
+      _recordingActiveNotes.forEach((activeNote, pitch) => {
+        finalNotes.push({
+          pitch,
+          startBeat: activeNote.startBeat,
+          endBeat: finalizeRecordedNote(activeNote.startBeat, endBeatForHeld),
+          velocity: activeNote.velocity,
+        });
       });
       _recordingActiveNotes.clear();
 
-      KGMidiInput.instance().setRecordingCallbacks(null, null);
+      if (_lastRecordedPitchBendValue !== null && _lastRecordedPitchBendValue !== MIDI_PITCH_BEND_CENTER) {
+        finalPitchBends.push({
+          beat: endBeatForHeld,
+          value: MIDI_PITCH_BEND_CENTER,
+        });
+        _lastRecordedPitchBendValue = MIDI_PITCH_BEND_CENTER;
+      }
 
-      if (finalNotes.length > 0 && recordingTargetRegionId) {
+      if (_lastRecordedControllerValues.get(64) === 127) {
+        finalControllerEventsByType[64].push({
+          beat: endBeatForHeld,
+          value: 0,
+        });
+        _lastRecordedControllerValues.set(64, 0);
+      }
+
+      KGMidiInput.instance().setRecordingCallbacks(null, null, null, null);
+
+      const hasControllerEvents = finalControllerEventsByType.some(events => events.length > 0);
+      if ((finalNotes.length > 0 || finalPitchBends.length > 0 || hasControllerEvents) && recordingTargetRegionId) {
         const noteData: NoteCreationData[] = finalNotes.map(n => ({
           regionId: recordingTargetRegionId,
           startBeat: n.startBeat,
           endBeat: n.endBeat,
           pitch: n.pitch,
-          velocity: 127,
+          velocity: n.velocity,
         }));
-        const command = new CreateNotesCommand(noteData);
+        const pitchBendData: PitchBendCreationData[] = finalPitchBends.map(event => ({
+          regionId: recordingTargetRegionId,
+          beat: event.beat,
+          value: event.value,
+        }));
+        const controllerEventData: ControllerEventCreationData[] = finalControllerEventsByType.flatMap((events, controller) => (
+          events.map(event => ({
+            regionId: recordingTargetRegionId,
+            controller,
+            beat: event.beat,
+            value: event.value,
+          }))
+        ));
+        const command = new CreateMidiEventsCommand(noteData, pitchBendData, controllerEventData);
         KGCore.instance().executeCommand(command);
         refreshProjectState();
       }
 
       await stopPlaying();
       setPlayheadPosition(recordingOriginalPlayhead);
-      set({ isRecording: false, recordingNotes: [], recordingTargetRegionId: null });
+      set({
+        isRecording: false,
+        isPreparingPlayback: false,
+        recordingNotes: [],
+        recordingPitchBends: [],
+        recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
+        recordingTargetRegionId: null
+      });
+      _lastRecordedPitchBendValue = null;
+      _lastRecordedControllerValues = new Map();
     },
 
     toggleLoop: () => {
@@ -1048,6 +1250,30 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // Update selected track id
       set({ selectedTrackId: trackId });
     },
+
+    setTrackAutomationView: (trackId: string | null, automationType: TrackAutomationType | null) => {
+      const core = KGCore.instance();
+      core.getSelectedItems()
+        .filter(item => item instanceof KGTrackAutomationPoint)
+        .forEach(item => core.removeSelectedItem(item));
+
+      if (trackId && automationType === null) {
+        set({
+          activeTrackAutomationTrackId: null,
+          activeTrackAutomationType: null,
+          selectedTrackAutomationPointIds: [],
+          selectedTrackId: trackId,
+        });
+        return;
+      }
+
+      set({
+        activeTrackAutomationTrackId: trackId,
+        activeTrackAutomationType: trackId ? automationType : null,
+        selectedTrackAutomationPointIds: [],
+        selectedTrackId: trackId,
+      });
+    },
     
     // Piano roll actions
     setShowPianoRoll: (show: boolean) => {
@@ -1069,6 +1295,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     openHybridMode: (midiRegionId: string, audioRegionId: string) => {
       set({ showPianoRoll: true, activeRegionId: midiRegionId, hybridAudioRegionId: audioRegionId, pianoRollMode: 'hybrid' });
     },
+    bumpAutomationRedrawVersion: () => {
+      set(state => ({ automationRedrawVersion: state.automationRedrawVersion + 1 }));
+    },
+    bumpTrackAutomationRedrawVersion: () => {
+      set(state => ({ trackAutomationRedrawVersion: state.trackAutomationRedrawVersion + 1 }));
+    },
     
     // Project state cleanup - used when starting new/loading projects
     cleanupProjectState: () => {
@@ -1076,7 +1308,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ showPianoRoll: false });
 
       // Clear active region and hybrid state
-      set({ activeRegionId: null, hybridAudioRegionId: null, pianoRollMode: 'midi-edit' });
+      set({
+        activeRegionId: null,
+        hybridAudioRegionId: null,
+        pianoRollMode: 'midi-edit',
+        activeTrackAutomationTrackId: null,
+        activeTrackAutomationType: null,
+        trackAutomationRedrawVersion: 0,
+      });
       
       // Clear any selected items
       KGCore.instance().clearSelectedItems();
@@ -1087,17 +1326,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     
     // ChatBox action implementations
     setShowChatBox: (show: boolean) => {
-      set({ showChatBox: show });
+      set({
+        showChatBox: show,
+        showKGOnePanel: show ? false : get().showKGOnePanel,
+        showListEventPanel: show ? false : get().showListEventPanel
+      });
     },
     
     toggleChatBox: () => {
       const { showChatBox } = get();
-      set({ showChatBox: !showChatBox, showKGOnePanel: false });
+      set({ showChatBox: !showChatBox, showKGOnePanel: false, showListEventPanel: false });
     },
 
     toggleKGOnePanel: () => {
       const { showKGOnePanel } = get();
-      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false });
+      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false, showListEventPanel: false });
+    },
+
+    toggleListEventPanel: () => {
+      const { showListEventPanel } = get();
+      set({ showListEventPanel: !showListEventPanel, showChatBox: false, showKGOnePanel: false });
     },
 
     // Instrument selection panel actions
@@ -1236,10 +1484,3 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     }
   };
 }); 
-
-
-
-
-
-
-

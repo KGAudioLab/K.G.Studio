@@ -3,6 +3,10 @@ import { FaMousePointer, FaPencilAlt } from 'react-icons/fa';
 import { KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
+import {
+  PIANO_ROLL_AUTOMATION_OPTIONS,
+  type PianoRollAutomationType,
+} from './pianoRollAutomation';
 
 const POWER_OPTIONS = [
   { label: 'Linear', value: '1.0' },
@@ -31,6 +35,11 @@ interface PianoRollToolbarProps {
   onPowerChange?: (power: number) => void;
   zoom: number;
   onZoomChange: (value: number) => void;
+  showAutomationControls?: boolean;
+  automationEnabled?: boolean;
+  automationType?: PianoRollAutomationType;
+  onAutomationToggle?: () => void;
+  onAutomationTypeChange?: (value: PianoRollAutomationType) => void;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -53,6 +62,11 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onPowerChange,
   zoom,
   onZoomChange,
+  showAutomationControls = false,
+  automationEnabled = false,
+  automationType = 'pitch-bend',
+  onAutomationToggle,
+  onAutomationTypeChange,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const showMidiControls = mode !== 'spectrogram';   // midi-edit and hybrid
@@ -90,6 +104,26 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           >
             <FaPencilAlt />
           </button>
+          {showAutomationControls && (
+            <div className="piano-roll-automation-toolbar-group">
+              <button
+                className={`tool-button automation-toggle-button ${automationEnabled ? 'active' : ''}`}
+                onClick={() => onAutomationToggle?.()}
+                title="Toggle automation lane"
+                aria-label="Toggle automation lane"
+              >
+                A
+              </button>
+              <KGDropdown
+                options={PIANO_ROLL_AUTOMATION_OPTIONS}
+                value={automationType}
+                onChange={(value) => onAutomationTypeChange?.(value as PianoRollAutomationType)}
+                label="Automation"
+                buttonClassName="automation-type-dropdown"
+                showValueAsLabel={true}
+              />
+            </div>
+          )}
           <KGDropdown
             options={Object.entries(KGCore.FUNCTIONAL_CHORDS_DATA).map(([id, data]) => ({ label: data.name, value: id }))}
             value={selectedMode}

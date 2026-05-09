@@ -11,6 +11,7 @@ import ChatBox from './components/ChatBox';
 import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
 import KGOnePanel from './components/KGOnePanel';
+import ListEventPanel from './components/ListEventPanel';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
 import { KGOfflineRenderer } from './core/audio-interface/KGOfflineRenderer';
@@ -30,7 +31,7 @@ function App() {
   const {
     refreshStatus,
     loadProject, showChatBox, showSettings, setShowSettings, initializeFromConfig,
-    showInstrumentSelection, showKGOnePanel
+    showInstrumentSelection, showKGOnePanel, showListEventPanel
   } = useProjectStore();
 
   // Track if app has been initialized to prevent multiple initializations
@@ -168,6 +169,7 @@ function App() {
           </>
         )}
         <KGOnePanel isVisible={showKGOnePanel && !showSettings} />
+        <ListEventPanel isVisible={showListEventPanel && !showSettings} />
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 
@@ -183,6 +185,9 @@ function App() {
 
       {/* Bounce/Render Overlay */}
       <BounceOverlayContainer />
+
+      {/* Playback Preparation Overlay */}
+      <PlaybackPreparationOverlayContainer />
     </div>
   );
 }
@@ -290,6 +295,45 @@ const BounceOverlayContainer: React.FC = () => {
     <LoadingOverlay
       visible={renderMessage !== null}
       message={renderMessage ?? 'Rendering...'}
+    />
+  );
+};
+
+const PLAYBACK_PREPARATION_OVERLAY_DELAY_MS = 150;
+
+export const PlaybackPreparationOverlayContainer: React.FC = () => {
+  const isPreparingPlayback = useProjectStore(state => state.isPreparingPlayback);
+  const [visible, setVisible] = useState<boolean>(false);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffectReact(() => {
+    if (isPreparingPlayback) {
+      if (timeoutRef.current === null) {
+        timeoutRef.current = window.setTimeout(() => {
+          setVisible(true);
+          timeoutRef.current = null;
+        }, PLAYBACK_PREPARATION_OVERLAY_DELAY_MS);
+      }
+    } else {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setVisible(false);
+    }
+
+    return () => {
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [isPreparingPlayback]);
+
+  return (
+    <LoadingOverlay
+      visible={visible}
+      message="Preparing playback..."
     />
   );
 };

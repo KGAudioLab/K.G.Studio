@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useLayoutEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import './PianoRoll.css';
 import type { MouseEvent } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
@@ -8,6 +8,7 @@ import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
+import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
 import { KGCore } from '../../core/KGCore';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
@@ -17,6 +18,11 @@ import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
 import { showAlert, showPrompt } from '../../util/dialogUtil';
+import {
+  normalizeSpectrogramHeightResolution,
+  type SpectrogramHeightResolution,
+} from '../../util/spectrogramUtil';
+import type { PianoRollAutomationType } from './pianoRollAutomation';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -41,7 +47,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showListEventPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion } = useProjectStore();
   
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -49,9 +55,13 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Spectrogram controls (only used in spectrogram mode)
   const [spectrogramThresholdDb, setSpectrogramThresholdDb] = useState<number>(-25);
   const [spectrogramPower, setSpectrogramPower] = useState<number>(0.5);
+  const [spectrogramHeightResolution, setSpectrogramHeightResolution] =
+    useState<SpectrogramHeightResolution>(3);
 
   // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
+  const [automationEnabled, setAutomationEnabled] = useState(false);
+  const [automationType, setAutomationType] = useState<PianoRollAutomationType>('pitch-bend');
   
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -73,8 +83,15 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
+
+  const selectedNotes = useMemo(
+    () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
+    [activeRegion, selectedNoteIds]
+  );
+
   const pianoRollRef = useRef<HTMLDivElement>(null);
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
+  const pianoRollNoteScrollRef = useRef<HTMLDivElement>(null);
   const pianoGridRef = useRef<HTMLDivElement>(null);
   const wasDraggingRef = useRef<boolean>(false);
 
@@ -97,25 +114,23 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const calculateInitialPosition = () => {
         // Dynamically get heights from CSS computed styles
         const statusBarElement = document.querySelector('.status-bar');
-        const trackControlElement = document.querySelector('.track-control');
-        
+
         // Get actual heights from DOM elements, or use fallback values if elements don't exist yet
         const statusBarHeight = statusBarElement ? statusBarElement.clientHeight : 30;
-        const trackControlHeight = trackControlElement ? trackControlElement.clientHeight : 30;
         const pianoRollHeight = PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT;
-        
+
         // Compute left offset when instrument selection panel is open
         const rootStyles = getComputedStyle(document.documentElement);
         const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
         const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-        
+
         if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Positioning piano roll with heights - statusBar: ${statusBarHeight}px, trackControl: ${trackControlHeight}px, pianoRoll: ${pianoRollHeight}px`);
+          console.log(`Positioning piano roll with heights - statusBar: ${statusBarHeight}px, pianoRoll: ${pianoRollHeight}px`);
         }
-        
+
         return {
           x: showInstrumentSelection ? instrumentPanelWidth : 0,
-          y: window.innerHeight - statusBarHeight - trackControlHeight - pianoRollHeight
+          y: window.innerHeight - statusBarHeight - pianoRollHeight
         };
       };
       
@@ -127,7 +142,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
         
         let availableWidth = window.innerWidth;
-        if (showChatBox) availableWidth -= chatBoxWidth;
+        if (showChatBox || showKGOnePanel || showListEventPanel) availableWidth -= chatBoxWidth;
         if (showInstrumentSelection) availableWidth -= instrumentPanelWidth;
         
         // Ensure a sensible minimum starting width
@@ -188,11 +203,48 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     // Sync tool state
     const currentTool = pianoRollState.getActiveTool() as 'pointer' | 'pencil';
     setActiveTool(currentTool);
+    setAutomationEnabled(pianoRollState.getAutomationViewEnabled());
+    setAutomationType(pianoRollState.getCurrentAutomationType() as PianoRollAutomationType);
     
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Synced piano roll state on mount - snap: ${currentSnap}, tool: ${currentTool}`);
     }
   }, []); // Empty dependency array means this runs once on mount
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const initializeSpectrogramHeightResolution = async () => {
+      const configManager = ConfigManager.instance();
+      if (!configManager.getIsInitialized()) {
+        await configManager.initialize();
+      }
+
+      const applyResolutionFromConfig = () => {
+        setSpectrogramHeightResolution(
+          normalizeSpectrogramHeightResolution(
+            configManager.get('editor.spectrogram_height_resolution')
+          )
+        );
+      };
+
+      applyResolutionFromConfig();
+      unsubscribe = configManager.addChangeListener((changedKeys) => {
+        if (
+          changedKeys.includes('__all__') ||
+          changedKeys.includes('editor.spectrogram_height_resolution')
+        ) {
+          applyResolutionFromConfig();
+        }
+      });
+    };
+
+    void initializeSpectrogramHeightResolution();
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
 
   // Add keyboard event listener for Escape
   useEffect(() => {
@@ -617,7 +669,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const handleZoomChange = useCallback((nextZoom: number) => {
     if (nextZoom === pianoRollZoom) return;
 
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     pendingZoomAnchorBeatRef.current = null;
     if (container) {
       const keysWidth = parseInt(
@@ -638,9 +690,22 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     setPianoRollZoom(nextZoom);
   }, [pianoRollZoom]);
 
+  const handleAutomationToggle = useCallback(() => {
+    setAutomationEnabled(current => {
+      const next = !current;
+      KGPianoRollState.instance().setAutomationViewEnabled(next);
+      return next;
+    });
+  }, []);
+
+  const handleAutomationTypeChange = useCallback((value: PianoRollAutomationType) => {
+    setAutomationType(value);
+    KGPianoRollState.instance().setCurrentAutomationType(value);
+  }, []);
+
   // Calculate C4 position and scroll to it when piano roll opens
   useEffect(() => {
-    if (pianoRollContentRef.current) {
+    if (pianoRollNoteScrollRef.current) {
       // Calculate position of C4
       // We have 8 octaves (0-7), and C4 is in the middle
       // Each octave has 12 notes, each note is piano key height
@@ -656,7 +721,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const totalHeight = 8 * 12 * keyHeight;
       
       // Get the viewport height of the piano roll content
-      const viewportHeight = pianoRollContentRef.current.clientHeight;
+      const viewportHeight = pianoRollNoteScrollRef.current.clientHeight;
       
       // Calculate scroll position to center C4
       // We need to scroll from the top, so we calculate:
@@ -664,7 +729,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const scrollPosition = (totalHeight - c4Position) - (viewportHeight / 2);
       
       // Scroll to the calculated position
-      pianoRollContentRef.current.scrollTop = Math.max(0, scrollPosition);
+      pianoRollNoteScrollRef.current.scrollTop = Math.max(0, scrollPosition);
     }
   }, []);
 
@@ -675,7 +740,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Detect manual horizontal scroll during playback
   useEffect(() => {
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
     const handleScroll = () => {
@@ -685,14 +750,16 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
 
     container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   // Auto-scroll to keep playhead centered during playback
   useEffect(() => {
     if (!isPlaying || !autoScrollEnabled) return;
 
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
     const beatWidth = parseInt(
@@ -718,7 +785,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   useEffect(() => {
     if (pianoRollScrollRequest === null) return;
 
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
     const beatWidth = parseInt(
@@ -751,7 +818,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
 
     const anchorBeat = pendingZoomAnchorBeatRef.current;
-    const container = pianoRollContentRef.current;
+    const container = pianoRollNoteScrollRef.current;
     if (anchorBeat !== null && container) {
       const keysWidth = parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
@@ -776,7 +843,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Scroll horizontally to the active region's starting bar
   useEffect(() => {
-    if (pianoRollContentRef.current && activeRegion) {
+    if (pianoRollNoteScrollRef.current && activeRegion) {
       // Get the starting beat of the region
       const startBeat = activeRegion.getStartFromBeat();
       
@@ -797,7 +864,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const scrollPosition = barNumber * barWidth;
       
       // Scroll to the calculated position
-      pianoRollContentRef.current.scrollLeft = Math.max(0, scrollPosition);
+      pianoRollNoteScrollRef.current.scrollLeft = Math.max(0, scrollPosition);
     }
   }, [activeRegion, timeSignature]);
 
@@ -1017,10 +1084,18 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onPowerChange={setSpectrogramPower}
         zoom={pianoRollZoom}
         onZoomChange={handleZoomChange}
+        showAutomationControls={!isSpectrogram}
+        automationEnabled={automationEnabled}
+        automationType={automationType}
+        onAutomationToggle={handleAutomationToggle}
+        onAutomationTypeChange={handleAutomationTypeChange}
       />
+
+      <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isSpectrogram} activeRegion={activeRegion} />
 
       <PianoRollContent
         contentRef={pianoRollContentRef}
+        noteScrollRef={pianoRollNoteScrollRef}
         pianoGridRef={pianoGridRef}
         maxBars={maxBars}
         timeSignature={timeSignature}
@@ -1039,7 +1114,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         bpm={bpm}
         spectrogramThresholdDb={spectrogramThresholdDb}
         spectrogramPower={spectrogramPower}
+        spectrogramHeightResolution={spectrogramHeightResolution}
         pianoRollZoom={pianoRollZoom}
+        automationEnabled={automationEnabled}
+        automationType={automationType}
+        automationRedrawVersion={automationRedrawVersion}
       />
       
       <div 

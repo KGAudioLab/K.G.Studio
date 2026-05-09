@@ -33,6 +33,7 @@
     opacity: 0;
     transform: scale(0.95) translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -44,6 +45,7 @@
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+
   to {
     opacity: 0;
     transform: scale(0.95) translateY(-10px);
@@ -51,8 +53,13 @@
 }
 
 @keyframes openProjectOverlayFadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .open-project-overlay-closing {
@@ -68,15 +75,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 10px;
   background-color: #252525;
   flex-shrink: 0;
 }
 
 .open-project-title {
   color: #e0e0e0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 16px;
+  padding-left: 10px;
+  font-weight: bold;
   margin: 0;
 }
 
@@ -101,7 +109,7 @@
 
 /* Filter bar — sticky at top */
 .open-project-filter {
-  padding: 10px 12px;
+  padding: 0px 12px 10px 12px;
   background-color: #252525;
   flex-shrink: 0;
 }

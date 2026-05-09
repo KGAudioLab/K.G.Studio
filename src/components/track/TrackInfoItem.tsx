@@ -13,6 +13,7 @@ import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
+import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoint';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -68,6 +69,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDragEnd
 }) => {
   const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks } = useProjectStore();
+  const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
+  const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
+  const setTrackAutomationView = useProjectStore(state => state.setTrackAutomationView);
   const isSelected = selectedTrackId === track.getId().toString();
   // Inline instrument dropdown removed; use InstrumentSelection panel instead
   
@@ -82,7 +86,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const [currentInstrument, setCurrentInstrument] = useState(getTrackInstrument());
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
+  const [showAutomationDropdown, setShowAutomationDropdown] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
+  const automationDropdownRef = useRef<HTMLDivElement>(null);
   const suppressDragRef = useRef(false);
   const [volume, setVolume] = useState(track.getVolume());
   const [isEditingVolume, setIsEditingVolume] = useState(false);
@@ -103,13 +109,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
       ) {
         setShowSettingsDropdown(false);
       }
+      if (
+        showAutomationDropdown &&
+        automationDropdownRef.current &&
+        !automationDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowAutomationDropdown(false);
+      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showSettingsDropdown]);
+  }, [showSettingsDropdown, showAutomationDropdown]);
 
   // Sync currentInstrument state with actual track instrument value
   const instrumentFromTrack = track instanceof KGMidiTrack ? track.getInstrument() : 'acoustic_grand_piano';
@@ -299,6 +312,25 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     setShowSettingsDropdown(!showSettingsDropdown);
   };
 
+  const handleAutomationButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setSelectedTrack(track.getId().toString());
+    if (automationActive) {
+      setTrackAutomationView(track.getId().toString(), null);
+      setShowAutomationDropdown(false);
+      return;
+    }
+    setShowAutomationDropdown(open => !open);
+  };
+
+  const handleAutomationTypeSelect = (value: string) => {
+    setSelectedTrack(track.getId().toString());
+    setTrackAutomationView(track.getId().toString(), value as TrackAutomationType);
+    setShowAutomationDropdown(false);
+  };
+
+  const automationActive = activeTrackAutomationTrackId === track.getId().toString() && activeTrackAutomationType !== null;
+
   // Handle settings action
   const handleSettingsAction = async (action: string) => {
     if (action === 'Delete Track') {
@@ -415,6 +447,31 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
         <div className="pan-controls">
           <button className={`solo${solo ? ' active' : ''}`} onClick={handleToggleSolo}>S</button>
           <button className={`mute${muted ? ' active' : ''}`} onClick={handleToggleMute}>M</button>
+          <div style={{ position: 'relative' }} ref={automationDropdownRef}>
+            <button
+              className={`automation${automationActive ? ' active' : ''}`}
+              onClick={handleAutomationButtonClick}
+              title="Track automation"
+              aria-label="Track automation"
+            >
+              A
+            </button>
+            <div style={{ position: 'absolute', top: 0, left: 'calc(100% + 6px)', zIndex: 10000 }}>
+              <KGDropdown
+                options={[
+                  { label: 'Volume', value: 'volume' },
+                  { label: 'Pan', value: 'pan' },
+                ]}
+                value={activeTrackAutomationType ?? ''}
+                onChange={handleAutomationTypeSelect}
+                label="Automation"
+                hideButton={true}
+                isOpen={showAutomationDropdown}
+                onToggle={setShowAutomationDropdown}
+                className="automation-dropdown"
+              />
+            </div>
+          </div>
           <div>
             {isAudioTrack ? (
               <button className="instrument" onClick={handleAudioImportClick} title="Import Audio">

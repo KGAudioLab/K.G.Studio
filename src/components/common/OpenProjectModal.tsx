@@ -7,6 +7,7 @@ import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
 
 interface OpenProjectModalProps {
   onClose: () => void;
+  onConfirmOpenProject: (projectName: string) => Promise<boolean>;
   onOpenProject: (projectName: string) => Promise<void>;
   currentProjectName: string | null;
   onCreateNewProject: () => void;
@@ -44,12 +45,19 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProject, currentProjectName, onCreateNewProject }) => {
+const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
+  onClose,
+  onConfirmOpenProject,
+  onOpenProject,
+  currentProjectName,
+  onCreateNewProject
+}) => {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [isClosing, setIsClosing] = useState(false);
   const mouseDownOnOverlay = useRef(false);
+  const pendingOpenProjectName = useRef<string | null>(null);
 
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -61,9 +69,16 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
   const handleAnimationEnd = useCallback((e: React.AnimationEvent) => {
     if (e.target !== e.currentTarget) return;
     if (!isClosing) return;
+
+    const projectNameToOpen = pendingOpenProjectName.current;
+    pendingOpenProjectName.current = null;
     setIsClosing(false);
     onClose();
-  }, [isClosing, onClose]);
+
+    if (projectNameToOpen) {
+      void onOpenProject(projectNameToOpen);
+    }
+  }, [isClosing, onClose, onOpenProject]);
 
   const fetchProjects = useCallback(async (mode: ViewMode) => {
     setIsLoading(true);
@@ -121,7 +136,10 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
   }, [projects, filter, sortField, sortDirection]);
 
   const handleOpen = async (projectName: string) => {
-    await onOpenProject(projectName);
+    const confirmed = await onConfirmOpenProject(projectName);
+    if (!confirmed) return;
+
+    pendingOpenProjectName.current = projectName;
     startClose();
   };
 
@@ -139,8 +157,11 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({ onClose, onOpenProj
     try {
       const storage = KGProjectStorage.getInstance();
       const finalName = await storage.resolveUniqueName(trimmed);
+      const confirmed = await onConfirmOpenProject(finalName);
+      if (!confirmed) return;
+
       await storage.duplicate(projectName, finalName);
-      await onOpenProject(finalName);
+      pendingOpenProjectName.current = finalName;
       startClose();
     } catch (error) {
       console.error('Error duplicating project:', error);

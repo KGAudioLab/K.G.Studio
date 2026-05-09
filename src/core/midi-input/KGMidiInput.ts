@@ -1,5 +1,6 @@
 import { KGAudioInterface } from '../audio-interface/KGAudioInterface';
 import { useProjectStore } from '../../stores/projectStore';
+import { KGMidiTrack } from '../track/KGMidiTrack';
 
 /**
  * KGMidiInput - MIDI input manager for the DAW
@@ -7,6 +8,15 @@ import { useProjectStore } from '../../stores/projectStore';
  * Handles Web MIDI API integration for keyboard input
  */
 export class KGMidiInput {
+  private static readonly PITCH_BEND_CENTER = 8192;
+  private static readonly PITCH_BEND_MAX_OFFSET = 8192;
+  private static readonly CONTROL_CHANGE_MODULATION = 1;
+  private static readonly CONTROL_CHANGE_BREATH = 2;
+  private static readonly CONTROL_CHANGE_CHANNEL_VOLUME = 7;
+  private static readonly CONTROL_CHANGE_EXPRESSION = 11;
+  private static readonly CONTROL_CHANGE_SUSTAIN = 64;
+  private static readonly SUSTAIN_ON_THRESHOLD = 64;
+
   // Private static instance for singleton pattern
   private static _instance: KGMidiInput | null = null;
 
@@ -16,8 +26,12 @@ export class KGMidiInput {
   private connectedInputs: Map<string, MIDIInput> = new Map();
 
   // Recording callbacks
-  private onRecordNoteOn: ((pitch: number) => void) | null = null;
+  private onRecordNoteOn: ((pitch: number, velocity: number) => void) | null = null;
   private onRecordNoteOff: ((pitch: number) => void) | null = null;
+  private onRecordPitchBend: ((value: number) => void) | null = null;
+  private onRecordControlChange: ((controller: number, value: number) => void) | null = null;
+  private liveNoteTrackOwnership: Map<number, string[]> = new Map();
+  private sustainPolarityInverted: boolean | null = null;
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -165,7 +179,7 @@ export class KGMidiInput {
     if (command === 0x90 && velocity > 0) {
       console.log(`MIDI Note On: pitch=${pitch}, velocity=${velocity}, channel=${channel}`);
       this.triggerNoteOn(pitch, velocity);
-      this.onRecordNoteOn?.(pitch);
+      this.onRecordNoteOn?.(pitch, velocity);
     }
     // Note Off: command = 0x80 (128) or Note On with velocity 0
     else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
@@ -176,13 +190,14 @@ export class KGMidiInput {
     // Control Change: command = 0xB0 (176)
     else if (command === 0xb0) {
       console.log(`MIDI Control Change: controller=${pitch}, value=${velocity}, channel=${channel}`);
-      // TODO: Handle control changes (modulation, sustain pedal, etc.)
+      this.handleControlChange(pitch, velocity);
     }
     // Pitch Bend: command = 0xE0 (224)
     else if (command === 0xe0) {
       const pitchBendValue = (velocity << 7) | pitch;
       console.log(`MIDI Pitch Bend: value=${pitchBendValue}, channel=${channel}`);
-      // TODO: Handle pitch bend
+      this.triggerPitchBend(this.normalizePitchBend(pitchBendValue));
+      this.onRecordPitchBend?.(pitchBendValue);
     }
   }
 
@@ -191,12 +206,8 @@ export class KGMidiInput {
    */
   private triggerNoteOn(pitch: number, velocity: number): void {
     try {
-      // Get the selected track ID from the store
-      const selectedTrackId = useProjectStore.getState().selectedTrackId;
-
-      // Don't play if no track is selected
+      const selectedTrackId = this.getSelectedMidiTrackId();
       if (!selectedTrackId) {
-        console.log('No track selected - MIDI input ignored');
         return;
       }
 
@@ -212,7 +223,10 @@ export class KGMidiInput {
 
         // Trigger note attack if audio context is ready
         if (audioInterface.getIsAudioContextStarted()) {
-          audioInterface.triggerNoteAttack(selectedTrackId, pitch, velocity);
+          const latchedTracks = this.liveNoteTrackOwnership.get(pitch) ?? [];
+          latchedTracks.push(selectedTrackId);
+          this.liveNoteTrackOwnership.set(pitch, latchedTracks);
+          audioInterface.triggerLiveMidiNoteAttack(selectedTrackId, pitch, velocity);
           console.log(`MIDI triggered note attack: pitch=${pitch}, velocity=${velocity}, track=${selectedTrackId}`);
         }
       }
@@ -226,10 +240,7 @@ export class KGMidiInput {
    */
   private triggerNoteOff(pitch: number): void {
     try {
-      // Get the selected track ID from the store
-      const selectedTrackId = useProjectStore.getState().selectedTrackId;
-
-      // Don't try to release if no track is selected
+      const selectedTrackId = this.consumeLatchedTrackIdForPitch(pitch);
       if (!selectedTrackId) {
         return;
       }
@@ -237,12 +248,110 @@ export class KGMidiInput {
       // Get audio interface and stop playing the note
       const audioInterface = KGAudioInterface.instance();
       if (audioInterface.getIsInitialized() && audioInterface.getIsAudioContextStarted()) {
-        audioInterface.releaseNote(selectedTrackId, pitch);
+        audioInterface.releaseLiveMidiNote(selectedTrackId, pitch);
         console.log(`MIDI released note: pitch=${pitch}, track=${selectedTrackId}`);
       }
     } catch (error) {
       console.error(`Error triggering MIDI note off (pitch ${pitch}):`, error);
     }
+  }
+
+  private triggerPitchBend(normalizedBend: number): void {
+    try {
+      const selectedTrackId = this.getSelectedMidiTrackId();
+      if (!selectedTrackId) {
+        return;
+      }
+
+      const audioInterface = KGAudioInterface.instance();
+      if (audioInterface.getIsInitialized() && audioInterface.getIsAudioContextStarted()) {
+        audioInterface.setLiveMidiPitchBend(selectedTrackId, normalizedBend);
+      }
+    } catch (error) {
+      console.error(`Error applying MIDI pitch bend (${normalizedBend}):`, error);
+    }
+  }
+
+  private normalizePitchBend(pitchBendValue: number): number {
+    const normalizedBend = (pitchBendValue - KGMidiInput.PITCH_BEND_CENTER) / KGMidiInput.PITCH_BEND_MAX_OFFSET;
+    return Math.max(-1, Math.min(1, normalizedBend));
+  }
+
+  private handleControlChange(controller: number, value: number): void {
+    const selectedTrackId = this.getSelectedMidiTrackId();
+    if (!selectedTrackId) {
+      return;
+    }
+
+    const audioInterface = KGAudioInterface.instance();
+    if (!audioInterface.getIsInitialized() || !audioInterface.getIsAudioContextStarted()) {
+      return;
+    }
+
+    if (controller === KGMidiInput.CONTROL_CHANGE_SUSTAIN) {
+      const isPressed = this.normalizeSustainPedalValue(value);
+      this.onRecordControlChange?.(controller, isPressed ? 127 : 0);
+      audioInterface.setLiveMidiSustain(
+        selectedTrackId,
+        isPressed
+      );
+      return;
+    }
+
+    this.onRecordControlChange?.(controller, value);
+
+    if (
+      controller === KGMidiInput.CONTROL_CHANGE_MODULATION ||
+      controller === KGMidiInput.CONTROL_CHANGE_BREATH ||
+      controller === KGMidiInput.CONTROL_CHANGE_CHANNEL_VOLUME ||
+      controller === KGMidiInput.CONTROL_CHANGE_EXPRESSION
+    ) {
+      audioInterface.setLiveMidiExpression(selectedTrackId, value / 127);
+    }
+  }
+
+  private getSelectedMidiTrackId(): string | null {
+    const { selectedTrackId, tracks } = useProjectStore.getState();
+    if (!selectedTrackId) {
+      console.log('No track selected - MIDI input ignored');
+      return null;
+    }
+
+    const selectedTrack = tracks.find((track) => track.getId().toString() === selectedTrackId);
+    if (!(selectedTrack instanceof KGMidiTrack)) {
+      console.log(`Selected track ${selectedTrackId} is not a MIDI track - MIDI input ignored`);
+      return null;
+    }
+
+    return selectedTrackId;
+  }
+
+  private consumeLatchedTrackIdForPitch(pitch: number): string | null {
+    const latchedTracks = this.liveNoteTrackOwnership.get(pitch);
+    if (!latchedTracks || latchedTracks.length === 0) {
+      return null;
+    }
+
+    const trackId = latchedTracks.pop() ?? null;
+    if (latchedTracks.length === 0) {
+      this.liveNoteTrackOwnership.delete(pitch);
+    } else {
+      this.liveNoteTrackOwnership.set(pitch, latchedTracks);
+    }
+
+    return trackId;
+  }
+
+  private normalizeSustainPedalValue(value: number): boolean {
+    const rawPressed = value >= KGMidiInput.SUSTAIN_ON_THRESHOLD;
+
+    if (this.sustainPolarityInverted === null) {
+      // Assume the pedal starts released. The first observed sustain CC therefore
+      // represents a press-down gesture and reveals whether the device is inverted.
+      this.sustainPolarityInverted = !rawPressed;
+    }
+
+    return this.sustainPolarityInverted ? !rawPressed : rawPressed;
   }
 
   /**
@@ -263,6 +372,8 @@ export class KGMidiInput {
       }
 
       this.isInitialized = false;
+      this.liveNoteTrackOwnership.clear();
+      this.sustainPolarityInverted = null;
 
       console.log("MIDI resources disposed successfully");
     } catch (error) {
@@ -273,11 +384,15 @@ export class KGMidiInput {
   // ===== RECORDING =====
 
   public setRecordingCallbacks(
-    onNoteOn: ((pitch: number) => void) | null,
-    onNoteOff: ((pitch: number) => void) | null
+    onNoteOn: ((pitch: number, velocity: number) => void) | null,
+    onNoteOff: ((pitch: number) => void) | null,
+    onPitchBend: ((value: number) => void) | null = null,
+    onControlChange: ((controller: number, value: number) => void) | null = null
   ): void {
     this.onRecordNoteOn = onNoteOn;
     this.onRecordNoteOff = onNoteOff;
+    this.onRecordPitchBend = onPitchBend;
+    this.onRecordControlChange = onControlChange;
   }
 
   // ===== GETTERS =====

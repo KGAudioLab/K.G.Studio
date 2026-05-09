@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { 
   beatsToBar, 
+  formatMidiEventLength,
+  formatMidiEventPosition,
+  MIDI_EVENT_TICKS_PER_BEAT,
+  parseMidiEventLength,
+  parseMidiEventLengthDelta,
+  parseMidiEventPosition,
+  parseMidiEventPositionDelta,
   pitchToNoteNameString, 
   pitchToNoteName,
   pianoRollIndexToPitch,
@@ -127,11 +134,64 @@ describe('midiUtil', () => {
       expect(noteNameToPitch('F#4')).toBe(66);
       expect(noteNameToPitch('G#4')).toBe(68);
     });
+
+    it('should handle flats', () => {
+      expect(noteNameToPitch('Cb3')).toBe(47);
+      expect(noteNameToPitch('Db4')).toBe(61);
+      expect(noteNameToPitch('Bb4')).toBe(70);
+    });
     
     it('should handle invalid note names', () => {
-      expect(() => noteNameToPitch('Db4')).toThrow('Invalid note name: Db4'); // Flats not supported
       expect(() => noteNameToPitch('H4')).toThrow('Invalid note name: H4'); // Invalid note
       expect(() => noteNameToPitch('C')).toThrow('Invalid note name: C'); // Missing octave
+    });
+  });
+
+  describe('midi event position helpers', () => {
+    it('should format event positions with 480 ticks per beat', () => {
+      expect(formatMidiEventPosition(0, { numerator: 4, denominator: 4 })).toBe('1 1 0');
+      expect(formatMidiEventPosition(1.5, { numerator: 4, denominator: 4 })).toBe('1 2 240');
+      expect(formatMidiEventPosition(3.999, { numerator: 4, denominator: 4 }, MIDI_EVENT_TICKS_PER_BEAT)).toBe('2 1 0');
+    });
+
+    it('should parse event positions including tick 480 rollover', () => {
+      expect(parseMidiEventPosition('4 2 120', { numerator: 4, denominator: 4 })).toEqual({ absoluteBeat: 13.25 });
+      expect(parseMidiEventPosition('1 4 480', { numerator: 4, denominator: 4 })).toEqual({ absoluteBeat: 4 });
+    });
+
+    it('should parse event position deltas', () => {
+      expect(parseMidiEventPositionDelta('+0 1 120', { numerator: 4, denominator: 4 })).toEqual({ deltaBeats: 1.25 });
+      expect(parseMidiEventPositionDelta('-1 0 0', { numerator: 4, denominator: 4 })).toEqual({ deltaBeats: -4 });
+    });
+
+    it('should reject invalid event positions', () => {
+      expect(parseMidiEventPosition('1 5 0', { numerator: 4, denominator: 4 })).toEqual({
+        error: 'Beat must be between 1 and 4 for the current time signature.'
+      });
+    });
+  });
+
+  describe('midi event length helpers', () => {
+    it('should format midi event lengths with beat and tick', () => {
+      expect(formatMidiEventLength(0.5)).toBe('0 240');
+      expect(formatMidiEventLength(1)).toBe('1 0');
+      expect(formatMidiEventLength(1.5)).toBe('1 240');
+    });
+
+    it('should parse midi event lengths including tick 480 rollover', () => {
+      expect(parseMidiEventLength('1 240')).toEqual({ duration: 1.5 });
+      expect(parseMidiEventLength('0 480')).toEqual({ duration: 1 });
+    });
+
+    it('should parse midi event length deltas', () => {
+      expect(parseMidiEventLengthDelta('+1 240')).toEqual({ deltaBeats: 1.5 });
+      expect(parseMidiEventLengthDelta('-0 120')).toEqual({ deltaBeats: -0.25 });
+    });
+
+    it('should reject invalid midi event lengths', () => {
+      expect(parseMidiEventLength('0 0')).toEqual({
+        error: 'Length must be greater than 0.'
+      });
     });
   });
 

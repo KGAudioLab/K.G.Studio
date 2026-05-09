@@ -24,6 +24,10 @@
   border-color: #ffffff;
 }
 
+.track-region.selected-secondary {
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
 .track-region.dragging {
   opacity: 0.8;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
@@ -87,6 +91,10 @@
 
 .track-region.audio-region.selected {
   border-color: #ffffff;
+}
+
+.track-region.audio-region.selected-secondary {
+  border-color: rgba(255, 255, 255, 0.7);
 }
 
 .track-region.audio-region .region-header {

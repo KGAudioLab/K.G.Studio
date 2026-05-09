@@ -4,10 +4,12 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import RegionItem from './RegionItem';
-import type { RegionUI, ResizeAction } from '../interfaces';
+import TrackAutomationLane from './TrackAutomationLane';
+import type { RegionClickOptions, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
+import { useProjectStore } from '../../stores/projectStore';
 
 interface TrackGridItemProps {
   track: KGTrack;
@@ -25,7 +27,7 @@ interface TrackGridItemProps {
   onRegionDrag?: (regionId: string, newBarNumber: number, newTrackIndex: number) => void;
   onRegionDragEnd?: (regionId: string, finalBarNumber: number, finalTrackIndex: number) => void;
   onRegionFineMoveEnd?: (regionId: string, deltaInBars: number) => void;
-  onRegionClick?: (regionId: string) => void;
+  onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onOpenPianoRoll?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
@@ -60,6 +62,10 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   allTracks,
   onKGOneClipDrop,
 }) => {
+  const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
+  const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
+  const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
+  const trackAutomationRedrawVersion = useProjectStore(state => state.trackAutomationRedrawVersion);
   const [containerWidth, setContainerWidth] = useState(0);
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
@@ -79,6 +85,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const currentDragTop = useRef<number | null>(null);
   const currentDragRegion = useRef<RegionUI | null>(null);
   const trackElementRef = useRef<HTMLDivElement | null>(null);
+
+  const isBulkRegionEdit = (regionId: string) => selectedRegionIds.length > 1 && selectedRegionIds.includes(regionId);
 
   // Update container width when the grid container changes size
   useEffect(() => {
@@ -393,6 +401,9 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Get the initial left position
     const initialLeft = (region.barNumber - 1) * barWidth;
     
+    const isBulkEdit = isBulkRegionEdit(regionId);
+    const appliedDeltaY = isBulkEdit ? 0 : deltaY;
+
     // Calculate new left position
     const newLeft = initialLeft + deltaX;
     
@@ -401,7 +412,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // Store the current drag position for use in handleRegionDragEnd
     currentDragLeft.current = newLeft;
-    currentDragTop.current = deltaY;
+    currentDragTop.current = appliedDeltaY;
     
     if (DEBUG_MODE.TRACK_GRID_ITEM) {
       console.log(`DRAG: regionId=${regionId}, deltaX=${deltaX}, deltaY=${deltaY}, newBarNumber=${newBarNumber}`);
@@ -413,7 +424,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       width: `${region.length * barWidth}px`,
       position: 'absolute' as const,
       zIndex: 100, // Keep on top during drag
-      transform: `translateY(${deltaY}px)`,
+      transform: `translateY(${appliedDeltaY}px)`,
     };
     
     setTempRegionStyles(prev => ({
@@ -449,13 +460,14 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // If the mouse was moved, calculate the final position
     if (mouseMoved.current && currentDragLeft.current !== null && currentDragTop.current !== null) {
+      const isBulkEdit = isBulkRegionEdit(regionId);
       // Calculate the new bar number; snap to nearest integer when snapping is on
       const snap = KGMainContentState.instance().isSnappingEnabled();
       const rawBarNumber = (currentDragLeft.current / barWidth) + 1;
       finalBarNumber = Math.max(1, snap ? Math.round(rawBarNumber) : rawBarNumber);
       
       // Calculate the closest track based on vertical position
-      if (allTracks && allTracks.length > 0 && gridContainerRef.current) {
+      if (!isBulkEdit && allTracks && allTracks.length > 0 && gridContainerRef.current) {
         const trackHeight = gridContainerRef.current.clientHeight / allTracks.length;
         
         // Calculate the absolute vertical position
@@ -476,6 +488,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             console.log(`Track change: from trackIndex=${region.trackIndex} (trackId=${region.trackId}) to trackIndex=${finalTrackIndex} (trackId=${allTracks[finalTrackIndex].getId()})`);
           }
         }
+      } else {
+        finalTrackIndex = region.trackIndex;
       }
       
       if (DEBUG_MODE.TRACK_GRID_ITEM) {
@@ -516,25 +530,34 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   };
 
   // Handle region click
-  const handleRegionClick = (regionId: string) => {
+  const handleRegionClick = (regionId: string, options: RegionClickOptions) => {
     if (DEBUG_MODE.TRACK_GRID_ITEM) {
       console.log(`Region clicked: ${regionId}`);
     }
     
     if (onRegionClick) {
-      onRegionClick(regionId);
+      onRegionClick(regionId, options);
     }
   };
 
   // Filter regions for this track
   const trackRegions = regions.filter(region => region.trackIndex === index);
+  const isAutomationActive = activeTrackAutomationTrackId === track.getId().toString() && activeTrackAutomationType !== null;
 
   return (
     <div
-      className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''}`}
+      className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''} ${isAutomationActive ? 'automation-active' : ''}`}
       data-test-id={`track-grid-${track.getId()}`}
-      onDoubleClick={(e) => onDoubleClick(e, index)}
-      onClick={(e) => onClick && onClick(e, index)}
+      onDoubleClick={(e) => {
+        if (!isAutomationActive) {
+          onDoubleClick(e, index);
+        }
+      }}
+      onClick={(e) => {
+        if (!isAutomationActive) {
+          onClick && onClick(e, index);
+        }
+      }}
       ref={trackElementRef}
       onDragOver={(e) => {
         if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
@@ -589,7 +612,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onOpenPianoRoll(regionId);
               } else if (onRegionClick) {
                 // Fallback to legacy behavior
-                onRegionClick(regionId);
+                onRegionClick(regionId, { shiftKey: false });
               }
             }}
             onOpenSpectrogram={audioRegion ? (regionId) => {
@@ -603,6 +626,15 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           />
         );
       })}
+      {isAutomationActive && activeTrackAutomationType && (
+        <TrackAutomationLane
+          track={track}
+          automationType={activeTrackAutomationType}
+          maxBars={maxBars}
+          timeSignature={useProjectStore.getState().timeSignature}
+          redrawVersion={trackAutomationRedrawVersion}
+        />
+      )}
     </div>
   );
 };

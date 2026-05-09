@@ -12,22 +12,24 @@ import {
   FaUndo, FaRedo, FaMousePointer, FaStepBackward,
   FaPlay, FaPause, FaComments, FaSync,
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
-  FaCog, FaMagnet, FaCut, FaCircle
+  FaCog, FaMagnet, FaCut, FaCircle, FaCompress
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { plainToInstance } from 'class-transformer';
-import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles } from 'react-icons/fa6';
+import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles, FaListUl } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { SplitRegionCommand } from '../core/commands/region/SplitRegionCommand';
+import { MergeMidiRegionsCommand } from '../core/commands/region/MergeMidiRegionsCommand';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { KGOfflineRenderer } from '../core/audio-interface/KGOfflineRenderer';
 import KGDropdown from './common/KGDropdown';
 import FileImportModal from './common/FileImportModal';
+import LoadingOverlay from './common/LoadingOverlay';
 import OpenProjectModal from './common/OpenProjectModal';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
@@ -40,20 +42,21 @@ const Toolbar: React.FC = () => {
     projectName, setProjectName,
     savedProjectName, setSavedProjectName,
     bpm, timeSignature, keySignature, setStatus,
-    isPlaying, startPlaying, stopPlaying, setPlayheadPosition,
+    isPlaying, isPreparingPlayback, startPlaying, stopTransport, setPlayheadPosition,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, showKGOnePanel, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleListEventPanel, showKGOnePanel, showListEventPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
     selectedRegionIds,
     // Playhead and refresh
-    playheadPosition, refreshProjectState
+    playheadPosition, refreshProjectState,
+    requestMainContentScroll, requestPianoRollScroll
   } = useProjectStore();
 
   // State for main content tools
@@ -75,6 +78,7 @@ const Toolbar: React.FC = () => {
 
   // State for open project modal
   const [showOpenProject, setShowOpenProject] = React.useState(false);
+  const [isOpeningProject, setIsOpeningProject] = React.useState(false);
   
   // Close zoom slider on click outside
   React.useEffect(() => {
@@ -93,6 +97,7 @@ const Toolbar: React.FC = () => {
   
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
+  const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   const handleProjectNameClick = async () => {
     const newName = await showPrompt("Enter project name:", projectName);
@@ -202,6 +207,8 @@ const Toolbar: React.FC = () => {
   };
 
   const handleOpenProjectSelect = async (projectNameToLoad: string) => {
+    setIsOpeningProject(true);
+
     try {
       const storage = KGProjectStorage.getInstance();
       const loadedProject = await storage.load(projectNameToLoad);
@@ -215,7 +222,16 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error loading project:", error);
       await showAlert(`An error occurred while loading the project: ${error}`);
+    } finally {
+      setIsOpeningProject(false);
     }
+  };
+
+  const handleConfirmOpenProject = async (_projectNameToLoad: string) => {
+    const confirmed = await showConfirm(
+      'Open this project? Any unsaved changes in the current project will be lost.'
+    );
+    return confirmed;
   };
 
   const handleSaveProject = async () => {
@@ -518,12 +534,10 @@ const Toolbar: React.FC = () => {
       console.log("Pause button clicked");
     }
     try {
+      await stopTransport();
       if (isRecording) {
-        await stopRecording();
         setStatus("Recording stopped — notes committed");
-        return;
       }
-      await stopPlaying();
     } catch (error) {
       console.error("Failed to stop playback:", error);
       setStatus("Failed to stop playback");
@@ -535,6 +549,8 @@ const Toolbar: React.FC = () => {
       console.log("Back to beginning button clicked");
     }
     setPlayheadPosition(0);
+    requestMainContentScroll(0);
+    requestPianoRollScroll(0);
   };
 
   const handleLoopToggle = () => {
@@ -729,7 +745,7 @@ const Toolbar: React.FC = () => {
       return;
     }
 
-    const regionId = selectedRegionIds[0];
+    const regionId = lastSelectedRegionId;
     const tracks = KGCore.instance().getCurrentProject().getTracks();
     let targetRegion = null;
     for (const track of tracks) {
@@ -757,6 +773,99 @@ const Toolbar: React.FC = () => {
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Split region ${regionId} at beat ${playheadPosition}`);
+    }
+  };
+
+  const handleMergeClick = async () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log('Merge button clicked');
+    }
+
+    if (selectedRegionIds.length < 2) {
+      await showAlert('Please select at least two MIDI regions on the same track to merge.');
+      return;
+    }
+
+    const tracks = KGCore.instance().getCurrentProject().getTracks();
+    const selectedRegionIdSet = new Set(selectedRegionIds);
+    const selectedMidiRegions: KGMidiRegion[] = [];
+    let targetTrackId: string | null = null;
+
+    for (const track of tracks) {
+      for (const region of track.getRegions()) {
+        if (!selectedRegionIdSet.has(region.getId())) {
+          continue;
+        }
+
+        if (!(region instanceof KGMidiRegion)) {
+          await showAlert('Only MIDI regions can be merged. Please adjust your selection and try again.');
+          return;
+        }
+
+        const regionTrackId = track.getId().toString();
+        if (targetTrackId && targetTrackId !== regionTrackId) {
+          await showAlert('Please select only MIDI regions from a single track before merging.');
+          return;
+        }
+
+        targetTrackId = regionTrackId;
+        selectedMidiRegions.push(region);
+      }
+    }
+
+    if (selectedMidiRegions.length !== selectedRegionIds.length || !targetTrackId) {
+      await showAlert('Some selected regions could not be found. Please reselect the MIDI regions and try again.');
+      return;
+    }
+
+    const sortedSelectedRegions = [...selectedMidiRegions].sort((a, b) => {
+      const startDelta = a.getStartFromBeat() - b.getStartFromBeat();
+      if (startDelta !== 0) return startDelta;
+      return a.getLength() - b.getLength();
+    });
+
+    let regionIdsToMerge = selectedRegionIds;
+    const firstSelectedRegion = sortedSelectedRegions[0];
+    const lastSelectedRegion = sortedSelectedRegions[sortedSelectedRegions.length - 1];
+    const spanStart = firstSelectedRegion.getStartFromBeat();
+    const spanEnd = lastSelectedRegion.getStartFromBeat() + lastSelectedRegion.getLength();
+
+    const targetTrack = tracks.find(track => track.getId().toString() === targetTrackId);
+    const inBetweenRegions = targetTrack
+      ?.getRegions()
+      .filter(region => (
+        region instanceof KGMidiRegion &&
+        !selectedRegionIdSet.has(region.getId()) &&
+        region.getStartFromBeat() >= spanStart &&
+        region.getStartFromBeat() <= spanEnd
+      )) ?? [];
+
+    if (inBetweenRegions.length > 0) {
+      const shouldIncludeInBetweenRegions = await showConfirm(
+        'There are additional MIDI regions between the first and last selected regions on this track. Would you like KGStudio to merge those as well?',
+        {
+          confirmLabel: 'Merge All In Between',
+          cancelLabel: 'Stop',
+        }
+      );
+
+      if (!shouldIncludeInBetweenRegions) {
+        return;
+      }
+
+      regionIdsToMerge = Array.from(new Set([
+        ...selectedRegionIds,
+        ...inBetweenRegions.map(region => region.getId()),
+      ]));
+    }
+
+    try {
+      const command = new MergeMidiRegionsCommand(regionIdsToMerge);
+      KGCore.instance().executeCommand(command, { rethrow: true });
+      refreshProjectState();
+      setStatus(`Merged ${regionIdsToMerge.length} MIDI regions`);
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : 'Unable to merge the selected MIDI regions.');
     }
   };
 
@@ -830,6 +939,13 @@ const Toolbar: React.FC = () => {
     toggleKGOnePanel();
   };
 
+  const handleListEventClick = () => {
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log("List Event button clicked");
+    }
+    toggleListEventPanel();
+  };
+
   // Handle Piano button click: open piano roll if closed, targeting active or selected region
   const handlePianoButtonClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
@@ -844,7 +960,7 @@ const Toolbar: React.FC = () => {
     }
 
     // Prefer current active region; otherwise, first selected region
-    const candidateRegionId = activeRegionId || (selectedRegionIds && selectedRegionIds.length > 0 ? selectedRegionIds[0] : null);
+    const candidateRegionId = activeRegionId || lastSelectedRegionId;
 
     if (!candidateRegionId) {
       if (DEBUG_MODE.TOOLBAR) {
@@ -876,7 +992,7 @@ const Toolbar: React.FC = () => {
     }
 
     // Require an active or selected MIDI region
-    const candidateId = activeRegionId ?? (selectedRegionIds[0] ?? null);
+    const candidateId = activeRegionId ?? lastSelectedRegionId;
     if (!candidateId) {
       await showAlert("Please open a MIDI region in the Piano Roll before starting recording.");
       return;
@@ -949,6 +1065,13 @@ const Toolbar: React.FC = () => {
           </div>
         </div>
         <button title="Import" onClick={handleImportProject}><FaUpload /></button>
+        <button
+          title="Settings"
+          className={`tool-button ${showSettings ? 'active' : ''}`}
+          onClick={handleSettingsClick}
+        >
+          <FaCog />
+        </button>
         <div className="toolbar-separator"></div>
         <button title="Undo" onClick={handleUndoClick}><FaUndo /></button>
         <button title="Redo" onClick={handleRedoClick}><FaRedo /></button>
@@ -974,6 +1097,12 @@ const Toolbar: React.FC = () => {
           <FaCut />
         </button>
         <button
+          title="Merge Selected MIDI Regions"
+          onClick={handleMergeClick}
+        >
+          <FaCompress />
+        </button>
+        <button
           title="Snap to Grid"
           className={`tool-button ${isSnapping ? 'active' : ''}`}
           onClick={handleSnappingToggle}
@@ -987,14 +1116,13 @@ const Toolbar: React.FC = () => {
         <div className="toolbar-separator"></div>
         <button title="Back to beginning" className="button-back-to-beginning" onClick={handleBackToBeginningClick}><FaStepBackward /></button>
         {!isPlaying ? (
-          <button title="Play" className="button-play" onClick={handlePlayClick}><FaPlay /></button>
+          <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
         ) : (
           <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
         )}
         <button
           title={isRecording ? "Stop Recording" : "Record"}
-          className={`tool-button ${isRecording ? 'active' : ''}`}
-          style={isRecording ? { color: 'red' } : undefined}
+          className={`tool-button record-button ${isRecording ? 'active' : ''}`}
           onClick={handleRecordClick}
         >
           <FaCircle />
@@ -1074,7 +1202,6 @@ const Toolbar: React.FC = () => {
             </div>
           </div>
         </div>
-        <button title="Settings" onClick={handleSettingsClick}><FaCog /></button>
         <button
           title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
           onClick={handleKGOneClick}
@@ -1084,7 +1211,20 @@ const Toolbar: React.FC = () => {
         >
           <FaWandMagicSparkles />
         </button>
-        <button title="Chat" onClick={handleChatClick}><FaComments /></button>
+        <button
+          title="Chat"
+          onClick={handleChatClick}
+          className={showChatBox ? 'active' : ''}
+        >
+          <FaComments />
+        </button>
+        <button
+          title="List Event Editor"
+          onClick={handleListEventClick}
+          className={showListEventPanel ? 'active' : ''}
+        >
+          <FaListUl />
+        </button>
       </div>
     </div>
     
@@ -1097,9 +1237,15 @@ const Toolbar: React.FC = () => {
       description="Drag and drop your project file here"
     />
 
+    <LoadingOverlay
+      visible={isOpeningProject}
+      message="Opening project..."
+    />
+
     {showOpenProject && (
       <OpenProjectModal
         onClose={() => setShowOpenProject(false)}
+        onConfirmOpenProject={handleConfirmOpenProject}
         onOpenProject={handleOpenProjectSelect}
         currentProjectName={savedProjectName}
         onCreateNewProject={createNewProject}

@@ -13,6 +13,8 @@ export class KGPianoRollState {
   private currentSnap: string = "NO SNAP";
   private lastEditedNoteLength: number = 1; // Default to 1 beat
   private currentMode: string = "ionian"; // Default mode
+  private automationViewEnabled: boolean = false;
+  private currentAutomationType: string = "pitch-bend";
 
   // Chord guide state
   private currentSuitableChords: Record<string, string[]> = {}; // Map of chord symbols to note names (e.g., {"I": ["C", "E", "G"]})
@@ -63,6 +65,22 @@ export class KGPianoRollState {
 
   public setCurrentMode(mode: string): void {
     this.currentMode = mode;
+  }
+
+  public getAutomationViewEnabled(): boolean {
+    return this.automationViewEnabled;
+  }
+
+  public setAutomationViewEnabled(enabled: boolean): void {
+    this.automationViewEnabled = enabled;
+  }
+
+  public getCurrentAutomationType(): string {
+    return this.currentAutomationType;
+  }
+
+  public setCurrentAutomationType(type: string): void {
+    this.currentAutomationType = type;
   }
 
   public getCurrentSuitableChords(): Record<string, string[]> {
