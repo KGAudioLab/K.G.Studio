@@ -35,6 +35,10 @@ export const mockAudioInterface = {
   getCurrentBeat: vi.fn().mockReturnValue(0),
   getTransportPosition: vi.fn().mockReturnValue(0),
   setBpm: vi.fn().mockReturnValue(undefined),
+  startAudioRecording: vi.fn().mockResolvedValue(undefined),
+  stopAudioRecording: vi.fn().mockResolvedValue(null),
+  cancelAudioRecording: vi.fn().mockResolvedValue(undefined),
+  applyConfiguredOutputDevice: vi.fn().mockResolvedValue(false),
   
   // Singleton pattern
   getInstance: vi.fn().mockReturnThis(),

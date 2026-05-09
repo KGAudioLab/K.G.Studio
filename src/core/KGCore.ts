@@ -49,6 +49,7 @@ export class KGCore {
   // Callback for external state updates (e.g., store)
   private playheadUpdateCallback: ((position: number) => void) | null = null;
   private playbackStateChangeCallback: ((isPlaying: boolean) => void) | null = null;
+  private loopBoundaryReachedCallback: ((loopEndBeat: number) => void) | null = null;
 
   // Selection change callbacks for store synchronization
   private selectionChangeCallbacks: (() => void)[] = [];
@@ -198,6 +199,10 @@ export class KGCore {
   // Method to set external playback state change callback
   public setPlaybackStateChangeCallback(callback: (isPlaying: boolean) => void): void {
     this.playbackStateChangeCallback = callback;
+  }
+
+  public setLoopBoundaryReachedCallback(callback: ((loopEndBeat: number) => void) | null): void {
+    this.loopBoundaryReachedCallback = callback;
   }
 
   // Selection change callback management
@@ -414,6 +419,14 @@ export class KGCore {
 
       // Wrap playhead position within loop range
       if (newPosition >= loopEndBeats) {
+        if (this.loopBoundaryReachedCallback) {
+          const callback = this.loopBoundaryReachedCallback;
+          this.loopBoundaryReachedCallback = null;
+          this.setPlayheadPosition(loopEndBeats);
+          callback(loopEndBeats);
+          return;
+        }
+
         // Calculate how far we've overshot and wrap back
         const overshot = newPosition - loopEndBeats;
         newPosition = loopStartBeats + (overshot % loopLengthBeats);

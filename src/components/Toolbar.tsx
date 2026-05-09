@@ -17,6 +17,7 @@ import {
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { plainToInstance } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles, FaListUl } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
@@ -53,7 +54,7 @@ const Toolbar: React.FC = () => {
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
     // Selection state
-    selectedRegionIds,
+    selectedRegionIds, selectedTrackId,
     // Playhead and refresh
     playheadPosition, refreshProjectState,
     requestMainContentScroll, requestPianoRollScroll
@@ -987,7 +988,14 @@ const Toolbar: React.FC = () => {
   const handleRecordClick = async () => {
     if (isRecording) {
       await stopRecording();
-      setStatus("Recording stopped — notes committed");
+      setStatus("Recording stopped");
+      return;
+    }
+
+    const selectedTrack = useProjectStore.getState().tracks.find(track => track.getId().toString() === selectedTrackId) ?? null;
+    if (selectedTrack instanceof KGAudioTrack) {
+      await startRecording();
+      setStatus("Audio recording started...");
       return;
     }
 

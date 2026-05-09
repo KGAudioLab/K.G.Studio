@@ -23,6 +23,8 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2026.05.09**: Added **audio recording** — record directly from your microphone into an audio track. A live waveform preview grows in real time as you record, and the region is committed to the timeline as a standard audio region when you stop. Added **audio I/O device selection** in Settings so you can choose your preferred microphone input and audio output device.
+
 - **2026.05.08**: Added **MIDI automation** — draw and edit pitch bend and MIDI CC curves (CC1 Modulation, CC2 Breath, CC7 Volume, CC11 Expression, CC64 Sustain) in an editable automation lane below the piano grid. Added **track-level automation**: each track now has a dedicated automation panel where you can view and edit the same curves directly on the timeline. Real-time MIDI controller input (pitch wheel, CC pedals) is recorded and played back with per-lane interpolation. Added the **List Event Panel** — a tabbed sidebar (Notes / Pitch Bend / Controller) for inspecting and inline-editing all events in the active MIDI region. Added **region multi-select** with lasso and bulk move/resize, and **merge MIDI regions**.
 <div align="center">
   <img src="./public/snapshots/2026-05-08-automations.png" alt="K.G.Studio Logo" width="640" />
@@ -314,16 +316,25 @@ Split an existing audio region into individual stems (e.g. vocals, instruments, 
 
 Feature priorities might change.
 
+### 1.0
+
 - [X] More instruments
 - [X] Automated testing (unit tests, integration tests, etc.)
 - [X] Intelligent Chord Assistant with functional harmony guidance (T/S/D)
 - [X] Support track control automations (e.g. sustain, volume, pan, etc.)
 - [X] Support MIDI control events (e.g. CC, pitch bend, etc.)
 - [X] Support WAV audio tracks
-- [ ] Filters and effects
-- [ ] MCP Support
+- [X] Recording
+- [ ] List Event + List Region
 - [X] Add support for OpenAI's open source models (`gpt-oss-20b` and `gpt-oss-120b`)
-- [ ] Automatically compact conversations when the context window runs low on space
+
+### Post 1.0
+
+- [ ] Stuff notation
+- [ ] Filters and effects
+- [ ] Virtual MIDI device output
+- [ ] Enhanced AI Music Assistant Agent
+
 
 ## Help Needed
 

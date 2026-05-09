@@ -25,6 +25,7 @@ import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
 import { CreateMidiEventsCommand, type NoteCreationData, type PitchBendCreationData, type ControllerEventCreationData } from '../core/commands/note/CreateMidiEventsCommand';
 import { MIDI_PITCH_BEND_CENTER } from '../util/midiUtil';
 import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/KGTrackAutomationPoint';
+import type { AudioRecordingPeak } from '../core/audio-interface/KGAudioRecorder';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -114,11 +115,19 @@ interface ProjectState {
 
   // Recording state
   isRecording: boolean;
+  recordingMode: 'midi' | 'audio' | null;
   recordingTargetRegionId: string | null;
+  recordingTargetTrackId: string | null;
+  recordingTargetTrackIndex: number | null;
   recordingNotes: Array<{ pitch: number; startBeat: number; endBeat: number; velocity: number }>;
   recordingPitchBends: Array<{ beat: number; value: number }>;
   recordingControllerEventsByType: Array<Array<{ beat: number; value: number }>>;
   recordingOriginalPlayhead: number;
+  recordingStartBeatAbsolute: number;
+  recordingCommitStartBeatAbsolute: number;
+  recordingAudioPreviewPeaks: AudioRecordingPeak[];
+  recordingAudioPreviewCurrentBeat: number;
+  recordingAudioPreviewFileName: string | null;
 
   // Undo/redo state
   canUndo: boolean;
@@ -225,6 +234,9 @@ let _recordingActiveNotes: Map<number, { startBeat: number; velocity: number }> 
 let _recordingRegionStartBeat: number = 0;
 let _lastRecordedPitchBendValue: number | null = null;
 let _lastRecordedControllerValues: Map<number, number> = new Map();
+let _audioRecordingStartTimeoutId: number | null = null;
+let _audioRecordingForcedStopBeatAbsolute: number | null = null;
+let _audioRecordingHasStarted: boolean = false;
 
 function createEmptyRecordedControllerBuckets(): Array<Array<{ beat: number; value: number }>> {
   return Array.from({ length: 128 }, () => []);
@@ -253,6 +265,20 @@ function finalizeRecordedNote(startBeat: number, candidateEndBeat: number): numb
   return candidateEndBeat;
 }
 
+function clearPendingAudioRecordingStart(): void {
+  if (_audioRecordingStartTimeoutId !== null) {
+    window.clearTimeout(_audioRecordingStartTimeoutId);
+    _audioRecordingStartTimeoutId = null;
+  }
+}
+
+function getAudioRecordingExtension(mimeType: string): string {
+  if (mimeType.includes('ogg')) return 'ogg';
+  if (mimeType.includes('mp4')) return 'm4a';
+  if (mimeType.includes('wav')) return 'wav';
+  return 'webm';
+}
+
 // Create the store
 export const useProjectStore = create<ProjectState>((set, get) => {
   const currentProject = KGCore.instance().getCurrentProject();
@@ -273,10 +299,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Set up playhead update callback to keep store in sync during playback
   KGCore.instance().setPlayheadUpdateCallback((position: number) => {
     const { bpm, timeSignature } = get();
-    set({ 
+    set(state => ({
       playheadPosition: position,
-      currentTime: beatsToTimeString(position, bpm, timeSignature)
-    });
+      currentTime: beatsToTimeString(position, bpm, timeSignature),
+      recordingAudioPreviewCurrentBeat: state.recordingMode === 'audio'
+        ? Math.max(state.recordingCommitStartBeatAbsolute, position)
+        : state.recordingAudioPreviewCurrentBeat,
+    }));
   });
 
   // Keep store isPlaying in sync when core auto-stops (e.g., at maxBars)
@@ -420,11 +449,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial recording state
     isRecording: false,
+    recordingMode: null,
     recordingTargetRegionId: null,
+    recordingTargetTrackId: null,
+    recordingTargetTrackIndex: null,
     recordingNotes: [],
     recordingPitchBends: [],
     recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
     recordingOriginalPlayhead: 0,
+    recordingStartBeatAbsolute: 0,
+    recordingCommitStartBeatAbsolute: 0,
+    recordingAudioPreviewPeaks: [],
+    recordingAudioPreviewCurrentBeat: 0,
+    recordingAudioPreviewFileName: null,
 
     // Initial cross-component scroll request state
     mainContentScrollRequest: null,
@@ -847,6 +884,20 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           activeTrackAutomationTrackId: null,
           activeTrackAutomationType: null,
           trackAutomationRedrawVersion: 0,
+          isRecording: false,
+          recordingMode: null,
+          recordingTargetRegionId: null,
+          recordingTargetTrackId: null,
+          recordingTargetTrackIndex: null,
+          recordingNotes: [],
+          recordingPitchBends: [],
+          recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
+          recordingOriginalPlayhead: 0,
+          recordingStartBeatAbsolute: 0,
+          recordingCommitStartBeatAbsolute: 0,
+          recordingAudioPreviewPeaks: [],
+          recordingAudioPreviewCurrentBeat: 0,
+          recordingAudioPreviewFileName: null,
           playheadPosition: 0, // Ensure store state is also updated
           currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
         });
@@ -930,7 +981,99 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     startRecording: async () => {
-      const { activeRegionId, timeSignature, playheadPosition, setPlayheadPosition } = get();
+      const {
+        activeRegionId,
+        timeSignature,
+        playheadPosition,
+        setPlayheadPosition,
+        selectedTrackId,
+        tracks,
+      } = get();
+
+      const selectedTrack = tracks.find(track => track.getId().toString() === selectedTrackId) ?? null;
+      if (selectedTrack instanceof KGAudioTrack) {
+        const project = KGCore.instance().getCurrentProject();
+        const beatsPerBar = timeSignature.numerator;
+        const projectLooping = project.getIsLooping();
+        const [loopStartBar] = project.getLoopingRange();
+        const loopStartBeat = loopStartBar * beatsPerBar;
+        const recordingCommitStartBeatAbsolute = projectLooping ? loopStartBeat : playheadPosition;
+        const recordingStartBeatAbsolute = recordingCommitStartBeatAbsolute - beatsPerBar;
+        const previewFileName = `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}`;
+
+        clearPendingAudioRecordingStart();
+        _audioRecordingForcedStopBeatAbsolute = null;
+        _audioRecordingHasStarted = false;
+
+        set({
+          isRecording: true,
+          recordingMode: 'audio',
+          recordingTargetRegionId: null,
+          recordingTargetTrackId: selectedTrack.getId().toString(),
+          recordingTargetTrackIndex: selectedTrack.getTrackIndex(),
+          recordingNotes: [],
+          recordingPitchBends: [],
+          recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
+          recordingOriginalPlayhead: playheadPosition,
+          recordingStartBeatAbsolute,
+          recordingCommitStartBeatAbsolute,
+          recordingAudioPreviewPeaks: [],
+          recordingAudioPreviewCurrentBeat: recordingCommitStartBeatAbsolute,
+          recordingAudioPreviewFileName: previewFileName,
+        });
+
+        KGCore.instance().setLoopBoundaryReachedCallback(projectLooping
+          ? (loopEndBeat: number) => {
+              _audioRecordingForcedStopBeatAbsolute = loopEndBeat;
+              void get().stopRecording();
+            }
+          : null);
+
+        setPlayheadPosition(recordingStartBeatAbsolute);
+        set({ isPreparingPlayback: true });
+        try {
+          await KGCore.instance().startPlaying({
+            preserveLoopPreroll: projectLooping,
+          });
+          set({ isPlaying: true, autoScrollEnabled: true });
+
+          const prerollMs = Math.max(0, ((recordingCommitStartBeatAbsolute - recordingStartBeatAbsolute) * (60 / project.getBpm())) * 1000);
+          _audioRecordingStartTimeoutId = window.setTimeout(() => {
+            _audioRecordingStartTimeoutId = null;
+            const inputDeviceId = (ConfigManager.instance().get('audio.input_device_id') as string | undefined) ?? 'default';
+            void KGAudioInterface.instance().startAudioRecording(inputDeviceId, (peaks) => {
+              set({ recordingAudioPreviewPeaks: peaks });
+            }).then((startResult) => {
+              _audioRecordingHasStarted = true;
+              if (startResult.fellBackToDefault) {
+                void ConfigManager.instance().set('audio.input_device_id', 'default');
+                get().setStatus('Previously selected audio input device is unavailable; using System Default.');
+              }
+            }).catch(async (error) => {
+              console.error('Failed to start audio recording:', error);
+              await KGAudioInterface.instance().cancelAudioRecording();
+              KGCore.instance().setLoopBoundaryReachedCallback(null);
+              await get().stopPlaying();
+              setPlayheadPosition(playheadPosition);
+              set({
+                isRecording: false,
+                recordingMode: null,
+                recordingTargetTrackId: null,
+                recordingTargetTrackIndex: null,
+                recordingStartBeatAbsolute: 0,
+                recordingCommitStartBeatAbsolute: 0,
+                recordingAudioPreviewPeaks: [],
+                recordingAudioPreviewCurrentBeat: 0,
+                recordingAudioPreviewFileName: null,
+              });
+              get().setStatus(error instanceof Error ? error.message : 'Unable to start audio recording.');
+            });
+          }, prerollMs);
+        } finally {
+          set({ isPreparingPlayback: false });
+        }
+        return;
+      }
 
       const project = KGCore.instance().getCurrentProject();
       let targetRegion: KGMidiRegion | null = null;
@@ -945,13 +1088,28 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       _lastRecordedPitchBendValue = null;
       _lastRecordedControllerValues = new Map();
 
+      const projectLooping = project.getIsLooping();
+      const [loopStartBar] = project.getLoopingRange();
+      const loopStartBeat = loopStartBar * timeSignature.numerator;
+      const recordingStartBeat = projectLooping
+        ? loopStartBeat - timeSignature.numerator
+        : playheadPosition - timeSignature.numerator;
+
       set({
         isRecording: true,
+        recordingMode: 'midi',
         recordingNotes: [],
         recordingPitchBends: [],
         recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
         recordingTargetRegionId: activeRegionId,
+        recordingTargetTrackId: null,
+        recordingTargetTrackIndex: null,
         recordingOriginalPlayhead: playheadPosition,
+        recordingStartBeatAbsolute: recordingStartBeat,
+        recordingCommitStartBeatAbsolute: targetRegion.getStartFromBeat(),
+        recordingAudioPreviewPeaks: [],
+        recordingAudioPreviewCurrentBeat: 0,
+        recordingAudioPreviewFileName: null,
       });
 
       const buildCorrectedBeat = (): number => {
@@ -1009,13 +1167,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         }
       );
 
-      const projectLooping = project.getIsLooping();
-      const [loopStartBar] = project.getLoopingRange();
-      const loopStartBeat = loopStartBar * timeSignature.numerator;
-      const recordingStartBeat = projectLooping
-        ? loopStartBeat - timeSignature.numerator
-        : playheadPosition - timeSignature.numerator;
-
       setPlayheadPosition(recordingStartBeat);
       set({ isPreparingPlayback: true });
       try {
@@ -1030,15 +1181,108 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     stopRecording: async () => {
       const {
+        recordingMode,
         recordingNotes,
         recordingPitchBends,
         recordingControllerEventsByType,
         recordingTargetRegionId,
+        recordingTargetTrackId,
+        recordingTargetTrackIndex,
         recordingOriginalPlayhead,
+        recordingCommitStartBeatAbsolute,
+        recordingAudioPreviewFileName,
         stopPlaying,
         setPlayheadPosition,
-        refreshProjectState
+        refreshProjectState,
+        projectName,
+        maxBars,
       } = get();
+
+      if (recordingMode === 'audio') {
+        clearPendingAudioRecordingStart();
+        KGCore.instance().setLoopBoundaryReachedCallback(null);
+
+        const stopBeatAbsolute = _audioRecordingForcedStopBeatAbsolute
+          ?? Math.max(recordingCommitStartBeatAbsolute, KGAudioInterface.instance().getTransportPosition());
+        _audioRecordingForcedStopBeatAbsolute = null;
+
+        const recordingResult = _audioRecordingHasStarted
+          ? await KGAudioInterface.instance().stopAudioRecording()
+          : (await KGAudioInterface.instance().cancelAudioRecording(), null);
+        _audioRecordingHasStarted = false;
+
+        if (
+          recordingResult &&
+          recordingTargetTrackId &&
+          recordingTargetTrackIndex !== null &&
+          stopBeatAbsolute > recordingCommitStartBeatAbsolute
+        ) {
+          try {
+            const extension = getAudioRecordingExtension(recordingResult.mimeType);
+            const fileName = `${recordingAudioPreviewFileName ?? 'Recording'}.${extension}`;
+            const audioFile = new File([recordingResult.blob], fileName, { type: recordingResult.mimeType });
+            const fileId = KGAudioFileStorage.generateAudioFileId(fileName);
+            const arrayBuffer = await audioFile.arrayBuffer();
+            const toneBuffer = new Tone.ToneAudioBuffer();
+            await new Promise<void>((resolve, reject) => {
+              const audioContext = Tone.getContext().rawContext as AudioContext;
+              audioContext.decodeAudioData(
+                arrayBuffer.slice(0),
+                (decoded) => { toneBuffer.set(decoded); resolve(); },
+                (err) => reject(err)
+              );
+            });
+
+            const track = KGCore.instance().getCurrentProject().getTracks().find(candidate => candidate.getId().toString() === recordingTargetTrackId);
+            if (track) {
+              await KGAudioFileStorage.storeAudioFile(projectName, fileId, audioFile);
+              KGAudioInterface.instance().loadAudioBufferForTrack(recordingTargetTrackId, fileId, toneBuffer);
+
+              const prevMaxBars = maxBars;
+              const durationInBeats = stopBeatAbsolute - recordingCommitStartBeatAbsolute;
+              const beatsPerBar = KGCore.instance().getCurrentProject().getTimeSignature().numerator;
+              const endBarNumber = Math.ceil((recordingCommitStartBeatAbsolute + durationInBeats) / beatsPerBar);
+              const newMaxBars = Math.max(prevMaxBars, endBarNumber);
+
+              const command = new ImportAudioCommand(
+                track.getId(),
+                recordingTargetTrackIndex,
+                fileId,
+                fileName,
+                toneBuffer.duration,
+                recordingCommitStartBeatAbsolute,
+                durationInBeats,
+                prevMaxBars,
+                newMaxBars
+              );
+              KGCore.instance().executeCommand(command);
+              refreshProjectState();
+            }
+          } catch (error) {
+            console.error('Failed to finalize audio recording:', error);
+          }
+        }
+
+        await stopPlaying();
+        setPlayheadPosition(recordingOriginalPlayhead);
+        set({
+          isRecording: false,
+          recordingMode: null,
+          isPreparingPlayback: false,
+          recordingTargetRegionId: null,
+          recordingTargetTrackId: null,
+          recordingTargetTrackIndex: null,
+          recordingNotes: [],
+          recordingPitchBends: [],
+          recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
+          recordingStartBeatAbsolute: 0,
+          recordingCommitStartBeatAbsolute: 0,
+          recordingAudioPreviewPeaks: [],
+          recordingAudioPreviewCurrentBeat: 0,
+          recordingAudioPreviewFileName: null,
+        });
+        return;
+      }
 
       // Finalize any held keys
       const finalNotes = [...recordingNotes];
@@ -1109,11 +1353,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       setPlayheadPosition(recordingOriginalPlayhead);
       set({
         isRecording: false,
+        recordingMode: null,
         isPreparingPlayback: false,
         recordingNotes: [],
         recordingPitchBends: [],
         recordingControllerEventsByType: createEmptyRecordedControllerBuckets(),
-        recordingTargetRegionId: null
+        recordingTargetRegionId: null,
+        recordingTargetTrackId: null,
+        recordingTargetTrackIndex: null,
+        recordingStartBeatAbsolute: 0,
+        recordingCommitStartBeatAbsolute: 0,
+        recordingAudioPreviewPeaks: [],
+        recordingAudioPreviewCurrentBeat: 0,
+        recordingAudioPreviewFileName: null,
       });
       _lastRecordedPitchBendValue = null;
       _lastRecordedControllerValues = new Map();
@@ -1315,6 +1567,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeTrackAutomationTrackId: null,
         activeTrackAutomationType: null,
         trackAutomationRedrawVersion: 0,
+        recordingAudioPreviewPeaks: [],
+        recordingAudioPreviewCurrentBeat: 0,
       });
       
       // Clear any selected items

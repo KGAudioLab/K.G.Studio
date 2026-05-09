@@ -8,6 +8,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
+import type { AudioRecordingPeak } from '../../core/audio-interface/KGAudioRecorder';
 
 const DRAG_START_THRESHOLD_PX = 4;
 
@@ -42,6 +43,8 @@ interface RegionItemProps {
   // Audio region data for rendering waveform
   audioRegion?: KGAudioRegion;
   audioBuffer?: AudioBuffer;
+  previewWaveformPeaks?: AudioRecordingPeak[];
+  isPreview?: boolean;
 }
 
 const RegionItem: React.FC<RegionItemProps> = ({
@@ -65,7 +68,9 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onFineMoveEnd,
   midiRegion,
   audioRegion,
-  audioBuffer
+  audioBuffer,
+  previewWaveformPeaks,
+  isPreview = false,
 }) => {
   // Get selection state and time signature from store
   const { selectedRegionIds, timeSignature, bpm } = useProjectStore();
@@ -303,6 +308,41 @@ const RegionItem: React.FC<RegionItemProps> = ({
     ctx.stroke();
   };
 
+  const renderPreviewWaveformOnCanvas = () => {
+    if (!canvasRef.current || !regionContentRef.current || !previewWaveformPeaks || previewWaveformPeaks.length === 0) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const contentRect = regionContentRef.current.getBoundingClientRect();
+    const width = contentRect.width;
+    const height = contentRect.height;
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.clearRect(0, 0, width, height);
+
+    const centerY = height / 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (let x = 0; x < width; x++) {
+      const peakIndex = Math.min(
+        previewWaveformPeaks.length - 1,
+        Math.floor((x / Math.max(1, width)) * previewWaveformPeaks.length)
+      );
+      const peak = previewWaveformPeaks[peakIndex];
+      const yMin = centerY - peak.max * centerY;
+      const yMax = centerY - peak.min * centerY;
+      ctx.moveTo(x, yMin);
+      ctx.lineTo(x, yMax);
+    }
+
+    ctx.stroke();
+  };
+
   // Create a stable reference to track note changes
   const notesRef = useRef<string>('');
   const [noteUpdateTrigger, setNoteUpdateTrigger] = useState(0);
@@ -325,19 +365,23 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
   // Set up canvas when component mounts or updates
   useEffect(() => {
-    if (audioRegion && audioBuffer) {
+    if (previewWaveformPeaks && previewWaveformPeaks.length > 0) {
+      renderPreviewWaveformOnCanvas();
+    } else if (audioRegion && audioBuffer) {
       renderWaveformOnCanvas();
     } else {
       renderNotesOnCanvas();
     }
-  }, [midiRegion, audioRegion, audioBuffer, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length]);
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length]);
 
   // Re-render canvas when region content size changes
   useEffect(() => {
     if (!regionContentRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      if (audioRegion && audioBuffer) {
+      if (previewWaveformPeaks && previewWaveformPeaks.length > 0) {
+        renderPreviewWaveformOnCanvas();
+      } else if (audioRegion && audioBuffer) {
         renderWaveformOnCanvas();
       } else {
         renderNotesOnCanvas();
@@ -351,12 +395,13 @@ const RegionItem: React.FC<RegionItemProps> = ({
         resizeObserver.unobserve(regionContentRef.current);
       }
     };
-  }, [midiRegion, audioRegion, audioBuffer, timeSignature, bpm]);
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm]);
 
   // Handle mouse movement to detect edge proximity
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     // Skip if already resizing or dragging
     if (isResizingRef.current || isDraggingRef.current) return;
+    if (isPreview) return;
 
     // Disable move and resize when pencil tool is active
     const activeTool = KGMainContentState.instance().getActiveTool();
@@ -402,6 +447,10 @@ const RegionItem: React.FC<RegionItemProps> = ({
   // Handle mouse down for resize or drag
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // Disable move and resize when pencil tool is active
+    if (isPreview) {
+      return;
+    }
+
     const activeTool = KGMainContentState.instance().getActiveTool();
     if (activeTool === 'pencil') {
       // Still allow click events to pass through for region selection
@@ -604,11 +653,12 @@ const RegionItem: React.FC<RegionItemProps> = ({
     <div
       key={id}
       className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? (isPrimarySelected ? 'selected' : 'selected-secondary') : ''} ${audioRegion ? 'audio-region' : ''}`}
-      style={{ ...style, cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onMouseDown={handleMouseDown}
+      style={{ ...style, cursor: isPreview ? 'default' : cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
+      onMouseMove={isPreview ? undefined : handleMouseMove}
+      onMouseLeave={isPreview ? undefined : handleMouseLeave}
+      onMouseDown={isPreview ? undefined : handleMouseDown}
       data-region-id={id}
+      data-preview-region={isPreview ? 'true' : 'false'}
       data-resize-edge={resizeEdge}
       data-is-resizing={isResizing}
       data-is-dragging={isDragging}
@@ -617,7 +667,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         {name}
       </div>
       <div className={`region-content${audioRegion ? ' audio-region-content' : ''}`} ref={regionContentRef}>
-        <div className="region-left-buttons">
+        {!isPreview && <div className="region-left-buttons">
           {!audioRegion && (
             <button
               className="region-pencil-btn"
@@ -718,7 +768,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
               <span className="region-fine-move-label">{fineDeltaDisplay}</span>
             )}
           </div>
-        </div>
+        </div>}
         <canvas ref={canvasRef} />
       </div>
     </div>

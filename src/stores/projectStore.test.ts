@@ -1,24 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
+import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 
+let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 const mockProject = {
   getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
   getMaxBars: () => 32,
   getBarWidthMultiplier: () => 1,
-  getTracks: () => [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')],
+  getTracks: () => mockTracks,
   getBpm: () => 120,
   getKeySignature: () => 'C major',
   getName: () => 'Test Project',
   getSelectedMode: () => 'major',
   getIsLooping: () => false,
-  getLoopingRange: () => null,
+  getLoopingRange: () => [0, 0] as [number, number],
 };
+
+const mockAudioInterface = {
+  getTransportPosition: vi.fn().mockReturnValue(8),
+  startAudioRecording: vi.fn().mockResolvedValue({ usedDeviceId: 'default', fellBackToDefault: false }),
+  stopAudioRecording: vi.fn().mockResolvedValue(null),
+  cancelAudioRecording: vi.fn().mockResolvedValue(undefined),
+};
+
+const configValues = new Map<string, unknown>([
+  ['audio.input_device_id', 'default'],
+]);
 
 const mockCore = {
   getCurrentProject: () => mockProject,
   setPlayheadUpdateCallback: vi.fn(),
   setPlaybackStateChangeCallback: vi.fn(),
+  setLoopBoundaryReachedCallback: vi.fn(),
   getSelectedItems: () => [],
   onSelectionChanged: vi.fn(),
   canUndo: () => false,
@@ -30,6 +44,7 @@ const mockCore = {
   clearSelectedItems: vi.fn(),
   getStatus: () => 'Ready',
   getPlayheadPosition: () => 0,
+  setPlayheadPosition: vi.fn(),
   getIsPlaying: () => false,
   startPlaying: vi.fn().mockResolvedValue(undefined),
   stopPlaying: vi.fn().mockResolvedValue(undefined),
@@ -41,22 +56,43 @@ vi.mock('../core/KGCore', () => ({
   },
 }));
 
+vi.mock('../core/audio-interface/KGAudioInterface', () => ({
+  KGAudioInterface: {
+    instance: () => mockAudioInterface,
+  },
+}));
+
 vi.mock('../core/config/ConfigManager', () => ({
   ConfigManager: {
     instance: () => ({
       getIsInitialized: () => true,
-      get: () => false,
+      get: (key: string) => configValues.get(key),
+      set: vi.fn(async (key: string, value: unknown) => {
+        configValues.set(key, value);
+      }),
     }),
   },
 }));
 
 describe('projectStore piano roll state', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.resetModules();
+    mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
     mockCore.stopPlaying.mockResolvedValue(undefined);
+    mockCore.setLoopBoundaryReachedCallback.mockReset();
+    mockAudioInterface.startAudioRecording.mockReset();
+    mockAudioInterface.startAudioRecording.mockResolvedValue({ usedDeviceId: 'default', fellBackToDefault: false });
+    mockAudioInterface.stopAudioRecording.mockReset();
+    mockAudioInterface.stopAudioRecording.mockResolvedValue(null);
+    mockAudioInterface.cancelAudioRecording.mockReset();
+    mockAudioInterface.cancelAudioRecording.mockResolvedValue(undefined);
+    mockAudioInterface.getTransportPosition.mockReset();
+    mockAudioInterface.getTransportPosition.mockReturnValue(8);
+    configValues.set('audio.input_device_id', 'default');
   });
 
   it('clears hybrid state when opening a MIDI region', async () => {
@@ -152,5 +188,42 @@ describe('projectStore piano roll state', () => {
       resolveStart?.();
       await startPromise;
     });
+  });
+
+  it('starts and stops audio-track recording without requiring a selected region', async () => {
+    const { KGAudioTrack } = await import('../core/track/KGAudioTrack');
+    const audioTrack = new KGAudioTrack('Audio 1', 1);
+    audioTrack.setTrackIndex(0);
+    mockTracks = [audioTrack];
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setSelectedTrack('1');
+      useProjectStore.getState().setPlayheadPosition(8);
+    });
+
+    await act(async () => {
+      await useProjectStore.getState().startRecording();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+
+    expect(mockCore.startPlaying).toHaveBeenCalledWith({ preserveLoopPreroll: false });
+    expect(mockAudioInterface.startAudioRecording).toHaveBeenCalled();
+    expect(useProjectStore.getState().recordingMode).toBe('audio');
+    expect(useProjectStore.getState().recordingCommitStartBeatAbsolute).toBe(8);
+
+    await act(async () => {
+      await useProjectStore.getState().stopTransport();
+    });
+
+    expect(mockAudioInterface.stopAudioRecording).toHaveBeenCalled();
+    expect(useProjectStore.getState().isRecording).toBe(false);
+    expect(useProjectStore.getState().recordingMode).toBeNull();
+    expect(useProjectStore.getState().playheadPosition).toBe(8);
   });
 });
