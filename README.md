@@ -23,6 +23,10 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2026.05.08**: Added **MIDI automation** — draw and edit pitch bend and MIDI CC curves (CC1 Modulation, CC2 Breath, CC7 Volume, CC11 Expression, CC64 Sustain) in an editable automation lane below the piano grid. Added **track-level automation**: each track now has a dedicated automation panel where you can view and edit the same curves directly on the timeline. Real-time MIDI controller input (pitch wheel, CC pedals) is recorded and played back with per-lane interpolation. Added the **List Event Panel** — a tabbed sidebar (Notes / Pitch Bend / Controller) for inspecting and inline-editing all events in the active MIDI region. Added **region multi-select** with lasso and bulk move/resize, and **merge MIDI regions**.
+<div align="center">
+  <img src="./public/snapshots/2026-05-08-automations.png" alt="K.G.Studio Logo" width="640" />
+</div>
 - **2026.05.02**: Added **audio track spectrogram visualization** — audio regions now display a real-time spectrogram overlay in the track grid. Added **Piano Roll hybrid mode**: open the piano roll on a MIDI region while an adjacent audio region's spectrogram is shown as a reference layer, letting you edit MIDI notes against the visual shape of the audio. Added **piano roll zoom in/out** with viewport-position preservation so the view stays anchored to the current playhead. Added **fine-tune region position**: nudge regions by small increments for precise placement. Also added cross-component playhead scroll synchronization so the main grid and piano roll stay in sync during playback.
 - **2026.04.29**: Added **Remix** and **Repaint** to the K.G.One Music Generator panel (powered by ACE-Step 1.5). **Remix** lets you cover an existing audio region in a new style — select an audio region, describe the target style and optionally provide new lyrics, and ACE-Step will re-perform the song with the prompted instrumentation and feel. **Repaint** lets you surgically re-generate a specific section of a song — set a loop range on the timeline to define the repaint window, then describe what you want that section to sound like; the rest of the song stays untouched. Both tools support the same import workflow as the other K.G.One tabs: preview the result in the built-in player, drag it onto a track, or click **Import Aligned to Source** to automatically place it below the original region in a new track.
 - **2026.04.24**: Added [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration! When K.G.Studio connects to a local K.G.One server, the **K.G.One Music Generator** panel (magic wand button ✦ in the toolbar) becomes available with three AI-powered tools: **Full Song Generation** (powered by ACE-Step 1.5 — generate full-length songs from text prompts), **Clip Generation** (powered by Foundation-1 — generate instrument clips and MIDI loops from text), and **Stem Separation** (powered by python-audio-separator — split any audio into vocals, instrumentals, and more). Generated audio and MIDI can be previewed instantly and dragged directly onto your tracks. K.G.One runs entirely on your own machine (Windows/Linux, CUDA GPU required); see the [K.G.One repository](https://github.com/KGAudioLab/K.G.One) for setup instructions.
@@ -312,8 +316,8 @@ Feature priorities might change.
 - [X] More instruments
 - [X] Automated testing (unit tests, integration tests, etc.)
 - [X] Intelligent Chord Assistant with functional harmony guidance (T/S/D)
-- [ ] Support track control automations (e.g. sustain, volume, pan, etc.)
-- [ ] Support MIDI control events (e.g. CC, pitch bend, etc.)
+- [X] Support track control automations (e.g. sustain, volume, pan, etc.)
+- [X] Support MIDI control events (e.g. CC, pitch bend, etc.)
 - [X] Support WAV audio tracks
 - [ ] Filters and effects
 - [ ] MCP Support
