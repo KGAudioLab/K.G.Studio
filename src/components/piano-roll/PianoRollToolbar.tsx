@@ -16,6 +16,11 @@ const POWER_OPTIONS = [
 ];
 
 interface PianoRollToolbarProps {
+  sheetMusicViewEnabled?: boolean;
+  onSheetMusicViewToggle?: () => void;
+  sheetQuantization?: string;
+  onSheetQuantizationChange?: (value: string) => void;
+  sheetQuantizationOptions?: string[];
   activeTool: 'pointer' | 'pencil';
   onToolSelect: (tool: 'pointer' | 'pencil') => void;
   quantPosition: string;
@@ -43,6 +48,11 @@ interface PianoRollToolbarProps {
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
+  sheetMusicViewEnabled = false,
+  onSheetMusicViewToggle,
+  sheetQuantization = '16,48',
+  onSheetQuantizationChange,
+  sheetQuantizationOptions = [],
   activeTool,
   onToolSelect,
   quantPosition,
@@ -68,9 +78,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onAutomationToggle,
   onAutomationTypeChange,
 }) => {
-  const isSpectrogram = mode === 'spectrogram';
-  const showMidiControls = mode !== 'spectrogram';   // midi-edit and hybrid
-  const showSpecControls = mode === 'spectrogram' || mode === 'hybrid';
+  const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
+  const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
 
   const [showZoomSlider, setShowZoomSlider] = React.useState(false);
   const zoomSliderRef = React.useRef<HTMLDivElement>(null);
@@ -90,6 +99,14 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     <div className="piano-roll-toolbar">
       {showMidiControls && (
         <div className="toolbar-left">
+          <button
+            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
+            onClick={() => onSheetMusicViewToggle?.()}
+            title="Sheet Music View"
+            aria-label="Sheet Music View"
+          >
+            ♬
+          </button>
           <button
             className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
             onClick={() => onToolSelect('pointer')}
@@ -148,7 +165,30 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
         </div>
       )}
 
+      {sheetMusicViewEnabled && (
+        <div className="toolbar-left">
+          <button
+            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
+            onClick={() => onSheetMusicViewToggle?.()}
+            title="Sheet Music View"
+            aria-label="Sheet Music View"
+          >
+            ♬
+          </button>
+        </div>
+      )}
+
       <div className="toolbar-right">
+        {sheetMusicViewEnabled && (
+          <KGDropdown
+            options={sheetQuantizationOptions}
+            value={sheetQuantization}
+            onChange={(value) => onSheetQuantizationChange?.(value)}
+            label="Sheet Quant."
+            buttonClassName="sheet-quantization"
+            showValueAsLabel={true}
+          />
+        )}
         {showMidiControls && (
           <>
             <KGDropdown

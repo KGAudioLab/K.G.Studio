@@ -15,6 +15,8 @@ export class KGPianoRollState {
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;
   private currentAutomationType: string = "pitch-bend";
+  private sheetMusicViewEnabled: boolean = false;
+  private sheetQuantization: string = '16,48';
 
   // Chord guide state
   private currentSuitableChords: Record<string, string[]> = {}; // Map of chord symbols to note names (e.g., {"I": ["C", "E", "G"]})
@@ -81,6 +83,22 @@ export class KGPianoRollState {
 
   public setCurrentAutomationType(type: string): void {
     this.currentAutomationType = type;
+  }
+
+  public getSheetMusicViewEnabled(): boolean {
+    return this.sheetMusicViewEnabled;
+  }
+
+  public setSheetMusicViewEnabled(enabled: boolean): void {
+    this.sheetMusicViewEnabled = enabled;
+  }
+
+  public getSheetQuantization(): string {
+    return this.sheetQuantization;
+  }
+
+  public setSheetQuantization(value: string): void {
+    this.sheetQuantization = value;
   }
 
   public getCurrentSuitableChords(): Record<string, string[]> {

@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import PianoRollContent from './PianoRollContent';
 import { createMockMidiRegion } from '../../test/utils/mock-data';
 import type { KeySignature } from '../../core/KGProject';
+import { parseSheetQuantization } from './sheetNotation';
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector: (state: { isRecording: boolean; recordingNotes: [] }) => unknown) => (
@@ -48,6 +49,7 @@ vi.mock('./PianoKeys', () => ({ default: () => <div data-testid="piano-keys" /> 
 vi.mock('./PianoGrid', () => ({ default: ({ children }: { children?: React.ReactNode }) => <div data-testid="piano-grid">{children}</div> }));
 vi.mock('./PianoNote', () => ({ default: () => <div data-testid="piano-note" /> }));
 vi.mock('./PianoRollAutomationLane', () => ({ default: () => <div data-testid="automation-lane" /> }));
+vi.mock('./SheetMusicView', () => ({ default: () => <div data-testid="sheet-music-view" /> }));
 
 describe('PianoRollContent', () => {
   const baseProps = {
@@ -104,6 +106,23 @@ describe('PianoRollContent', () => {
     );
 
     expect(screen.getByTestId('piano-roll-content-single')).toBeInTheDocument();
+    expect(screen.queryByTestId('automation-lane')).not.toBeInTheDocument();
+  });
+
+  it('renders sheet mode without piano keys or automation lane', () => {
+    render(
+      <PianoRollContent
+        {...baseProps}
+        mode="midi-edit"
+        automationEnabled={true}
+        automationType="cc-7"
+        sheetMusicViewEnabled={true}
+        sheetQuantization={parseSheetQuantization('16,48')}
+      />
+    );
+
+    expect(screen.getByTestId('sheet-music-view')).toBeInTheDocument();
+    expect(screen.queryByTestId('piano-keys')).not.toBeInTheDocument();
     expect(screen.queryByTestId('automation-lane')).not.toBeInTheDocument();
   });
 });

@@ -40,6 +40,11 @@ vi.mock('../../core/KGCore', () => ({
 
 describe('PianoRollToolbar', () => {
   const baseProps = {
+    sheetMusicViewEnabled: false,
+    onSheetMusicViewToggle: vi.fn(),
+    sheetQuantization: '16,48',
+    onSheetQuantizationChange: vi.fn(),
+    sheetQuantizationOptions: ['16,48', '32,96'],
     activeTool: 'pointer' as const,
     onToolSelect: vi.fn(),
     quantPosition: '1/8',
@@ -72,6 +77,7 @@ describe('PianoRollToolbar', () => {
 
     expect(screen.getByRole('button', { name: 'Toggle automation lane' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Pitch Bend/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sheet Music View' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle automation lane' }));
     expect(onAutomationToggle).toHaveBeenCalledTimes(1);
@@ -107,6 +113,21 @@ describe('PianoRollToolbar', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Toggle automation lane' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
+  });
+
+  it('shows only the sheet controls when sheet mode is enabled', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        sheetMusicViewEnabled={true}
+        mode="midi-edit"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Sheet Music View' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /16,48/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pointer Tool' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
   });
 });

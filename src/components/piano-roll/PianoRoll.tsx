@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import './PianoRoll.css';
-import type { MouseEvent } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
@@ -12,6 +11,7 @@ import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
 import { KGCore } from '../../core/KGCore';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
@@ -23,6 +23,23 @@ import {
   type SpectrogramHeightResolution,
 } from '../../util/spectrogramUtil';
 import type { PianoRollAutomationType } from './pianoRollAutomation';
+import type { SheetMeasureMetric } from './sheetNotationTypes';
+import { getSheetPlayheadPixel, getSheetQuantizationOptions, parseSheetQuantization } from './sheetNotation';
+
+interface VisibleCenterBeatOptions {
+  container: HTMLDivElement;
+  sheetMusicViewEnabled: boolean;
+  sheetMeasureMetrics: SheetMeasureMetric[];
+  activeRegionStartBeat: number;
+}
+
+interface ScrollLeftForBeatOptions {
+  anchorBeat: number;
+  container: HTMLDivElement;
+  sheetMusicViewEnabled: boolean;
+  sheetMeasureMetrics: SheetMeasureMetric[];
+  activeRegionStartBeat: number;
+}
 
 interface PianoRollProps {
   onClose: () => void;
@@ -62,6 +79,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
   const [automationEnabled, setAutomationEnabled] = useState(false);
   const [automationType, setAutomationType] = useState<PianoRollAutomationType>('pitch-bend');
+  const [sheetMusicViewEnabled, setSheetMusicViewEnabled] = useState(false);
+  const [sheetQuantization, setSheetQuantization] = useState('16,48');
+  const [sheetMeasureMetrics, setSheetMeasureMetrics] = useState<SheetMeasureMetric[]>([]);
 
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -88,6 +108,20 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
     [activeRegion, selectedNoteIds]
   );
+  const parentMidiTrack = useMemo(() => {
+    if (!activeRegion) {
+      return null;
+    }
+
+    return tracks.find(track => track.getId().toString() === activeRegion.getTrackId()) ?? null;
+  }, [activeRegion, tracks]);
+  const activeInstrument = useMemo<InstrumentType>(() => (
+    parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
+  ), [parentMidiTrack]);
+  const parsedSheetQuantization = useMemo(
+    () => parseSheetQuantization(sheetQuantization),
+    [sheetQuantization]
+  );
 
   const pianoRollRef = useRef<HTMLDivElement>(null);
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
@@ -99,6 +133,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
   const pianoRollIsPlayingRef = useRef(false);
   const pendingZoomAnchorBeatRef = useRef<number | null>(null);
+  const pendingModeSwitchAnchorBeatRef = useRef<number | null>(null);
+  const previousSheetMusicViewEnabledRef = useRef<boolean>(false);
+  const previousActiveRegionIdRef = useRef<string | null>(null);
 
   // Ref for storing the setNoteUpdateCounter function
   const triggerNoteUpdateRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
@@ -205,6 +242,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     setActiveTool(currentTool);
     setAutomationEnabled(pianoRollState.getAutomationViewEnabled());
     setAutomationType(pianoRollState.getCurrentAutomationType() as PianoRollAutomationType);
+    setSheetMusicViewEnabled(pianoRollState.getSheetMusicViewEnabled());
+    setSheetQuantization(pianoRollState.getSheetQuantization());
 
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Synced piano roll state on mount - snap: ${currentSnap}, tool: ${currentTool}`);
@@ -703,35 +742,80 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     KGPianoRollState.instance().setCurrentAutomationType(value);
   }, []);
 
+  const handleSheetMusicViewToggle = useCallback(() => {
+    const container = pianoRollNoteScrollRef.current;
+    if (container && activeRegion) {
+      const anchorBeat = getVisibleCenterBeat({
+        container,
+        sheetMusicViewEnabled,
+        sheetMeasureMetrics,
+        activeRegionStartBeat: activeRegion.getStartFromBeat(),
+      });
+      pendingModeSwitchAnchorBeatRef.current = anchorBeat;
+    } else {
+      pendingModeSwitchAnchorBeatRef.current = null;
+    }
+
+    setSheetMusicViewEnabled(current => {
+      const next = !current;
+      KGPianoRollState.instance().setSheetMusicViewEnabled(next);
+      return next;
+    });
+  }, [activeRegion, sheetMeasureMetrics, sheetMusicViewEnabled]);
+
+  const handleSheetQuantizationChange = useCallback((value: string) => {
+    setSheetQuantization(value);
+    KGPianoRollState.instance().setSheetQuantization(value);
+  }, []);
+
+  const handleSheetMeasureMetricsChange = useCallback((metrics: SheetMeasureMetric[]) => {
+    setSheetMeasureMetrics((current) => {
+      if (
+        current.length === metrics.length &&
+        current.every((metric, index) => (
+          metric.barIndex === metrics[index].barIndex &&
+          metric.startBeat === metrics[index].startBeat &&
+          metric.endBeat === metrics[index].endBeat &&
+          metric.leftPx === metrics[index].leftPx &&
+          metric.widthPx === metrics[index].widthPx
+        ))
+      ) {
+        return current;
+      }
+
+      return metrics;
+    });
+  }, []);
+
+  const centerPianoRollOnDefaultVerticalPosition = useCallback(() => {
+    const container = pianoRollNoteScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const keyHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
+    const c4Position = 4 * 12 * keyHeight;
+    const totalHeight = 8 * 12 * keyHeight;
+    const viewportHeight = container.clientHeight;
+    const scrollPosition = (totalHeight - c4Position) - (viewportHeight / 2);
+
+    container.scrollTop = Math.max(0, scrollPosition);
+  }, []);
+
   // Calculate C4 position and scroll to it when piano roll opens
   useEffect(() => {
-    if (pianoRollNoteScrollRef.current) {
-      // Calculate position of C4
-      // We have 8 octaves (0-7), and C4 is in the middle
-      // Each octave has 12 notes, each note is piano key height
-      // C4 is in octave 4, and C is the first note in each octave
+    centerPianoRollOnDefaultVerticalPosition();
+  }, [centerPianoRollOnDefaultVerticalPosition]);
 
-      // Calculate from the bottom:
-      // - Octaves 0-3 = 4 octaves = 4 * 12 * piano key height
-      // - Within octave 4, C is the first note (from bottom), so 0px additional
-      const keyHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
-      const c4Position = 4 * 12 * keyHeight; // pixels from bottom
+  useEffect(() => {
+    const previous = previousSheetMusicViewEnabledRef.current;
 
-      // Total height of all notes (8 octaves * 12 notes * piano key height)
-      const totalHeight = 8 * 12 * keyHeight;
-
-      // Get the viewport height of the piano roll content
-      const viewportHeight = pianoRollNoteScrollRef.current.clientHeight;
-
-      // Calculate scroll position to center C4
-      // We need to scroll from the top, so we calculate:
-      // (total height - C4 position) - (viewport height / 2)
-      const scrollPosition = (totalHeight - c4Position) - (viewportHeight / 2);
-
-      // Scroll to the calculated position
-      pianoRollNoteScrollRef.current.scrollTop = Math.max(0, scrollPosition);
+    if (previous !== sheetMusicViewEnabled && !sheetMusicViewEnabled) {
+      centerPianoRollOnDefaultVerticalPosition();
     }
-  }, []);
+
+    previousSheetMusicViewEnabledRef.current = sheetMusicViewEnabled;
+  }, [centerPianoRollOnDefaultVerticalPosition, sheetMusicViewEnabled]);
 
   // Sync isPlayingRef for use inside scroll event closure
   useEffect(() => {
@@ -762,15 +846,24 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
-    const beatWidth = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-    ) || 40;
-    const playheadPixel = playheadPosition * beatWidth;
+    const playheadPixel = sheetMusicViewEnabled && activeRegion
+      ? getSheetPlayheadPixel(
+          Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
+          sheetMeasureMetrics
+        )
+      : (() => {
+          const beatWidth = parseInt(
+            getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+          ) || 40;
+          return playheadPosition * beatWidth;
+        })();
 
     // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
-    const keysWidth = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
-    ) || 60;
+    const keysWidth = sheetMusicViewEnabled
+      ? 0
+      : (parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+        ) || 60);
     const targetScrollLeft = playheadPixel - (container.clientWidth - keysWidth) / 2;
     const clampedScrollLeft = Math.max(
       0,
@@ -779,7 +872,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
-  }, [playheadPosition, isPlaying, autoScrollEnabled]);
+  }, [playheadPosition, isPlaying, autoScrollEnabled, sheetMusicViewEnabled, sheetMeasureMetrics, activeRegion]);
 
   // Handle scroll requests from main content bar numbers clicks
   useEffect(() => {
@@ -788,15 +881,24 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     const container = pianoRollNoteScrollRef.current;
     if (!container) return;
 
-    const beatWidth = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-    ) || 40;
-    const playheadPixel = pianoRollScrollRequest * beatWidth;
+    const playheadPixel = sheetMusicViewEnabled && activeRegion
+      ? getSheetPlayheadPixel(
+          Math.max(0, pianoRollScrollRequest - activeRegion.getStartFromBeat()),
+          sheetMeasureMetrics
+        )
+      : (() => {
+          const beatWidth = parseInt(
+            getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+          ) || 40;
+          return pianoRollScrollRequest * beatWidth;
+        })();
 
     // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
-    const keysWidth = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
-    ) || 60;
+    const keysWidth = sheetMusicViewEnabled
+      ? 0
+      : (parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+        ) || 60);
     const targetScrollLeft = playheadPixel - (container.clientWidth - keysWidth) / 2;
     const clampedScrollLeft = Math.max(
       0,
@@ -807,7 +909,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     // Clear the request after handling
     useProjectStore.setState({ pianoRollScrollRequest: null });
-  }, [pianoRollScrollRequest]);
+  }, [pianoRollScrollRequest, sheetMusicViewEnabled, sheetMeasureMetrics, activeRegion]);
 
   // Update --region-grid-beat-width when zoom changes and preserve the centered beat position.
   useLayoutEffect(() => {
@@ -843,7 +945,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Scroll horizontally to the active region's starting bar
   useEffect(() => {
-    if (pianoRollNoteScrollRef.current && activeRegion) {
+    if (!pianoRollNoteScrollRef.current || !activeRegion) {
+      previousActiveRegionIdRef.current = activeRegion?.getId() ?? null;
+      return;
+    }
+
+    if (pendingModeSwitchAnchorBeatRef.current !== null) {
+      previousActiveRegionIdRef.current = activeRegion.getId();
+      return;
+    }
+
+    if (previousActiveRegionIdRef.current !== activeRegion.getId()) {
       // Get the starting beat of the region
       const startBeat = activeRegion.getStartFromBeat();
 
@@ -865,8 +977,33 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
       // Scroll to the calculated position
       pianoRollNoteScrollRef.current.scrollLeft = Math.max(0, scrollPosition);
+      previousActiveRegionIdRef.current = activeRegion.getId();
     }
   }, [activeRegion, timeSignature]);
+
+  useLayoutEffect(() => {
+    const anchorBeat = pendingModeSwitchAnchorBeatRef.current;
+    const container = pianoRollNoteScrollRef.current;
+    if (anchorBeat === null || !container || !activeRegion) {
+      return;
+    }
+
+    if (sheetMusicViewEnabled && sheetMeasureMetrics.length === 0) {
+      return;
+    }
+
+    const targetScrollLeft = getScrollLeftForBeat({
+      anchorBeat,
+      container,
+      sheetMusicViewEnabled,
+      sheetMeasureMetrics,
+      activeRegionStartBeat: activeRegion.getStartFromBeat(),
+    });
+
+    pianoRollExpectedScrollLeftRef.current = targetScrollLeft;
+    container.scrollLeft = targetScrollLeft;
+    pendingModeSwitchAnchorBeatRef.current = null;
+  }, [activeRegion, sheetMeasureMetrics, sheetMusicViewEnabled]);
 
   // Add keyboard event listener for piano roll hotkeys (snapping and quantization)
   useEffect(() => {
@@ -1065,6 +1202,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       />
 
       <PianoRollToolbar
+        sheetMusicViewEnabled={sheetMusicViewEnabled}
+        onSheetMusicViewToggle={handleSheetMusicViewToggle}
+        sheetQuantization={sheetQuantization}
+        onSheetQuantizationChange={handleSheetQuantizationChange}
+        sheetQuantizationOptions={getSheetQuantizationOptions()}
         activeTool={activeTool}
         onToolSelect={handleToolSelect}
         quantPosition={quantPosition}
@@ -1119,6 +1261,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         automationEnabled={automationEnabled}
         automationType={automationType}
         automationRedrawVersion={automationRedrawVersion}
+        sheetMusicViewEnabled={sheetMusicViewEnabled}
+        sheetQuantization={parsedSheetQuantization}
+        sheetKeySignature={keySignature}
+        sheetInstrument={activeInstrument}
+        onSheetMeasureMetricsChange={handleSheetMeasureMetricsChange}
       />
 
       <div
@@ -1132,3 +1279,78 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 };
 
 export default PianoRoll; 
+
+function getVisibleCenterBeat({
+  container,
+  sheetMusicViewEnabled,
+  sheetMeasureMetrics,
+  activeRegionStartBeat,
+}: VisibleCenterBeatOptions): number {
+  if (sheetMusicViewEnabled) {
+    const centerPixel = container.scrollLeft + container.clientWidth / 2;
+    return activeRegionStartBeat + getAbsoluteBeatForSheetPixel(centerPixel, sheetMeasureMetrics);
+  }
+
+  const keysWidth = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+  ) || 60;
+  const beatWidth = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+  ) || 40;
+  const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
+  return (container.scrollLeft + visibleMusicWidth / 2) / beatWidth;
+}
+
+function getAbsoluteBeatForSheetPixel(pixel: number, metrics: SheetMeasureMetric[]): number {
+  if (metrics.length === 0) {
+    return 0;
+  }
+
+  const firstMetric = metrics[0];
+  if (pixel <= firstMetric.leftPx) {
+    return firstMetric.startBeat;
+  }
+
+  const lastMetric = metrics[metrics.length - 1];
+  if (pixel >= lastMetric.leftPx + lastMetric.widthPx) {
+    return lastMetric.endBeat;
+  }
+
+  const activeMetric = metrics.find((metric) => (
+    pixel >= metric.leftPx && pixel < metric.leftPx + metric.widthPx
+  ));
+
+  if (!activeMetric) {
+    return lastMetric.endBeat;
+  }
+
+  const progress = activeMetric.widthPx > 0 ? (pixel - activeMetric.leftPx) / activeMetric.widthPx : 0;
+  return activeMetric.startBeat + progress * (activeMetric.endBeat - activeMetric.startBeat);
+}
+
+function getScrollLeftForBeat({
+  anchorBeat,
+  container,
+  sheetMusicViewEnabled,
+  sheetMeasureMetrics,
+  activeRegionStartBeat,
+}: ScrollLeftForBeatOptions): number {
+  const pixelPosition = sheetMusicViewEnabled
+    ? getSheetPlayheadPixel(Math.max(0, anchorBeat - activeRegionStartBeat), sheetMeasureMetrics)
+    : (() => {
+        const beatWidth = parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+        ) || 40;
+        return anchorBeat * beatWidth;
+      })();
+
+  const keysWidth = sheetMusicViewEnabled
+    ? 0
+    : (parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+      ) || 60);
+  const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
+  const unclampedScrollLeft = pixelPosition - visibleMusicWidth / 2;
+
+  return Math.max(0, Math.min(unclampedScrollLeft, container.scrollWidth - container.clientWidth));
+}

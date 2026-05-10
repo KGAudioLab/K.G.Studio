@@ -152,7 +152,14 @@
 }
 
 .piano-roll-toolbar .tool-button svg {
+  font-size: 14px;
   transition: color 0.18s ease, fill 0.18s ease;
+}
+
+.piano-roll-toolbar .tool-button.sheet-mode-toggle,
+.piano-roll-toolbar .tool-button:not(.icon-only) {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .piano-roll-toolbar .tool-button:hover {
@@ -395,6 +402,124 @@
   display: flex;
   min-height: calc(8 * 12 * var(--region-piano-key-height));
   width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width));
+}
+
+.piano-roll-body.sheet-music-body {
+  min-height: 0;
+  width: max-content;
+}
+
+.sheet-music-view {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 240px;
+  background: linear-gradient(180deg, #faf7ef 0%, #f2ede0 100%);
+  color: #1f1f1f;
+}
+
+.sheet-music-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  height: 20px;
+  background: rgba(34, 34, 34, 0.92);
+  color: #ddd;
+  border-bottom: 1px solid #3a3a3a;
+  cursor: pointer;
+}
+
+.sheet-music-bar-number {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border-left: 1px solid #4a4a4a;
+  padding-left: 10px;
+  font-size: 10px;
+  line-height: 20px;
+}
+
+.sheet-music-strip {
+  position: relative;
+  min-height: 220px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.08) 100%);
+}
+
+.sheet-music-notice {
+  position: sticky;
+  top: 8px;
+  left: 8px;
+  margin: 8px 0 0 8px;
+  width: fit-content;
+  max-width: min(420px, calc(100% - 20px));
+  padding: 5px 9px;
+  background: rgba(42, 42, 42, 0.72);
+  color: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+  backdrop-filter: blur(4px);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.sheet-music-measures {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  min-width: 100%;
+  padding: 12px 0 24px;
+}
+
+.sheet-music-ties {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+.sheet-music-tie-path {
+  fill: #111;
+  stroke: none;
+}
+
+.sheet-music-measure {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 0;
+}
+
+.sheet-music-measure-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.sheet-music-measure svg {
+  display: block;
+  overflow: visible;
+}
+
+.sheet-music-measure svg path,
+.sheet-music-measure svg rect,
+.sheet-music-measure svg line,
+.sheet-music-measure svg text {
+  stroke: #111 !important;
+  fill: #111 !important;
+}
+
+.sheet-music-measure svg path[fill="none"] {
+  fill: none !important;
+  stroke: #111 !important;
+}
+
+.sheet-music-measure svg .vf-stave path {
+  stroke-width: 1.5px !important;
 }
 
 .piano-keys-container {
