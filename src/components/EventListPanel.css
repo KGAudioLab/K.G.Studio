@@ -1,4 +1,4 @@
-.list-event-panel {
+.event-list-panel {
   display: flex;
   flex-direction: column;
   width: var(--chat-box-width);
@@ -8,11 +8,11 @@
   overflow: hidden;
 }
 
-.list-event-panel.is-hidden {
+.event-list-panel.is-hidden {
   display: none;
 }
 
-.list-event-panel-header {
+.event-list-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -23,14 +23,14 @@
   flex-shrink: 0;
 }
 
-.list-event-panel-header h3 {
+.event-list-panel-header h3 {
   color: #e0e0e0;
   font-size: 12px;
   font-weight: bold;
   margin: 0;
 }
 
-.list-event-panel-body {
+.event-list-panel-body {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -39,20 +39,20 @@
   gap: 12px;
 }
 
-.list-event-tabs {
+.event-list-tabs {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
 }
 
-.list-event-scope-tabs {
+.event-list-scope-tabs {
   display: flex;
   background-color: #2d2d2d;
   border-bottom: 1px solid #3a3a3a;
   flex-shrink: 0;
 }
 
-.list-event-scope-tab {
+.event-list-scope-tab {
   flex: 1;
   background: transparent;
   color: #999;
@@ -65,16 +65,16 @@
   transition: color 0.15s, border-color 0.15s;
 }
 
-.list-event-scope-tab:hover {
+.event-list-scope-tab:hover {
   color: #ccc;
 }
 
-.list-event-scope-tab.active {
+.event-list-scope-tab.active {
   color: #e0e0e0;
   border-bottom-color: #5a9fd4;
 }
 
-.list-event-tab {
+.event-list-tab {
   flex: 1;
   background-color: #1e1e1e;
   color: #999;
@@ -88,16 +88,16 @@
   transition: all 0.2s ease;
 }
 
-.list-event-tab:hover {
+.event-list-tab:hover {
   color: #e0e0e0;
 }
 
-.list-event-tab.active {
+.event-list-tab.active {
   background-color: #5a9fd4;
   color: #fff;
 }
 
-.list-event-empty-state {
+.event-list-empty-state {
   color: #888;
   font-size: 11px;
   line-height: 1.5;
@@ -107,7 +107,7 @@
   border-radius: 6px;
 }
 
-.list-event-toolbar {
+.event-list-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -115,23 +115,23 @@
   flex-shrink: 0;
 }
 
-.list-event-toolbar-group {
+.event-list-toolbar-group {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.list-event-toolbar-group:first-child {
+.event-list-toolbar-group:first-child {
   gap: 0;
 }
 
-.list-event-toolbar-group-right {
+.event-list-toolbar-group-right {
   margin-left: auto;
   gap: 8px;
 }
 
-.list-event-add-button {
+.event-list-add-button {
   width: 22px;
   height: 22px;
   border: 1px solid #444;
@@ -153,34 +153,34 @@
   font-size: 11px;
 }
 
-.list-event-add-button:hover {
+.event-list-add-button:hover {
   background-color: #3b3b3b;
   border-right: 0;
 }
 
-.list-event-dropdown-button,
-.list-event-quant-button,
-.list-event-type-button {
+.event-list-dropdown-button,
+.event-list-quant-button,
+.event-list-type-button {
   font-size: 11px;
 }
 
-.list-event-dropdown-button {
+.event-list-dropdown-button {
   margin-left: 0;
 }
 
-.list-event-quant-button {
+.event-list-quant-button {
   min-width: 78px;
   padding: 3px 5px;
 }
 
-.list-event-type-button {
+.event-list-type-button {
   min-width: 88px;
   margin-left: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
 
-.list-event-delete-button {
+.event-list-delete-button {
   width: 22px;
   height: 22px;
   border: 1px solid #444;
@@ -197,17 +197,17 @@
   font-size: 11px;
 }
 
-.list-event-delete-button:hover:not(:disabled) {
+.event-list-delete-button:hover:not(:disabled) {
   background-color: #464646;
   border-color: #5a5a5a;
 }
 
-.list-event-delete-button:disabled {
+.event-list-delete-button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.list-event-table-shell {
+.event-list-table-shell {
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -216,13 +216,13 @@
   border-radius: 6px;
 }
 
-.list-event-table {
+.event-list-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
-.list-event-table thead th {
+.event-list-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -238,25 +238,25 @@
   text-overflow: ellipsis;
 }
 
-.list-event-table tbody tr {
+.event-list-table tbody tr {
   color: #e0e0e0;
   cursor: default;
 }
 
-.list-event-table tbody tr:nth-child(odd) {
+.event-list-table tbody tr:nth-child(odd) {
   background-color: #282828;
 }
 
-.list-event-table tbody tr:nth-child(even) {
+.event-list-table tbody tr:nth-child(even) {
   background-color: #303030;
 }
 
-.list-event-table tbody tr.selected {
+.event-list-table tbody tr.selected {
   background-color: #5a9fd4;
   color: #fff;
 }
 
-.list-event-table td {
+.event-list-table td {
   height: 20px;
   padding: 2px 12px;
   font-size: 11px;
@@ -266,7 +266,7 @@
   max-width: 0;
 }
 
-.list-event-cell-input {
+.event-list-cell-input {
   width: calc(100% + 8px);
   height: 16px;
   margin: 0 -4px;

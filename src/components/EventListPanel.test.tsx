@@ -1,7 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import ListEventPanel from './ListEventPanel';
+import EventListPanel from './EventListPanel';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
@@ -158,7 +158,7 @@ vi.mock('../core/KGCore', () => ({
   },
 }));
 
-describe('ListEventPanel', () => {
+describe('EventListPanel', () => {
   beforeEach(() => {
     selectedItems = [midiRegion];
     midiRegion.select();
@@ -198,7 +198,7 @@ describe('ListEventPanel', () => {
   });
 
   it('defaults to Region tab and preserves existing event rows', () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
 
     expect(screen.getByRole('button', { name: 'Region' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Track' })).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe('ListEventPanel', () => {
   });
 
   it('switches to Track tab and lists selected track regions', () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
 
@@ -219,7 +219,7 @@ describe('ListEventPanel', () => {
   });
 
   it('toggles track filters independently', () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByRole('button', { name: 'Regions' }));
@@ -237,40 +237,40 @@ describe('ListEventPanel', () => {
   it('shows track empty state when no track is selected', () => {
     storeState.selectedTrackId = null;
 
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
 
     expect(screen.getByText('Please select a track to view regions and track automation.')).toBeInTheDocument();
   });
 
   it('syncs Track Regions row selection to selectedRegionIds', () => {
-    const { rerender } = render(<ListEventPanel isVisible={true} />);
+    const { rerender } = render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByText('Second Region').closest('tr')!);
-    rerender(<ListEventPanel isVisible={true} />);
+    rerender(<EventListPanel isVisible={true} />);
 
     expect(storeState.selectedRegionIds).toEqual(['region-2']);
     expect(screen.getByText('Second Region').closest('tr')).toHaveClass('selected');
   });
 
   it('syncs Track Volume row selection to selectedTrackAutomationPointIds', () => {
-    const { rerender } = render(<ListEventPanel isVisible={true} />);
+    const { rerender } = render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByText('-6.0dB').closest('tr')!);
-    rerender(<ListEventPanel isVisible={true} />);
+    rerender(<EventListPanel isVisible={true} />);
 
     expect(storeState.selectedTrackAutomationPointIds).toEqual(['vol-1']);
     expect(screen.getByText('-6.0dB').closest('tr')).toHaveClass('selected');
   });
 
   it('syncs Track Pan row selection to selectedTrackAutomationPointIds', () => {
-    const { rerender } = render(<ListEventPanel isVisible={true} />);
+    const { rerender } = render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByText('-32').closest('tr')!);
-    rerender(<ListEventPanel isVisible={true} />);
+    rerender(<EventListPanel isVisible={true} />);
 
     expect(storeState.selectedTrackAutomationPointIds).toEqual(['pan-1']);
   });
@@ -278,7 +278,7 @@ describe('ListEventPanel', () => {
   it('hides MIDI Region add option for audio tracks', () => {
     storeState.selectedTrackId = '2';
 
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Volume' })[1]);
 
@@ -289,7 +289,7 @@ describe('ListEventPanel', () => {
   });
 
   it('creates a 1-bar MIDI region at the playhead from the Track tab', async () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByTitle('Add MIDI region at playhead'));
 
@@ -301,7 +301,7 @@ describe('ListEventPanel', () => {
   });
 
   it('creates a volume automation point using the track base volume', async () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByTitle('Add MIDI region at playhead'));
     fireEvent.click(screen.getByRole('button', { name: 'MIDI Region' }));
@@ -315,7 +315,7 @@ describe('ListEventPanel', () => {
   });
 
   it('creates a pan automation point using the nearest earlier pan value or zero', async () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByTitle('Add MIDI region at playhead'));
     fireEvent.click(screen.getByRole('button', { name: 'MIDI Region' }));
@@ -329,18 +329,18 @@ describe('ListEventPanel', () => {
   });
 
   it('deletes selected track automation points from the Track tab', async () => {
-    const { rerender } = render(<ListEventPanel isVisible={true} />);
+    const { rerender } = render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.click(screen.getByText('-6.0dB').closest('tr')!);
-    rerender(<ListEventPanel isVisible={true} />);
+    rerender(<EventListPanel isVisible={true} />);
     fireEvent.click(screen.getByTitle('Delete visible selected rows'));
 
     await waitFor(() => expect(midiTrack.getVolumeAutomation()).toHaveLength(0));
   });
 
   it('edits track region position and length inline', async () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.doubleClick(screen.getByText('4 1 0'));
@@ -359,7 +359,7 @@ describe('ListEventPanel', () => {
   });
 
   it('edits track automation position and value inline', async () => {
-    render(<ListEventPanel isVisible={true} />);
+    render(<EventListPanel isVisible={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Track' }));
     fireEvent.doubleClick(screen.getByText('1 3 0'));

@@ -49,7 +49,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleListEventPanel, showKGOnePanel, showListEventPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
@@ -66,10 +66,10 @@ const Toolbar: React.FC = () => {
 
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
-  
+
   // State for export dropdown
   const [showExportDropdown, setShowExportDropdown] = React.useState(false);
-  
+
   // State for import modal
   const [showImportModal, setShowImportModal] = React.useState(false);
 
@@ -80,7 +80,7 @@ const Toolbar: React.FC = () => {
   // State for open project modal
   const [showOpenProject, setShowOpenProject] = React.useState(false);
   const [isOpeningProject, setIsOpeningProject] = React.useState(false);
-  
+
   // Close zoom slider on click outside
   React.useEffect(() => {
     if (!showZoomSlider) return;
@@ -95,7 +95,7 @@ const Toolbar: React.FC = () => {
 
   // Key signature options
   const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
-  
+
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
@@ -252,7 +252,7 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("user selected export option:", exportType);
     }
-    
+
     if (exportType === "Export to KGStudio file") {
       handleExportKGStudio();
     } else if (exportType === "Export to MIDI file") {
@@ -262,7 +262,7 @@ const Toolbar: React.FC = () => {
     } else if (exportType === "Export to MP3") {
       handleBounceToMp3();
     }
-    
+
     setShowExportDropdown(false);
   };
 
@@ -306,37 +306,37 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("exporting to MIDI file");
     }
-    
+
     try {
       // Get the current project from KGCore
       const currentProject = KGCore.instance().getCurrentProject();
-      
+
       // Convert project to MIDI format
       const midiData = convertProjectToMidi(currentProject);
-      
+
       // Create a downloadable blob
       const blob = new Blob([midiData.buffer as ArrayBuffer], { type: 'audio/midi' });
-      
+
       // Create a temporary download link
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${projectName}.mid`;
-      
+
       // Trigger download
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       setStatus(`Project "${projectName}" exported as MIDI file`);
-      
+
       if (DEBUG_MODE.TOOLBAR) {
         console.log("MIDI export completed successfully");
       }
-      
+
     } catch (error) {
       console.error("Error exporting MIDI:", error);
       setStatus(`Error exporting MIDI: ${error}`);
@@ -387,10 +387,10 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("file selected for import:", file.name);
     }
-    
+
     // Get file extension
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    
+
     try {
       if (fileExtension === '.kgstudio') {
         // Handle KGStudio bundle import
@@ -404,7 +404,7 @@ const Toolbar: React.FC = () => {
       } else {
         throw new Error(`Unsupported file type: ${fileExtension}`);
       }
-      
+
     } catch (error) {
       console.error("Error importing file:", error);
       setStatus(`Failed to import file: ${error}`);
@@ -480,35 +480,35 @@ const Toolbar: React.FC = () => {
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Starting MIDI file import:", file.name);
       }
-      
+
       // Show loading status
       setStatus(`Importing MIDI file "${file.name}"...`);
-      
+
       // Read the MIDI file as binary data
       const arrayBuffer = await file.arrayBuffer();
       const midiData = new Uint8Array(arrayBuffer);
-      
+
       if (DEBUG_MODE.TOOLBAR) {
         console.log("MIDI file read successfully, size:", midiData.length, "bytes");
       }
-      
+
       // Get current project to append MIDI tracks to it
       const currentProject = KGCore.instance().getCurrentProject();
-      
+
       // Convert MIDI data and append to current project
       const updatedProject = convertMidiToProject(midiData, currentProject);
-      
+
       if (DEBUG_MODE.TOOLBAR) {
         console.log("MIDI conversion successful, tracks added to existing project");
       }
-      
+
       // Load the updated project using common loading logic
       await loadProjectFromData(updatedProject, `MIDI file "${file.name}"`);
-      
+
       if (DEBUG_MODE.TOOLBAR) {
         console.log("MIDI file imported successfully:", file.name);
       }
-      
+
     } catch (error) {
       console.error("Error importing MIDI file:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -585,33 +585,33 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("BPM clicked, current BPM:", bpm);
     }
-    
+
     const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, bpm.toString());
-    
+
     // Check if user cancelled
     if (newBpmStr === null) {
       return;
     }
-    
+
     // Validate input
     const newBpm = parseInt(newBpmStr.trim());
-    
+
     // Check if it's a valid number
     if (isNaN(newBpm)) {
       await showAlert("Invalid input. Please enter a valid number.");
       return;
     }
-    
+
     // Check if it's within valid range
     if (newBpm <= TIME_CONSTANTS.MIN_BPM || newBpm >= TIME_CONSTANTS.MAX_BPM) {
       await showAlert(`Invalid BPM. Please enter a value between ${TIME_CONSTANTS.MIN_BPM} and ${TIME_CONSTANTS.MAX_BPM}.`);
       return;
     }
-    
+
     // Update BPM
     setBpm(newBpm);
     setStatus(`BPM changed to ${newBpm}`);
-    
+
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`BPM updated from ${bpm} to ${newBpm}`);
     }
@@ -643,7 +643,7 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Key signature changed from", keySignature, "to", newKeySignature);
     }
-    
+
     setKeySignature(newKeySignature as KeySignature);
     setStatus(`Key signature changed to ${newKeySignature}`);
     setShowKeySignatureDropdown(false);
@@ -673,9 +673,9 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Copy button clicked");
     }
-    
+
     const copied = handleCopyOperation();
-    
+
     if (copied) {
       setStatus("Items copied to clipboard");
       if (DEBUG_MODE.TOOLBAR) {
@@ -694,9 +694,9 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Paste button clicked");
     }
-    
+
     const pasted = handlePasteOperation();
-    
+
     if (pasted) {
       setStatus("Items pasted from clipboard");
       if (DEBUG_MODE.TOOLBAR) {
@@ -715,9 +715,9 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Delete button clicked");
     }
-    
+
     const deleted = regionDeleteManager.deleteSelectedRegions();
-    
+
     if (deleted) {
       setStatus("Selected regions deleted");
       if (DEBUG_MODE.TOOLBAR) {
@@ -875,16 +875,16 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Undo button clicked");
     }
-    
+
     if (!canUndo) {
       await showAlert("Nothing to undo");
       return;
     }
-    
+
     undo();
     const description = undoDescription || "action";
     setStatus(`Undid: ${description}`);
-    
+
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Undo successful: ${description}`);
     }
@@ -895,16 +895,16 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Redo button clicked");
     }
-    
+
     if (!canRedo) {
       await showAlert("Nothing to redo");
       return;
     }
-    
+
     redo();
     const description = redoDescription || "action";
     setStatus(`Redid: ${description}`);
-    
+
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Redo successful: ${description}`);
     }
@@ -915,7 +915,7 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Chat button clicked");
     }
-    
+
     toggleChatBox();
     setStatus("Chat toggled");
   };
@@ -925,7 +925,7 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Settings button clicked");
     }
-    
+
     toggleSettings();
     setStatus("Settings toggled");
   };
@@ -940,11 +940,11 @@ const Toolbar: React.FC = () => {
     toggleKGOnePanel();
   };
 
-  const handleListEventClick = () => {
+  const handleEventListClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
-      console.log("List Event button clicked");
+      console.log("Event List button clicked");
     }
-    toggleListEventPanel();
+    toggleEventListPanel();
   };
 
   // Handle Piano button click: open piano roll if closed, targeting active or selected region
@@ -1039,226 +1039,226 @@ const Toolbar: React.FC = () => {
           <div className="logo-container">
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="DAW Logo" className="logo" />
           </div>
-          <div 
-            className="project-name" 
+          <div
+            className="project-name"
             onClick={handleProjectNameClick}
           >
             {projectName}
           </div>
         </div>
-      
-      <div className="toolbar-center">
-        <button title="New" onClick={handleNewProject}><FaPlus /></button>
-        <button title="Load" onClick={handleLoadProject}><FaFolderOpen /></button>
-        <button title="Save" onClick={handleSaveProject}><FaSave /></button>
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-          <button 
-            title="Export" 
-            onClick={() => setShowExportDropdown(!showExportDropdown)}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            <FaDownload />
-          </button>
-          <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
-            <KGDropdown
-              options={exportOptions}
-              value={exportOptions[0]}
-              onChange={handleExportProject}
-              label="Export"
-              hideButton={true}
-              isOpen={showExportDropdown}
-              onToggle={setShowExportDropdown}
-              className="export-dropdown"
-            />
-          </div>
-        </div>
-        <button title="Import" onClick={handleImportProject}><FaUpload /></button>
-        <button
-          title="Settings"
-          className={`tool-button ${showSettings ? 'active' : ''}`}
-          onClick={handleSettingsClick}
-        >
-          <FaCog />
-        </button>
-        <div className="toolbar-separator"></div>
-        <button title="Undo" onClick={handleUndoClick}><FaUndo /></button>
-        <button title="Redo" onClick={handleRedoClick}><FaRedo /></button>
-        <div className="toolbar-separator"></div>
-        <button 
-          title="Select" 
-          className={`tool-button ${activeMainTool === 'pointer' ? 'active' : ''}`}
-          onClick={() => handleMainToolSelect('pointer')}
-        >
-          <FaMousePointer />
-        </button>
-        <button
-          title="Pencil"
-          className={`tool-button ${activeMainTool === 'pencil' ? 'active' : ''}`}
-          onClick={() => handleMainToolSelect('pencil')}
-        >
-          <FaPencil />
-        </button>
-        <button
-          title="Split Region at Playhead"
-          onClick={handleSplitClick}
-        >
-          <FaCut />
-        </button>
-        <button
-          title="Merge Selected MIDI Regions"
-          onClick={handleMergeClick}
-        >
-          <FaCompress />
-        </button>
-        <button
-          title="Snap to Grid"
-          className={`tool-button ${isSnapping ? 'active' : ''}`}
-          onClick={handleSnappingToggle}
-        >
-          <FaMagnet />
-        </button>
-        <div className="toolbar-separator"></div>
-        <button title="Copy" onClick={handleCopyClick}><FaCopy /></button>
-        <button title="Paste" onClick={handlePasteClick}><FaPaste /></button>
-        <button title="Delete" onClick={handleDeleteClick}><FaTrash /></button>
-        <div className="toolbar-separator"></div>
-        <button title="Back to beginning" className="button-back-to-beginning" onClick={handleBackToBeginningClick}><FaStepBackward /></button>
-        {!isPlaying ? (
-          <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
-        ) : (
-          <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
-        )}
-        <button
-          title={isRecording ? "Stop Recording" : "Record"}
-          className={`tool-button record-button ${isRecording ? 'active' : ''}`}
-          onClick={handleRecordClick}
-        >
-          <FaCircle />
-        </button>
-        <button
-          title="Loop"
-          className={`tool-button ${isLooping ? 'active' : ''}`}
-          onClick={handleLoopToggle}
-        >
-          <FaSync />
-        </button>
-        <div className="toolbar-separator"></div>
-        <button
-          title="Metronome"
-          className={`tool-button ${isMetronomeEnabled ? 'active' : ''}`}
-          onClick={handleMetronomeToggle}
-        >
-          <MetronomeIcon />
-        </button>
-        <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
-        {/* <button title="Record"><FaCircle className="record-btn" /></button>
-        <button title="Metronome">🎵</button> */}
-      </div>
-      
-      <div className="toolbar-right">
-        <div className="transport-control">
-          <div className="transport-item" style={{ position: 'relative' }} ref={zoomSliderRef}>
-            <span
-              className='current-zoom'
-              onClick={() => setShowZoomSlider(!showZoomSlider)}
-              style={{ cursor: 'pointer' }}
+
+        <div className="toolbar-center">
+          <button title="New" onClick={handleNewProject}><FaPlus /></button>
+          <button title="Load" onClick={handleLoadProject}><FaFolderOpen /></button>
+          <button title="Save" onClick={handleSaveProject}><FaSave /></button>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              title="Export"
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
             >
-              {barWidthMultiplier}x
-            </span>
-            {showZoomSlider && (
-              <div className="zoom-slider-popup">
-                <input
-                  type="range"
-                  min="1"
-                  max="8"
-                  step="1"
-                  value={barWidthMultiplier}
-                  onChange={(e) => setBarWidthMultiplier(parseInt(e.target.value))}
-                />
-                <span className="zoom-slider-label">{barWidthMultiplier}x</span>
-              </div>
-            )}
-          </div>
-          <div className="transport-item">
-            <span className='current-time' onClick={handleCurrentTimeClick} style={{ cursor: 'pointer' }}>{currentTime}</span>
-          </div>
-          <div className="transport-item">
-            <span className='current-bpm' onClick={handleBpmClick} style={{ cursor: 'pointer' }}>{bpm}</span>
-          </div>
-          <div className="transport-item">
-            <span className='current-time-signature' onClick={handleTimeSignatureClick} style={{ cursor: 'pointer' }}>{timeSignature.numerator + "/" + timeSignature.denominator}</span>
-          </div>
-          <div className="transport-item" style={{ position: 'relative' }}>
-            <span 
-              className='current-key-signature' 
-              onClick={() => setShowKeySignatureDropdown(!showKeySignatureDropdown)} 
-              style={{ cursor: 'pointer' }}
-            >
-              {keySignature}
-            </span>
+              <FaDownload />
+            </button>
             <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
               <KGDropdown
-                options={keySignatureOptions}
-                value={keySignature}
-                onChange={handleKeySignatureChange}
-                label="Key Signature"
+                options={exportOptions}
+                value={exportOptions[0]}
+                onChange={handleExportProject}
+                label="Export"
                 hideButton={true}
-                isOpen={showKeySignatureDropdown}
-                onToggle={setShowKeySignatureDropdown}
-                className="key-signature-dropdown"
+                isOpen={showExportDropdown}
+                onToggle={setShowExportDropdown}
+                className="export-dropdown"
               />
             </div>
           </div>
+          <button title="Import" onClick={handleImportProject}><FaUpload /></button>
+          <button
+            title="Settings"
+            className={`tool-button ${showSettings ? 'active' : ''}`}
+            onClick={handleSettingsClick}
+          >
+            <FaCog />
+          </button>
+          <div className="toolbar-separator"></div>
+          <button title="Undo" onClick={handleUndoClick}><FaUndo /></button>
+          <button title="Redo" onClick={handleRedoClick}><FaRedo /></button>
+          <div className="toolbar-separator"></div>
+          <button
+            title="Select"
+            className={`tool-button ${activeMainTool === 'pointer' ? 'active' : ''}`}
+            onClick={() => handleMainToolSelect('pointer')}
+          >
+            <FaMousePointer />
+          </button>
+          <button
+            title="Pencil"
+            className={`tool-button ${activeMainTool === 'pencil' ? 'active' : ''}`}
+            onClick={() => handleMainToolSelect('pencil')}
+          >
+            <FaPencil />
+          </button>
+          <button
+            title="Split Region at Playhead"
+            onClick={handleSplitClick}
+          >
+            <FaCut />
+          </button>
+          <button
+            title="Merge Selected MIDI Regions"
+            onClick={handleMergeClick}
+          >
+            <FaCompress />
+          </button>
+          <button
+            title="Snap to Grid"
+            className={`tool-button ${isSnapping ? 'active' : ''}`}
+            onClick={handleSnappingToggle}
+          >
+            <FaMagnet />
+          </button>
+          <div className="toolbar-separator"></div>
+          <button title="Copy" onClick={handleCopyClick}><FaCopy /></button>
+          <button title="Paste" onClick={handlePasteClick}><FaPaste /></button>
+          <button title="Delete" onClick={handleDeleteClick}><FaTrash /></button>
+          <div className="toolbar-separator"></div>
+          <button title="Back to beginning" className="button-back-to-beginning" onClick={handleBackToBeginningClick}><FaStepBackward /></button>
+          {!isPlaying ? (
+            <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
+          ) : (
+            <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
+          )}
+          <button
+            title={isRecording ? "Stop Recording" : "Record"}
+            className={`tool-button record-button ${isRecording ? 'active' : ''}`}
+            onClick={handleRecordClick}
+          >
+            <FaCircle />
+          </button>
+          <button
+            title="Loop"
+            className={`tool-button ${isLooping ? 'active' : ''}`}
+            onClick={handleLoopToggle}
+          >
+            <FaSync />
+          </button>
+          <div className="toolbar-separator"></div>
+          <button
+            title="Metronome"
+            className={`tool-button ${isMetronomeEnabled ? 'active' : ''}`}
+            onClick={handleMetronomeToggle}
+          >
+            <MetronomeIcon />
+          </button>
+          <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
+          {/* <button title="Record"><FaCircle className="record-btn" /></button>
+        <button title="Metronome">🎵</button> */}
         </div>
-        <button
-          title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
-          onClick={handleKGOneClick}
-          disabled={!isKGOneEnabled}
-          className={showKGOnePanel ? 'active' : ''}
-          style={!isKGOneEnabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-        >
-          <FaWandMagicSparkles />
-        </button>
-        <button
-          title="Chat"
-          onClick={handleChatClick}
-          className={showChatBox ? 'active' : ''}
-        >
-          <FaComments />
-        </button>
-        <button
-          title="List Event Editor"
-          onClick={handleListEventClick}
-          className={showListEventPanel ? 'active' : ''}
-        >
-          <FaListUl />
-        </button>
+
+        <div className="toolbar-right">
+          <div className="transport-control">
+            <div className="transport-item" style={{ position: 'relative' }} ref={zoomSliderRef}>
+              <span
+                className='current-zoom'
+                onClick={() => setShowZoomSlider(!showZoomSlider)}
+                style={{ cursor: 'pointer' }}
+              >
+                {barWidthMultiplier}x
+              </span>
+              {showZoomSlider && (
+                <div className="zoom-slider-popup">
+                  <input
+                    type="range"
+                    min="1"
+                    max="8"
+                    step="1"
+                    value={barWidthMultiplier}
+                    onChange={(e) => setBarWidthMultiplier(parseInt(e.target.value))}
+                  />
+                  <span className="zoom-slider-label">{barWidthMultiplier}x</span>
+                </div>
+              )}
+            </div>
+            <div className="transport-item">
+              <span className='current-time' onClick={handleCurrentTimeClick} style={{ cursor: 'pointer' }}>{currentTime}</span>
+            </div>
+            <div className="transport-item">
+              <span className='current-bpm' onClick={handleBpmClick} style={{ cursor: 'pointer' }}>{bpm}</span>
+            </div>
+            <div className="transport-item">
+              <span className='current-time-signature' onClick={handleTimeSignatureClick} style={{ cursor: 'pointer' }}>{timeSignature.numerator + "/" + timeSignature.denominator}</span>
+            </div>
+            <div className="transport-item" style={{ position: 'relative' }}>
+              <span
+                className='current-key-signature'
+                onClick={() => setShowKeySignatureDropdown(!showKeySignatureDropdown)}
+                style={{ cursor: 'pointer' }}
+              >
+                {keySignature}
+              </span>
+              <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
+                <KGDropdown
+                  options={keySignatureOptions}
+                  value={keySignature}
+                  onChange={handleKeySignatureChange}
+                  label="Key Signature"
+                  hideButton={true}
+                  isOpen={showKeySignatureDropdown}
+                  onToggle={setShowKeySignatureDropdown}
+                  className="key-signature-dropdown"
+                />
+              </div>
+            </div>
+          </div>
+          <button
+            title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
+            onClick={handleKGOneClick}
+            disabled={!isKGOneEnabled}
+            className={showKGOnePanel ? 'active' : ''}
+            style={!isKGOneEnabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+          >
+            <FaWandMagicSparkles />
+          </button>
+          <button
+            title="Chat"
+            onClick={handleChatClick}
+            className={showChatBox ? 'active' : ''}
+          >
+            <FaComments />
+          </button>
+          <button
+            title="Event List Editor"
+            onClick={handleEventListClick}
+            className={showEventListPanel ? 'active' : ''}
+          >
+            <FaListUl />
+          </button>
+        </div>
       </div>
-    </div>
-    
-    <FileImportModal
-      isVisible={showImportModal}
-      onClose={() => setShowImportModal(false)}
-      onFileImport={handleFileImport}
-      acceptedTypes={['.kgstudio', '.json', '.mid', '.midi']}
-      title="Import Project"
-      description="Drag and drop your project file here"
-    />
 
-    <LoadingOverlay
-      visible={isOpeningProject}
-      message="Opening project..."
-    />
-
-    {showOpenProject && (
-      <OpenProjectModal
-        onClose={() => setShowOpenProject(false)}
-        onConfirmOpenProject={handleConfirmOpenProject}
-        onOpenProject={handleOpenProjectSelect}
-        currentProjectName={savedProjectName}
-        onCreateNewProject={createNewProject}
+      <FileImportModal
+        isVisible={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onFileImport={handleFileImport}
+        acceptedTypes={['.kgstudio', '.json', '.mid', '.midi']}
+        title="Import Project"
+        description="Drag and drop your project file here"
       />
-    )}
+
+      <LoadingOverlay
+        visible={isOpeningProject}
+        message="Opening project..."
+      />
+
+      {showOpenProject && (
+        <OpenProjectModal
+          onClose={() => setShowOpenProject(false)}
+          onConfirmOpenProject={handleConfirmOpenProject}
+          onOpenProject={handleOpenProjectSelect}
+          currentProjectName={savedProjectName}
+          onCreateNewProject={createNewProject}
+        />
+      )}
     </>
   );
 };

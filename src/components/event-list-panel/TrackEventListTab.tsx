@@ -30,7 +30,7 @@ import { isModifierKeyPressed } from '../../util/osUtil';
 import { showAlert } from '../../util/dialogUtil';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 
-interface TrackListEventTabProps {
+interface TrackEventListTabProps {
   selectedTrack: KGMidiTrack | KGAudioTrack | null;
 }
 
@@ -118,7 +118,7 @@ const findPreviousPanValue = (points: KGTrackAutomationPoint[], beat: number): n
   return previousPoint?.getValue() ?? 0;
 };
 
-const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) => {
+const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) => {
   const {
     tracks,
     playheadPosition,
@@ -659,22 +659,22 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
 
   return (
     <>
-      <div className="list-event-tabs" role="tablist" aria-label="Track list modes">
-        <button className={`list-event-tab${showRegions ? ' active' : ''}`} aria-pressed={showRegions} type="button" onClick={() => setShowRegions(value => !value)}>Regions</button>
-        <button className={`list-event-tab${showVolume ? ' active' : ''}`} aria-pressed={showVolume} type="button" onClick={() => setShowVolume(value => !value)}>Volume</button>
-        <button className={`list-event-tab${showPan ? ' active' : ''}`} aria-pressed={showPan} type="button" onClick={() => setShowPan(value => !value)}>Pan</button>
+      <div className="event-list-tabs" role="tablist" aria-label="Track list modes">
+        <button className={`event-list-tab${showRegions ? ' active' : ''}`} aria-pressed={showRegions} type="button" onClick={() => setShowRegions(value => !value)}>Regions</button>
+        <button className={`event-list-tab${showVolume ? ' active' : ''}`} aria-pressed={showVolume} type="button" onClick={() => setShowVolume(value => !value)}>Volume</button>
+        <button className={`event-list-tab${showPan ? ' active' : ''}`} aria-pressed={showPan} type="button" onClick={() => setShowPan(value => !value)}>Pan</button>
       </div>
 
       {!liveSelectedTrack ? (
-        <div className="list-event-empty-state">
+        <div className="event-list-empty-state">
           Please select a track to view regions and track automation.
         </div>
       ) : (
         <>
-          <div className="list-event-toolbar">
-            <div className="list-event-toolbar-group">
+          <div className="event-list-toolbar">
+            <div className="event-list-toolbar-group">
               <button
-                className="list-event-add-button"
+                className="event-list-add-button"
                 title={addTrackItemType === 'midi-region' ? 'Add MIDI region at playhead' : addTrackItemType === 'volume' ? 'Add volume automation point at playhead' : 'Add pan automation point at playhead'}
                 type="button"
                 onClick={handleAddTrackItem}
@@ -686,14 +686,14 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
                 value={addTrackItemType}
                 onChange={(value) => setAddTrackItemType(value as AddTrackItemType)}
                 label="Add"
-                buttonClassName="list-event-type-button"
+                buttonClassName="event-list-type-button"
                 showValueAsLabel
               />
             </div>
 
-            <div className="list-event-toolbar-group list-event-toolbar-group-right">
+            <div className="event-list-toolbar-group event-list-toolbar-group-right">
               <button
-                className="list-event-delete-button"
+                className="event-list-delete-button"
                 title="Delete visible selected rows"
                 type="button"
                 onClick={handleDeleteSelectedRows}
@@ -704,8 +704,8 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
             </div>
           </div>
 
-          <div className="list-event-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
-            <table className="list-event-table">
+          <div className="event-list-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
+            <table className="event-list-table">
               <thead>
                 <tr>
                   <th>Position</th>
@@ -738,7 +738,7 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
                         {isEditingPosition ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -757,7 +757,7 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
                         {isEditingVal ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -775,7 +775,7 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
                         {isEditingLength ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -797,4 +797,4 @@ const TrackListEventTab: React.FC<TrackListEventTabProps> = ({ selectedTrack }) 
   );
 };
 
-export default TrackListEventTab;
+export default TrackEventListTab;

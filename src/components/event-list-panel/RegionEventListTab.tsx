@@ -36,7 +36,7 @@ import { UpdateNotePropertiesCommand } from '../../core/commands/note/UpdateNote
 import { UpdatePitchBendPropertiesCommand } from '../../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { showAlert } from '../../util/dialogUtil';
 
-interface RegionListEventTabProps {
+interface RegionEventListTabProps {
   activeMidiRegion: KGMidiRegion | null;
   parentTrack: KGMidiTrack | null;
 }
@@ -181,7 +181,7 @@ const parseControllerValueDeltaInput = (raw: string): { delta: number } | { erro
   return { delta: parseInt(trimmed, 10) };
 };
 
-const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegion, parentTrack }) => {
+const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegion, parentTrack }) => {
   const {
     selectedNoteIds,
     selectedPitchBendIds,
@@ -941,22 +941,22 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
 
   return (
     <>
-      <div className="list-event-tabs" role="tablist" aria-label="Region event filters">
-        <button className={`list-event-tab${showNotes ? ' active' : ''}`} type="button" onClick={() => setShowNotes(value => !value)}>Notes</button>
-        <button className={`list-event-tab${showPitchBends ? ' active' : ''}`} type="button" onClick={() => setShowPitchBends(value => !value)}>Pitch Bends</button>
-        <button className={`list-event-tab${showControllers ? ' active' : ''}`} type="button" onClick={() => setShowControllers(value => !value)}>Controller</button>
+      <div className="event-list-tabs" role="tablist" aria-label="Region event filters">
+        <button className={`event-list-tab${showNotes ? ' active' : ''}`} type="button" onClick={() => setShowNotes(value => !value)}>Notes</button>
+        <button className={`event-list-tab${showPitchBends ? ' active' : ''}`} type="button" onClick={() => setShowPitchBends(value => !value)}>Pitch Bends</button>
+        <button className={`event-list-tab${showControllers ? ' active' : ''}`} type="button" onClick={() => setShowControllers(value => !value)}>Controller</button>
       </div>
 
       {!activeMidiRegion ? (
-        <div className="list-event-empty-state">
+        <div className="event-list-empty-state">
           Please select a MIDI region, or open one in the Piano Roll, to view its event list.
         </div>
       ) : (
         <>
-          <div className="list-event-toolbar">
-            <div className="list-event-toolbar-group">
+          <div className="event-list-toolbar">
+            <div className="event-list-toolbar-group">
               <button
-                className="list-event-add-button"
+                className="event-list-add-button"
                 title={addEventType === 'note' ? 'Add note at playhead' : addEventType === 'pitch-bend' ? 'Add pitch bend at playhead' : 'Add controller event at playhead'}
                 type="button"
                 onClick={handleAddEvent}
@@ -968,12 +968,12 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                 value={addEventType}
                 onChange={(value) => setAddEventType(value as AddEventType)}
                 label="Note"
-                buttonClassName="list-event-type-button"
+                buttonClassName="event-list-type-button"
                 showValueAsLabel
               />
             </div>
 
-            <div className="list-event-toolbar-group list-event-toolbar-group-right">
+            <div className="event-list-toolbar-group event-list-toolbar-group-right">
               <KGDropdown
                 options={KGPianoRollState.QUANT_POS_OPTIONS}
                 value={quantPosition}
@@ -982,7 +982,7 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                   quantizeSelectedNotes(value);
                 }}
                 label="Qua. Pos."
-                buttonClassName="list-event-quant-button"
+                buttonClassName="event-list-quant-button"
               />
               <KGDropdown
                 options={KGPianoRollState.QUANT_LEN_OPTIONS}
@@ -992,10 +992,10 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                   quantizeSelectedNoteLengths(value);
                 }}
                 label="Qua. Len."
-                buttonClassName="list-event-quant-button"
+                buttonClassName="event-list-quant-button"
               />
               <button
-                className="list-event-delete-button"
+                className="event-list-delete-button"
                 title="Delete visible selected rows"
                 type="button"
                 onClick={handleDeleteSelectedRows}
@@ -1006,8 +1006,8 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
             </div>
           </div>
 
-          <div className="list-event-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
-            <table className="list-event-table">
+          <div className="event-list-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
+            <table className="event-list-table">
               <thead>
                 <tr>
                   <th>Position</th>
@@ -1056,7 +1056,7 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                         {isEditingPosition ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -1075,7 +1075,7 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                         {isEditingNum ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -1092,7 +1092,7 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                         {isEditingVal ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -1110,7 +1110,7 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
                         {isEditingLength ? (
                           <input
                             ref={editInputRef}
-                            className="list-event-cell-input"
+                            className="event-list-cell-input"
                             value={editingCell.value}
                             onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
                             onBlur={handleEditInputBlur}
@@ -1132,4 +1132,4 @@ const RegionListEventTab: React.FC<RegionListEventTabProps> = ({ activeMidiRegio
   );
 };
 
-export default RegionListEventTab;
+export default RegionEventListTab;

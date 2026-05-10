@@ -74,7 +74,7 @@ interface ProjectState {
   isPreparingPlayback: boolean;
   autoScrollEnabled: boolean;
   currentTime: string; // formatted time string
-  
+
   // Selection state for UI reactivity
   selectedNoteIds: string[];
   selectedPitchBendIds: string[];
@@ -82,7 +82,7 @@ interface ProjectState {
   selectedTrackAutomationPointIds: string[];
   selectedRegionIds: string[];
   selectedTrackId: string | null;
-  
+
   // Piano roll state
   showPianoRoll: boolean;
   activeRegionId: string | null;
@@ -92,20 +92,20 @@ interface ProjectState {
   activeTrackAutomationTrackId: string | null;
   activeTrackAutomationType: TrackAutomationType | null;
   trackAutomationRedrawVersion: number;
-  
+
   // ChatBox state
   showChatBox: boolean;
 
   // K.G.One panel state
   showKGOnePanel: boolean;
 
-  // List event panel state
-  showListEventPanel: boolean;
+  // Event list panel state
+  showEventListPanel: boolean;
 
   // Instrument selection panel state
   showInstrumentSelection: boolean;
   // instrumentSelectionTrackId removed; panel now follows selectedTrackId
-  
+
   // Audio import modal state
   showAudioImportModal: boolean;
   audioImportTargetTrackId: string | null;
@@ -140,7 +140,7 @@ interface ProjectState {
   requestPianoRollScroll: (beatPosition: number) => void;
   mainContentScrollRequest: number | null;
   pianoRollScrollRequest: number | null;
-  
+
   // Actions
   setProjectName: (name: string) => void;
   setSavedProjectName: (name: string) => void;
@@ -177,7 +177,7 @@ interface ProjectState {
   clearAllSelections: () => void;
   setSelectedTrack: (trackId: string | null) => void;
   setTrackAutomationView: (trackId: string | null, automationType: TrackAutomationType | null) => void;
-  
+
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
   setActiveRegionId: (regionId: string | null) => void;
@@ -186,10 +186,10 @@ interface ProjectState {
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
   bumpAutomationRedrawVersion: () => void;
   bumpTrackAutomationRedrawVersion: () => void;
-  
+
   // Project state cleanup
   cleanupProjectState: () => void;
-  
+
   // ChatBox actions
   setShowChatBox: (show: boolean) => void;
   toggleChatBox: () => void;
@@ -197,27 +197,27 @@ interface ProjectState {
   // K.G.One panel actions
   toggleKGOnePanel: () => void;
 
-  // List event panel actions
-  toggleListEventPanel: () => void;
+  // Event List panel actions
+  toggleEventListPanel: () => void;
 
   // Instrument selection panel actions
   openInstrumentSelectionForTrack: () => void;
   toggleInstrumentSelectionForTrack: () => void;
   closeInstrumentSelection: () => void;
-  
+
   // Settings actions
   setShowSettings: (show: boolean) => void;
   toggleSettings: () => void;
-  
+
   // Copy/paste actions
   pasteRegionsAtTrack: (trackId: string, position: number) => void;
   pasteNotesToActiveRegion: (regionId: string, position: number) => void;
-  
+
   // Undo/redo actions
   undo: () => void;
   redo: () => void;
   syncUndoRedoState: () => void;
-  
+
   // Project state refresh actions
   refreshProjectState: () => void;
 
@@ -282,20 +282,20 @@ function getAudioRecordingExtension(mimeType: string): string {
 // Create the store
 export const useProjectStore = create<ProjectState>((set, get) => {
   const currentProject = KGCore.instance().getCurrentProject();
-  
+
   // Initialize CSS variable for time signature on store creation
   updateTimeSignatureCSS(currentProject.getTimeSignature());
   // Initialize CSS variable for max bars on store creation
   updateMaxBarsCSS(currentProject.getMaxBars());
   // Initialize CSS variable for bar width multiplier on store creation
   updateBarWidthMultiplierCSS(currentProject.getBarWidthMultiplier());
-  
+
   // Get initial ChatBox state from config
   const configManager = ConfigManager.instance();
-  const initialChatBoxState = configManager.getIsInitialized() 
+  const initialChatBoxState = configManager.getIsInitialized()
     ? (configManager.get('chatbox.default_open') as boolean) ?? false
     : false;
-  
+
   // Set up playhead update callback to keep store in sync during playback
   KGCore.instance().setPlayheadUpdateCallback((position: number) => {
     const { bpm, timeSignature } = get();
@@ -317,7 +317,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   const syncSelectionFromCore = () => {
     const core = KGCore.instance();
     const selectedItems = core.getSelectedItems();
-    
+
     const noteIds = selectedItems
       .filter(item => item instanceof KGMidiNote)
       .map(item => item.getId());
@@ -333,7 +333,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     const regionIds = selectedItems
       .filter(item => item instanceof KGRegion)
       .map(item => item.getId());
-      
+
     set({
       selectedNoteIds: noteIds,
       selectedPitchBendIds: pitchBendIds,
@@ -345,10 +345,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
   // Register the sync callback with KGCore
   KGCore.instance().onSelectionChanged(syncSelectionFromCore);
-  
+
   // Initial selection sync
   syncSelectionFromCore();
-  
+
   // Set up command history sync callback
   const syncUndoRedoState = () => {
     const core = KGCore.instance();
@@ -362,10 +362,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
   // Register the undo/redo sync callback with KGCore
   KGCore.instance().setOnCommandHistoryChanged(syncUndoRedoState);
-  
+
   // Initial undo/redo state sync
   syncUndoRedoState();
-  
+
   // Ensure a default track exists on initial app start
   // Also auto-select it and open instrument selection panel
   let initialSelectedTrackId: string | null = null;
@@ -403,7 +403,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     isPreparingPlayback: false,
     autoScrollEnabled: true,
     currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
-    
+
     // Initial selection state
     selectedNoteIds: [],
     selectedPitchBendIds: [],
@@ -411,7 +411,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     selectedTrackAutomationPointIds: [],
     selectedRegionIds: [],
     selectedTrackId: initialSelectedTrackId,
-    
+
     // Initial piano roll state
     showPianoRoll: false,
     activeRegionId: null,
@@ -421,26 +421,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeTrackAutomationTrackId: null,
     activeTrackAutomationType: null,
     trackAutomationRedrawVersion: 0,
-    
+
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
 
     // Initial K.G.One panel state
     showKGOnePanel: false,
 
-    // Initial List Event panel state
-    showListEventPanel: false,
+    // Initial Event List panel state
+    showEventListPanel: false,
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
-    
+
     // Initial audio import modal state
     showAudioImportModal: false,
     audioImportTargetTrackId: null,
 
     // Initial Settings state
     showSettings: false,
-    
+
     // Initial undo/redo state
     canUndo: false,
     canRedo: false,
@@ -493,18 +493,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Create and execute the add track command
         const command = new AddTrackCommand();
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
         set({ tracks: [...project.getTracks()] as KGTrack[] });
-        
+
         // Auto-select the newly created track and open instrument selection panel
         const newTrackId = command.getTrackId().toString();
         set({
           selectedTrackId: newTrackId,
           showInstrumentSelection: true,
         });
-        
+
         console.log(`Added track ${command.getTrackId()}`);
       } catch (error) {
         console.error('Error adding track:', error);
@@ -630,23 +630,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const deletedTrackIndex = currentTracks.findIndex(track => track.getId() === id);
         const { selectedTrackId } = get();
         const isCurrentTrackSelected = selectedTrackId === id.toString();
-        
+
         // Create and execute the remove track command
         const command = new RemoveTrackCommand(id);
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
         const remainingTracks = [...project.getTracks()] as KGTrack[];
         set({ tracks: remainingTracks });
-        
+
         // Auto-select another track if any remain
         if (remainingTracks.length > 0) {
           // Prefer previous track, fallback to next track
-          const newSelectedIndex = deletedTrackIndex > 0 
+          const newSelectedIndex = deletedTrackIndex > 0
             ? deletedTrackIndex - 1  // Select previous track
             : 0;                     // Select first remaining track (was next)
-          
+
           const newSelectedTrack = remainingTracks[newSelectedIndex];
           const newSelectedTrackId = newSelectedTrack.getId().toString();
 
@@ -662,7 +662,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             showInstrumentSelection: false,
           });
         }
-        
+
         console.log(`Removed track ${id}`);
       } catch (error) {
         console.error('Error removing track:', error);
@@ -672,23 +672,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     updateTrack: async (updatedTrack: KGTrack) => {
       const { tracks } = get();
-      
+
       try {
         // Find the old track to compare instruments
         const oldTrack = tracks.find(track => track.getId() === updatedTrack.getId());
-        
+
         // Type guard to check if track is KGMidiTrack
         const isMidiTrack = (track: KGTrack): track is KGMidiTrack => {
           return track.getCurrentType() === 'KGMidiTrack' && 'getInstrument' in track;
         };
-        
+
         // Check if instrument changed (only for MIDI tracks)
-        const shouldUpdateInstrument = 
-          isMidiTrack(updatedTrack) && 
-          oldTrack && 
+        const shouldUpdateInstrument =
+          isMidiTrack(updatedTrack) &&
+          oldTrack &&
           isMidiTrack(oldTrack) &&
           updatedTrack.getInstrument() !== oldTrack.getInstrument();
-        
+
         // Update instrument in audio interface if changed
         if (shouldUpdateInstrument && isMidiTrack(updatedTrack)) {
           const audioInterface = KGAudioInterface.instance();
@@ -696,18 +696,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           audioInterface.setTrackInstrument(updatedTrack.getId().toString(), newInstrument);
           console.log(`Updated track ${updatedTrack.getId()} instrument to ${newInstrument}`);
         }
-        
+
         // Find and update the track
-        const updatedTracks = tracks.map(track => 
+        const updatedTracks = tracks.map(track =>
           track.getId() === updatedTrack.getId() ? updatedTrack : track
         );
-        
+
         // Update the core model
         KGCore.instance().getCurrentProject().setTracks(updatedTracks);
-        
+
         // Update the store
         set({ tracks: updatedTracks });
-        
+
         console.log(`Updated track ${updatedTrack.getId()}`);
       } catch (error) {
         console.error('Error updating track:', error);
@@ -724,7 +724,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Update the store state with the current project state
         const project = KGCore.instance().getCurrentProject();
         set({ tracks: [...project.getTracks()] as KGTrack[] });
-        
+
         console.log(`Updated track ${trackId} properties`);
       } catch (error) {
         console.error('Error updating track properties:', error);
@@ -736,14 +736,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       try {
         // Use the new updateTrackProperties method with command pattern
         await get().updateTrackProperties(trackId, { instrument });
-        
+
         console.log(`Set track ${trackId} instrument to ${instrument}`);
       } catch (error) {
         console.error('Error setting track instrument:', error);
         get().setStatus('Failed to change instrument');
       }
     },
-    
+
     reorderTracks: (sourceIndex: number, destinationIndex: number) => {
       try {
         // Create and execute the reorder tracks command
@@ -753,7 +753,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Update the store state with the current project state
         const project = KGCore.instance().getCurrentProject();
         set({ tracks: [...project.getTracks()] as KGTrack[] });
-        
+
         console.log(`Reordered track from index ${sourceIndex} to ${destinationIndex}`);
       } catch (error) {
         console.error('Error reordering tracks:', error);
@@ -774,11 +774,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     refreshStatus: () => {
       set({ currentStatus: KGCore.instance().getStatus() || 'Unknown' });
     },
-    
+
     loadProject: async (project: KGProject | null = null, savedName?: string) => {
       try {
         const { setPlayheadPosition } = get();
-        
+
         // Upgrade incoming project data to latest structure version (only when provided explicitly)
         if (project) {
           project = upgradeProjectToLatest(project);
@@ -786,12 +786,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Get project from KGCore if null
         const projectToLoad = project || KGCore.instance().getCurrentProject();
-        
+
         // Set the project in KGCore if one was provided
         if (project) {
           KGCore.instance().setCurrentProject(projectToLoad);
         }
-        
+
         // Ensure a default "Melody" track exists for empty projects
         if (projectToLoad.getTracks().length === 0) {
           const addDefaultTrackCommand = new AddTrackCommand(undefined, 'Melody');
@@ -800,17 +800,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Reset playhead to 0 when loading a project
         setPlayheadPosition(0);
-        
+
         // Get project properties
         const maxBars = projectToLoad.getMaxBars();
         const timeSignature = projectToLoad.getTimeSignature();
         const bpm = projectToLoad.getBpm();
         const keySignature = projectToLoad.getKeySignature();
         const tracks = projectToLoad.getTracks();
-        
+
         // Setup audio synths for all tracks
         const audioInterface = KGAudioInterface.instance();
-        
+
         // Clear any existing synths/buses first
         tracks.forEach(track => {
           const trackId = track.getId().toString();
@@ -857,7 +857,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             audioInterface.setTrackVolume(trackId, track.getVolume());
           }
         }
-        
+
         // Update CSS variables
         updateTimeSignatureCSS(timeSignature);
         updateMaxBarsCSS(maxBars);
@@ -866,7 +866,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Log project loading info
         console.log(`Project max bars: ${maxBars}`);
         console.log(`Setup audio synths for ${tracks.length} tracks`);
-        
+
         // Update the store state to reflect the loaded project
         // Force a new array reference for tracks to trigger React/Zustand re-render
         set({
@@ -914,7 +914,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(1);
-        
+
         // Add a status message
         KGCore.instance().setStatus(`Project "${projectToLoad.getName()}" loaded with audio setup`);
         set({ currentStatus: KGCore.instance().getStatus() || 'Unknown' });
@@ -927,7 +927,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     setPlayheadPosition: (position: number) => {
       const { bpm, timeSignature } = get();
       KGCore.instance().setPlayheadPosition(position);
-      set({ 
+      set({
         playheadPosition: position,
         currentTime: beatsToTimeString(position, bpm, timeSignature)
       });
@@ -1024,9 +1024,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         KGCore.instance().setLoopBoundaryReachedCallback(projectLooping
           ? (loopEndBeat: number) => {
-              _audioRecordingForcedStopBeatAbsolute = loopEndBeat;
-              void get().stopRecording();
-            }
+            _audioRecordingForcedStopBeatAbsolute = loopEndBeat;
+            void get().stopRecording();
+          }
           : null);
 
         setPlayheadPosition(recordingStartBeatAbsolute);
@@ -1405,10 +1405,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ bpm });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ bpm });
-        
+
         console.log(`Set BPM to ${bpm}`);
       } catch (error) {
         console.error('Error setting BPM:', error);
@@ -1421,12 +1421,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Create and execute the change project property command
         const command = new ChangeProjectPropertyCommand({ maxBars });
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store state
         set({ maxBars });
         // Sync CSS var so layout adjusts immediately
         updateMaxBarsCSS(maxBars);
-        
+
         console.log(`Set max bars to ${maxBars}`);
       } catch (error) {
         console.error('Error setting max bars:', error);
@@ -1492,7 +1492,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Selection actions
     syncSelectionFromCore,
-    
+
     clearAllSelections: () => {
       KGCore.instance().clearSelectedItems();
       // Note: syncSelectionFromCore will be called automatically via callback
@@ -1526,7 +1526,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         selectedTrackId: trackId,
       });
     },
-    
+
     // Piano roll actions
     setShowPianoRoll: (show: boolean) => {
       set({ showPianoRoll: show });
@@ -1553,7 +1553,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     bumpTrackAutomationRedrawVersion: () => {
       set(state => ({ trackAutomationRedrawVersion: state.trackAutomationRedrawVersion + 1 }));
     },
-    
+
     // Project state cleanup - used when starting new/loading projects
     cleanupProjectState: () => {
       // Close piano roll if it's visible
@@ -1570,36 +1570,36 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         recordingAudioPreviewPeaks: [],
         recordingAudioPreviewCurrentBeat: 0,
       });
-      
+
       // Clear any selected items
       KGCore.instance().clearSelectedItems();
       // Note: syncSelectionFromCore will be called automatically via callback
-      
+
       console.log("Cleaned up project state: closed piano roll, cleared active region, cleared selections");
     },
-    
+
     // ChatBox action implementations
     setShowChatBox: (show: boolean) => {
       set({
         showChatBox: show,
         showKGOnePanel: show ? false : get().showKGOnePanel,
-        showListEventPanel: show ? false : get().showListEventPanel
+        showEventListPanel: show ? false : get().showEventListPanel
       });
     },
-    
+
     toggleChatBox: () => {
       const { showChatBox } = get();
-      set({ showChatBox: !showChatBox, showKGOnePanel: false, showListEventPanel: false });
+      set({ showChatBox: !showChatBox, showKGOnePanel: false, showEventListPanel: false });
     },
 
     toggleKGOnePanel: () => {
       const { showKGOnePanel } = get();
-      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false, showListEventPanel: false });
+      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false, showEventListPanel: false });
     },
 
-    toggleListEventPanel: () => {
-      const { showListEventPanel } = get();
-      set({ showListEventPanel: !showListEventPanel, showChatBox: false, showKGOnePanel: false });
+    toggleEventListPanel: () => {
+      const { showEventListPanel } = get();
+      set({ showEventListPanel: !showEventListPanel, showChatBox: false, showKGOnePanel: false });
     },
 
     // Instrument selection panel actions
@@ -1612,64 +1612,64 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     closeInstrumentSelection: () => {
       set({ showInstrumentSelection: false });
     },
-    
+
     // Settings action implementations
     setShowSettings: (show: boolean) => {
       set({ showSettings: show });
     },
-    
+
     toggleSettings: () => {
       const { showSettings } = get();
       set({ showSettings: !showSettings });
     },
-    
+
     // Copy/paste actions
     pasteRegionsAtTrack: (trackId: string, position: number) => {
       // Use command pattern for region pasting with undo support
       const command = PasteRegionsCommand.fromClipboard(trackId, position);
-      
+
       if (!command) {
         console.log('No regions to paste');
         return;
       }
-      
+
       try {
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store to trigger re-render
         const { tracks } = get();
         const updatedTracks = [...tracks];
         set({ tracks: updatedTracks });
-        
+
         console.log(`Executed PasteRegionsCommand: pasted regions to track ${trackId} using command pattern`);
       } catch (error) {
         console.error('Error pasting regions:', error);
       }
     },
-    
+
     pasteNotesToActiveRegion: (regionId: string, position: number) => {
       // Use command pattern for note pasting with undo support
       const command = PasteNotesCommand.fromClipboard(regionId, position);
-      
+
       if (!command) {
         console.log('No notes to paste');
         return;
       }
-      
+
       try {
         KGCore.instance().executeCommand(command);
-        
+
         // Update the store to trigger re-render
         const { tracks } = get();
         const updatedTracks = [...tracks];
         set({ tracks: updatedTracks });
-        
+
         console.log(`Executed PasteNotesCommand: pasted notes to region ${regionId} using command pattern`);
       } catch (error) {
         console.error('Error pasting notes:', error);
       }
     },
-    
+
     // Undo/redo actions
     undo: () => {
       const core = KGCore.instance();
@@ -1680,7 +1680,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         console.log('Undo completed');
       }
     },
-    
+
     redo: () => {
       const core = KGCore.instance();
       if (core.redo()) {
@@ -1690,7 +1690,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         console.log('Redo completed');
       }
     },
-    
+
     syncUndoRedoState: () => {
       const core = KGCore.instance();
       set({
@@ -1700,13 +1700,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         redoDescription: core.getRedoDescription()
       });
     },
-    
+
     // Centralized project state refresh method
     // Used by undo/redo and external operations (like XML tools) to sync UI with core model
     refreshProjectState: () => {
       const core = KGCore.instance();
       const project = core.getCurrentProject();
-      
+
       // Force new array reference to trigger React re-renders
       set({
         projectName: project.getName(),
@@ -1729,7 +1729,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       actions.syncUndoRedoState();
       actions.syncSelectionFromCore();
     },
-    
+
     // Initialize store with configuration values
     initializeFromConfig: async () => {
       const configManager = ConfigManager.instance();

@@ -1,19 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import './ListEventPanel.css';
+import './EventListPanel.css';
 import { useProjectStore } from '../stores/projectStore';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
-import RegionListEventTab from './list-event-panel/RegionListEventTab';
-import TrackListEventTab from './list-event-panel/TrackListEventTab';
+import RegionEventListTab from './event-list-panel/RegionEventListTab';
+import TrackEventListTab from './event-list-panel/TrackEventListTab';
 
-interface ListEventPanelProps {
+interface EventListPanelProps {
   isVisible: boolean;
 }
 
 type ScopeTab = 'region' | 'track';
 
-const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
+const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
   const { tracks, activeRegionId, selectedRegionIds, selectedTrackId } = useProjectStore();
   const [scopeTab, setScopeTab] = useState<ScopeTab>('region');
 
@@ -43,21 +43,21 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   }
 
   return (
-    <div className={`list-event-panel${isVisible ? '' : ' is-hidden'}`}>
-      <div className="list-event-panel-header">
-        <h3>List Event</h3>
+    <div className={`event-list-panel${isVisible ? '' : ' is-hidden'}`}>
+      <div className="event-list-panel-header">
+        <h3>Event List</h3>
       </div>
 
-      <div className="list-event-scope-tabs" role="tablist" aria-label="List event scopes">
+      <div className="event-list-scope-tabs" role="tablist" aria-label="Event list scopes">
         <button
-          className={`list-event-scope-tab${scopeTab === 'region' ? ' active' : ''}`}
+          className={`event-list-scope-tab${scopeTab === 'region' ? ' active' : ''}`}
           type="button"
           onClick={() => setScopeTab('region')}
         >
           Region
         </button>
         <button
-          className={`list-event-scope-tab${scopeTab === 'track' ? ' active' : ''}`}
+          className={`event-list-scope-tab${scopeTab === 'track' ? ' active' : ''}`}
           type="button"
           onClick={() => setScopeTab('track')}
         >
@@ -65,15 +65,15 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
         </button>
       </div>
 
-      <div className="list-event-panel-body">
+      <div className="event-list-panel-body">
         {scopeTab === 'region' ? (
-          <RegionListEventTab activeMidiRegion={activeMidiRegion} parentTrack={parentTrack} />
+          <RegionEventListTab activeMidiRegion={activeMidiRegion} parentTrack={parentTrack} />
         ) : (
-          <TrackListEventTab selectedTrack={selectedTrack} />
+          <TrackEventListTab selectedTrack={selectedTrack} />
         )}
       </div>
     </div>
   );
 };
 
-export default ListEventPanel;
+export default EventListPanel;
