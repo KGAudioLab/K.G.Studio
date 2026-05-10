@@ -102,6 +102,18 @@ export const MockGain = vi.fn().mockImplementation((initialValue: number = 1) =>
   dispose: vi.fn()
 }));
 
+// Mock Panner node
+export const MockPanner = vi.fn().mockImplementation((initialValue: number = 0) => ({
+  pan: {
+    value: initialValue,
+    setValueAtTime: vi.fn(),
+  },
+  connect: vi.fn(),
+  disconnect: vi.fn(),
+  dispose: vi.fn(),
+  toDestination: vi.fn(),
+}));
+
 // Mock Meter
 export const MockMeter = vi.fn().mockImplementation(() => ({
   getValue: vi.fn().mockReturnValue(-Infinity),
@@ -120,6 +132,7 @@ export const ToneMock = {
   Destination: MockDestination,
   ToneAudioBuffer: MockToneAudioBuffer,
   Gain: MockGain,
+  Panner: MockPanner,
   Meter: MockMeter,
   
   // Context management

@@ -24,6 +24,23 @@ import { ConfigManager } from '../config/ConfigManager';
 import { KGAudioInterface } from './KGAudioInterface';
 import { MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 
+function createMockAudioBus() {
+  return {
+    resetLiveMidiPitchBend: vi.fn(),
+    setLiveMidiPitchBend: vi.fn(),
+    scheduleLiveMidiPitchBend: vi.fn(),
+    setLiveMidiExpression: vi.fn(),
+    scheduleLiveMidiExpression: vi.fn(),
+    setLiveMidiSustain: vi.fn(),
+    setAutomationVolume: vi.fn(),
+    setAutomationPan: vi.fn(),
+    scheduleAutomationPan: vi.fn(),
+    applyEffectiveVolume: vi.fn(),
+    getSolo: vi.fn().mockReturnValue(false),
+    shouldPlayWithSolo: vi.fn().mockReturnValue(true),
+  };
+}
+
 describe('KGAudioInterface preroll playback', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -125,14 +142,7 @@ describe('KGAudioInterface preroll playback', () => {
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     const project = createMockProject({ tracks: [track] });
     const audio = KGAudioInterface.instance();
-    const audioBus = {
-      resetLiveMidiPitchBend: vi.fn(),
-      setLiveMidiPitchBend: vi.fn(),
-      scheduleLiveMidiPitchBend: vi.fn(),
-      setLiveMidiExpression: vi.fn(),
-      setLiveMidiSustain: vi.fn(),
-      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
-    };
+    const audioBus = createMockAudioBus();
 
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 0);
@@ -152,14 +162,7 @@ describe('KGAudioInterface preroll playback', () => {
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     const project = createMockProject({ tracks: [track] });
     const audio = KGAudioInterface.instance();
-    const audioBus = {
-      resetLiveMidiPitchBend: vi.fn(),
-      setLiveMidiPitchBend: vi.fn(),
-      scheduleLiveMidiPitchBend: vi.fn(),
-      setLiveMidiExpression: vi.fn(),
-      setLiveMidiSustain: vi.fn(),
-      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
-    };
+    const audioBus = createMockAudioBus();
 
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 0);
@@ -178,14 +181,7 @@ describe('KGAudioInterface preroll playback', () => {
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     const project = createMockProject({ tracks: [track] });
     const audio = KGAudioInterface.instance();
-    const audioBus = {
-      resetLiveMidiPitchBend: vi.fn(),
-      setLiveMidiPitchBend: vi.fn(),
-      scheduleLiveMidiPitchBend: vi.fn(),
-      setLiveMidiExpression: vi.fn(),
-      setLiveMidiSustain: vi.fn(),
-      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
-    };
+    const audioBus = createMockAudioBus();
 
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 2);
@@ -206,14 +202,7 @@ describe('KGAudioInterface preroll playback', () => {
     project.setLoopingRange([1, 1]);
 
     const audio = KGAudioInterface.instance();
-    const audioBus = {
-      resetLiveMidiPitchBend: vi.fn(),
-      setLiveMidiPitchBend: vi.fn(),
-      scheduleLiveMidiPitchBend: vi.fn(),
-      setLiveMidiExpression: vi.fn(),
-      setLiveMidiSustain: vi.fn(),
-      shouldPlayWithSolo: vi.fn().mockReturnValue(true),
-    };
+    const audioBus = createMockAudioBus();
 
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 5);
