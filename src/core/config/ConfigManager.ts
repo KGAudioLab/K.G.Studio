@@ -78,8 +78,10 @@ interface AppConfig {
   };
   audio: {
     enable_audio_capture_for_screen_sharing: boolean;
+    input_device_id: string;
     lookahead_time: number;
     midi_automation_interpolation_interval_ms: number;
+    output_device_id: string;
     playback_delay: number;
     recording_offset: number;
   };
@@ -253,8 +255,10 @@ export class ConfigManager {
         },
         audio: {
           enable_audio_capture_for_screen_sharing: false,
+          input_device_id: 'default',
           lookahead_time: 0.05,
           midi_automation_interpolation_interval_ms: 10,
+          output_device_id: 'default',
           playback_delay: 0.2,
           recording_offset: 0
         },

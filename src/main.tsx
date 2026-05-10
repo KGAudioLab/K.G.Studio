@@ -7,8 +7,10 @@ import App from './App.tsx';
 import DialogProvider from './components/common/DialogProvider';
 import { KGCore } from './core/KGCore';
 import { KGAudioInterface } from './core/audio-interface/KGAudioInterface';
+import { ConfigManager } from './core/config/ConfigManager';
 import { KGMidiInput } from './core/midi-input/KGMidiInput';
 import { KGDebugger } from './core/KGDebugger';
+import { enumerateAudioDevices, validateConfiguredAudioDevices } from './util/audioDeviceUtil';
 
 const root = createRoot(document.getElementById('root')!);
 
@@ -57,6 +59,37 @@ if (!window.isSecureContext) {
 } else {
 // Initialize KGCore instance
 await KGCore.instance().initialize();
+
+const configManager = ConfigManager.instance();
+try {
+  const deviceSnapshot = await enumerateAudioDevices();
+  const validatedDevices = validateConfiguredAudioDevices(
+    configManager.get('audio.input_device_id') as string | undefined,
+    configManager.get('audio.output_device_id') as string | undefined,
+    deviceSnapshot
+  );
+
+  const updates: Array<Promise<void>> = [];
+  const statusMessages: string[] = [];
+
+  if (validatedDevices.inputFellBackToDefault) {
+    updates.push(configManager.set('audio.input_device_id', 'default'));
+    statusMessages.push('Previously selected audio input device is unavailable; using System Default.');
+  }
+  if (validatedDevices.outputFellBackToDefault) {
+    updates.push(configManager.set('audio.output_device_id', 'default'));
+    statusMessages.push('Previously selected audio output device is unavailable; using System Default.');
+  }
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
+    KGCore.instance().setStatus(statusMessages.join(' '));
+  }
+
+  await KGAudioInterface.instance().applyConfiguredOutputDevice(validatedDevices.outputDeviceId);
+} catch (error) {
+  console.warn('Audio device validation skipped:', error);
+}
 
 // Initialize KGMidiInput instance
 await KGMidiInput.instance().initialize();

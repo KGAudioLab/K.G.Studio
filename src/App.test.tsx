@@ -19,7 +19,7 @@ vi.mock('./components/MainContent', () => ({ default: () => null }));
 vi.mock('./components/InstrumentSelection', () => ({ default: () => null }));
 vi.mock('./components/ChatBox', () => ({ default: () => null }));
 vi.mock('./components/KGOnePanel', () => ({ default: () => null }));
-vi.mock('./components/ListEventPanel', () => ({ default: () => null }));
+vi.mock('./components/EventListPanel', () => ({ default: () => null }));
 vi.mock('./components/settings', () => ({ SettingsPanel: () => null }));
 vi.mock('./core/audio-interface/KGToneBuffersPool', () => ({
   KGToneBuffersPool: {

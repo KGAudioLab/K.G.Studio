@@ -66,6 +66,13 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const trackAutomationRedrawVersion = useProjectStore(state => state.trackAutomationRedrawVersion);
+  const recordingMode = useProjectStore(state => state.recordingMode);
+  const recordingTargetTrackIndex = useProjectStore(state => state.recordingTargetTrackIndex);
+  const recordingCommitStartBeatAbsolute = useProjectStore(state => state.recordingCommitStartBeatAbsolute);
+  const recordingAudioPreviewCurrentBeat = useProjectStore(state => state.recordingAudioPreviewCurrentBeat);
+  const recordingAudioPreviewPeaks = useProjectStore(state => state.recordingAudioPreviewPeaks);
+  const recordingAudioPreviewFileName = useProjectStore(state => state.recordingAudioPreviewFileName);
+  const storeTimeSignature = useProjectStore(state => state.timeSignature);
   const [containerWidth, setContainerWidth] = useState(0);
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
@@ -543,6 +550,16 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   // Filter regions for this track
   const trackRegions = regions.filter(region => region.trackIndex === index);
   const isAutomationActive = activeTrackAutomationTrackId === track.getId().toString() && activeTrackAutomationType !== null;
+  const shouldRenderRecordingPreview = recordingMode === 'audio'
+    && recordingTargetTrackIndex === index
+    && recordingAudioPreviewCurrentBeat >= recordingCommitStartBeatAbsolute;
+  const previewRegionStyle = shouldRenderRecordingPreview
+    ? {
+        left: `${(recordingCommitStartBeatAbsolute / storeTimeSignature.numerator) * (containerWidth / maxBars)}px`,
+        width: `${Math.max(0, ((recordingAudioPreviewCurrentBeat - recordingCommitStartBeatAbsolute) / storeTimeSignature.numerator) * (containerWidth / maxBars))}px`,
+        position: 'absolute' as const,
+      }
+    : null;
 
   return (
     <div
@@ -626,12 +643,25 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           />
         );
       })}
+      {shouldRenderRecordingPreview && previewRegionStyle && (
+        <RegionItem
+          key="audio-recording-preview"
+          id="audio-recording-preview"
+          name={recordingAudioPreviewFileName ?? 'Recording'}
+          style={previewRegionStyle}
+          barNumber={(recordingCommitStartBeatAbsolute / storeTimeSignature.numerator) + 1}
+          length={(recordingAudioPreviewCurrentBeat - recordingCommitStartBeatAbsolute) / storeTimeSignature.numerator}
+          trackIndex={index}
+          previewWaveformPeaks={recordingAudioPreviewPeaks}
+          isPreview
+        />
+      )}
       {isAutomationActive && activeTrackAutomationType && (
         <TrackAutomationLane
           track={track}
           automationType={activeTrackAutomationType}
           maxBars={maxBars}
-          timeSignature={useProjectStore.getState().timeSignature}
+          timeSignature={storeTimeSignature}
           redrawVersion={trackAutomationRedrawVersion}
         />
       )}

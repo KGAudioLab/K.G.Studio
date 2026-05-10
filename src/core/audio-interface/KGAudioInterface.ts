@@ -24,6 +24,12 @@ import {
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
 import { KGAudioPlayerBus } from './KGAudioPlayerBus';
+import {
+  KGAudioRecorder,
+  type AudioRecordingPeak,
+  type AudioRecordingResult,
+  type AudioRecordingStartResult,
+} from './KGAudioRecorder';
 import type { InstrumentType } from '../track/KGMidiTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
@@ -79,6 +85,9 @@ export class KGAudioInterface {
   // Audio capture for screen sharing
   private captureDestination: MediaStreamAudioDestinationNode | null = null;
   private captureStream: MediaStream | null = null;
+
+  // Microphone recorder
+  private audioRecorder: KGAudioRecorder = new KGAudioRecorder();
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -194,6 +203,8 @@ export class KGAudioInterface {
         this.captureDestination = null;
         this.captureStream = null;
       }
+
+      await this.audioRecorder.cancel();
       
       this.isInitialized = false;
       this.isAudioContextStarted = false;
@@ -1068,6 +1079,45 @@ export class KGAudioInterface {
       console.log(`Set live MIDI sustain to ${isDown} on track ${trackId}`);
     } catch (error) {
       console.error(`Error setting live MIDI sustain for track ${trackId}:`, error);
+    }
+  }
+
+  public async startAudioRecording(
+    inputDeviceId: string = 'default',
+    onPeaks?: (peaks: AudioRecordingPeak[]) => void
+  ): Promise<AudioRecordingStartResult> {
+    return await this.audioRecorder.start(inputDeviceId, onPeaks);
+  }
+
+  public async stopAudioRecording(): Promise<AudioRecordingResult | null> {
+    return await this.audioRecorder.stop();
+  }
+
+  public async cancelAudioRecording(): Promise<void> {
+    await this.audioRecorder.cancel();
+  }
+
+  public async applyConfiguredOutputDevice(outputDeviceId: string): Promise<boolean> {
+    if (outputDeviceId === 'default') {
+      return false;
+    }
+
+    const rawContext = Tone.getContext().rawContext as AudioContext & {
+      setSinkId?: (sinkId: string) => Promise<void>;
+      sinkId?: string;
+    };
+
+    if (typeof rawContext.setSinkId !== 'function') {
+      return false;
+    }
+
+    try {
+      await rawContext.setSinkId(outputDeviceId);
+      console.log(`Applied audio output device ${outputDeviceId}`);
+      return true;
+    } catch (error) {
+      console.warn(`Unable to apply audio output device ${outputDeviceId}:`, error);
+      return false;
     }
   }
 

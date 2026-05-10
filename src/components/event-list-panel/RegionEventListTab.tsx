@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import './ListEventPanel.css';
 import { FaPlus, FaTrash } from 'react-icons/fa';
-import KGDropdown from './common/KGDropdown';
-import { useProjectStore } from '../stores/projectStore';
-import { KGCore } from '../core/KGCore';
-import { KGMidiRegion } from '../core/region/KGMidiRegion';
-import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
-import { KGMidiNote } from '../core/midi/KGMidiNote';
-import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
-import { KGPianoRollState } from '../core/state/KGPianoRollState';
+import KGDropdown from '../common/KGDropdown';
+import { useProjectStore } from '../../stores/projectStore';
+import { KGCore } from '../../core/KGCore';
+import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { KGMidiControllerEvent } from '../../core/midi/KGMidiControllerEvent';
+import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { KGMidiPitchBend } from '../../core/midi/KGMidiPitchBend';
+import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import {
   clampMidiControllerValue,
   clampMidiPitchBendValue,
@@ -27,17 +27,18 @@ import {
   parseMidiEventPosition,
   pitchToNoteNameString,
   signedPitchBendToMidiValue
-} from '../util/midiUtil';
-import { isModifierKeyPressed } from '../util/osUtil';
-import { PIANO_ROLL_CONSTANTS } from '../constants';
-import { CreateMidiEventsCommand, CreateNoteCommand, DeleteMidiEventsCommand } from '../core/commands';
-import { UpdateControllerEventPropertiesCommand } from '../core/commands/note/UpdateControllerEventPropertiesCommand';
-import { UpdateNotePropertiesCommand } from '../core/commands/note/UpdateNotePropertiesCommand';
-import { UpdatePitchBendPropertiesCommand } from '../core/commands/note/UpdatePitchBendPropertiesCommand';
-import { showAlert } from '../util/dialogUtil';
+} from '../../util/midiUtil';
+import { isModifierKeyPressed } from '../../util/osUtil';
+import { PIANO_ROLL_CONSTANTS } from '../../constants';
+import { CreateMidiEventsCommand, CreateNoteCommand, DeleteMidiEventsCommand } from '../../core/commands';
+import { UpdateControllerEventPropertiesCommand } from '../../core/commands/note/UpdateControllerEventPropertiesCommand';
+import { UpdateNotePropertiesCommand } from '../../core/commands/note/UpdateNotePropertiesCommand';
+import { UpdatePitchBendPropertiesCommand } from '../../core/commands/note/UpdatePitchBendPropertiesCommand';
+import { showAlert } from '../../util/dialogUtil';
 
-interface ListEventPanelProps {
-  isVisible: boolean;
+interface RegionEventListTabProps {
+  activeMidiRegion: KGMidiRegion | null;
+  parentTrack: KGMidiTrack | null;
 }
 
 interface NoteRowData {
@@ -65,14 +66,13 @@ interface ControllerRowData {
 
 type EventRowData = NoteRowData | PitchBendRowData | ControllerRowData;
 type EditableColumn = 'position' | 'num' | 'val' | 'length';
+type AddEventType = 'note' | 'pitch-bend' | 'controller';
 
 interface EditingCell {
   eventId: string;
   column: EditableColumn;
   value: string;
 }
-
-type AddEventType = 'note' | 'pitch-bend' | 'controller';
 
 const ADD_EVENT_TYPE_OPTIONS = [
   { label: 'Note', value: 'note' },
@@ -181,15 +181,14 @@ const parseControllerValueDeltaInput = (raw: string): { delta: number } | { erro
   return { delta: parseInt(trimmed, 10) };
 };
 
-const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
+const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegion, parentTrack }) => {
   const {
-    tracks,
-    activeRegionId,
-    selectedRegionIds,
-    timeSignature,
     selectedNoteIds,
     selectedPitchBendIds,
     selectedControllerEventIds,
+    selectedRegionIds,
+    activeRegionId,
+    timeSignature,
     playheadPosition,
     updateTrack,
     refreshProjectState,
@@ -208,32 +207,12 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   const suppressBlurCommitRef = useRef(false);
   const pendingSingleClickSelectionRef = useRef<number | null>(null);
 
-  const resolvedRegionId = selectedRegionIds.length > 1
-    ? activeRegionId
-    : selectedRegionIds.length === 1
-      ? selectedRegionIds[0]
-      : activeRegionId;
-
-  let activeMidiRegion: KGMidiRegion | null = null;
-  let parentTrack = null as typeof tracks[number] | null;
-
-  if (resolvedRegionId) {
-    for (const track of tracks) {
-      const region = track.getRegions().find(candidate => candidate.getId() === resolvedRegionId);
-      if (region instanceof KGMidiRegion) {
-        activeMidiRegion = region;
-        parentTrack = track;
-        break;
-      }
-    }
-  }
-
   const noteRows: NoteRowData[] = activeMidiRegion
     ? activeMidiRegion.getNotes().map(note => ({
       id: note.getId(),
       type: 'note',
       note,
-      absoluteStartBeat: activeMidiRegion!.getStartFromBeat() + note.getStartBeat(),
+      absoluteStartBeat: activeMidiRegion.getStartFromBeat() + note.getStartBeat(),
       durationBeats: note.getEndBeat() - note.getStartBeat(),
     }))
     : [];
@@ -243,7 +222,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       id: pitchBend.getId(),
       type: 'pitch-bend',
       pitchBend,
-      absoluteBeat: activeMidiRegion!.getStartFromBeat() + pitchBend.getBeat(),
+      absoluteBeat: activeMidiRegion.getStartFromBeat() + pitchBend.getBeat(),
     }))
     : [];
 
@@ -253,7 +232,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       type: 'controller',
       controller,
       controllerEvent: event,
-      absoluteBeat: activeMidiRegion!.getStartFromBeat() + event.getBeat(),
+      absoluteBeat: activeMidiRegion.getStartFromBeat() + event.getBeat(),
     }))
     : [];
 
@@ -774,10 +753,6 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     commitSelection(new Set());
   };
 
-  const handleTableShellClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    event.stopPropagation();
-  };
-
   const handleEditInputKeyDown = async (event: React.KeyboardEvent<HTMLInputElement>) => {
     event.stopPropagation();
 
@@ -808,10 +783,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     const denominator = parseInt(quantValue.split('/')[1], 10);
     if (Number.isNaN(denominator)) return;
 
-    const selectedNotes = activeMidiRegion
-      .getNotes()
-      .filter(note => selectedNoteIdSet.has(note.getId()));
-
+    const selectedNotes = activeMidiRegion.getNotes().filter(note => selectedNoteIdSet.has(note.getId()));
     if (selectedNotes.length === 0) return;
 
     const quantizationStep = 4 / denominator;
@@ -833,10 +805,7 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
     const denominator = parseInt(quantValue.split('/')[1], 10);
     if (Number.isNaN(denominator)) return;
 
-    const selectedNotes = activeMidiRegion
-      .getNotes()
-      .filter(note => selectedNoteIdSet.has(note.getId()));
-
+    const selectedNotes = activeMidiRegion.getNotes().filter(note => selectedNoteIdSet.has(note.getId()));
     if (selectedNotes.length === 0) return;
 
     const quantizationStep = 4 / denominator;
@@ -889,6 +858,10 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       if (createdNote) {
         createdNote.select();
         KGCore.instance().clearSelectedItems();
+        if (selectedRegionIds.includes(activeRegionId ?? '')) {
+          activeMidiRegion.select();
+          KGCore.instance().addSelectedItem(activeMidiRegion);
+        }
         KGCore.instance().addSelectedItem(createdNote);
         rangeAnchorEventIdRef.current = createdNote.getId();
       }
@@ -905,6 +878,10 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       if (createdPitchBend) {
         createdPitchBend.select();
         KGCore.instance().clearSelectedItems();
+        if (selectedRegionIds.includes(activeRegionId ?? '')) {
+          activeMidiRegion.select();
+          KGCore.instance().addSelectedItem(activeMidiRegion);
+        }
         KGCore.instance().addSelectedItem(createdPitchBend);
         rangeAnchorEventIdRef.current = createdPitchBend.getId();
       }
@@ -926,6 +903,10 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
       if (createdControllerEvent) {
         createdControllerEvent.select();
         KGCore.instance().clearSelectedItems();
+        if (selectedRegionIds.includes(activeRegionId ?? '')) {
+          activeMidiRegion.select();
+          KGCore.instance().addSelectedItem(activeMidiRegion);
+        }
         KGCore.instance().addSelectedItem(createdControllerEvent);
         rangeAnchorEventIdRef.current = createdControllerEvent.getId();
       }
@@ -959,249 +940,196 @@ const ListEventPanel: React.FC<ListEventPanelProps> = ({ isVisible }) => {
   };
 
   return (
-    <div className={`list-event-panel${isVisible ? '' : ' is-hidden'}`}>
-      <div className="list-event-panel-header">
-        <h3>List Event</h3>
+    <>
+      <div className="event-list-tabs" role="tablist" aria-label="Region event filters">
+        <button className={`event-list-tab${showNotes ? ' active' : ''}`} type="button" onClick={() => setShowNotes(value => !value)}>Notes</button>
+        <button className={`event-list-tab${showPitchBends ? ' active' : ''}`} type="button" onClick={() => setShowPitchBends(value => !value)}>Pitch Bends</button>
+        <button className={`event-list-tab${showControllers ? ' active' : ''}`} type="button" onClick={() => setShowControllers(value => !value)}>Controller</button>
       </div>
 
-      <div className="list-event-panel-body">
-        <div className="list-event-tabs" role="tablist" aria-label="Event types">
-          <button
-            className={`list-event-tab${showNotes ? ' active' : ''}`}
-            aria-pressed={showNotes}
-            type="button"
-            onClick={() => setShowNotes(value => !value)}
-          >
-            Notes
-          </button>
-          <button
-            className={`list-event-tab${showPitchBends ? ' active' : ''}`}
-            aria-pressed={showPitchBends}
-            type="button"
-            onClick={() => setShowPitchBends(value => !value)}
-          >
-            Pitch Bends
-          </button>
-          <button
-            className={`list-event-tab${showControllers ? ' active' : ''}`}
-            aria-pressed={showControllers}
-            type="button"
-            onClick={() => setShowControllers(value => !value)}
-          >
-            Controller
-          </button>
+      {!activeMidiRegion ? (
+        <div className="event-list-empty-state">
+          Please select a MIDI region, or open one in the Piano Roll, to view its event list.
         </div>
+      ) : (
+        <>
+          <div className="event-list-toolbar">
+            <div className="event-list-toolbar-group">
+              <button
+                className="event-list-add-button"
+                title={addEventType === 'note' ? 'Add note at playhead' : addEventType === 'pitch-bend' ? 'Add pitch bend at playhead' : 'Add controller event at playhead'}
+                type="button"
+                onClick={handleAddEvent}
+              >
+                <FaPlus />
+              </button>
+              <KGDropdown
+                options={[...ADD_EVENT_TYPE_OPTIONS]}
+                value={addEventType}
+                onChange={(value) => setAddEventType(value as AddEventType)}
+                label="Note"
+                buttonClassName="event-list-type-button"
+                showValueAsLabel
+              />
+            </div>
 
-        {!activeMidiRegion ? (
-          <div className="list-event-empty-state">
-            Please select a MIDI region, or open one in the Piano Roll, to view its event list.
+            <div className="event-list-toolbar-group event-list-toolbar-group-right">
+              <KGDropdown
+                options={KGPianoRollState.QUANT_POS_OPTIONS}
+                value={quantPosition}
+                onChange={(value) => {
+                  setQuantPosition(value);
+                  quantizeSelectedNotes(value);
+                }}
+                label="Qua. Pos."
+                buttonClassName="event-list-quant-button"
+              />
+              <KGDropdown
+                options={KGPianoRollState.QUANT_LEN_OPTIONS}
+                value={quantLength}
+                onChange={(value) => {
+                  setQuantLength(value);
+                  quantizeSelectedNoteLengths(value);
+                }}
+                label="Qua. Len."
+                buttonClassName="event-list-quant-button"
+              />
+              <button
+                className="event-list-delete-button"
+                title="Delete visible selected rows"
+                type="button"
+                onClick={handleDeleteSelectedRows}
+                disabled={visibleSelectedRows.length === 0}
+              >
+                <FaTrash />
+              </button>
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="list-event-toolbar">
-              <div className="list-event-toolbar-group">
-                <button
-                  className="list-event-add-button"
-                  title={
-                    addEventType === 'note'
-                      ? 'Add note at playhead'
-                      : addEventType === 'pitch-bend'
-                        ? 'Add pitch bend at playhead'
-                        : 'Add controller event at playhead'
-                  }
-                  type="button"
-                  onClick={handleAddEvent}
-                >
-                  <FaPlus />
-                </button>
-                <KGDropdown
-                  options={[...ADD_EVENT_TYPE_OPTIONS]}
-                  value={addEventType}
-                  onChange={(value) => setAddEventType(value as AddEventType)}
-                  label="Note"
-                  buttonClassName="list-event-type-button"
-                  showValueAsLabel
-                />
-              </div>
 
-              <div className="list-event-toolbar-group list-event-toolbar-group-right">
-                <KGDropdown
-                  options={KGPianoRollState.QUANT_POS_OPTIONS}
-                  value={quantPosition}
-                  onChange={(value) => {
-                    setQuantPosition(value);
-                    quantizeSelectedNotes(value);
-                  }}
-                  label="Qua. Pos."
-                  buttonClassName="list-event-quant-button"
-                />
-                <KGDropdown
-                  options={KGPianoRollState.QUANT_LEN_OPTIONS}
-                  value={quantLength}
-                  onChange={(value) => {
-                    setQuantLength(value);
-                    quantizeSelectedNoteLengths(value);
-                  }}
-                  label="Qua. Len."
-                  buttonClassName="list-event-quant-button"
-                />
-                <button
-                  className="list-event-delete-button"
-                  title="Delete visible selected rows"
-                  type="button"
-                  onClick={handleDeleteSelectedRows}
-                  disabled={visibleSelectedRows.length === 0}
-                >
-                  <FaTrash />
-                </button>
-              </div>
-            </div>
+          <div className="event-list-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
+            <table className="event-list-table">
+              <thead>
+                <tr>
+                  <th>Position</th>
+                  <th>Status</th>
+                  <th>Num</th>
+                  <th>Val</th>
+                  <th>Length/Info</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventRows.map((row, index) => {
+                  const absoluteBeat = row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat;
+                  const positionText = formatMidiEventPosition(absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+                  const statusText = row.type === 'note' ? 'Note' : row.type === 'pitch-bend' ? 'Pitch Bend' : 'Controller';
+                  const numText = row.type === 'note'
+                    ? pitchToNoteNameString(row.note.getPitch())
+                    : row.type === 'controller'
+                      ? String(row.controller)
+                      : '';
+                  const valText = row.type === 'note'
+                    ? String(row.note.getVelocity())
+                    : row.type === 'pitch-bend'
+                      ? String(midiPitchBendToSignedValue(row.pitchBend.getValue()))
+                      : String(row.controllerEvent.getValue());
+                  const lengthText = row.type === 'note'
+                    ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT)
+                    : row.type === 'pitch-bend'
+                      ? formatPitchBendInfo(row.pitchBend.getValue())
+                      : `Raw ${row.controllerEvent.getValue()}`;
+                  const isEditingPosition = editingCell?.eventId === row.id && editingCell.column === 'position';
+                  const isEditingNum = editingCell?.eventId === row.id && editingCell.column === 'num';
+                  const isEditingVal = editingCell?.eventId === row.id && editingCell.column === 'val';
+                  const isEditingLength = editingCell?.eventId === row.id && editingCell.column === 'length';
 
-            <div
-              className="list-event-table-shell"
-              onMouseDown={handleTableBackgroundMouseDown}
-              onClick={handleTableShellClick}
-              onDoubleClick={handleTableShellClick}
-            >
-              <table className="list-event-table">
-                <thead>
-                  <tr>
-                    <th>Position</th>
-                    <th>Status</th>
-                    <th>Num</th>
-                    <th>Val</th>
-                    <th>Length/Info</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {eventRows.map((row, index) => {
-                    const absoluteBeat = row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat;
-                    const positionText = formatMidiEventPosition(absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-                    const statusText = row.type === 'note' ? 'Note' : row.type === 'pitch-bend' ? 'Pitch Bend' : 'Controller';
-                    const numText = row.type === 'note'
-                      ? pitchToNoteNameString(row.note.getPitch())
-                      : row.type === 'controller'
-                        ? String(row.controller)
-                        : '';
-                    const valText = row.type === 'note'
-                      ? String(row.note.getVelocity())
-                      : row.type === 'pitch-bend'
-                        ? String(midiPitchBendToSignedValue(row.pitchBend.getValue()))
-                        : String(row.controllerEvent.getValue());
-                    const lengthText = row.type === 'note'
-                      ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT)
-                      : row.type === 'pitch-bend'
-                        ? formatPitchBendInfo(row.pitchBend.getValue())
-                        : `Raw ${row.controllerEvent.getValue()}`;
-                    const isEditingPosition = editingCell?.eventId === row.id && editingCell.column === 'position';
-                    const isEditingNum = editingCell?.eventId === row.id && editingCell.column === 'num';
-                    const isEditingVal = editingCell?.eventId === row.id && editingCell.column === 'val';
-                    const isEditingLength = editingCell?.eventId === row.id && editingCell.column === 'length';
-
-                    return (
-                      <tr
-                        key={row.id}
-                        className={selectedEventIdSet.has(row.id) ? 'selected' : ''}
-                        onClick={(event) => handleRowClick(row.id, index, event)}
-                        onDoubleClick={(event) => {
-                          event.stopPropagation();
-                          clearPendingSingleClickSelection();
-                        }}
-                      >
-                        <td
-                          title={positionText}
-                          onDoubleClick={(event) => {
-                            event.stopPropagation();
-                            startEditingCell(row.id, 'position', positionText);
-                          }}
-                        >
-                          {isEditingPosition ? (
-                            <input
-                              ref={editInputRef}
-                              className="list-event-cell-input"
-                              value={editingCell.value}
-                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                              onBlur={handleEditInputBlur}
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                            />
-                          ) : positionText}
-                        </td>
-                        <td title={statusText}>{statusText}</td>
-                        <td
-                          title={numText}
-                          onDoubleClick={(event) => {
-                            if (row.type === 'pitch-bend') return;
-                            event.stopPropagation();
-                            startEditingCell(row.id, 'num', numText);
-                          }}
-                        >
-                          {isEditingNum ? (
-                            <input
-                              ref={editInputRef}
-                              className="list-event-cell-input"
-                              value={editingCell.value}
-                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                              onBlur={handleEditInputBlur}
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                            />
-                          ) : numText}
-                        </td>
-                        <td
-                          title={valText}
-                          onDoubleClick={(event) => {
-                            event.stopPropagation();
-                            startEditingCell(row.id, 'val', valText);
-                          }}
-                        >
-                          {isEditingVal ? (
-                            <input
-                              ref={editInputRef}
-                              className="list-event-cell-input"
-                              value={editingCell.value}
-                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                              onBlur={handleEditInputBlur}
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                            />
-                          ) : valText}
-                        </td>
-                        <td
-                          title={lengthText}
-                          onDoubleClick={(event) => {
-                            if (row.type !== 'note') return;
-                            event.stopPropagation();
-                            startEditingCell(row.id, 'length', lengthText);
-                          }}
-                        >
-                          {isEditingLength ? (
-                            <input
-                              ref={editInputRef}
-                              className="list-event-cell-input"
-                              value={editingCell.value}
-                              onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
-                              onBlur={handleEditInputBlur}
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
-                            />
-                          ) : lengthText}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+                  return (
+                    <tr
+                      key={row.id}
+                      className={selectedEventIdSet.has(row.id) ? 'selected' : ''}
+                      onClick={(event) => handleRowClick(row.id, index, event)}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        clearPendingSingleClickSelection();
+                      }}
+                    >
+                      <td title={positionText} onDoubleClick={(event) => { event.stopPropagation(); startEditingCell(row.id, 'position', positionText); }}>
+                        {isEditingPosition ? (
+                          <input
+                            ref={editInputRef}
+                            className="event-list-cell-input"
+                            value={editingCell.value}
+                            onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                            onBlur={handleEditInputBlur}
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                          />
+                        ) : positionText}
+                      </td>
+                      <td title={statusText}>{statusText}</td>
+                      <td title={numText} onDoubleClick={(event) => {
+                        if (row.type === 'pitch-bend') return;
+                        event.stopPropagation();
+                        startEditingCell(row.id, 'num', numText);
+                      }}>
+                        {isEditingNum ? (
+                          <input
+                            ref={editInputRef}
+                            className="event-list-cell-input"
+                            value={editingCell.value}
+                            onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                            onBlur={handleEditInputBlur}
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                          />
+                        ) : numText}
+                      </td>
+                      <td title={valText} onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        startEditingCell(row.id, 'val', valText);
+                      }}>
+                        {isEditingVal ? (
+                          <input
+                            ref={editInputRef}
+                            className="event-list-cell-input"
+                            value={editingCell.value}
+                            onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                            onBlur={handleEditInputBlur}
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                          />
+                        ) : valText}
+                      </td>
+                      <td title={lengthText} onDoubleClick={(event) => {
+                        if (row.type !== 'note') return;
+                        event.stopPropagation();
+                        startEditingCell(row.id, 'length', lengthText);
+                      }}>
+                        {isEditingLength ? (
+                          <input
+                            ref={editInputRef}
+                            className="event-list-cell-input"
+                            value={editingCell.value}
+                            onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                            onBlur={handleEditInputBlur}
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => { void handleEditInputKeyDown(event); }}
+                          />
+                        ) : lengthText}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
   );
 };
 
-export default ListEventPanel;
+export default RegionEventListTab;

@@ -47,8 +47,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showListEventPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion } = useProjectStore();
-  
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion } = useProjectStore();
+
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
 
@@ -62,7 +62,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
   const [automationEnabled, setAutomationEnabled] = useState(false);
   const [automationType, setAutomationType] = useState<PianoRollAutomationType>('pitch-bend');
-  
+
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
   const [quantLength, setQuantLength] = useState<string>('1/8');
@@ -75,7 +75,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Piano roll state with temporary initial values
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
-  
+
   // Blink effect state for toolbar button feedback
   const [blinkButton, setBlinkButton] = useState<string | null>(null);
   const [size, setSize] = useState(initialSize || { width: 800, height: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT });
@@ -102,7 +102,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Ref for storing the setNoteUpdateCounter function
   const triggerNoteUpdateRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
-  
+
   // Ref for storing the deleteSelectedNotes function
   const deleteSelectedNotesRef = useRef<(() => boolean) | null>(null);
 
@@ -133,32 +133,32 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           y: window.innerHeight - statusBarHeight - pianoRollHeight
         };
       };
-      
+
       const calculateInitialSize = () => {
         const rootStyles = getComputedStyle(document.documentElement);
         const chatBoxWidthStr = rootStyles.getPropertyValue('--chat-box-width') || '350px';
         const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
         const chatBoxWidth = parseInt(chatBoxWidthStr, 10) || 350;
         const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-        
+
         let availableWidth = window.innerWidth;
-        if (showChatBox || showKGOnePanel || showListEventPanel) availableWidth -= chatBoxWidth;
+        if (showChatBox || showKGOnePanel || showEventListPanel) availableWidth -= chatBoxWidth;
         if (showInstrumentSelection) availableWidth -= instrumentPanelWidth;
-        
+
         // Ensure a sensible minimum starting width
         const clampedWidth = Math.max(400, availableWidth);
-        
+
         return {
           width: clampedWidth,
           height: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT
         };
       };
-      
+
       // Set position and size only if not provided as props
       if (!initialPosition) {
         setPosition(calculateInitialPosition());
       }
-      
+
       if (!initialSize) {
         setSize(calculateInitialSize());
       }
@@ -195,17 +195,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Sync local state with KGPianoRollState on mount
   useEffect(() => {
     const pianoRollState = KGPianoRollState.instance();
-    
+
     // Sync snapping state
     const currentSnap = pianoRollState.getCurrentSnap();
     setSnapping(currentSnap);
-    
+
     // Sync tool state
     const currentTool = pianoRollState.getActiveTool() as 'pointer' | 'pencil';
     setActiveTool(currentTool);
     setAutomationEnabled(pianoRollState.getAutomationViewEnabled());
     setAutomationType(pianoRollState.getCurrentAutomationType() as PianoRollAutomationType);
-    
+
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Synced piano roll state on mount - snap: ${currentSnap}, tool: ${currentTool}`);
     }
@@ -257,10 +257,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onClose();
       }
     };
-    
+
     // Add event listener
     window.addEventListener('keydown', handleKeyDown);
-    
+
     // Remove event listener on cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
@@ -284,13 +284,13 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       e.preventDefault();
     }
   };
-  
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
         // Set the flag to true as soon as any movement happens
         wasDraggingRef.current = true;
-        
+
         setPosition({
           x: e.clientX - dragOffset.x,
           y: e.clientY - dragOffset.y
@@ -302,25 +302,25 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         });
       }
     };
-    
+
     const handleMouseUp = () => {
       setIsDragging(false);
       setIsResizing(false);
       // We keep wasDraggingRef.current as is - it will be used in handleTitleClick
       // and reset on the next mousedown
     };
-    
+
     if (isDragging || isResizing) {
       document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.addEventListener('mouseup', handleMouseUp);
     }
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, isResizing, dragOffset, position]);
-  
+
   // Handle title click to rename the region
   const handleTitleClick = async () => {
     // If we were just dragging, don't show the rename dialog
@@ -330,28 +330,28 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       }
       return;
     }
-    
+
     if (!activeRegion) return;
-    
+
     // Show a prompt to get the new name
     const newName = await showPrompt("Enter a new name for the region:", activeRegion.getName());
-    
+
     // If the user clicked Cancel or entered an empty string, do nothing
     if (!newName || newName.trim() === '' || newName === activeRegion.getName()) return;
-    
+
     // Use command pattern to update the region name with undo support
     try {
       const command = new UpdateRegionCommand(activeRegion.getId(), { name: newName.trim() });
       KGCore.instance().executeCommand(command);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Executed UpdateRegionCommand: renamed region ${activeRegion.getId()} to "${newName}" using command pattern`);
       }
-      
+
       // Update the store to trigger re-render
       const updatedTracks = [...tracks];
       useProjectStore.setState({ tracks: updatedTracks });
-      
+
     } catch (error) {
       console.error('Error renaming region:', error);
       await showAlert('Failed to rename region. Please try again.');
@@ -366,7 +366,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       console.log(`Selected tool: ${tool}`);
     }
   };
-  
+
   // Handle snapping selection
   const handleSnappingSelect = useCallback((value: string) => {
     setSnapping(value);
@@ -448,166 +448,166 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const handleSetDeleteNotesTrigger = (deleteFn: () => boolean) => {
     deleteSelectedNotesRef.current = deleteFn;
   };
-  
+
   // Quantize selected notes based on the selected quantization value
   const quantizeSelectedNotes = useCallback((quantValue: string) => {
     if (!activeRegion) return;
-    
+
     // Get the KGCore instance
     const core = KGCore.instance();
-    
+
     // Get all selected notes
     const selectedItems = core.getSelectedItems();
-    const selectedNotes = selectedItems.filter(item => 
-      item instanceof KGMidiNote && 
+    const selectedNotes = selectedItems.filter(item =>
+      item instanceof KGMidiNote &&
       activeRegion.getNotes().some(note => note.getId() === item.getId())
     ) as KGMidiNote[];
-    
+
     if (selectedNotes.length === 0) {
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log('No notes selected for quantization');
       }
       return;
     }
-    
+
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Quantizing ${selectedNotes.length} selected notes with value: ${quantValue}`);
     }
-    
+
     // Parse the quantization value (e.g., "1/4", "1/8", "1/16", "1/32")
     const denominator = parseInt(quantValue.split('/')[1]);
     if (isNaN(denominator)) {
       console.error(`Invalid quantization value: ${quantValue}`);
       return;
     }
-    
+
     // Calculate the quantization step in beats
     // In a 4/4 time signature, a quarter note (1/4) is 1 beat
     // In a 6/8 time signature, an eighth note (1/8) is 1 beat
     const { numerator, denominator: timeSigDenominator } = timeSignature;
-    
+
     // Calculate beats per whole note based on time signature
     // In 4/4, a whole note is 4 beats
     // In 6/8, a whole note is 6 beats (because each beat is an eighth note)
     const beatsPerWholeNote = numerator * (4 / timeSigDenominator);
-    
+
     // Calculate the quantization step in beats
     // quantizationStep should ALWAYS be 4 / denominator regardless of time signature
     const quantizationStep = 4 / denominator;
-    
+
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Time signature: ${numerator}/${timeSigDenominator}`);
       console.log(`Beats per whole note: ${beatsPerWholeNote}`);
       console.log(`Quantization step: ${quantizationStep} beats`);
     }
-    
+
     // Apply quantization to each selected note
     selectedNotes.forEach(note => {
       // Get the current start beat
       const currentStartBeat = note.getStartBeat();
-      
+
       // Calculate the quantized start beat
       const quantizedStartBeat = Math.round(currentStartBeat / quantizationStep) * quantizationStep;
-      
+
       // Calculate the duration of the note
       const duration = note.getEndBeat() - currentStartBeat;
-      
+
       // Set the new start beat and maintain the duration
       note.setStartBeat(quantizedStartBeat);
       note.setEndBeat(quantizedStartBeat + duration);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Quantized note ${note.getId()}: ${currentStartBeat} -> ${quantizedStartBeat}`);
       }
     });
-    
+
     // Find the track that contains this region and update it
     const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
     if (track) {
       updateTrack(track);
     }
-    
+
     // Trigger a re-render by incrementing the note update counter
     if (triggerNoteUpdateRef.current) {
       triggerNoteUpdateRef.current(prev => prev + 1);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log('Triggered note update to re-render quantized notes');
       }
     }
   }, [activeRegion, timeSignature, updateTrack, tracks]);
-  
+
   // Quantize selected notes length based on the selected quantization value
   const quantizeNoteLength = useCallback((quantValue: string) => {
     if (!activeRegion) return;
-    
+
     // Get the KGCore instance
     const core = KGCore.instance();
-    
+
     // Get all selected notes
     const selectedItems = core.getSelectedItems();
-    const selectedNotes = selectedItems.filter(item => 
-      item instanceof KGMidiNote && 
+    const selectedNotes = selectedItems.filter(item =>
+      item instanceof KGMidiNote &&
       activeRegion.getNotes().some(note => note.getId() === item.getId())
     ) as KGMidiNote[];
-    
+
     if (selectedNotes.length === 0) {
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log('No notes selected for length quantization');
       }
       return;
     }
-    
+
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Quantizing length of ${selectedNotes.length} selected notes with value: ${quantValue}`);
     }
-    
+
     // Parse the quantization value (e.g., "1/1", "1/2", "1/4", "1/8", "1/16", "1/32")
     const denominator = parseInt(quantValue.split('/')[1]);
     if (isNaN(denominator)) {
       console.error(`Invalid quantization value: ${quantValue}`);
       return;
     }
-    
+
     // Calculate the quantization step in beats
     // In a 4/4 time signature, a quarter note (1/4) is 1 beat
     // In a 6/8 time signature, an eighth note (1/8) is 1 beat
     const { numerator, denominator: timeSigDenominator } = timeSignature;
-    
+
     // Calculate beats per whole note based on time signature
     // In 4/4, a whole note is 4 beats
     // In 6/8, a whole note is 6 beats (because each beat is an eighth note)
     const beatsPerWholeNote = numerator * (4 / timeSigDenominator);
-    
+
     // Calculate the quantization step in beats
     // quantizationStep should ALWAYS be 4 / denominator regardless of time signature
     const quantizationStep = 4 / denominator;
-    
+
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Time signature: ${numerator}/${timeSigDenominator}`);
       console.log(`Beats per whole note: ${beatsPerWholeNote}`);
       console.log(`Length quantization step: ${quantizationStep} beats`);
     }
-    
+
     // Apply quantization to each selected note
     selectedNotes.forEach(note => {
       // Get the current start and end beats
       const startBeat = note.getStartBeat();
       const currentEndBeat = note.getEndBeat();
-      
+
       // Calculate the current duration
       const currentDuration = currentEndBeat - startBeat;
-      
+
       // Calculate the quantized duration
       // If the current duration is less than the quantization step,
       // extend it to match the quantization step exactly
       // Otherwise, round to the nearest multiple of quantizationStep
       let quantizedDuration;
-      
+
       if (currentDuration < quantizationStep) {
         // For notes shorter than the quantization step, extend to exactly one step
         quantizedDuration = quantizationStep;
-        
+
         if (DEBUG_MODE.PIANO_ROLL) {
           console.log(`Extending short note ${note.getId()} from ${currentDuration} to ${quantizedDuration}`);
         }
@@ -615,28 +615,28 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         // For longer notes, round to nearest multiple of quantizationStep
         quantizedDuration = Math.round(currentDuration / quantizationStep) * quantizationStep;
       }
-      
+
       // Ensure minimum note length
       quantizedDuration = Math.max(PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH, quantizedDuration);
-      
+
       // Set the new end beat while maintaining the start beat
       note.setEndBeat(startBeat + quantizedDuration);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Quantized note length ${note.getId()}: ${currentDuration} -> ${quantizedDuration}`);
       }
     });
-    
+
     // Find the track that contains this region and update it
     const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
     if (track) {
       updateTrack(track);
     }
-    
+
     // Trigger a re-render by incrementing the note update counter
     if (triggerNoteUpdateRef.current) {
       triggerNoteUpdateRef.current(prev => prev + 1);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log('Triggered note update to re-render quantized note lengths');
       }
@@ -647,19 +647,19 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const handleQuantSelect = useCallback((type: 'position' | 'length', value: string) => {
     if (type === 'position') {
       setQuantPosition(value);
-      
+
       // Apply quantization immediately when position quantization is changed
       quantizeSelectedNotes(value);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`quant-position selected: ${value}`);
       }
     } else {
       setQuantLength(value);
-      
+
       // Apply length quantization immediately when length quantization is changed
       quantizeNoteLength(value);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`quant-length selected: ${value}`);
       }
@@ -710,24 +710,24 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // We have 8 octaves (0-7), and C4 is in the middle
       // Each octave has 12 notes, each note is piano key height
       // C4 is in octave 4, and C is the first note in each octave
-      
+
       // Calculate from the bottom:
       // - Octaves 0-3 = 4 octaves = 4 * 12 * piano key height
       // - Within octave 4, C is the first note (from bottom), so 0px additional
       const keyHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
       const c4Position = 4 * 12 * keyHeight; // pixels from bottom
-      
+
       // Total height of all notes (8 octaves * 12 notes * piano key height)
       const totalHeight = 8 * 12 * keyHeight;
-      
+
       // Get the viewport height of the piano roll content
       const viewportHeight = pianoRollNoteScrollRef.current.clientHeight;
-      
+
       // Calculate scroll position to center C4
       // We need to scroll from the top, so we calculate:
       // (total height - C4 position) - (viewport height / 2)
       const scrollPosition = (totalHeight - c4Position) - (viewportHeight / 2);
-      
+
       // Scroll to the calculated position
       pianoRollNoteScrollRef.current.scrollTop = Math.max(0, scrollPosition);
     }
@@ -846,23 +846,23 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     if (pianoRollNoteScrollRef.current && activeRegion) {
       // Get the starting beat of the region
       const startBeat = activeRegion.getStartFromBeat();
-      
+
       // Get the time signature to calculate beats per bar
       const beatsPerBar = timeSignature.numerator;
-      
+
       // Calculate the bar number (0-indexed)
       const barNumber = Math.floor(startBeat / beatsPerBar);
-      
+
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Scrolling to region's starting bar: ${barNumber + 1} (startBeat: ${startBeat}, beatsPerBar: ${beatsPerBar})`);
       }
-      
+
       // Calculate the pixel position (each bar is --region-grid-bar-width wide, which is 160px by default)
       const barWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-bar-width')) || 160;
-      
+
       // Calculate the scroll position to scroll to the starting bar
       const scrollPosition = barNumber * barWidth;
-      
+
       // Scroll to the calculated position
       pianoRollNoteScrollRef.current.scrollLeft = Math.max(0, scrollPosition);
     }
@@ -874,8 +874,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Skip if user is typing in an input field (including ChatBox)
       const target = event.target as HTMLElement;
       if (target && (
-        target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
         target.contentEditable === 'true' ||
         target.hasAttribute('data-chatbox-input') ||
         target.closest('.chatbox-input')
@@ -894,7 +894,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         }
         return;
       }
-      
+
       // Handle piano roll hotkeys
       const configManager = ConfigManager.instance();
       if (configManager.getIsInitialized()) {
@@ -916,21 +916,21 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         const snap_1_4_key = configManager.get('hotkeys.piano_roll.snap_1_4') as string;
         const snap_1_8_key = configManager.get('hotkeys.piano_roll.snap_1_8') as string;
         const snap_1_16_key = configManager.get('hotkeys.piano_roll.snap_1_16') as string;
-        
+
         // Quantize position hotkeys
         const qua_pos_1_4_key = configManager.get('hotkeys.piano_roll.qua_pos_1_4') as string;
         const qua_pos_1_8_key = configManager.get('hotkeys.piano_roll.qua_pos_1_8') as string;
         const qua_pos_1_16_key = configManager.get('hotkeys.piano_roll.qua_pos_1_16') as string;
-        
+
         // Quantize length hotkeys
         const qua_len_1_4_key = configManager.get('hotkeys.piano_roll.qua_len_1_4') as string;
         const qua_len_1_8_key = configManager.get('hotkeys.piano_roll.qua_len_1_8') as string;
         const qua_len_1_16_key = configManager.get('hotkeys.piano_roll.qua_len_1_16') as string;
-        
+
         let actionType: 'snap' | 'quantize' | null = null;
         let actionValue: string | null = null;
         let quantType: 'position' | 'length' | null = null;
-        
+
         // Check snapping hotkeys
         if (event.key === snap_none_key) {
           actionType = 'snap';
@@ -973,21 +973,21 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           actionValue = '1/16';
           quantType = 'length';
         }
-        
+
         if (actionType && actionValue) {
           // Prevent default behavior
           event.preventDefault();
-          
+
           if (actionType === 'snap') {
             // Validate the snap value exists in snap options
             if (KGPianoRollState.SNAP_OPTIONS.includes(actionValue)) {
               // Change snapping value
               handleSnappingSelect(actionValue);
-              
+
               // Trigger blink effect for visual feedback
               setBlinkButton('snapping');
               setTimeout(() => setBlinkButton(null), 200);
-              
+
               if (DEBUG_MODE.PIANO_ROLL) {
                 console.log(`Snap hotkey triggered: ${event.key} → ${actionValue}`);
               }
@@ -995,16 +995,16 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           } else if (actionType === 'quantize' && quantType) {
             // Validate the quantValue exists in the appropriate options
             const validOptions = quantType === 'length' ? KGPianoRollState.QUANT_LEN_OPTIONS : KGPianoRollState.QUANT_POS_OPTIONS;
-            
+
             if (validOptions.includes(actionValue)) {
               // Apply quantization
               handleQuantSelect(quantType, actionValue);
-              
+
               // Trigger blink effect for visual feedback
               const buttonName = quantType === 'length' ? 'quant-length' : 'quant-position';
               setBlinkButton(buttonName);
               setTimeout(() => setBlinkButton(null), 200);
-              
+
               if (DEBUG_MODE.PIANO_ROLL) {
                 console.log(`Quantize ${quantType} hotkey triggered: ${event.key} → ${actionValue}`);
               }
@@ -1013,10 +1013,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         }
       }
     };
-    
+
     // Add event listener
     window.addEventListener('keydown', handlePianoRollKeyDown);
-    
+
     // Remove event listener on cleanup
     return () => {
       window.removeEventListener('keydown', handlePianoRollKeyDown);
@@ -1032,20 +1032,20 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return `${midiName} + ${audioName}`;
     }
     if (!activeRegion) return "EDIT NOTE CLIP";
-    
+
     // Calculate the bar and beat position of the region
     const startBeat = activeRegion.getStartFromBeat();
     const { bar, beatInBar } = beatsToBar(startBeat, timeSignature);
-    
+
     // Format as 1-indexed bar and beat (bar + 1, beatInBar + 1)
     const barNumber = bar + 1;
     const beatNumber = beatInBar + 1;
-    
+
     return `${activeRegion.getName()} (at ${barNumber}:${beatNumber})`;
   };
 
   return (
-    <div 
+    <div
       className="piano-roll-panel"
       style={{
         position: 'fixed',
@@ -1063,7 +1063,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onTitleClick={handleTitleClick}
         onMouseDown={(e) => handleMouseDown(e, 'drag')}
       />
-      
+
       <PianoRollToolbar
         activeTool={activeTool}
         onToolSelect={handleToolSelect}
@@ -1120,8 +1120,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         automationType={automationType}
         automationRedrawVersion={automationRedrawVersion}
       />
-      
-      <div 
+
+      <div
         className="resize-handle"
         onMouseDown={(e) => handleMouseDown(e, 'resize')}
       >

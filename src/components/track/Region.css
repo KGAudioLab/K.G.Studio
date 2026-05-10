@@ -97,6 +97,11 @@
   border-color: rgba(255, 255, 255, 0.7);
 }
 
+.track-region[data-preview-region='true'] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .track-region.audio-region .region-header {
   background-color: #4a8b5a;
 }

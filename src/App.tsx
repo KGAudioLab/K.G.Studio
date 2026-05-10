@@ -11,7 +11,7 @@ import ChatBox from './components/ChatBox';
 import { SettingsPanel } from './components/settings';
 import LoadingOverlay from './components/common/LoadingOverlay';
 import KGOnePanel from './components/KGOnePanel';
-import ListEventPanel from './components/ListEventPanel';
+import EventListPanel from './components/EventListPanel';
 import { useEffect as useEffectReact, useState, useRef } from 'react';
 import { KGToneBuffersPool } from './core/audio-interface/KGToneBuffersPool';
 import { KGOfflineRenderer } from './core/audio-interface/KGOfflineRenderer';
@@ -26,12 +26,12 @@ import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
   useGlobalKeyboardHandler();
-  
+
   // Use project store instead of local state for project name and tracks
   const {
     refreshStatus,
     loadProject, showChatBox, showSettings, setShowSettings, initializeFromConfig,
-    showInstrumentSelection, showKGOnePanel, showListEventPanel
+    showInstrumentSelection, showKGOnePanel, showEventListPanel
   } = useProjectStore();
 
   // Track if app has been initialized to prevent multiple initializations
@@ -144,12 +144,12 @@ function App() {
   useEffect(() => {
     // Initial refresh
     refreshStatus();
-    
+
     // Set up interval to refresh status every second
     const intervalId = setInterval(() => {
       refreshStatus();
     }, 1000);
-    
+
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
   }, [refreshStatus]);
@@ -169,7 +169,7 @@ function App() {
           </>
         )}
         <KGOnePanel isVisible={showKGOnePanel && !showSettings} />
-        <ListEventPanel isVisible={showListEventPanel && !showSettings} />
+        <EventListPanel isVisible={showEventListPanel && !showSettings} />
         <ChatBox isVisible={showChatBox && !showSettings} />
       </div>
 
@@ -264,7 +264,7 @@ const MigrationOverlayContainer: React.FC = () => {
   useEffectReact(() => {
     KGCore.instance().setMigrationStateChangeCallback(setIsMigrating);
     return () => {
-      KGCore.instance().setMigrationStateChangeCallback(() => {});
+      KGCore.instance().setMigrationStateChangeCallback(() => { });
     };
   }, []);
 

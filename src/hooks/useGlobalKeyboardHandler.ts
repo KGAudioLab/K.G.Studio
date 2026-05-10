@@ -8,6 +8,7 @@ import { selectAllNotesInActiveRegion } from '../util/selectionUtil';
 import { KGCore } from '../core/KGCore';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { showAlert } from '../util/dialogUtil';
 
 /**
@@ -164,7 +165,13 @@ export const useGlobalKeyboardHandler = () => {
         event.preventDefault();
         if (isRecording) {
           stopRecording();
-          setStatus('Recording stopped — notes committed');
+          setStatus('Recording stopped');
+          return;
+        }
+        const selectedTrack = useProjectStore.getState().tracks.find(track => track.getId().toString() === useProjectStore.getState().selectedTrackId) ?? null;
+        if (selectedTrack instanceof KGAudioTrack) {
+          startRecording();
+          setStatus('Audio recording started...');
           return;
         }
         const candidateId = activeRegionId ?? lastSelectedRegionId;

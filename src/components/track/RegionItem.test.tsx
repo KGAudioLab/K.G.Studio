@@ -19,6 +19,10 @@ describe('RegionItem', () => {
       value: vi.fn(() => ({
         clearRect: vi.fn(),
         fillRect: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        stroke: vi.fn(),
       })),
     });
 
@@ -106,5 +110,41 @@ describe('RegionItem', () => {
     expect(onDragStart).toHaveBeenCalledWith('midi-1', 100, 100);
     expect(onDrag).toHaveBeenCalledWith('midi-1', 10, 0);
     expect(onDragEnd).toHaveBeenCalledWith('midi-1');
+  });
+
+  it('renders preview waveform peaks on the canvas for recording previews', () => {
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 120,
+      bottom: 60,
+      width: 120,
+      height: 60,
+      toJSON: () => ({}),
+    });
+    const { container } = renderRegion({
+      audioRegion: undefined,
+      midiRegion: undefined,
+      previewWaveformPeaks: [
+        { min: -0.25, max: 0.5 },
+        { min: -0.5, max: 0.25 },
+      ],
+      isPreview: true,
+    });
+
+    const context = getContextSpy.mock.results[0]?.value as {
+      beginPath: ReturnType<typeof vi.fn>;
+      lineTo: ReturnType<typeof vi.fn>;
+      stroke: ReturnType<typeof vi.fn>;
+    };
+
+    expect(container.querySelector('[data-preview-region="true"]')).toBeTruthy();
+    expect(context.beginPath).toHaveBeenCalled();
+    expect(context.lineTo).toHaveBeenCalled();
+    expect(context.stroke).toHaveBeenCalled();
+    rectSpy.mockRestore();
   });
 });
