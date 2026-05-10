@@ -1,3 +1,11 @@
+# [0.15.0-build.20260510] (2026-05-10)
+
+* Merge pull request #39 from KGAudioLab/feat/2026-05-09-waveform-recording (0ddb2e5)
+* fix: failed tests (4f4511e)
+* feat: added track level event list tab; rename `List Event` to `Event List`. (894c3b1)
+* feat: added track level list event tab (48a51f1)
+* feat: added audio recording feature (490cd19)
+
 # [0.14.0-build.20260509] (2026-05-09)
 
 * Merge pull request #38 from KGAudioLab/feat/2025-05-02-midi-automation (1afe732)
