@@ -2,14 +2,15 @@ import React, { useState, useCallback, useRef } from 'react';
 import './DialogProvider.css';
 import { FaTimes } from 'react-icons/fa';
 import { registerDialogFns } from '../../util/dialogUtil';
-import type { ConfirmOptions, PromptOptions, TimeSigResult } from '../../util/dialogUtil';
+import type { ChoiceOption, ConfirmOptions, PromptOptions, TimeSigResult } from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
   defaultTimeSig?: TimeSigResult;
+  choices?: ChoiceOption[];
 }
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -53,6 +54,13 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const openChoice = useCallback((message: string, choices: ChoiceOption[]): Promise<string | null> => {
+    return new Promise<string | null>((resolve) => {
+      resolveRef.current = resolve;
+      setDialog({ type: 'choice', message, choices });
+    });
+  }, []);
+
   const close = useCallback((value: unknown) => {
     pendingValueRef.current = value;
     setIsClosing(true);
@@ -77,7 +85,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const registered = useRef(false);
   if (!registered.current) {
     registered.current = true;
-    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig);
+    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig, openChoice);
   }
 
   if (!dialog) {
@@ -87,6 +95,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isAlert = dialog.type === 'alert';
   const isPrompt = dialog.type === 'prompt';
   const isTimeSig = dialog.type === 'timesig';
+  const isChoice = dialog.type === 'choice';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
 
   const title = isAlert ? 'Notice' : isTimeSig ? 'Time Signature' : isPrompt ? 'Input' : 'Confirm';
@@ -97,11 +106,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      close(isAlert ? undefined : (isPrompt || isTimeSig) ? null : false);
+      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig) ? null : false);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice) ? null : false);
 
   const handleConfirm = () => {
     if (isAlert) { close(undefined); return; }
@@ -182,13 +191,26 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 {(dialog.options as ConfirmOptions | PromptOptions | undefined)?.cancelLabel ?? 'Cancel'}
               </button>
             )}
-            <button
-              className="dialog-btn dialog-btn-primary"
-              onClick={handleConfirm}
-              autoFocus={!isPrompt && !isTimeSig}
-            >
-              {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : 'Yes'))}
-            </button>
+            {isChoice ? (
+              dialog.choices?.map((choice, i) => (
+                <button
+                  key={choice.value}
+                  className={`dialog-btn ${i === (dialog.choices!.length - 1) ? 'dialog-btn-primary' : 'dialog-btn-secondary'}`}
+                  onClick={() => close(choice.value)}
+                  autoFocus={i === dialog.choices!.length - 1}
+                >
+                  {choice.label}
+                </button>
+              ))
+            ) : (
+              <button
+                className="dialog-btn dialog-btn-primary"
+                onClick={handleConfirm}
+                autoFocus={!isPrompt && !isTimeSig}
+              >
+                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : 'Yes'))}
+              </button>
+            )}
           </div>
         </div>
       </div>

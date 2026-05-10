@@ -36,7 +36,7 @@ import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { ConfigManager } from '../core/config/ConfigManager';
-import { showAlert, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
+import { showAlert, showChoice, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
 
 const Toolbar: React.FC = () => {
   const {
@@ -112,8 +112,28 @@ const Toolbar: React.FC = () => {
       return;
     }
 
-    // Conflict check: only relevant when targeting a different OPFS folder
-    if (newName !== savedProjectName) {
+    // If the name hasn't changed from the saved state, just save without prompting
+    if (newName === savedProjectName) {
+      setProjectName(newName);
+      await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+        setSavedProjectName(finalName);
+        if (finalName !== newName) setProjectName(finalName);
+      });
+      return;
+    }
+
+    // Ask whether the user wants to rename or save as a copy
+    const choice = await showChoice(
+      "Would you like to rename this project, or save it as a new copy?",
+      [
+        { label: 'Save as Copy', value: 'saveas' },
+        { label: 'Rename', value: 'rename' },
+      ]
+    );
+    if (!choice) return;
+
+    if (choice === 'rename') {
+      // Conflict check: only relevant when targeting a different OPFS folder
       const storage = KGProjectStorage.getInstance();
       const exists = await storage.exists(newName);
       if (exists) {
@@ -121,7 +141,6 @@ const Toolbar: React.FC = () => {
           `Project "${newName}" already exists. Do you want to overwrite it?`
         );
         if (!confirmed) return;
-        // Confirmed: update in-memory name then save immediately, overwriting the existing project
         setProjectName(newName);
         await saveProject(newName, savedProjectName, setStatus, (finalName) => {
           setSavedProjectName(finalName);
@@ -129,14 +148,25 @@ const Toolbar: React.FC = () => {
         }, true /* forceOverwrite */);
         return;
       }
+      setProjectName(newName);
+      await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+        setSavedProjectName(finalName);
+        if (finalName !== newName) setProjectName(finalName);
+      });
+    } else {
+      // Save as Copy: save current state under a unique new name, then switch to it
+      const storage = KGProjectStorage.getInstance();
+      const finalName = await storage.resolveUniqueName(newName);
+      try {
+        await storage.saveAs(savedProjectName, finalName, KGCore.instance().getCurrentProject());
+        setProjectName(finalName);
+        setSavedProjectName(finalName);
+        setStatus(`Saved as "${finalName}"`);
+      } catch (error) {
+        console.error('Error saving project as copy:', error);
+        await showAlert(`An error occurred while saving: ${error}`);
+      }
     }
-
-    // Name is available — update and save immediately
-    setProjectName(newName);
-    await saveProject(newName, savedProjectName, setStatus, (finalName) => {
-      setSavedProjectName(finalName);
-      if (finalName !== newName) setProjectName(finalName);
-    });
   };
 
   // Common project loading logic extracted for reuse
