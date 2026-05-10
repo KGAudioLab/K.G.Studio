@@ -14,21 +14,29 @@ export interface TimeSigResult {
   denominator: number;
 }
 
+export interface ChoiceOption {
+  label: string;
+  value: string;
+}
+
 let _showAlertFn: ((message: string) => Promise<void>) | null = null;
 let _showConfirmFn: ((message: string, options?: ConfirmOptions) => Promise<boolean>) | null = null;
 let _showPromptFn: ((message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>) | null = null;
 let _showTimeSigFn: ((message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>) | null = null;
+let _showChoiceFn: ((message: string, choices: ChoiceOption[]) => Promise<string | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
   confirmFn: (message: string, options?: ConfirmOptions) => Promise<boolean>,
   promptFn: (message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>,
   timeSigFn: (message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>,
+  choiceFn?: (message: string, choices: ChoiceOption[]) => Promise<string | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
   _showPromptFn = promptFn;
   _showTimeSigFn = timeSigFn;
+  if (choiceFn) _showChoiceFn = choiceFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -51,6 +59,13 @@ export function showPrompt(message: string, defaultValue?: string, options?: Pro
     return Promise.resolve(window.prompt(message, defaultValue));
   }
   return _showPromptFn(message, defaultValue, options);
+}
+
+export function showChoice(message: string, choices: ChoiceOption[]): Promise<string | null> {
+  if (!_showChoiceFn) {
+    return Promise.resolve(window.confirm(message) ? choices[0]?.value ?? null : null);
+  }
+  return _showChoiceFn(message, choices);
 }
 
 export function showTimeSigPrompt(message: string, defaultValue?: TimeSigResult): Promise<TimeSigResult | null> {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { FaMousePointer, FaPencilAlt } from 'react-icons/fa';
+import { TbArrowBarToUp } from 'react-icons/tb';
 import { KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
@@ -16,6 +17,13 @@ const POWER_OPTIONS = [
 ];
 
 interface PianoRollToolbarProps {
+  sheetMusicViewEnabled?: boolean;
+  onSheetMusicViewToggle?: () => void;
+  sheetMusicTrackScopeEnabled?: boolean;
+  onSheetMusicTrackScopeToggle?: () => void;
+  sheetQuantization?: string;
+  onSheetQuantizationChange?: (value: string) => void;
+  sheetQuantizationOptions?: string[];
   activeTool: 'pointer' | 'pencil';
   onToolSelect: (tool: 'pointer' | 'pencil') => void;
   quantPosition: string;
@@ -43,6 +51,13 @@ interface PianoRollToolbarProps {
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
+  sheetMusicViewEnabled = false,
+  onSheetMusicViewToggle,
+  sheetMusicTrackScopeEnabled = false,
+  onSheetMusicTrackScopeToggle,
+  sheetQuantization = '16,48',
+  onSheetQuantizationChange,
+  sheetQuantizationOptions = [],
   activeTool,
   onToolSelect,
   quantPosition,
@@ -68,9 +83,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onAutomationToggle,
   onAutomationTypeChange,
 }) => {
-  const isSpectrogram = mode === 'spectrogram';
-  const showMidiControls = mode !== 'spectrogram';   // midi-edit and hybrid
-  const showSpecControls = mode === 'spectrogram' || mode === 'hybrid';
+  const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
+  const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
 
   const [showZoomSlider, setShowZoomSlider] = React.useState(false);
   const zoomSliderRef = React.useRef<HTMLDivElement>(null);
@@ -91,18 +105,26 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
       {showMidiControls && (
         <div className="toolbar-left">
           <button
+            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
+            onClick={() => onSheetMusicViewToggle?.()}
+            title="Sheet Music View"
+            aria-label="Sheet Music View"
+          >
+            ♬
+          </button>
+          <button
             className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
             onClick={() => onToolSelect('pointer')}
             title="Pointer Tool"
           >
-            <FaMousePointer />
+            <FaMousePointer className="piano-roll-tool-icon" />
           </button>
           <button
             className={`tool-button ${activeTool === 'pencil' ? 'active' : ''}`}
             onClick={() => onToolSelect('pencil')}
             title="Pencil Tool"
           >
-            <FaPencilAlt />
+            <FaPencilAlt className="piano-roll-tool-icon" />
           </button>
           {showAutomationControls && (
             <div className="piano-roll-automation-toolbar-group">
@@ -148,7 +170,40 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
         </div>
       )}
 
+      {sheetMusicViewEnabled && (
+        <div className="toolbar-left">
+          <button
+            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
+            onClick={() => onSheetMusicViewToggle?.()}
+            title="Sheet Music View"
+            aria-label="Sheet Music View"
+          >
+            ♬
+          </button>
+          {mode !== 'spectrogram' && (
+            <button
+              className={`tool-button icon-only sheet-track-scope-toggle ${sheetMusicTrackScopeEnabled ? 'active' : ''}`}
+              onClick={() => onSheetMusicTrackScopeToggle?.()}
+              title={sheetMusicTrackScopeEnabled ? 'Show Active Region Only' : 'Show Entire Track'}
+              aria-label={sheetMusicTrackScopeEnabled ? 'Show Active Region Only' : 'Show Entire Track'}
+            >
+              <TbArrowBarToUp className="sheet-track-scope-icon" strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="toolbar-right">
+        {sheetMusicViewEnabled && (
+          <KGDropdown
+            options={sheetQuantizationOptions}
+            value={sheetQuantization}
+            onChange={(value) => onSheetQuantizationChange?.(value)}
+            label="Sheet Quant."
+            buttonClassName="sheet-quantization"
+            showValueAsLabel={true}
+          />
+        )}
         {showMidiControls && (
           <>
             <KGDropdown

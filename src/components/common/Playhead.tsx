@@ -1,5 +1,4 @@
 import React from 'react';
-import { KGCore } from '../../core/KGCore';
 import { useProjectStore } from '../../stores/projectStore';
 
 interface PlayheadProps {
@@ -7,13 +6,19 @@ interface PlayheadProps {
   context: 'main-grid' | 'piano-roll';
   /** For piano roll context, the region start beat offset */
   regionStartBeat?: number;
+  /** Optional exact pixel override for variable-width layouts */
+  pixelPositionOverride?: number;
 }
 
-const Playhead: React.FC<PlayheadProps> = ({ context, regionStartBeat = 0 }) => {
+const Playhead: React.FC<PlayheadProps> = ({ context, pixelPositionOverride }) => {
   const { timeSignature, playheadPosition } = useProjectStore();
 
   // Calculate the pixel position based on context
   const getPixelPosition = (): number => {
+    if (typeof pixelPositionOverride === 'number') {
+      return pixelPositionOverride;
+    }
+
     if (context === 'main-grid') {
       // In main grid, convert beats to bars, then bars to pixels
       const beatsPerBar = timeSignature.numerator;

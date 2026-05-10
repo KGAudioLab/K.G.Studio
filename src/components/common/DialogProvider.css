@@ -184,3 +184,14 @@
   background-color: #4a4a4a;
   color: #e0e0e0;
 }
+
+.dialog-btn-secondary {
+  background-color: transparent;
+  color: #5a9fd4;
+  border: 1px solid #5a9fd4;
+}
+
+.dialog-btn-secondary:hover {
+  background-color: rgba(90, 159, 212, 0.12);
+  transform: translateY(-1px);
+}

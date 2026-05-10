@@ -372,6 +372,20 @@ export class KGProjectStorage {
   }
 
   /**
+   * Save the current in-memory project under a new name without removing the source folder.
+   * Used for "Save as Copy": the original project remains intact in OPFS.
+   */
+  public async saveAs(sourceName: string, targetName: string, data: KGProject): Promise<void> {
+    this.ensureInitialized();
+
+    await this.save(targetName, data, false);
+
+    if (await this.exists(sourceName)) {
+      await this.copyMediaFiles(sourceName, targetName);
+    }
+  }
+
+  /**
    * Export a project folder as a zip Blob (.kgstudio bundle).
    * Includes project.json, meta.json, and all files in media/.
    */

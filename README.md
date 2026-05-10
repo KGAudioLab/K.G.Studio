@@ -23,6 +23,8 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2026.05.10**: Added **staff notation (sheet music) view** — the piano roll now offers a full standard notation mode. Switch between Piano Roll and Sheet Music views using the toggle in the piano roll toolbar. In sheet music mode, notes are engraved via VexFlow with automatic clef selection (treble or bass) based on the active instrument, key signature rendering, automatic beam grouping, ties across bar lines, and configurable quantization for note-value resolution. Enable **Track Scope** to render all MIDI regions on the track as a continuous score rather than a single isolated region.
+
 - **2026.05.09**: Added **audio recording** — record directly from your microphone into an audio track. A live waveform preview grows in real time as you record, and the region is committed to the timeline as a standard audio region when you stop. Added **audio I/O device selection** in Settings so you can choose your preferred microphone input and audio output device.
 
 - **2026.05.08**: Added **MIDI automation** — draw and edit pitch bend and MIDI CC curves (CC1 Modulation, CC2 Breath, CC7 Volume, CC11 Expression, CC64 Sustain) in an editable automation lane below the piano grid. Added **track-level automation**: each track now has a dedicated automation panel where you can view and edit the same curves directly on the timeline. Real-time MIDI controller input (pitch wheel, CC pedals) is recorded and played back with per-lane interpolation. Added the **Event List Panel** — a tabbed sidebar (Notes / Pitch Bend / Controller) for inspecting and inline-editing all events in the active MIDI region. Added **region multi-select** with lasso and bulk move/resize, and **merge MIDI regions**.
@@ -383,4 +385,4 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - No patent applications using this software or assets
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
-Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, and prompt structure notes) are included in `LICENSE`.
+Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, and prompt structure notes) are included in `LICENSE`.
