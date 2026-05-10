@@ -1,3 +1,11 @@
+# [0.16.0-build.20260510] (2026-05-10)
+
+* Merge pull request #40 from KGAudioLab/feat/2026-05-09-staff-notation (9b64c8f)
+* docs: updated README.md and LICENSE (1a84199)
+* feat: added `save as` option when renaming the project (8fa2c16)
+* feat: added track scope mode for sheet music view; adjusted viewport behavior when switching between piano roll view and sheet music view (578be7b)
+* feat: added sheet music (stuff notation) view to the piano roll window MIDI mode (d69b392)
+
 # [0.15.0-build.20260510] (2026-05-10)
 
 * Merge pull request #39 from KGAudioLab/feat/2026-05-09-waveform-recording (0ddb2e5)
