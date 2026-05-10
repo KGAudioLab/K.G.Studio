@@ -1676,6 +1676,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       if (core.undo()) {
         // Use centralized refresh method
         get().refreshProjectState();
+        get().bumpTrackAutomationRedrawVersion();
         console.log('Undo completed');
       }
     },
@@ -1685,6 +1686,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       if (core.redo()) {
         // Use centralized refresh method
         get().refreshProjectState();
+        get().bumpTrackAutomationRedrawVersion();
         console.log('Redo completed');
       }
     },

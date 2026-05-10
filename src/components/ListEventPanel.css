@@ -45,6 +45,35 @@
   flex-shrink: 0;
 }
 
+.list-event-scope-tabs {
+  display: flex;
+  background-color: #2d2d2d;
+  border-bottom: 1px solid #3a3a3a;
+  flex-shrink: 0;
+}
+
+.list-event-scope-tab {
+  flex: 1;
+  background: transparent;
+  color: #999;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 8px 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.list-event-scope-tab:hover {
+  color: #ccc;
+}
+
+.list-event-scope-tab.active {
+  color: #e0e0e0;
+  border-bottom-color: #5a9fd4;
+}
+
 .list-event-tab {
   flex: 1;
   background-color: #1e1e1e;
@@ -55,7 +84,7 @@
   font-weight: 500;
   min-height: 20px;
   padding: 5px 6px;
-  cursor: default;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 

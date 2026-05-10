@@ -41,6 +41,8 @@ const mockCore = {
   getRedoDescription: () => '',
   setOnCommandHistoryChanged: vi.fn(),
   executeCommand: vi.fn(),
+  undo: vi.fn(() => true),
+  redo: vi.fn(() => true),
   clearSelectedItems: vi.fn(),
   getStatus: () => 'Ready',
   getPlayheadPosition: () => 0,
@@ -83,6 +85,10 @@ describe('projectStore piano roll state', () => {
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
     mockCore.stopPlaying.mockResolvedValue(undefined);
+    mockCore.undo.mockReset();
+    mockCore.undo.mockReturnValue(true);
+    mockCore.redo.mockReset();
+    mockCore.redo.mockReturnValue(true);
     mockCore.setLoopBoundaryReachedCallback.mockReset();
     mockAudioInterface.startAudioRecording.mockReset();
     mockAudioInterface.startAudioRecording.mockResolvedValue({ usedDeviceId: 'default', fellBackToDefault: false });
@@ -225,5 +231,23 @@ describe('projectStore piano roll state', () => {
     expect(useProjectStore.getState().isRecording).toBe(false);
     expect(useProjectStore.getState().recordingMode).toBeNull();
     expect(useProjectStore.getState().playheadPosition).toBe(8);
+  });
+
+  it('bumps track automation redraw version on undo and redo', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    const initialVersion = useProjectStore.getState().trackAutomationRedrawVersion;
+
+    act(() => {
+      useProjectStore.getState().undo();
+    });
+
+    expect(useProjectStore.getState().trackAutomationRedrawVersion).toBe(initialVersion + 1);
+
+    act(() => {
+      useProjectStore.getState().redo();
+    });
+
+    expect(useProjectStore.getState().trackAutomationRedrawVersion).toBe(initialVersion + 2);
   });
 });
