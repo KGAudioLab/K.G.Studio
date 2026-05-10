@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createMockMidiNote, createMockMidiRegion } from '../../test/utils/mock-data';
 import {
   buildSheetMeasureMetrics,
+  getSheetBeatAtPixel,
   buildSheetMeasureModels,
   getSheetPlayheadPixel,
   getSheetQuantizationOptions,
@@ -50,7 +51,10 @@ describe('sheetNotation', () => {
   });
 
   it('maps playhead position through variable-width bars', () => {
-    const metrics = buildSheetMeasureMetrics([120, 240], 4);
+    const metrics = buildSheetMeasureMetrics([
+      { barIndex: 0, startBeat: 0, endBeat: 4, events: [] },
+      { barIndex: 1, startBeat: 4, endBeat: 8, events: [] },
+    ], [120, 240]);
 
     expect(getSheetPlayheadPixel(0, metrics)).toBe(0);
     expect(getSheetPlayheadPixel(2, metrics)).toBe(60);
@@ -90,5 +94,49 @@ describe('sheetNotation', () => {
 
     expect(measures[0].events.filter(event => !event.isRest).map(event => event.startBeat)).toEqual([0, 1, 2, 3]);
     expect(measures[1].events.filter(event => !event.isRest).map(event => event.startBeat)).toEqual([4]);
+  });
+
+  it('builds a full-track sheet timeline with rests across empty bars and gaps', () => {
+    const firstRegion = createMockMidiRegion({
+      id: 'region-a',
+      startFromBeat: 4,
+      length: 4,
+      notes: [createMockMidiNote({ id: 'a1', startBeat: 0, endBeat: 1, pitch: 60 })],
+    });
+    const secondRegion = createMockMidiRegion({
+      id: 'region-b',
+      startFromBeat: 12,
+      length: 4,
+      notes: [createMockMidiNote({ id: 'b1', startBeat: 0, endBeat: 1, pitch: 64 })],
+    });
+
+    const measures = buildSheetMeasureModels({
+      scope: 'track',
+      region: firstRegion,
+      regions: [secondRegion, firstRegion],
+      projectMaxBars: 6,
+      timeSignature: { numerator: 4, denominator: 4 },
+      quantization: parseSheetQuantization('16,48'),
+    });
+
+    expect(measures).toHaveLength(6);
+    expect(measures[0].startBeat).toBe(0);
+    expect(measures[5].endBeat).toBe(24);
+    expect(measures[0].events.every(event => event.isRest)).toBe(true);
+    expect(measures[1].events.some(event => !event.isRest && event.startBeat === 4)).toBe(true);
+    expect(measures[2].events.every(event => event.isRest)).toBe(true);
+    expect(measures[3].events.some(event => !event.isRest && event.startBeat === 12)).toBe(true);
+    expect(measures[4].events.every(event => event.isRest)).toBe(true);
+    expect(measures[5].events.every(event => event.isRest)).toBe(true);
+  });
+
+  it('maps absolute track beats through sheet metrics for full-track mode', () => {
+    const metrics = buildSheetMeasureMetrics([
+      { barIndex: 0, startBeat: 0, endBeat: 4, events: [] },
+      { barIndex: 1, startBeat: 4, endBeat: 8, events: [] },
+    ], [120, 240]);
+
+    expect(getSheetPlayheadPixel(5, metrics)).toBe(180);
+    expect(getSheetBeatAtPixel(180, metrics)).toBe(5);
   });
 });

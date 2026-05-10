@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import PianoRollContent from './PianoRollContent';
 import { createMockMidiRegion } from '../../test/utils/mock-data';
@@ -49,7 +49,14 @@ vi.mock('./PianoKeys', () => ({ default: () => <div data-testid="piano-keys" /> 
 vi.mock('./PianoGrid', () => ({ default: ({ children }: { children?: React.ReactNode }) => <div data-testid="piano-grid">{children}</div> }));
 vi.mock('./PianoNote', () => ({ default: () => <div data-testid="piano-note" /> }));
 vi.mock('./PianoRollAutomationLane', () => ({ default: () => <div data-testid="automation-lane" /> }));
-vi.mock('./SheetMusicView', () => ({ default: () => <div data-testid="sheet-music-view" /> }));
+const sheetMusicViewSpy = vi.fn();
+
+vi.mock('./SheetMusicView', () => ({
+  default: (props: unknown) => {
+    sheetMusicViewSpy(props);
+    return <div data-testid="sheet-music-view" />;
+  },
+}));
 
 describe('PianoRollContent', () => {
   const baseProps = {
@@ -66,6 +73,10 @@ describe('PianoRollContent', () => {
     chordGuide: 'N',
     bpm: 120,
   };
+
+  beforeEach(() => {
+    sheetMusicViewSpy.mockClear();
+  });
 
   it('keeps the single-pane layout when automation is disabled', () => {
     render(
@@ -117,6 +128,7 @@ describe('PianoRollContent', () => {
         automationEnabled={true}
         automationType="cc-7"
         sheetMusicViewEnabled={true}
+        sheetMusicTrackScopeEnabled={true}
         sheetQuantization={parseSheetQuantization('16,48')}
       />
     );
@@ -124,5 +136,9 @@ describe('PianoRollContent', () => {
     expect(screen.getByTestId('sheet-music-view')).toBeInTheDocument();
     expect(screen.queryByTestId('piano-keys')).not.toBeInTheDocument();
     expect(screen.queryByTestId('automation-lane')).not.toBeInTheDocument();
+    expect(sheetMusicViewSpy).toHaveBeenCalledWith(expect.objectContaining({
+      sheetMusicTrackScopeEnabled: true,
+      maxBars: 8,
+    }));
   });
 });

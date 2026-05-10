@@ -24,7 +24,10 @@ const EPSILON = 1e-6;
 export type SheetClef = 'treble' | 'bass' | 'percussion';
 
 export interface BuildSheetNotationOptions {
+  scope?: 'region' | 'track';
   region: KGMidiRegion;
+  regions?: KGMidiRegion[];
+  projectMaxBars?: number;
   timeSignature: { numerator: number; denominator: number };
   quantization: SheetQuantization;
 }
@@ -34,6 +37,12 @@ interface WorkingEvent {
   startBeat: number;
   endBeat: number;
   isRest: boolean;
+}
+
+interface NormalizedNoteInput {
+  pitch: number;
+  startBeat: number;
+  endBeat: number;
 }
 
 export function getSheetQuantizationOptions(): string[] {
@@ -84,13 +93,14 @@ export function resolveSheetClef(
   return averagePitch >= 60 ? 'treble' : 'bass';
 }
 
-export function buildSheetMeasureMetrics(widths: number[], beatsPerBar: number): SheetMeasureMetric[] {
+export function buildSheetMeasureMetrics(measures: SheetMeasureModel[], widths: number[]): SheetMeasureMetric[] {
   let leftPx = 0;
-  return widths.map((widthPx, index) => {
+  return measures.map((measure, index) => {
+    const widthPx = widths[index] ?? 0;
     const metric: SheetMeasureMetric = {
-      barIndex: index,
-      startBeat: index * beatsPerBar,
-      endBeat: (index + 1) * beatsPerBar,
+      barIndex: measure.barIndex,
+      startBeat: measure.startBeat,
+      endBeat: measure.endBeat,
       leftPx,
       widthPx,
     };
@@ -100,30 +110,57 @@ export function buildSheetMeasureMetrics(widths: number[], beatsPerBar: number):
 }
 
 export function getSheetPlayheadPixel(
-  regionRelativeBeat: number,
+  sheetBeat: number,
   metrics: SheetMeasureMetric[]
 ): number {
   if (metrics.length === 0) {
     return 0;
   }
 
-  if (regionRelativeBeat <= metrics[0].startBeat) {
+  if (sheetBeat <= metrics[0].startBeat) {
     return metrics[0].leftPx;
   }
 
   const lastMetric = metrics[metrics.length - 1];
-  if (regionRelativeBeat >= lastMetric.endBeat) {
+  if (sheetBeat >= lastMetric.endBeat) {
     return lastMetric.leftPx + lastMetric.widthPx;
   }
 
-  const activeMetric = metrics.find(metric => regionRelativeBeat >= metric.startBeat && regionRelativeBeat < metric.endBeat);
+  const activeMetric = metrics.find(metric => sheetBeat >= metric.startBeat && sheetBeat < metric.endBeat);
   if (!activeMetric) {
     return 0;
   }
 
   const span = Math.max(activeMetric.endBeat - activeMetric.startBeat, EPSILON);
-  const progress = (regionRelativeBeat - activeMetric.startBeat) / span;
+  const progress = (sheetBeat - activeMetric.startBeat) / span;
   return activeMetric.leftPx + activeMetric.widthPx * progress;
+}
+
+export function getSheetBeatAtPixel(
+  pixel: number,
+  metrics: SheetMeasureMetric[]
+): number {
+  if (metrics.length === 0) {
+    return 0;
+  }
+
+  const firstMetric = metrics[0];
+  if (pixel <= firstMetric.leftPx) {
+    return firstMetric.startBeat;
+  }
+
+  const lastMetric = metrics[metrics.length - 1];
+  if (pixel >= lastMetric.leftPx + lastMetric.widthPx) {
+    return lastMetric.endBeat;
+  }
+
+  const activeMetric = metrics.find(metric => pixel >= metric.leftPx && pixel < metric.leftPx + metric.widthPx);
+  if (!activeMetric) {
+    return lastMetric.endBeat;
+  }
+
+  const progress = activeMetric.widthPx > 0 ? (pixel - activeMetric.leftPx) / activeMetric.widthPx : 0;
+  return activeMetric.startBeat + progress * (activeMetric.endBeat - activeMetric.startBeat);
 }
 
 export function resolveDurationSpec(durationBeats: number, isRest: boolean): { duration: string; dots: number } {
@@ -160,21 +197,37 @@ export function resolveDurationSpec(durationBeats: number, isRest: boolean): { d
 }
 
 export function buildSheetMeasureModels({
+  scope = 'region',
   region,
+  regions = [region],
+  projectMaxBars,
   timeSignature,
   quantization,
 }: BuildSheetNotationOptions): SheetMeasureModel[] {
   const beatsPerBar = timeSignature.numerator;
-  const measureCount = Math.max(1, Math.ceil(region.getLength() / beatsPerBar));
-  const measureEndBeat = measureCount * beatsPerBar;
-  const workingEvents = normalizeNotes(region.getNotes(), quantization.stepBeats, measureEndBeat);
+  const isTrackScope = scope === 'track';
+  const timelineStartBeat = isTrackScope ? 0 : 0;
+  const measureCount = isTrackScope
+    ? Math.max(1, projectMaxBars ?? 1)
+    : Math.max(1, Math.ceil(region.getLength() / beatsPerBar));
+  const measureEndBeat = isTrackScope
+    ? measureCount * beatsPerBar
+    : measureCount * beatsPerBar;
+  const noteInputs = isTrackScope
+    ? collectTrackScopeNotes(regions)
+    : region.getNotes().map(note => ({
+        pitch: note.getPitch(),
+        startBeat: note.getStartBeat(),
+        endBeat: note.getEndBeat(),
+      }));
+  const workingEvents = normalizeNotes(noteInputs, quantization.stepBeats, measureEndBeat);
   const withRests = insertRests(workingEvents, measureEndBeat);
   const splitEvents = splitAcrossBars(withRests, beatsPerBar);
 
   const measures: SheetMeasureModel[] = Array.from({ length: measureCount }, (_, barIndex) => ({
     barIndex,
-    startBeat: barIndex * beatsPerBar,
-    endBeat: (barIndex + 1) * beatsPerBar,
+    startBeat: timelineStartBeat + barIndex * beatsPerBar,
+    endBeat: timelineStartBeat + (barIndex + 1) * beatsPerBar,
     events: [],
   }));
 
@@ -199,12 +252,12 @@ export function buildSheetMeasureModels({
   return measures;
 }
 
-function normalizeNotes(notes: KGMidiNote[], stepBeats: number, measureEndBeat: number): WorkingEvent[] {
+function normalizeNotes(notes: NormalizedNoteInput[], stepBeats: number, measureEndBeat: number): WorkingEvent[] {
   const clippedNotes = notes
     .map(note => ({
-      keys: [midiPitchToVexKey(note.getPitch())],
-      startBeat: quantizeBeat(note.getStartBeat(), stepBeats),
-      endBeat: quantizeBeat(note.getEndBeat(), stepBeats),
+      keys: [midiPitchToVexKey(note.pitch)],
+      startBeat: quantizeBeat(note.startBeat, stepBeats),
+      endBeat: quantizeBeat(note.endBeat, stepBeats),
       isRest: false,
     }))
     .map(note => ({
@@ -245,6 +298,27 @@ function normalizeNotes(notes: KGMidiNote[], stepBeats: number, measureEndBeat: 
   }
 
   return merged.filter(note => note.endBeat - note.startBeat > EPSILON);
+}
+
+function collectTrackScopeNotes(regions: KGMidiRegion[]): NormalizedNoteInput[] {
+  return [...regions]
+    .sort((left, right) => {
+      if (left.getStartFromBeat() !== right.getStartFromBeat()) {
+        return left.getStartFromBeat() - right.getStartFromBeat();
+      }
+
+      return left.getId().localeCompare(right.getId());
+    })
+    .flatMap(region => {
+      const regionStart = region.getStartFromBeat();
+      // Overlapping regions are flattened in deterministic start-beat/id order so
+      // the existing note normalization path can resolve collisions consistently.
+      return region.getNotes().map(note => ({
+        pitch: note.getPitch(),
+        startBeat: regionStart + note.getStartBeat(),
+        endBeat: regionStart + note.getEndBeat(),
+      }));
+    });
 }
 
 function insertRests(events: WorkingEvent[], measureEndBeat: number): WorkingEvent[] {

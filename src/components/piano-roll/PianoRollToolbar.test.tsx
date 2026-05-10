@@ -42,6 +42,8 @@ describe('PianoRollToolbar', () => {
   const baseProps = {
     sheetMusicViewEnabled: false,
     onSheetMusicViewToggle: vi.fn(),
+    sheetMusicTrackScopeEnabled: false,
+    onSheetMusicTrackScopeToggle: vi.fn(),
     sheetQuantization: '16,48',
     onSheetQuantizationChange: vi.fn(),
     sheetQuantizationOptions: ['16,48', '32,96'],
@@ -127,7 +129,46 @@ describe('PianoRollToolbar', () => {
 
     expect(screen.getByRole('button', { name: 'Sheet Music View' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /16,48/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show Entire Track' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pointer Tool' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
+  });
+
+  it('toggles the full-track sheet scope button', () => {
+    const onSheetMusicTrackScopeToggle = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        sheetMusicViewEnabled={true}
+        mode="hybrid"
+        onSheetMusicTrackScopeToggle={onSheetMusicTrackScopeToggle}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Entire Track' }));
+    expect(onSheetMusicTrackScopeToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the full-track sheet scope button outside sheet mode and spectrogram mode', () => {
+    const { rerender } = render(
+      <PianoRollToolbar
+        {...baseProps}
+        sheetMusicViewEnabled={false}
+        mode="midi-edit"
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Show Entire Track' })).not.toBeInTheDocument();
+
+    rerender(
+      <PianoRollToolbar
+        {...baseProps}
+        sheetMusicViewEnabled={true}
+        mode="spectrogram"
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Show Entire Track' })).not.toBeInTheDocument();
   });
 });

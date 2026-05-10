@@ -1,5 +1,6 @@
 import React from 'react';
 import { FaMousePointer, FaPencilAlt } from 'react-icons/fa';
+import { TbArrowBarToUp } from 'react-icons/tb';
 import { KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
@@ -18,6 +19,8 @@ const POWER_OPTIONS = [
 interface PianoRollToolbarProps {
   sheetMusicViewEnabled?: boolean;
   onSheetMusicViewToggle?: () => void;
+  sheetMusicTrackScopeEnabled?: boolean;
+  onSheetMusicTrackScopeToggle?: () => void;
   sheetQuantization?: string;
   onSheetQuantizationChange?: (value: string) => void;
   sheetQuantizationOptions?: string[];
@@ -50,6 +53,8 @@ interface PianoRollToolbarProps {
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   sheetMusicViewEnabled = false,
   onSheetMusicViewToggle,
+  sheetMusicTrackScopeEnabled = false,
+  onSheetMusicTrackScopeToggle,
   sheetQuantization = '16,48',
   onSheetQuantizationChange,
   sheetQuantizationOptions = [],
@@ -112,14 +117,14 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             onClick={() => onToolSelect('pointer')}
             title="Pointer Tool"
           >
-            <FaMousePointer />
+            <FaMousePointer className="piano-roll-tool-icon" />
           </button>
           <button
             className={`tool-button ${activeTool === 'pencil' ? 'active' : ''}`}
             onClick={() => onToolSelect('pencil')}
             title="Pencil Tool"
           >
-            <FaPencilAlt />
+            <FaPencilAlt className="piano-roll-tool-icon" />
           </button>
           {showAutomationControls && (
             <div className="piano-roll-automation-toolbar-group">
@@ -175,6 +180,16 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           >
             ♬
           </button>
+          {mode !== 'spectrogram' && (
+            <button
+              className={`tool-button icon-only sheet-track-scope-toggle ${sheetMusicTrackScopeEnabled ? 'active' : ''}`}
+              onClick={() => onSheetMusicTrackScopeToggle?.()}
+              title={sheetMusicTrackScopeEnabled ? 'Show Active Region Only' : 'Show Entire Track'}
+              aria-label={sheetMusicTrackScopeEnabled ? 'Show Active Region Only' : 'Show Entire Track'}
+            >
+              <TbArrowBarToUp className="sheet-track-scope-icon" strokeWidth={2.5} />
+            </button>
+          )}
         </div>
       )}
 

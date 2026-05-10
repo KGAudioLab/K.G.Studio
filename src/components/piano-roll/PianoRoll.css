@@ -156,6 +156,25 @@
   transition: color 0.18s ease, fill 0.18s ease;
 }
 
+.piano-roll-toolbar .sheet-track-scope-toggle {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+}
+
+.piano-roll-toolbar .sheet-track-scope-toggle .sheet-track-scope-icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+  overflow: visible;
+}
+
+.piano-roll-toolbar .piano-roll-tool-icon {
+  width: 12px;
+  height: 12px;
+  overflow: visible;
+}
+
 .piano-roll-toolbar .tool-button.sheet-mode-toggle,
 .piano-roll-toolbar .tool-button:not(.icon-only) {
   font-size: 13px;

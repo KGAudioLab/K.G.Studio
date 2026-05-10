@@ -16,6 +16,7 @@ export class KGPianoRollState {
   private automationViewEnabled: boolean = false;
   private currentAutomationType: string = "pitch-bend";
   private sheetMusicViewEnabled: boolean = false;
+  private sheetMusicTrackScopeEnabled: boolean = false;
   private sheetQuantization: string = '16,48';
 
   // Chord guide state
@@ -91,6 +92,14 @@ export class KGPianoRollState {
 
   public setSheetMusicViewEnabled(enabled: boolean): void {
     this.sheetMusicViewEnabled = enabled;
+  }
+
+  public getSheetMusicTrackScopeEnabled(): boolean {
+    return this.sheetMusicTrackScopeEnabled;
+  }
+
+  public setSheetMusicTrackScopeEnabled(enabled: boolean): void {
+    this.sheetMusicTrackScopeEnabled = enabled;
   }
 
   public getSheetQuantization(): string {

@@ -50,6 +50,7 @@ interface PianoRollContentProps {
   automationType?: PianoRollAutomationType;
   automationRedrawVersion?: number;
   sheetMusicViewEnabled?: boolean;
+  sheetMusicTrackScopeEnabled?: boolean;
   sheetQuantization?: SheetQuantization;
   sheetKeySignature?: KeySignature;
   sheetInstrument?: InstrumentType;
@@ -83,6 +84,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   automationType = 'pitch-bend',
   automationRedrawVersion = 0,
   sheetMusicViewEnabled = false,
+  sheetMusicTrackScopeEnabled = false,
   sheetQuantization,
   sheetKeySignature = 'C major',
   sheetInstrument = 'acoustic_grand_piano',
@@ -340,6 +342,11 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
               {sheetMusicViewEnabled && activeRegion && sheetQuantization ? (
                 <SheetMusicView
                   activeRegion={activeRegion}
+                  midiRegions={tracks.filter(track => track.getId().toString() === activeRegion?.getTrackId()).flatMap(track => (
+                    track.getRegions().filter(region => region instanceof KGMidiRegion)
+                  )) as KGMidiRegion[]}
+                  maxBars={maxBars}
+                  sheetMusicTrackScopeEnabled={sheetMusicTrackScopeEnabled}
                   timeSignature={timeSignature}
                   keySignature={sheetKeySignature}
                   instrument={sheetInstrument}

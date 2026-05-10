@@ -26,19 +26,35 @@ import type { PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { getSheetPlayheadPixel, getSheetQuantizationOptions, parseSheetQuantization } from './sheetNotation';
 
-interface VisibleCenterBeatOptions {
-  container: HTMLDivElement;
-  sheetMusicViewEnabled: boolean;
-  sheetMeasureMetrics: SheetMeasureMetric[];
-  activeRegionStartBeat: number;
+type RegionPlayheadRelation = 'before' | 'inside' | 'after';
+type ViewportSwitchAlignment = 'center' | 'region-start' | 'region-end';
+type ViewportClampScope = 'region' | 'track';
+
+interface PendingModeSwitchRequest {
+  sourceSheetMusicViewEnabled: boolean;
+  destinationSheetMusicViewEnabled: boolean;
+  destinationSheetMusicTrackScopeEnabled: boolean;
+  alignment: ViewportSwitchAlignment;
+  anchorBeat: number;
+  clampScope: ViewportClampScope;
 }
 
-interface ScrollLeftForBeatOptions {
-  anchorBeat: number;
+interface ModeSwitchRequestOptions {
+  playheadBeat: number;
+  regionStartBeat: number;
+  regionEndBeat: number;
+  sourceSheetMusicViewEnabled: boolean;
+  destinationSheetMusicViewEnabled: boolean;
+  destinationSheetMusicTrackScopeEnabled: boolean;
+}
+
+interface ScrollLeftForViewportRequestOptions {
+  request: PendingModeSwitchRequest;
   container: HTMLDivElement;
-  sheetMusicViewEnabled: boolean;
   sheetMeasureMetrics: SheetMeasureMetric[];
   activeRegionStartBeat: number;
+  activeRegionEndBeat: number;
+  songEndBeat: number;
 }
 
 interface PianoRollProps {
@@ -80,6 +96,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [automationEnabled, setAutomationEnabled] = useState(false);
   const [automationType, setAutomationType] = useState<PianoRollAutomationType>('pitch-bend');
   const [sheetMusicViewEnabled, setSheetMusicViewEnabled] = useState(false);
+  const [sheetMusicTrackScopeEnabled, setSheetMusicTrackScopeEnabled] = useState(false);
   const [sheetQuantization, setSheetQuantization] = useState('16,48');
   const [sheetMeasureMetrics, setSheetMeasureMetrics] = useState<SheetMeasureMetric[]>([]);
 
@@ -133,7 +150,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
   const pianoRollIsPlayingRef = useRef(false);
   const pendingZoomAnchorBeatRef = useRef<number | null>(null);
-  const pendingModeSwitchAnchorBeatRef = useRef<number | null>(null);
+  const pendingModeSwitchRequestRef = useRef<PendingModeSwitchRequest | null>(null);
   const previousSheetMusicViewEnabledRef = useRef<boolean>(false);
   const previousActiveRegionIdRef = useRef<string | null>(null);
 
@@ -243,6 +260,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     setAutomationEnabled(pianoRollState.getAutomationViewEnabled());
     setAutomationType(pianoRollState.getCurrentAutomationType() as PianoRollAutomationType);
     setSheetMusicViewEnabled(pianoRollState.getSheetMusicViewEnabled());
+    setSheetMusicTrackScopeEnabled(pianoRollState.getSheetMusicTrackScopeEnabled());
     setSheetQuantization(pianoRollState.getSheetQuantization());
 
     if (DEBUG_MODE.PIANO_ROLL) {
@@ -743,17 +761,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, []);
 
   const handleSheetMusicViewToggle = useCallback(() => {
-    const container = pianoRollNoteScrollRef.current;
-    if (container && activeRegion) {
-      const anchorBeat = getVisibleCenterBeat({
-        container,
-        sheetMusicViewEnabled,
-        sheetMeasureMetrics,
-        activeRegionStartBeat: activeRegion.getStartFromBeat(),
+    if (activeRegion) {
+      pendingModeSwitchRequestRef.current = createPendingModeSwitchRequest({
+        playheadBeat: playheadPosition,
+        regionStartBeat: activeRegion.getStartFromBeat(),
+        regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+        sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
+        destinationSheetMusicViewEnabled: !sheetMusicViewEnabled,
+        destinationSheetMusicTrackScopeEnabled: !sheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
       });
-      pendingModeSwitchAnchorBeatRef.current = anchorBeat;
     } else {
-      pendingModeSwitchAnchorBeatRef.current = null;
+      pendingModeSwitchRequestRef.current = null;
     }
 
     setSheetMusicViewEnabled(current => {
@@ -761,12 +779,33 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       KGPianoRollState.instance().setSheetMusicViewEnabled(next);
       return next;
     });
-  }, [activeRegion, sheetMeasureMetrics, sheetMusicViewEnabled]);
+  }, [activeRegion, playheadPosition, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
 
   const handleSheetQuantizationChange = useCallback((value: string) => {
     setSheetQuantization(value);
     KGPianoRollState.instance().setSheetQuantization(value);
   }, []);
+
+  const handleSheetMusicTrackScopeToggle = useCallback(() => {
+    if (activeRegion) {
+      pendingModeSwitchRequestRef.current = createPendingModeSwitchRequest({
+        playheadBeat: playheadPosition,
+        regionStartBeat: activeRegion.getStartFromBeat(),
+        regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+        sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
+        destinationSheetMusicViewEnabled: sheetMusicViewEnabled,
+        destinationSheetMusicTrackScopeEnabled: !sheetMusicTrackScopeEnabled,
+      });
+    } else {
+      pendingModeSwitchRequestRef.current = null;
+    }
+
+    setSheetMusicTrackScopeEnabled(current => {
+      const next = !current;
+      KGPianoRollState.instance().setSheetMusicTrackScopeEnabled(next);
+      return next;
+    });
+  }, [activeRegion, playheadPosition, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
 
   const handleSheetMeasureMetricsChange = useCallback((metrics: SheetMeasureMetric[]) => {
     setSheetMeasureMetrics((current) => {
@@ -848,7 +887,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     const playheadPixel = sheetMusicViewEnabled && activeRegion
       ? getSheetPlayheadPixel(
-          Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
+          sheetMusicTrackScopeEnabled
+            ? Math.max(0, playheadPosition)
+            : Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
           sheetMeasureMetrics
         )
       : (() => {
@@ -872,7 +913,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
-  }, [playheadPosition, isPlaying, autoScrollEnabled, sheetMusicViewEnabled, sheetMeasureMetrics, activeRegion]);
+  }, [playheadPosition, isPlaying, autoScrollEnabled, sheetMusicViewEnabled, sheetMusicTrackScopeEnabled, sheetMeasureMetrics, activeRegion]);
 
   // Handle scroll requests from main content bar numbers clicks
   useEffect(() => {
@@ -883,7 +924,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     const playheadPixel = sheetMusicViewEnabled && activeRegion
       ? getSheetPlayheadPixel(
-          Math.max(0, pianoRollScrollRequest - activeRegion.getStartFromBeat()),
+          sheetMusicTrackScopeEnabled
+            ? Math.max(0, pianoRollScrollRequest)
+            : Math.max(0, pianoRollScrollRequest - activeRegion.getStartFromBeat()),
           sheetMeasureMetrics
         )
       : (() => {
@@ -909,7 +952,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     // Clear the request after handling
     useProjectStore.setState({ pianoRollScrollRequest: null });
-  }, [pianoRollScrollRequest, sheetMusicViewEnabled, sheetMeasureMetrics, activeRegion]);
+  }, [pianoRollScrollRequest, sheetMusicViewEnabled, sheetMusicTrackScopeEnabled, sheetMeasureMetrics, activeRegion]);
 
   // Update --region-grid-beat-width when zoom changes and preserve the centered beat position.
   useLayoutEffect(() => {
@@ -950,7 +993,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return;
     }
 
-    if (pendingModeSwitchAnchorBeatRef.current !== null) {
+    if (pendingModeSwitchRequestRef.current !== null) {
       previousActiveRegionIdRef.current = activeRegion.getId();
       return;
     }
@@ -982,28 +1025,29 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [activeRegion, timeSignature]);
 
   useLayoutEffect(() => {
-    const anchorBeat = pendingModeSwitchAnchorBeatRef.current;
+    const request = pendingModeSwitchRequestRef.current;
     const container = pianoRollNoteScrollRef.current;
-    if (anchorBeat === null || !container || !activeRegion) {
+    if (!request || !container || !activeRegion) {
       return;
     }
 
-    if (sheetMusicViewEnabled && sheetMeasureMetrics.length === 0) {
+    if (request.destinationSheetMusicViewEnabled && sheetMeasureMetrics.length === 0) {
       return;
     }
 
-    const targetScrollLeft = getScrollLeftForBeat({
-      anchorBeat,
+    const targetScrollLeft = getScrollLeftForViewportRequest({
+      request,
       container,
-      sheetMusicViewEnabled,
       sheetMeasureMetrics,
       activeRegionStartBeat: activeRegion.getStartFromBeat(),
+      activeRegionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+      songEndBeat: maxBars * timeSignature.numerator,
     });
 
     pianoRollExpectedScrollLeftRef.current = targetScrollLeft;
     container.scrollLeft = targetScrollLeft;
-    pendingModeSwitchAnchorBeatRef.current = null;
-  }, [activeRegion, sheetMeasureMetrics, sheetMusicViewEnabled]);
+    pendingModeSwitchRequestRef.current = null;
+  }, [activeRegion, maxBars, sheetMeasureMetrics, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled, timeSignature.numerator]);
 
   // Add keyboard event listener for piano roll hotkeys (snapping and quantization)
   useEffect(() => {
@@ -1204,6 +1248,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       <PianoRollToolbar
         sheetMusicViewEnabled={sheetMusicViewEnabled}
         onSheetMusicViewToggle={handleSheetMusicViewToggle}
+        sheetMusicTrackScopeEnabled={sheetMusicTrackScopeEnabled}
+        onSheetMusicTrackScopeToggle={handleSheetMusicTrackScopeToggle}
         sheetQuantization={sheetQuantization}
         onSheetQuantizationChange={handleSheetQuantizationChange}
         sheetQuantizationOptions={getSheetQuantizationOptions()}
@@ -1262,6 +1308,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         automationType={automationType}
         automationRedrawVersion={automationRedrawVersion}
         sheetMusicViewEnabled={sheetMusicViewEnabled}
+        sheetMusicTrackScopeEnabled={sheetMusicTrackScopeEnabled}
         sheetQuantization={parsedSheetQuantization}
         sheetKeySignature={keySignature}
         sheetInstrument={activeInstrument}
@@ -1280,77 +1327,224 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
 export default PianoRoll; 
 
-function getVisibleCenterBeat({
-  container,
-  sheetMusicViewEnabled,
-  sheetMeasureMetrics,
-  activeRegionStartBeat,
-}: VisibleCenterBeatOptions): number {
-  if (sheetMusicViewEnabled) {
-    const centerPixel = container.scrollLeft + container.clientWidth / 2;
-    return activeRegionStartBeat + getAbsoluteBeatForSheetPixel(centerPixel, sheetMeasureMetrics);
+export function getRegionPlayheadRelation(
+  playheadBeat: number,
+  regionStartBeat: number,
+  regionEndBeat: number
+): RegionPlayheadRelation {
+  if (playheadBeat < regionStartBeat) {
+    return 'before';
   }
 
-  const keysWidth = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
-  ) || 60;
-  const beatWidth = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-  ) || 40;
-  const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
-  return (container.scrollLeft + visibleMusicWidth / 2) / beatWidth;
+  if (playheadBeat > regionEndBeat) {
+    return 'after';
+  }
+
+  return 'inside';
 }
 
-function getAbsoluteBeatForSheetPixel(pixel: number, metrics: SheetMeasureMetric[]): number {
-  if (metrics.length === 0) {
-    return 0;
+export function createPendingModeSwitchRequest({
+  playheadBeat,
+  regionStartBeat,
+  regionEndBeat,
+  sourceSheetMusicViewEnabled,
+  destinationSheetMusicViewEnabled,
+  destinationSheetMusicTrackScopeEnabled,
+}: ModeSwitchRequestOptions): PendingModeSwitchRequest {
+  const relation = getRegionPlayheadRelation(playheadBeat, regionStartBeat, regionEndBeat);
+  const enteringTrackScopeSheet = (
+    !sourceSheetMusicViewEnabled &&
+    destinationSheetMusicViewEnabled &&
+    destinationSheetMusicTrackScopeEnabled
+  );
+
+  if (relation === 'inside') {
+    return {
+      sourceSheetMusicViewEnabled,
+      destinationSheetMusicViewEnabled,
+      destinationSheetMusicTrackScopeEnabled,
+      alignment: 'center',
+      anchorBeat: playheadBeat,
+      clampScope: destinationSheetMusicTrackScopeEnabled ? 'track' : 'region',
+    };
   }
 
-  const firstMetric = metrics[0];
-  if (pixel <= firstMetric.leftPx) {
-    return firstMetric.startBeat;
+  if (enteringTrackScopeSheet) {
+    return {
+      sourceSheetMusicViewEnabled,
+      destinationSheetMusicViewEnabled,
+      destinationSheetMusicTrackScopeEnabled,
+      alignment: 'center',
+      anchorBeat: playheadBeat,
+      clampScope: 'track',
+    };
   }
 
-  const lastMetric = metrics[metrics.length - 1];
-  if (pixel >= lastMetric.leftPx + lastMetric.widthPx) {
-    return lastMetric.endBeat;
-  }
-
-  const activeMetric = metrics.find((metric) => (
-    pixel >= metric.leftPx && pixel < metric.leftPx + metric.widthPx
-  ));
-
-  if (!activeMetric) {
-    return lastMetric.endBeat;
-  }
-
-  const progress = activeMetric.widthPx > 0 ? (pixel - activeMetric.leftPx) / activeMetric.widthPx : 0;
-  return activeMetric.startBeat + progress * (activeMetric.endBeat - activeMetric.startBeat);
+  return {
+    sourceSheetMusicViewEnabled,
+    destinationSheetMusicViewEnabled,
+    destinationSheetMusicTrackScopeEnabled,
+    alignment: relation === 'before' ? 'region-start' : 'region-end',
+    anchorBeat: relation === 'before' ? regionStartBeat : regionEndBeat,
+    clampScope: 'region',
+  };
 }
 
-function getScrollLeftForBeat({
-  anchorBeat,
-  container,
-  sheetMusicViewEnabled,
-  sheetMeasureMetrics,
-  activeRegionStartBeat,
-}: ScrollLeftForBeatOptions): number {
-  const pixelPosition = sheetMusicViewEnabled
-    ? getSheetPlayheadPixel(Math.max(0, anchorBeat - activeRegionStartBeat), sheetMeasureMetrics)
-    : (() => {
-        const beatWidth = parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-        ) || 40;
-        return anchorBeat * beatWidth;
-      })();
-
+function getHorizontalViewportMetrics(container: HTMLDivElement, sheetMusicViewEnabled: boolean): {
+  visibleWidth: number;
+  keysWidth: number;
+} {
   const keysWidth = sheetMusicViewEnabled
     ? 0
     : (parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
       ) || 60);
-  const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
-  const unclampedScrollLeft = pixelPosition - visibleMusicWidth / 2;
 
-  return Math.max(0, Math.min(unclampedScrollLeft, container.scrollWidth - container.clientWidth));
+  return {
+    visibleWidth: Math.max(0, container.clientWidth - keysWidth),
+    keysWidth,
+  };
+}
+
+function getPixelForAbsoluteBeat(
+  beat: number,
+  sheetMusicViewEnabled: boolean,
+  sheetMusicTrackScopeEnabled: boolean,
+  sheetMeasureMetrics: SheetMeasureMetric[],
+  activeRegionStartBeat: number
+): number {
+  if (sheetMusicViewEnabled) {
+    return getSheetPlayheadPixel(
+      sheetMusicTrackScopeEnabled
+        ? Math.max(0, beat)
+        : Math.max(0, beat - activeRegionStartBeat),
+      sheetMeasureMetrics
+    );
+  }
+
+  const beatWidth = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+  ) || 40;
+  return beat * beatWidth;
+}
+
+function getScopeBoundsInPixels(
+  request: PendingModeSwitchRequest,
+  sheetMeasureMetrics: SheetMeasureMetric[],
+  activeRegionStartBeat: number,
+  activeRegionEndBeat: number,
+  songEndBeat: number
+): { startPx: number; endPx: number } {
+  if (request.destinationSheetMusicViewEnabled) {
+    if (request.clampScope === 'track') {
+      return {
+        startPx: getSheetPlayheadPixel(0, sheetMeasureMetrics),
+        endPx: getSheetPlayheadPixel(songEndBeat, sheetMeasureMetrics),
+      };
+    }
+
+    return {
+      startPx: getSheetPlayheadPixel(0, sheetMeasureMetrics),
+      endPx: getSheetPlayheadPixel(activeRegionEndBeat - activeRegionStartBeat, sheetMeasureMetrics),
+    };
+  }
+
+  const beatWidth = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+  ) || 40;
+
+  if (request.clampScope === 'track') {
+    return {
+      startPx: 0,
+      endPx: songEndBeat * beatWidth,
+    };
+  }
+
+  return {
+    startPx: activeRegionStartBeat * beatWidth,
+    endPx: activeRegionEndBeat * beatWidth,
+  };
+}
+
+function clampScrollLeftToContainer(container: HTMLDivElement, scrollLeft: number): number {
+  return Math.max(0, Math.min(scrollLeft, container.scrollWidth - container.clientWidth));
+}
+
+function getCenteredScrollLeft({
+  pixelPosition,
+  visibleWidth,
+  scopeStartPx,
+  scopeEndPx,
+  container,
+}: {
+  pixelPosition: number;
+  visibleWidth: number;
+  scopeStartPx: number;
+  scopeEndPx: number;
+  container: HTMLDivElement;
+}): number {
+  const unclamped = pixelPosition - visibleWidth / 2;
+  const maxScopeScrollLeft = Math.max(scopeStartPx, scopeEndPx - visibleWidth);
+  const clampedToScope = Math.max(scopeStartPx, Math.min(unclamped, maxScopeScrollLeft));
+  return clampScrollLeftToContainer(container, clampedToScope);
+}
+
+function getRegionEndAlignedScrollLeft({
+  visibleWidth,
+  scopeEndPx,
+  container,
+}: {
+  visibleWidth: number;
+  scopeEndPx: number;
+  container: HTMLDivElement;
+}): number {
+  return clampScrollLeftToContainer(container, Math.max(0, scopeEndPx - visibleWidth));
+}
+
+export function getScrollLeftForViewportRequest({
+  request,
+  container,
+  sheetMeasureMetrics,
+  activeRegionStartBeat,
+  activeRegionEndBeat,
+  songEndBeat,
+}: ScrollLeftForViewportRequestOptions): number {
+  const { visibleWidth } = getHorizontalViewportMetrics(
+    container,
+    request.destinationSheetMusicViewEnabled
+  );
+  const pixelPosition = getPixelForAbsoluteBeat(
+    request.anchorBeat,
+    request.destinationSheetMusicViewEnabled,
+    request.destinationSheetMusicTrackScopeEnabled,
+    sheetMeasureMetrics,
+    activeRegionStartBeat
+  );
+  const { startPx, endPx } = getScopeBoundsInPixels(
+    request,
+    sheetMeasureMetrics,
+    activeRegionStartBeat,
+    activeRegionEndBeat,
+    songEndBeat
+  );
+
+  if (request.alignment === 'region-start') {
+    return clampScrollLeftToContainer(container, startPx);
+  }
+
+  if (request.alignment === 'region-end') {
+    return getRegionEndAlignedScrollLeft({
+      visibleWidth,
+      scopeEndPx: endPx,
+      container,
+    });
+  }
+
+  return getCenteredScrollLeft({
+    pixelPosition,
+    visibleWidth,
+    scopeStartPx: startPx,
+    scopeEndPx: endPx,
+    container,
+  });
 }

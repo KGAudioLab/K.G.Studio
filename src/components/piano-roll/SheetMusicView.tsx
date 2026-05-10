@@ -8,6 +8,7 @@ import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import type { SheetMeasureMetric, SheetMeasureModel, SheetQuantization } from './sheetNotationTypes';
 import {
   buildSheetMeasureMetrics,
+  getSheetBeatAtPixel,
   buildSheetMeasureModels,
   getSheetPlayheadPixel,
   projectKeySignatureToVexFlow,
@@ -18,6 +19,9 @@ import {
 
 interface SheetMusicViewProps {
   activeRegion: KGMidiRegion | null;
+  midiRegions: KGMidiRegion[];
+  maxBars: number;
+  sheetMusicTrackScopeEnabled: boolean;
   timeSignature: { numerator: number; denominator: number };
   keySignature: KeySignature;
   instrument: InstrumentType;
@@ -50,6 +54,9 @@ const STAFF_HEIGHT = 132;
 const FIRST_MEASURE_MODIFIER_WIDTH = 72;
 const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   activeRegion,
+  midiRegions,
+  maxBars,
+  sheetMusicTrackScopeEnabled,
   timeSignature,
   keySignature,
   instrument,
@@ -66,8 +73,10 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   const lastDrawSignatureRef = useRef<string | null>(null);
   const vexKeySignature = useMemo(() => projectKeySignatureToVexFlow(keySignature), [keySignature]);
   const startingBarNumber = useMemo(() => (
-    activeRegion ? Math.floor(activeRegion.getStartFromBeat() / timeSignature.numerator) + 1 : 1
-  ), [activeRegion, timeSignature.numerator]);
+    sheetMusicTrackScopeEnabled
+      ? 1
+      : (activeRegion ? Math.floor(activeRegion.getStartFromBeat() / timeSignature.numerator) + 1 : 1)
+  ), [activeRegion, sheetMusicTrackScopeEnabled, timeSignature.numerator]);
 
   const measureModels = useMemo<SheetMeasureModel[]>(() => {
     if (!activeRegion) {
@@ -75,11 +84,14 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     }
 
     return buildSheetMeasureModels({
+      scope: sheetMusicTrackScopeEnabled ? 'track' : 'region',
       region: activeRegion,
+      regions: midiRegions,
+      projectMaxBars: maxBars,
       timeSignature,
       quantization,
     });
-  }, [activeRegion, timeSignature, quantization]);
+  }, [activeRegion, maxBars, midiRegions, quantization, sheetMusicTrackScopeEnabled, timeSignature]);
   const measureWidths = useMemo(
     () => measureModels.map((measure, index) => (
       Math.max(
@@ -95,13 +107,16 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       return 'treble';
     }
 
-    return resolveSheetClef(activeRegion.getNotes(), instrument, true);
-  }, [activeRegion, instrument]);
+    const notes = sheetMusicTrackScopeEnabled
+      ? midiRegions.flatMap(region => region.getNotes())
+      : activeRegion.getNotes();
+    return resolveSheetClef(notes, instrument, true);
+  }, [activeRegion, instrument, midiRegions, sheetMusicTrackScopeEnabled]);
   const drawSignature = useMemo(() => JSON.stringify({
     regionId: activeRegion?.getId() ?? null,
-    regionName: activeRegion?.getName() ?? null,
-    regionStartBeat: activeRegion?.getStartFromBeat() ?? null,
-    regionLength: activeRegion?.getLength() ?? null,
+    regionIds: midiRegions.map(region => region.getId()),
+    scope: sheetMusicTrackScopeEnabled ? 'track' : 'region',
+    maxBars,
     bars: measureModels.length,
     clef,
     instrument,
@@ -111,7 +126,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     denominator: timeSignature.denominator,
     measureWidths,
     eventCounts: measureModels.map((measure) => measure.events.length),
-  }), [activeRegion, clef, instrument, keySignature, measureModels, measureWidths, quantization.raw, timeSignature]);
+  }), [activeRegion, clef, instrument, keySignature, maxBars, measureModels, measureWidths, midiRegions, quantization.raw, sheetMusicTrackScopeEnabled, timeSignature]);
 
   useEffect(() => {
     if (!activeRegion) {
@@ -126,7 +141,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       return;
     }
 
-    const nextMetrics = buildSheetMeasureMetrics(measureWidths, timeSignature.numerator);
+    const nextMetrics = buildSheetMeasureMetrics(measureModels, measureWidths);
     const renderedEvents: RenderedSheetEvent[] = [];
 
     measureModels.forEach((measure, index) => {
@@ -217,7 +232,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     });
     setTiePaths((current) => (
       current.length === nextTiePaths.length &&
-      current.every((path, index) => path.id === nextTiePaths[index].id && path.d === nextTiePaths[index].d)
+        current.every((path, index) => path.id === nextTiePaths[index].id && path.d === nextTiePaths[index].d)
         ? current
         : nextTiePaths
     ));
@@ -239,10 +254,10 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       return;
     }
 
-    const localX = relativeX - metric.leftPx;
-    const progress = metric.widthPx > 0 ? localX / metric.widthPx : 0;
-    const regionBeat = metric.startBeat + progress * (metric.endBeat - metric.startBeat);
-    const absoluteBeat = activeRegion.getStartFromBeat() + regionBeat;
+    const targetBeat = getSheetBeatAtPixel(relativeX, metrics);
+    const absoluteBeat = sheetMusicTrackScopeEnabled
+      ? targetBeat
+      : activeRegion.getStartFromBeat() + targetBeat;
 
     setPlayheadPosition(absoluteBeat);
     requestMainContentScroll(absoluteBeat);
@@ -262,9 +277,9 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
         ))}
       </div>
       <div className="sheet-music-strip">
-        <div className="sheet-music-notice">
+        {/* <div className="sheet-music-notice">
           Sheet music view is under development and may not fully reflect the exact musical notation.
-        </div>
+        </div> */}
         <div className="sheet-music-measures">
           <svg
             className="sheet-music-ties"
@@ -277,7 +292,11 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
               <path key={tiePath.id} d={tiePath.d} className="sheet-music-tie-path" />
             ))}
           </svg>
-          <SheetMusicPlayhead activeRegion={activeRegion} metrics={metrics} />
+          <SheetMusicPlayhead
+            activeRegion={activeRegion}
+            metrics={metrics}
+            sheetMusicTrackScopeEnabled={sheetMusicTrackScopeEnabled}
+          />
           {measureModels.map((measure, index) => (
             <div
               key={`sheet-measure-${measure.barIndex}`}
@@ -305,9 +324,14 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 interface SheetMusicPlayheadProps {
   activeRegion: KGMidiRegion | null;
   metrics: SheetMeasureMetric[];
+  sheetMusicTrackScopeEnabled: boolean;
 }
 
-const SheetMusicPlayhead: React.FC<SheetMusicPlayheadProps> = memo(({ activeRegion, metrics }) => {
+const SheetMusicPlayhead: React.FC<SheetMusicPlayheadProps> = memo(({
+  activeRegion,
+  metrics,
+  sheetMusicTrackScopeEnabled,
+}) => {
   const playheadPosition = useProjectStore(state => state.playheadPosition);
 
   const playheadPixel = useMemo(() => {
@@ -316,10 +340,12 @@ const SheetMusicPlayhead: React.FC<SheetMusicPlayheadProps> = memo(({ activeRegi
     }
 
     return getSheetPlayheadPixel(
-      Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
+      sheetMusicTrackScopeEnabled
+        ? Math.max(0, playheadPosition)
+        : Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
       metrics
     );
-  }, [activeRegion, metrics, playheadPosition]);
+  }, [activeRegion, metrics, playheadPosition, sheetMusicTrackScopeEnabled]);
 
   return <Playhead context="piano-roll" pixelPositionOverride={playheadPixel} />;
 });
@@ -330,6 +356,10 @@ const arePropsEqual = (previous: SheetMusicViewProps, next: SheetMusicViewProps)
     previous.activeRegion?.getName() === next.activeRegion?.getName() &&
     previous.activeRegion?.getLength() === next.activeRegion?.getLength() &&
     previous.activeRegion?.getStartFromBeat() === next.activeRegion?.getStartFromBeat() &&
+    previous.midiRegions.length === next.midiRegions.length &&
+    previous.midiRegions.every((region, index) => region.getId() === next.midiRegions[index]?.getId()) &&
+    previous.maxBars === next.maxBars &&
+    previous.sheetMusicTrackScopeEnabled === next.sheetMusicTrackScopeEnabled &&
     previous.instrument === next.instrument &&
     previous.keySignature === next.keySignature &&
     previous.quantization.raw === next.quantization.raw &&
