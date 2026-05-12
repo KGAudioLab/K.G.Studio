@@ -2,6 +2,14 @@ import type { LocalSeparatorModelConfig } from './localSeparatorTypes';
 import { LocalSeparatorCpuDsp } from './localSeparatorCpuDsp';
 import { reflectPad } from './localSeparatorShared';
 
+function localSeparatorLog(message: string, payload?: unknown): void {
+  if (payload === undefined) {
+    console.log(`[localSeparator] ${message}`);
+    return;
+  }
+  console.log(`[localSeparator] ${message}`, payload);
+}
+
 type GPUDeviceLike = any;
 type GPUBufferLike = any;
 type GPUComputePipelineLike = any;
@@ -76,14 +84,22 @@ export class LocalSeparatorGpuDsp {
       throw new Error('WebGPU is not available for GPU DSP.');
     }
 
+    localSeparatorLog('Requesting WebGPU adapter for GPU DSP.');
     const adapter = await (navigator as { gpu?: { requestAdapter: (options: { powerPreference: string }) => Promise<any> } }).gpu?.requestAdapter({
       powerPreference: 'high-performance',
     });
     if (!adapter) {
       throw new Error('No WebGPU adapter was available for GPU DSP.');
     }
+    localSeparatorLog('WebGPU adapter acquired for GPU DSP.', {
+      features: typeof adapter.features?.values === 'function' ? Array.from(adapter.features.values()) : undefined,
+      limits: adapter.limits,
+      info: typeof adapter.info === 'object' ? adapter.info : undefined,
+    });
 
+    localSeparatorLog('Requesting WebGPU device for GPU DSP.');
     const device = await adapter.requestDevice();
+    localSeparatorLog('WebGPU device acquired for GPU DSP.');
     return new LocalSeparatorGpuDsp(config, device);
   }
 
@@ -93,6 +109,7 @@ export class LocalSeparatorGpuDsp {
     this.nFft = config.metadata.mdx_n_fft_scale_set;
     this.hopLength = config.defaults.hopLength;
     this.trim = Math.floor(this.nFft / 2);
+    localSeparatorLog('Creating GPU DSP compute pipeline.');
     this.pipeline = device.createComputePipeline({
       layout: 'auto',
       compute: {
@@ -100,6 +117,7 @@ export class LocalSeparatorGpuDsp {
         entryPoint: 'main',
       },
     });
+    localSeparatorLog('GPU DSP compute pipeline created.');
   }
 
   public async forwardStereo(leftChunk: Float32Array, rightChunk: Float32Array): Promise<{

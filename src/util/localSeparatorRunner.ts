@@ -111,14 +111,21 @@ class BrowserMdxSeparator {
         localSeparatorLog('GPU DSP initialized successfully.');
       } catch (error) {
         console.warn('[localSeparator] GPU DSP initialization failed, using CPU DSP.', error);
-        options.onProviderChange?.('cpu/wasm fallback');
-        localSeparatorLog('GPU DSP initialization failed. Falling back to CPU DSP.', error);
+        options.onProviderChange?.('webgpu + cpu dsp fallback');
+        localSeparatorLog(
+          'GPU DSP initialization failed. Inference session may still use WebGPU, but DSP will fall back to CPU.',
+          error,
+        );
       }
     }
 
     if (!dsp) {
       dsp = new LocalSeparatorCpuDsp(config);
-      localSeparatorLog('Using CPU DSP.');
+      if (runtimeProvider === 'webgpu') {
+        localSeparatorLog('Using CPU DSP while keeping the WebGPU inference provider.');
+      } else {
+        localSeparatorLog('Using CPU DSP because the active inference provider is CPU/wasm.');
+      }
     }
 
     return new BrowserMdxSeparator(session, runtimeProvider, config, {

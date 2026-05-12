@@ -1,6 +1,5 @@
 import * as ort from 'onnxruntime-web/webgpu';
-import ortWasmJsepMjsUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs?url';
-import ortWasmJsepUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?url';
+import ortWasmAsyncifyUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
 import type { LocalRuntimeState, LocalRuntimeSupport, LocalSeparatorModelConfig } from './localSeparatorTypes';
 
 function localSeparatorLog(message: string, payload?: unknown): void {
@@ -45,8 +44,7 @@ export class LocalOrtRuntimeManager {
 
     if (!LocalOrtRuntimeManager.wasmPathsConfigured) {
       ort.env.wasm.wasmPaths = {
-        mjs: ortWasmJsepMjsUrl,
-        wasm: ortWasmJsepUrl,
+        wasm: ortWasmAsyncifyUrl,
       };
       localSeparatorLog('Configured ONNX Runtime wasm paths.', ort.env.wasm.wasmPaths);
       LocalOrtRuntimeManager.wasmPathsConfigured = true;
