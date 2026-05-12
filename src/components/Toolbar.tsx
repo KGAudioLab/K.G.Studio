@@ -961,8 +961,6 @@ const Toolbar: React.FC = () => {
   };
 
   // K.G.One panel toggle
-  const isKGOneEnabled = ConfigManager.instance().get('general.kgone.enabled') as boolean ?? false;
-
   const handleKGOneClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("K.G.One button clicked");
@@ -1241,11 +1239,9 @@ const Toolbar: React.FC = () => {
             </div>
           </div>
           <button
-            title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
+            title="K.G.One Music Generator"
             onClick={handleKGOneClick}
-            disabled={!isKGOneEnabled}
             className={showKGOnePanel ? 'active' : ''}
-            style={!isKGOneEnabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
           >
             <FaWandMagicSparkles />
           </button>

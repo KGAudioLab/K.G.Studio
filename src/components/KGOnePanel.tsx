@@ -15,18 +15,31 @@ import type { KeySignature } from '../core/KGProject';
 import { ImportStemsCommand } from '../core/commands';
 import type { StemImportEntry } from '../core/commands';
 import { showAlert } from '../util/dialogUtil';
+import {
+  LOCAL_SEPARATOR_MODEL_CONFIG,
+  LOCAL_SEPARATOR_MODEL_FILENAME,
+  LOCAL_SEPARATOR_MODEL_URL,
+} from '../util/localSeparatorConfig';
+import { LocalSeparatorModelCache } from '../util/localSeparatorModelCache';
+import { runLocalSeparator } from '../util/localSeparatorRunner';
+import { LocalOrtRuntimeManager, detectLocalRuntimeSupport } from '../util/localSeparatorRuntime';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'clip' | 'fullsong' | 'remix' | 'repaint' | 'separator';
+type KGOneMode = 'server' | 'local-separator';
 
 type GenStatus = 'idle' | 'loading-model' | 'generating' | 'polling' | 'downloading' | 'done' | 'error';
 
-const SEPARATOR_MODELS = [
+const SERVER_SEPARATOR_MODELS = [
   { label: 'Vocal and Instrument (Medium Accuracy)', value: 'UVR-MDX-NET-Inst_HQ_3.onnx' },
   { label: 'Vocal and Instrument (High Accuracy)', value: 'MDX23C-8KFFT-InstVoc_HQ.ckpt' },
   { label: 'Vocal, Drums, Bass, Guitar, Piano, and Others', value: 'htdemucs_6s.yaml' },
 ] as const;
+const LOCAL_SEPARATOR_MODELS = [
+  { label: LOCAL_SEPARATOR_MODEL_CONFIG.displayName, value: LOCAL_SEPARATOR_MODEL_FILENAME },
+] as const;
+const KGONE_TABS = ['fullsong', 'remix', 'repaint', 'separator'] as const;
 
 const CLIP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -57,6 +70,22 @@ function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function formatKGOneTabLabel(tab: Tab): string {
+  if (tab === 'fullsong') return 'Full Song';
+  if (tab === 'remix') return 'Remix';
+  if (tab === 'repaint') return 'Repaint';
+  return 'Separator';
+}
+
+export function getDefaultKGOneTab(mode: KGOneMode): Tab {
+  return mode === 'local-separator' ? 'separator' : 'fullsong';
+}
+
+export function getKGOneMode(): KGOneMode {
+  const enabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
+  return enabled ? 'server' : 'local-separator';
 }
 
 // ─── Shared components ────────────────────────────────────────────────────────
@@ -830,18 +859,33 @@ function countRepaintTracks(sourceTrackName: string): number {
   return tracks.filter(t => pattern.test(t.getName())).length;
 }
 
-const SeparatorTab: React.FC = () => {
+const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
   const { selectedRegionIds, projectName, bpm, timeSignature, maxBars, refreshProjectState } = useProjectStore();
-  const [model, setModel] = useState<typeof SEPARATOR_MODELS[number]['value']>(SEPARATOR_MODELS[0].value);
+  const localOnlyMode = mode === 'local-separator';
+  const availableSeparatorModels = localOnlyMode ? LOCAL_SEPARATOR_MODELS : SERVER_SEPARATOR_MODELS;
+  const [model, setModel] = useState<typeof SERVER_SEPARATOR_MODELS[number]['value']>(availableSeparatorModels[0].value);
 
   // Generation state
   const [genStatus, setGenStatus] = useState<GenStatus>('idle');
   const [genHint, setGenHint] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [stemAudioUrls, setStemAudioUrls] = useState<Array<{ name: string; url: string }>>([]);
+  const runtimeSupport = useMemo(() => detectLocalRuntimeSupport(), []);
+  const [localProviderLabel, setLocalProviderLabel] = useState(
+    runtimeSupport.webgpuExposed ? 'webgpu available' : 'cpu/wasm only',
+  );
+  const [isLocalModelCached, setIsLocalModelCached] = useState(false);
+  const [isCheckingLocalModel, setIsCheckingLocalModel] = useState(false);
+  const [isDownloadingLocalModel, setIsDownloadingLocalModel] = useState(false);
+  const [isDeletingLocalModel, setIsDeletingLocalModel] = useState(false);
+  const [localProgressPercent, setLocalProgressPercent] = useState(0);
+  const [localProgressText, setLocalProgressText] = useState('');
+  const [localChunkDurationSeconds, setLocalChunkDurationSeconds] = useState('');
+  const [localOverlap, setLocalOverlap] = useState(String(LOCAL_SEPARATOR_MODEL_CONFIG.defaults.overlap));
 
   const abortRef = useRef<AbortController | null>(null);
   const taskIdRef = useRef<string>('');
+  const localRuntimeManagerRef = useRef<LocalOrtRuntimeManager | null>(null);
   const originalRegionRef = useRef<{
     regionName: string;
     trackName: string;
@@ -861,6 +905,31 @@ const SeparatorTab: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    setModel(availableSeparatorModels[0].value);
+  }, [availableSeparatorModels]);
+
+  const refreshLocalModelCacheState = useCallback(async () => {
+    if (!localOnlyMode) return;
+    setIsCheckingLocalModel(true);
+    try {
+      setIsLocalModelCached(await LocalSeparatorModelCache.exists());
+    } catch (err) {
+      console.error('[KGOne] Local model cache check failed:', err);
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCheckingLocalModel(false);
+    }
+  }, [localOnlyMode]);
+
+  useEffect(() => {
+    if (!localOnlyMode) return;
+    localRuntimeManagerRef.current = new LocalOrtRuntimeManager({
+      onProviderChange: provider => setLocalProviderLabel(provider),
+    });
+    void refreshLocalModelCacheState();
+  }, [localOnlyMode, refreshLocalModelCacheState]);
+
   const selectedAudioRegion = useMemo(() => {
     if (!selectedRegionIds.length) return null;
     const project = KGCore.instance().getCurrentProject();
@@ -879,7 +948,57 @@ const SeparatorTab: React.FC = () => {
 
   const isGenerating = genStatus !== 'idle' && genStatus !== 'done' && genStatus !== 'error';
 
-  const handleSeparate = useCallback(async () => {
+  const handleDownloadLocalModel = useCallback(async () => {
+    setIsDownloadingLocalModel(true);
+    setErrorMsg('');
+    setLocalProgressPercent(0);
+    setLocalProgressText('Downloading local separator model...');
+
+    try {
+      await LocalSeparatorModelCache.download(
+        LOCAL_SEPARATOR_MODEL_URL,
+        LOCAL_SEPARATOR_MODEL_FILENAME,
+        progress => {
+          const receivedMb = (progress.receivedBytes / (1024 * 1024)).toFixed(1);
+          const totalMb = progress.totalBytes ? (progress.totalBytes / (1024 * 1024)).toFixed(1) : null;
+          setLocalProgressPercent(progress.totalBytes ? progress.percent : 0);
+          setLocalProgressText(
+            totalMb
+              ? `Downloading local separator model... ${receivedMb} / ${totalMb} MB`
+              : `Downloading local separator model... ${receivedMb} MB`,
+          );
+        },
+      );
+      setLocalProgressPercent(100);
+      setLocalProgressText('Local separator model is ready.');
+      await refreshLocalModelCacheState();
+    } catch (err) {
+      setLocalProgressPercent(0);
+      setLocalProgressText('');
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsDownloadingLocalModel(false);
+    }
+  }, [refreshLocalModelCacheState]);
+
+  const handleDeleteLocalModel = useCallback(async () => {
+    setIsDeletingLocalModel(true);
+    setErrorMsg('');
+    try {
+      await LocalSeparatorModelCache.delete();
+      localRuntimeManagerRef.current?.reset();
+      setLocalProviderLabel(runtimeSupport.webgpuExposed ? 'webgpu available' : 'cpu/wasm only');
+      setLocalProgressPercent(0);
+      setLocalProgressText('');
+      await refreshLocalModelCacheState();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsDeletingLocalModel(false);
+    }
+  }, [refreshLocalModelCacheState, runtimeSupport.webgpuExposed]);
+
+  const handleSeparateServer = useCallback(async () => {
     if (!selectedAudioRegion) return;
 
     // Capture snapshot before anything changes — selection may shift during generation
@@ -1052,7 +1171,107 @@ const SeparatorTab: React.FC = () => {
       setGenStatus('error');
       setGenHint('');
     }
-  }, [selectedAudioRegion, projectName, model, stemAudioUrls]);
+  }, [selectedAudioRegion, projectName, model, stemAudioUrls, bpm]);
+
+  const handleSeparateLocal = useCallback(async () => {
+    if (!selectedAudioRegion || !isLocalModelCached) return;
+
+    originalRegionRef.current = {
+      regionName: selectedAudioRegion.region.getName(),
+      trackName: selectedAudioRegion.trackName,
+      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      trackIndex: selectedAudioRegion.trackIndex,
+    };
+    setImportError('');
+    stemAudioUrls.forEach(s => URL.revokeObjectURL(s.url));
+    setStemAudioUrls([]);
+    setErrorMsg('');
+    setGenStatus('loading-model');
+    setLocalProgressPercent(0);
+    setLocalProgressText('Preparing ONNX Runtime session...');
+    setLocalProviderLabel(runtimeSupport.webgpuExposed ? 'webgpu available' : 'cpu/wasm only');
+
+    try {
+      const modelBuffer = await LocalSeparatorModelCache.getArrayBuffer();
+      const runtimeManager = localRuntimeManagerRef.current ?? new LocalOrtRuntimeManager({
+        onProviderChange: provider => setLocalProviderLabel(provider),
+      });
+      localRuntimeManagerRef.current = runtimeManager;
+      const runtime = await runtimeManager.ensureRuntime(LOCAL_SEPARATOR_MODEL_CONFIG, new Uint8Array(modelBuffer));
+
+      setGenStatus('generating');
+      setLocalProgressPercent(3);
+      setLocalProgressText('Reading audio file...');
+
+      const audioFileId = selectedAudioRegion.region.getAudioFileId();
+      const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
+      const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
+      const regionLengthSec = selectedAudioRegion.region.getLength() * (60 / bpm);
+      const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
+
+      const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
+      const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
+      const inputBuffer = needsSlice
+        ? await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration)
+        : rawBuffer;
+
+      setGenStatus('polling');
+      setLocalProgressPercent(5);
+      setLocalProgressText('Running browser separation...');
+
+      const chunkDuration = localChunkDurationSeconds.trim()
+        ? Number.parseFloat(localChunkDurationSeconds)
+        : null;
+      const overlapValue = Number.parseFloat(localOverlap);
+
+      const result = await runLocalSeparator({
+        session: runtime.session,
+        runtimeProvider: runtime.provider,
+        modelConfig: LOCAL_SEPARATOR_MODEL_CONFIG,
+        audioBuffer: inputBuffer,
+        chunkDurationSeconds: Number.isFinite(chunkDuration) && (chunkDuration ?? 0) > 0 ? chunkDuration : null,
+        overlap: Number.isFinite(overlapValue) ? overlapValue : LOCAL_SEPARATOR_MODEL_CONFIG.defaults.overlap,
+        onProviderChange: provider => setLocalProviderLabel(provider),
+        onProgress: progress => {
+          setLocalProgressPercent(progress.percent);
+          const chunkSuffix = progress.totalChunks ? ` (${progress.processedChunks}/${progress.totalChunks} chunks)` : '';
+          setLocalProgressText(`${progress.passLabel}${chunkSuffix}`);
+        },
+      });
+
+      taskIdRef.current = `local_${Date.now()}`;
+      const nextStemAudioUrls = result.stems.map(stem => ({
+        name: stem.name,
+        url: URL.createObjectURL(stem.blob),
+      }));
+      setStemAudioUrls(nextStemAudioUrls);
+      setGenStatus('done');
+      setLocalProgressPercent(100);
+      setLocalProgressText('Separation complete.');
+      kgoneLog('RES', 'local separator summary', result.debugSummary);
+    } catch (err) {
+      console.error('[KGOne] Local separator error:', err);
+      setGenStatus('error');
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    }
+  }, [
+    selectedAudioRegion,
+    isLocalModelCached,
+    stemAudioUrls,
+    runtimeSupport.webgpuExposed,
+    bpm,
+    projectName,
+    localChunkDurationSeconds,
+    localOverlap,
+  ]);
+
+  const handleSeparate = useCallback(async () => {
+    if (localOnlyMode) {
+      await handleSeparateLocal();
+      return;
+    }
+    await handleSeparateServer();
+  }, [handleSeparateLocal, handleSeparateServer, localOnlyMode]);
 
   const handleImportAll = useCallback(async () => {
     const snap = originalRegionRef.current;
@@ -1068,9 +1287,9 @@ const SeparatorTab: React.FC = () => {
       const stems: StemImportEntry[] = await Promise.all(
         stemAudioUrls.map(async (stem) => {
           const blob = await fetch(stem.url).then(r => r.blob());
-          const fileName = `KGOne_Stem_${stem.name}_${taskIdRef.current}.mp3`;
+          const fileName = `KGOne_Stem_${stem.name}_${taskIdRef.current}.${localOnlyMode ? 'wav' : 'mp3'}`;
           const fileId = `kgone_stem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-          const audioFile = new File([blob], fileName, { type: 'audio/mpeg' });
+          const audioFile = new File([blob], fileName, { type: localOnlyMode ? 'audio/wav' : 'audio/mpeg' });
 
           const arrayBuffer = await blob.arrayBuffer();
           const toneBuffer = new Tone.ToneAudioBuffer();
@@ -1114,9 +1333,19 @@ const SeparatorTab: React.FC = () => {
     } finally {
       setIsImporting(false);
     }
-  }, [stemAudioUrls, projectName, maxBars, refreshProjectState]);
+  }, [stemAudioUrls, projectName, maxBars, refreshProjectState, localOnlyMode]);
 
   const btnLabel = () => {
+    if (localOnlyMode) {
+      switch (genStatus) {
+        case 'loading-model': return 'Preparing local model...';
+        case 'generating': return 'Preparing audio...';
+        case 'polling': return 'Separating locally...';
+        case 'downloading': return 'Finalizing...';
+        default: return 'Separate Stems';
+      }
+    }
+
     switch (genStatus) {
       case 'loading-model': return 'Loading model...';
       case 'generating': return 'Preparing upload...';
@@ -1128,6 +1357,68 @@ const SeparatorTab: React.FC = () => {
 
   return (
     <>
+      {localOnlyMode && (
+        <div className="kgone-local-mode-card">
+          <div className="kgone-local-mode-title">Local Separator Mode</div>
+          <div className="kgone-local-mode-text">
+            Only Vocal and Instrument (Medium Accuracy) is available while not integrated with K.G.One Music Studio server.
+            Processing in local may take long time depending on your hardware. When fallback to CPU happens, the webpage may
+            temporarily hang with little or no UI response until processing advances.
+          </div>
+          <div className="kgone-runtime-row">
+            <div className="kgone-provider-chip">Provider: {localProviderLabel}</div>
+            <div className="kgone-provider-chip">Model: {isLocalModelCached ? 'downloaded' : 'not downloaded'}</div>
+          </div>
+          {(localProgressText || isCheckingLocalModel) && (
+            <div className="kgone-progress-block">
+              <div
+                className="kgone-progress-track"
+                role="progressbar"
+                aria-valuenow={Math.round(localProgressPercent)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div className="kgone-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localProgressPercent))}%` }} />
+              </div>
+              <div className="kgone-gen-hint">
+                {isCheckingLocalModel ? 'Checking local model cache...' : localProgressText}
+              </div>
+            </div>
+          )}
+          <div className="kgone-row">
+            {!isLocalModelCached ? (
+              <button
+                className="kgone-btn-secondary"
+                type="button"
+                disabled={isCheckingLocalModel || isDownloadingLocalModel || isDeletingLocalModel || isGenerating}
+                onClick={() => void handleDownloadLocalModel()}
+              >
+                {isDownloadingLocalModel ? 'Downloading Model...' : 'Download Model'}
+              </button>
+            ) : (
+              <>
+                <button
+                  className="kgone-btn-secondary"
+                  type="button"
+                  disabled={isCheckingLocalModel || isDownloadingLocalModel || isDeletingLocalModel || isGenerating}
+                  onClick={() => void handleDownloadLocalModel()}
+                >
+                  {isDownloadingLocalModel ? 'Redownloading...' : 'Redownload Model'}
+                </button>
+                <button
+                  className="kgone-btn-secondary kgone-btn-danger"
+                  type="button"
+                  disabled={isCheckingLocalModel || isDownloadingLocalModel || isDeletingLocalModel || isGenerating}
+                  onClick={() => void handleDeleteLocalModel()}
+                >
+                  {isDeletingLocalModel ? 'Deleting...' : 'Delete Cached Model'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {selectedAudioRegion ? (
         <>
           <div className="kgone-region-info">
@@ -1139,13 +1430,43 @@ const SeparatorTab: React.FC = () => {
 
           <div className="kgone-field">
             <label className="kgone-label">Separation Model</label>
-            <select className="kgone-select" value={model} onChange={e => setModel(e.target.value as typeof SEPARATOR_MODELS[number]['value'])}>
-
-              {SEPARATOR_MODELS.map(m => (
+            <select className="kgone-select" value={model} onChange={e => setModel(e.target.value as typeof SERVER_SEPARATOR_MODELS[number]['value'])}>
+              {availableSeparatorModels.map(m => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
           </div>
+
+          {localOnlyMode && (
+            <Expander label="Advanced Settings">
+              <div className="kgone-field">
+                <label className="kgone-label">Optional audio chunk duration (seconds)</label>
+                <input
+                  className="kgone-input"
+                  aria-label="Optional audio chunk duration (seconds)"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={localChunkDurationSeconds}
+                  onChange={e => setLocalChunkDurationSeconds(e.target.value)}
+                  placeholder="Leave blank to process the full region"
+                />
+              </div>
+              <div className="kgone-field">
+                <label className="kgone-label">MDX overlap</label>
+                <input
+                  className="kgone-input"
+                  aria-label="MDX overlap"
+                  type="number"
+                  min={0.001}
+                  max={0.999}
+                  step={0.01}
+                  value={localOverlap}
+                  onChange={e => setLocalOverlap(e.target.value)}
+                />
+              </div>
+            </Expander>
+          )}
 
           {/* Stem audio players — shown once separation is complete */}
           {stemAudioUrls.length > 0 && (
@@ -1156,7 +1477,7 @@ const SeparatorTab: React.FC = () => {
                   <AudioPlayer
                     src={stem.url}
                     dragData={taskIdRef.current ? {
-                      audioFileName: `KGOne_Stem_${stem.name}_${taskIdRef.current}.mp3`,
+                      audioFileName: `KGOne_Stem_${stem.name}_${taskIdRef.current}.${localOnlyMode ? 'wav' : 'mp3'}`,
                     } : undefined}
                   />
                 </div>
@@ -1195,7 +1516,7 @@ const SeparatorTab: React.FC = () => {
 
           <button
             className="kgone-btn-generate"
-            disabled={isGenerating}
+            disabled={isGenerating || (localOnlyMode && !isLocalModelCached)}
             onClick={handleSeparate}
           >
             {isGenerating && <FaCircleNotch className="kgone-spinner" />}
@@ -1203,18 +1524,23 @@ const SeparatorTab: React.FC = () => {
           </button>
 
           {/* Status hint below button */}
-          {genHint && <div className="kgone-gen-hint">{genHint}</div>}
+          {(localOnlyMode ? localProgressText : genHint) && (
+            <div className="kgone-gen-hint">{localOnlyMode ? localProgressText : genHint}</div>
+          )}
         </>
       ) : (
         <div className="kgone-separator-hint">
-          Select an audio region on the timeline to extract stems from it.
-          Only audio regions are supported — MIDI regions cannot be separated.
+          {localOnlyMode && !isLocalModelCached
+            ? 'Download the local separator model, then select an audio region on the timeline to extract stems from it.'
+            : 'Select an audio region on the timeline to extract stems from it. Only audio regions are supported — MIDI regions cannot be separated.'}
         </div>
       )}
 
-      <div className="kgone-powered-by">
-        Powered by <a href="https://github.com/nomadkaraoke/python-audio-separator" target="_blank" rel="noopener noreferrer">UVR5 CLI</a>
-      </div>
+      {!localOnlyMode && (
+        <div className="kgone-powered-by">
+          Powered by <a href="https://github.com/nomadkaraoke/python-audio-separator" target="_blank" rel="noopener noreferrer">UVR5 CLI</a>
+        </div>
+      )}
     </>
   );
 };
@@ -2228,8 +2554,21 @@ interface KGOnePanelProps {
 }
 
 const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('fullsong');
+  const mode = getKGOneMode();
+  const [activeTab, setActiveTab] = useState<Tab>(getDefaultKGOneTab(mode));
   const { bpm, keySignature } = useProjectStore();
+  const disabledTabs = mode === 'local-separator'
+    ? new Set<Tab>(['fullsong', 'remix', 'repaint'])
+    : new Set<Tab>();
+
+  useEffect(() => {
+    setActiveTab(current => {
+      if (disabledTabs.has(current)) {
+        return 'separator';
+      }
+      return getDefaultKGOneTab(mode) === 'separator' ? 'separator' : current;
+    });
+  }, [mode]);
 
   return (
     <div className={`kgone-panel${isVisible ? '' : ' is-hidden'}`}>
@@ -2239,16 +2578,17 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
 
       <div className="kgone-tabs">
         {/* Clip tab temporarily disabled, will enable in the future */}
-        {(['fullsong', 'remix', 'repaint', 'separator'] as const).map(tab => (
+        {KGONE_TABS.map(tab => (
           <button
             key={tab}
-            className={`kgone-tab${activeTab === tab ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab)}
+            className={`kgone-tab${activeTab === tab ? ' active' : ''}${disabledTabs.has(tab) ? ' is-disabled' : ''}`}
+            onClick={() => {
+              if (disabledTabs.has(tab)) return;
+              setActiveTab(tab);
+            }}
+            disabled={disabledTabs.has(tab)}
           >
-            {tab === 'fullsong' ? 'Full Song'
-              : tab === 'remix' ? 'Remix'
-              : tab === 'repaint' ? 'Repaint'
-              : 'Separator'}
+            {formatKGOneTabLabel(tab)}
           </button>
         ))}
       </div>
@@ -2259,7 +2599,7 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
         {activeTab === 'fullsong' && <FullSongTab />}
         {activeTab === 'remix' && <RemixTab />}
         {activeTab === 'repaint' && <RepaintTab />}
-        {activeTab === 'separator' && <SeparatorTab />}
+        {activeTab === 'separator' && <SeparatorTab mode={mode} />}
       </div>
     </div>
   );
