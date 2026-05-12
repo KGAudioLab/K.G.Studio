@@ -329,7 +329,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       setGenStatus('polling');
       setGenHint('Generating clip...');
 
-       
+
       while (true) {
         if (signal.aborted) return;
 
@@ -655,7 +655,7 @@ const FullSongTab: React.FC = () => {
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-       
+
       while (true) {
         if (signal.aborted) return;
 
@@ -905,6 +905,19 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reset separator results whenever the active project changes
+  useEffect(() => {
+    stemAudioUrls.forEach(s => URL.revokeObjectURL(s.url));
+    setStemAudioUrls([]);
+    setGenStatus('idle');
+    setGenHint('');
+    setErrorMsg('');
+    setIsImporting(false);
+    setImportError('');
+    originalRegionRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectName]);
+
   useEffect(() => {
     setModel(availableSeparatorModels[0].value);
   }, [availableSeparatorModels]);
@@ -1116,7 +1129,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       let files: string[] = [];
 
-       
+
       while (true) {
         if (signal.aborted) return;
 
@@ -1363,7 +1376,8 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
           <div className="kgone-local-mode-text">
             Only Vocal and Instrument (Medium Accuracy) is available while not integrated with K.G.One Music Studio server.
             Processing in local may take long time depending on your hardware. When fallback to CPU happens, the webpage may
-            temporarily hang with little or no UI response until processing advances.
+            temporarily hang with little or no UI response until processing advances.{' '}
+            <a href="https://github.com/KGAudioLab/K.G.One" target="_blank" rel="noopener noreferrer">Learn more about K.G.One Music Studio server integration.</a>
           </div>
           <div className="kgone-runtime-row">
             <div className="kgone-provider-chip">Provider: {localProviderLabel}</div>
@@ -1740,7 +1754,7 @@ const RemixTab: React.FC = () => {
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-       
+
       while (true) {
         if (signal.aborted) return;
 
@@ -2021,7 +2035,7 @@ const RemixTab: React.FC = () => {
 
 const RepaintTab: React.FC = () => {
   const { selectedRegionIds, projectName, bpm, timeSignature, maxBars,
-          isLooping, loopingRange, refreshProjectState } = useProjectStore();
+    isLooping, loopingRange, refreshProjectState } = useProjectStore();
 
   // Form state (mirrors FullSongTab)
   const [caption, setCaption] = useState('');
@@ -2258,7 +2272,7 @@ const RepaintTab: React.FC = () => {
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-       
+
       while (true) {
         if (signal.aborted) return;
 
@@ -2573,24 +2587,37 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
   return (
     <div className={`kgone-panel${isVisible ? '' : ' is-hidden'}`}>
       <div className="kgone-panel-header">
-        <h3>K.G.One Music Generator</h3>
+        <h3>{mode === 'local-separator' ? 'Music Generator' : 'K.G.One Music Generator'}</h3>
       </div>
 
       <div className="kgone-tabs">
         {/* Clip tab temporarily disabled, will enable in the future */}
-        {KGONE_TABS.map(tab => (
-          <button
-            key={tab}
-            className={`kgone-tab${activeTab === tab ? ' active' : ''}${disabledTabs.has(tab) ? ' is-disabled' : ''}`}
-            onClick={() => {
-              if (disabledTabs.has(tab)) return;
-              setActiveTab(tab);
-            }}
-            disabled={disabledTabs.has(tab)}
-          >
-            {formatKGOneTabLabel(tab)}
-          </button>
-        ))}
+        {KGONE_TABS.map(tab => {
+          const isDisabled = disabledTabs.has(tab);
+          const button = (
+            <button
+              key={tab}
+              className={`kgone-tab${activeTab === tab ? ' active' : ''}${isDisabled ? ' is-disabled' : ''}`}
+              onClick={() => {
+                if (isDisabled) return;
+                setActiveTab(tab);
+              }}
+              disabled={isDisabled}
+              style={isDisabled ? { width: '100%' } : undefined}
+            >
+              {formatKGOneTabLabel(tab)}
+            </button>
+          );
+          return isDisabled ? (
+            <span
+              key={tab}
+              title="Requires K.G.One Music Studio server integration"
+              style={{ flex: 1 }}
+            >
+              {button}
+            </span>
+          ) : button;
+        })}
       </div>
 
       <div className="kgone-panel-body">

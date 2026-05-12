@@ -654,6 +654,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           trackIndex={index}
           previewWaveformPeaks={recordingAudioPreviewPeaks}
           isPreview
+          isAudioRegion
         />
       )}
       {isAutomationActive && activeTrackAutomationType && (

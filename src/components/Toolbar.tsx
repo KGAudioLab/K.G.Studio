@@ -122,6 +122,30 @@ const Toolbar: React.FC = () => {
       return;
     }
 
+    // Untitled Project is ephemeral — no existing save to preserve, so rename directly
+    if (savedProjectName === RESERVED_PROJECT_NAME) {
+      const storage = KGProjectStorage.getInstance();
+      const exists = await storage.exists(newName);
+      if (exists) {
+        const confirmed = await showConfirm(
+          `Project "${newName}" already exists. Do you want to overwrite it?`
+        );
+        if (!confirmed) return;
+        setProjectName(newName);
+        await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+          setSavedProjectName(finalName);
+          if (finalName !== newName) setProjectName(finalName);
+        }, true /* forceOverwrite */);
+        return;
+      }
+      setProjectName(newName);
+      await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+        setSavedProjectName(finalName);
+        if (finalName !== newName) setProjectName(finalName);
+      });
+      return;
+    }
+
     // Ask whether the user wants to rename or save as a copy
     const choice = await showChoice(
       "Would you like to rename this project, or save it as a new copy?",

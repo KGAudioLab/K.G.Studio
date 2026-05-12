@@ -591,7 +591,7 @@ const GeneralSettings: React.FC = () => {
               disabled={kgoneServerManaged}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Base URL of a running K.G.One server. Used for full-song generation, clip generation, and stem separation.
+              Base URL of a running K.G.One Music Studio server. Used for full-song generation, clip generation, and stem separation.
             </div>
           </div>
         </div>
