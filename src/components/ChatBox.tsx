@@ -388,37 +388,37 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       </div>
 
       {activeProvider === LOCAL_LLM_PROVIDER_KEY && (
-        <div style={{ padding: '10px 14px 0 14px' }}>
-          <div className="settings-group" style={{ marginBottom: '12px', padding: '14px' }}>
-            <h4 style={{ marginBottom: '10px' }}>{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
+        <div className="chatbox-local-runtime-section">
+          <div className="chatbox-local-runtime-card">
+            <h4 className="chatbox-local-mode-title">{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
             {!localModelState.runtimeSupport.supported && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#d0a56b', marginBottom: '8px' }}>
+              <div className="chatbox-local-runtime-warning">
                 {localModelState.runtimeSupport.reason}
               </div>
             )}
             {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#b0b0b0', marginBottom: '8px' }}>
+              <div className="chatbox-local-runtime-help">
                 The local language model has not been downloaded yet. It will be downloaded automatically the next time you send a chat request with this provider.
               </div>
             )}
             {(localModelState.isChecking || localModelState.isDownloading || localModelState.progressText) && (
-              <div className="settings-progress-block">
+              <div className="chatbox-progress-block">
                 <div
-                  className="settings-progress-track"
+                  className="chatbox-progress-track"
                   role="progressbar"
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={Math.max(0, Math.min(100, localModelState.progressPercent))}
                 >
-                  <div className="settings-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localModelState.progressPercent))}%` }} />
+                  <div className="chatbox-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localModelState.progressPercent))}%` }} />
                 </div>
-                <div className="settings-help" style={{ fontSize: '12px', color: '#b0b0b0', marginTop: '6px' }}>
+                <div className="chatbox-gen-hint">
                   {localModelState.isChecking ? 'Checking local model cache...' : localModelState.progressText}
                 </div>
               </div>
             )}
             {localModelState.error && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a' }}>
+              <div className="chatbox-local-runtime-error">
                 {localModelState.error}
               </div>
             )}
