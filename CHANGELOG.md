@@ -1,3 +1,8 @@
+# [0.17.1-build.20260515] (2026-05-15)
+
+* Merge pull request #42 from KGAudioLab/feat/2026-05-11-embedded-models (796a9cf)
+* fix: remove CORS checking for downloading remote model file (b2bbc08)
+
 # [0.17.0-build.20260515] (2026-05-15)
 
 * Merge pull request #41 from KGAudioLab/feat/2026-05-11-embedded-models (13eb7e6)
