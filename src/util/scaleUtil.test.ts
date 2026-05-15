@@ -385,6 +385,8 @@ describe('scaleUtil', () => {
       const result = generatePianoGridBackground('ionian', 'C major');
       expect(result).toContain('linear-gradient');
       expect(typeof result).toBe('string');
+      expect(result).toContain('#282828');
+      expect(result).toContain('#303030');
     });
 
     it('should generate different backgrounds for different modes', () => {

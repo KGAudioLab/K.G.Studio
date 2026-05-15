@@ -320,19 +320,18 @@ export const generatePianoGridBackground = (
     const rowBottomMinusOne = `calc(var(--region-piano-key-height) * ${index + 1} - 1px)`;
     const rowBottom = `calc(var(--region-piano-key-height) * ${index + 1})`;
 
-    // For scale notes: highlight the full row with a semi-transparent blue background
-    // For non-scale notes: use transparent background with just the separator line
+    // Match the event list palette while preserving scale-aware row distinction.
     if (isInScale) {
       return `
-        rgba(90, 123, 154, 0.15) ${rowTop},
-        rgba(90, 123, 154, 0.15) ${rowBottomMinusOne},
+        #282828 ${rowTop},
+        #282828 ${rowBottomMinusOne},
         #3a3a3a ${rowBottomMinusOne},
         #3a3a3a ${rowBottom}
       `.trim();
     } else {
       return `
-        transparent ${rowTop},
-        transparent ${rowBottomMinusOne},
+        #303030 ${rowTop},
+        #303030 ${rowBottomMinusOne},
         #3a3a3a ${rowBottomMinusOne},
         #3a3a3a ${rowBottom}
       `.trim();
