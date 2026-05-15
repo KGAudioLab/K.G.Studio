@@ -253,7 +253,7 @@ export class ConfigManager {
           },
         },
         editor: {
-          playhead_update_frequency: 10,
+          playhead_update_frequency: 30,
           spectrogram_height_resolution: 3
         },
         chatbox: {

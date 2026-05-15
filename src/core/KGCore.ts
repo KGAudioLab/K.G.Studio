@@ -367,7 +367,7 @@ export class KGCore {
 
     // Get playhead update frequency from config (in fps)
     const configManager = ConfigManager.instance();
-    const updateFrequency = (configManager.get('editor.playhead_update_frequency') as number) ?? 10;
+    const updateFrequency = (configManager.get('editor.playhead_update_frequency') as number) ?? 30;
     const updateIntervalMs = 1000 / updateFrequency; // Convert fps to milliseconds
 
     this.playbackIntervalId = window.setInterval(() => {
