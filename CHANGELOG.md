@@ -1,3 +1,8 @@
+# [0.17.2-build.20260515] (2026-05-15)
+
+* Merge pull request #43 from KGAudioLab/feat/2026-05-11-embedded-models (8a6937d)
+* fix: allow local Gemma runtime on GitHub Pages and avoid OPFS cache finalize read errors (e243f9e)
+
 # [0.17.1-build.20260515] (2026-05-15)
 
 * Merge pull request #42 from KGAudioLab/feat/2026-05-11-embedded-models (796a9cf)
