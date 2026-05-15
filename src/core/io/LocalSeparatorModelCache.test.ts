@@ -9,10 +9,12 @@ class MockWritableFileStream {
     this.handle = handle;
   }
 
-  async write(content: ArrayBuffer | ArrayBufferView): Promise<void> {
-    const bytes = content instanceof ArrayBuffer
-      ? new Uint8Array(content)
-      : new Uint8Array(content.buffer, content.byteOffset, content.byteLength);
+  async write(content: ArrayBuffer | ArrayBufferView | string): Promise<void> {
+    const bytes = typeof content === 'string'
+      ? new TextEncoder().encode(content)
+      : content instanceof ArrayBuffer
+        ? new Uint8Array(content)
+        : new Uint8Array(content.buffer, content.byteOffset, content.byteLength);
     this.chunks.push(new Uint8Array(bytes));
   }
 
@@ -44,6 +46,8 @@ class MockFileSystemFileHandle {
 
   async getFile(): Promise<File> {
     return {
+      size: this.content.byteLength,
+      text: async () => new TextDecoder().decode(this.content),
       arrayBuffer: async () => this.content.buffer.slice(0),
     } as unknown as File;
   }

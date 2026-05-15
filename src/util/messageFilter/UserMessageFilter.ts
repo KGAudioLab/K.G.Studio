@@ -2,6 +2,7 @@ import { clearChatHistoryAndUI } from '../chatUtil';
 import { useProjectStore } from '../../stores/projectStore';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { SystemPrompts } from '../../agent/core/SystemPrompts';
+import { detectLocalLLMRuntimeSupport, LOCAL_LLM_PROVIDER_KEY } from '../localLLMConfig';
 
 export interface UserMessageFilterResult {
   // Whether to render the user message bubble (div.message-user)
@@ -134,7 +135,18 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
       }
       const provider = (configManager.get('general.llm_provider') as string) || 'openai';
 
-      if (provider === 'openai') {
+      if (provider === LOCAL_LLM_PROVIDER_KEY) {
+        const runtimeSupport = detectLocalLLMRuntimeSupport();
+        if (!runtimeSupport.supported) {
+          return {
+            displayUserMessage: true,
+            sendToLLM: false,
+            finalMessageForLLM: null,
+            pseudoAssistantResponse: runtimeSupport.reason ?? 'Local browser LLM is not supported in this environment.',
+            metadata: { error: 'local_browser_unsupported' }
+          };
+        }
+      } else if (provider === 'openai') {
         const openaiKey = (configManager.get('general.openai.api_key') as string) || '';
         if (openaiKey.trim() === '') {
           const url = `${import.meta.env.BASE_URL}chat/error_no_openai_key.md`;
@@ -255,5 +267,4 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
     };
   }
 }
-
 

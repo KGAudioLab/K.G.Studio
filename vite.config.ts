@@ -18,7 +18,17 @@ export default defineConfig({
   },
   server: {
     host: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
     // IMPORTANT: MAKE SURE TO UPDATE YOUR OS HOSTS FILE TO POINT `testlocal.com` TO YOUR LOCAL IP (e.g. 127.0.0.1).
     allowedHosts: ['testlocal.com', '.testlocal.com', 'localhost', '127.0.0.1'],
+  },
+  preview: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   },
 });

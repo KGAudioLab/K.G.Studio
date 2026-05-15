@@ -6,7 +6,7 @@ import { KGConfigStorage } from '../io/KGConfigStorage';
 interface AppConfig {
   general: {
     language: string;
-    llm_provider: 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
+    llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
     openai: {
       api_key: string;
@@ -183,7 +183,7 @@ export class ConfigManager {
       this.defaultConfig = {
         general: {
           language: 'en_us',
-          llm_provider: 'openai',
+          llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           openai: {
             api_key: '',

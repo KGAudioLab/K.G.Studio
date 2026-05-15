@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
+import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
+import { LOCAL_LLM_DISPLAY_NAME, LOCAL_LLM_PROVIDER_KEY } from '../../../util/localLLMConfig';
 
 const GeneralSettings: React.FC = () => {
-  const [llmProvider, setLlmProvider] = useState<string>('openai');
+  const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
   const [openaiKey, setOpenaiKey] = useState<string>('');
   const [openaiModel, setOpenaiModel] = useState<string>('');
   const [geminiKey, setGeminiKey] = useState<string>('');
@@ -22,6 +24,7 @@ const GeneralSettings: React.FC = () => {
   const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
   const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
   const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
+  const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
 
   const configManager = ConfigManager.instance();
 
@@ -46,7 +49,7 @@ const GeneralSettings: React.FC = () => {
         await configManager.initialize();
       }
 
-      setLlmProvider((configManager.get('general.llm_provider') as string) || 'openai');
+      setLlmProvider((configManager.get('general.llm_provider') as string) || LOCAL_LLM_PROVIDER_KEY);
       setOpenaiKey((configManager.get('general.openai.api_key') as string) || '');
       setOpenaiModel((configManager.get('general.openai.model') as string) || '');
       setOpenaiFlex((configManager.get('general.openai.flex') as boolean) ?? false);
@@ -69,6 +72,8 @@ const GeneralSettings: React.FC = () => {
     };
 
     loadConfig();
+    const unsubscribe = LocalLLMModelManager.subscribe(setLocalModelState);
+    return unsubscribe;
   }, [configManager]);
 
   // Debounced save function for text inputs
@@ -197,6 +202,14 @@ const GeneralSettings: React.FC = () => {
     debouncedSave('general.kgone.base_url', value);
   };
 
+  const handleDeleteLocalModel = async () => {
+    try {
+      await LocalLLMModelManager.deleteCachedModel();
+    } catch (error) {
+      console.error('Failed to delete local language model cache:', error);
+    }
+  };
+
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
     <div className="settings-section">
@@ -217,6 +230,7 @@ const GeneralSettings: React.FC = () => {
               value={llmProvider}
               onChange={(e) => handleLlmProviderChange(e.target.value)}
             >
+              <option value={LOCAL_LLM_PROVIDER_KEY}>Local LLM (Browser)</option>
               <option value="openai">OpenAI</option>
               {/* <option value="gemini">Gemini</option>
               <option value="claude">Claude</option> */}
@@ -240,6 +254,69 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               When enabled, API keys will be saved to browser storage even on non-localhost environments. Warning: This may increase security vulnerability to XSS attacks.
             </div>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
+
+          {!localModelState.runtimeSupport.supported && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#d0a56b', marginTop: '4px', marginBottom: '8px' }}>
+              {localModelState.runtimeSupport.reason}
+            </div>
+          )}
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Cached Model Status
+            </label>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {localModelState.isChecking
+                ? 'Checking local model cache...'
+                : localModelState.isCached
+                  ? 'Downloaded in browser cache.'
+                  : 'Not downloaded yet.'}
+            </div>
+          </div>
+
+          {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+              The local model downloads automatically the next time you chat with `Local LLM (Browser)`.
+            </div>
+          )}
+
+          {(localModelState.isDownloading || localModelState.progressText) && (
+            <div className="settings-progress-block">
+              <div
+                className="settings-progress-track"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.max(0, Math.min(100, localModelState.progressPercent))}
+              >
+                <div className="settings-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localModelState.progressPercent))}%` }} />
+              </div>
+              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
+                {localModelState.progressText}
+              </div>
+            </div>
+          )}
+
+          {localModelState.error && (
+            <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a', marginTop: '8px' }}>
+              {localModelState.error}
+            </div>
+          )}
+
+          <div className="settings-item" style={{ marginTop: '12px' }}>
+            <button
+              type="button"
+              className="settings-btn settings-btn-danger"
+              onClick={() => void handleDeleteLocalModel()}
+              disabled={localModelState.isDeleting || localModelState.isDownloading || !localModelState.isCached}
+            >
+              {localModelState.isDeleting ? 'Deleting...' : 'Delete Cached Model'}
+            </button>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { LLMProvider } from '../llm/LLMProvider';
+import type { LLMProvider } from '../llm/LLMProvider';
 import { AgentState } from './AgentState';
 import { SystemPrompts } from './SystemPrompts';
 import { AVAILABLE_TOOLS } from '../tools';
@@ -92,7 +92,9 @@ export class AgentCore {
     // Add user message to state
     this.currentUserMessageId = this.agentState.addMessage('user', userInput);
 
-    const systemPrompt = await SystemPrompts.getSystemPromptWithContext();
+    const systemPrompt = await SystemPrompts.getSystemPromptWithContext(
+      this.llmProvider.getPreferredSystemPromptPath?.(),
+    );
     const tools = this.getToolDefinitions();
 
     try {
