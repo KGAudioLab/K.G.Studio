@@ -1,3 +1,9 @@
+# [0.17.3-build.20260515] (2026-05-15)
+
+* Merge pull request #44 from KGAudioLab/feat/2026-05-11-embedded-models (03a47c6)
+* fix: always use unix-style LF even in Windows (3110304)
+* fix: optimized system prompt for local LLM (93798fd)
+
 # [0.17.2-build.20260515] (2026-05-15)
 
 * Merge pull request #43 from KGAudioLab/feat/2026-05-11-embedded-models (8a6937d)
