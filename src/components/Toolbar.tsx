@@ -49,7 +49,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
@@ -970,7 +970,11 @@ const Toolbar: React.FC = () => {
       console.log("Chat button clicked");
     }
 
-    toggleChatBox();
+    if (showSettings) {
+      activateSidePanel('chat');
+    } else {
+      toggleChatBox();
+    }
     setStatus("Chat toggled");
   };
 
@@ -989,6 +993,12 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("K.G.One button clicked");
     }
+
+    if (showSettings) {
+      activateSidePanel('kgone');
+      return;
+    }
+
     toggleKGOnePanel();
   };
 
@@ -996,6 +1006,12 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Event List button clicked");
     }
+
+    if (showSettings) {
+      activateSidePanel('eventList');
+      return;
+    }
+
     toggleEventListPanel();
   };
 
@@ -1178,7 +1194,7 @@ const Toolbar: React.FC = () => {
           {!isPlaying ? (
             <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
           ) : (
-            <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
+            <button title="Pause" className="tool-button button-pause active" onClick={handlePauseClick}><FaPause /></button>
           )}
           <button
             title={isRecording ? "Stop Recording" : "Record"}
@@ -1265,21 +1281,21 @@ const Toolbar: React.FC = () => {
           <button
             title="K.G.One Music Generator"
             onClick={handleKGOneClick}
-            className={showKGOnePanel ? 'active' : ''}
+            className={!showSettings && showKGOnePanel ? 'active' : ''}
           >
             <FaWandMagicSparkles />
           </button>
           <button
             title="Chat"
             onClick={handleChatClick}
-            className={showChatBox ? 'active' : ''}
+            className={!showSettings && showChatBox ? 'active' : ''}
           >
             <FaComments />
           </button>
           <button
             title="Event List Editor"
             onClick={handleEventListClick}
-            className={showEventListPanel ? 'active' : ''}
+            className={!showSettings && showEventListPanel ? 'active' : ''}
           >
             <FaListUl />
           </button>

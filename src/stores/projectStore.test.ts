@@ -250,4 +250,80 @@ describe('projectStore piano roll state', () => {
 
     expect(useProjectStore.getState().trackAutomationRedrawVersion).toBe(initialVersion + 2);
   });
+
+  it('restores Chat after closing Settings when Chat was active on entry', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().toggleChatBox();
+      useProjectStore.getState().setShowSettings(true);
+    });
+
+    let state = useProjectStore.getState();
+    expect(state.showSettings).toBe(true);
+    expect(state.settingsReturnSidePanel).toBe('chat');
+
+    act(() => {
+      useProjectStore.getState().setShowSettings(false);
+    });
+
+    state = useProjectStore.getState();
+    expect(state.showSettings).toBe(false);
+    expect(state.showChatBox).toBe(true);
+    expect(state.showKGOnePanel).toBe(false);
+    expect(state.showEventListPanel).toBe(false);
+  });
+
+  it('restores K.G.One after closing Settings when K.G.One was active on entry', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().toggleKGOnePanel();
+      useProjectStore.getState().setShowSettings(true);
+      useProjectStore.getState().setShowSettings(false);
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.showSettings).toBe(false);
+    expect(state.showKGOnePanel).toBe(true);
+    expect(state.showChatBox).toBe(false);
+    expect(state.showEventListPanel).toBe(false);
+  });
+
+  it('restores no side panel after closing Settings when none was active on entry', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().toggleChatBox();
+      useProjectStore.getState().toggleChatBox();
+      useProjectStore.getState().setShowSettings(true);
+      useProjectStore.getState().setShowSettings(false);
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.showSettings).toBe(false);
+    expect(state.showChatBox).toBe(false);
+    expect(state.showKGOnePanel).toBe(false);
+    expect(state.showEventListPanel).toBe(false);
+    expect(state.settingsReturnSidePanel).toBeNull();
+    expect(state.lastActiveSidePanel).toBe('chat');
+  });
+
+  it('opens Event List and exits Settings when Event List is activated from Settings', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().toggleChatBox();
+      useProjectStore.getState().setShowSettings(true);
+      useProjectStore.getState().activateSidePanel('eventList');
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.showSettings).toBe(false);
+    expect(state.showEventListPanel).toBe(true);
+    expect(state.showChatBox).toBe(false);
+    expect(state.showKGOnePanel).toBe(false);
+    expect(state.settingsReturnSidePanel).toBeNull();
+    expect(state.lastActiveSidePanel).toBe('eventList');
+  });
 });

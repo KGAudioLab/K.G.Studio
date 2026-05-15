@@ -524,7 +524,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       )}
 
       <button
-        className="kgone-btn-generate"
+        className="kgone-btn-generate kgone-btn-generate-accent"
         disabled={isGenerating || !prompt.trim()}
         onClick={handleGenerate}
       >
@@ -818,7 +818,7 @@ const FullSongTab: React.FC = () => {
       )}
 
       <button
-        className="kgone-btn-generate"
+        className="dialog-btn dialog-btn-primary kgone-btn-generate"
         disabled={isGenerating || !caption.trim()}
         onClick={handleGenerate}
       >
@@ -1511,7 +1511,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
           {genStatus === 'done' && stemAudioUrls.length > 0 && (
             <>
               <button
-                className="kgone-btn-generate"
+                className="dialog-btn dialog-btn-primary kgone-btn-generate"
                 disabled={isImporting}
                 onClick={handleImportAll}
                 style={{ marginTop: 0 }}
@@ -1529,7 +1529,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
           )}
 
           <button
-            className="kgone-btn-generate"
+            className="dialog-btn dialog-btn-primary kgone-btn-generate"
             disabled={isGenerating || (localOnlyMode && !isLocalModelCached)}
             onClick={handleSeparate}
           >
@@ -1990,7 +1990,7 @@ const RemixTab: React.FC = () => {
           {genStatus === 'done' && audioUrl && (
             <>
               <button
-                className="kgone-btn-generate"
+                className="kgone-btn-generate kgone-btn-generate-accent"
                 disabled={isImporting}
                 onClick={handleImportAligned}
                 style={{ marginTop: 0 }}
@@ -2007,7 +2007,7 @@ const RemixTab: React.FC = () => {
           )}
 
           <button
-            className="kgone-btn-generate"
+            className="dialog-btn dialog-btn-primary kgone-btn-generate"
             disabled={isGenerating || !caption.trim()}
             onClick={handleRemix}
           >
@@ -2520,7 +2520,7 @@ const RepaintTab: React.FC = () => {
           {genStatus === 'done' && audioUrl && (
             <>
               <button
-                className="kgone-btn-generate"
+                className="kgone-btn-generate kgone-btn-generate-accent"
                 disabled={isImporting}
                 onClick={handleImportAligned}
                 style={{ marginTop: 0 }}
@@ -2537,7 +2537,7 @@ const RepaintTab: React.FC = () => {
           )}
 
           <button
-            className="kgone-btn-generate"
+            className="dialog-btn dialog-btn-primary kgone-btn-generate"
             disabled={isGenerating || !caption.trim()}
             onClick={handleRepaint}
           >
