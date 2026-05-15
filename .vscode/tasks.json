@@ -23,6 +23,29 @@
                     "endsPattern": "ready in .*ms"
                 }
             }
+        },
+        {
+            "type": "npm",
+            "script": "dev",
+            "label": "npm: dev (Windows)",
+            "detail": "vite",
+            "isBackground": true,
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/d", "/c"]
+                }
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": "ready in .*ms"
+                }
+            }
         }
     ]
 }
