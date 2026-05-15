@@ -16,6 +16,8 @@ interface StreamProcessorResult {
   isProcessing: boolean;
 }
 
+const PROCESSING_WAVE = '<span class="processing-wave">Processing...</span>';
+
 export const useStreamProcessor = (options: StreamProcessorOptions): StreamProcessorResult => {
   const { onMessageUpdate, onMessageAdd, onMessageRemove, onProcessingChange } = options;
   const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -56,7 +58,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
 
           onMessageUpdate(currentStreamingId, (msg) => ({
             ...msg,
-            content: `<span class="processing-wave">Thinking...</span>${tokenCount > 0 ? ` ${tokenCount} tokens received.` : ''} click here to abort.`,
+            content: `${PROCESSING_WAVE}${tokenCount > 0 ? ` ${tokenCount} tokens received.` : ''} click here to abort.`,
             tokenCount
           }));
         } else if (chunk.type === 'tool_call' && chunk.toolCall) {

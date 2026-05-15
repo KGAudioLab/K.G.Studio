@@ -44,22 +44,26 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   const prefillTps = formatTps(performanceInfo?.prefillTps);
   const generationTps = formatTps(performanceInfo?.generationTps);
   const hasPerformanceInfo = Boolean(prefillTps || generationTps);
+  const processingWaveLabels = ['Thinking...', 'Processing...'];
 
   const renderContent = () => {
     // Handle special abort link for streaming messages
     if (isStreaming && onAbort && content.includes('click here to abort')) {
-      const hasProcessingWave = content.includes('<span class="processing-wave">Thinking...</span>');
+      const processingWaveMarkup = processingWaveLabels
+        .map(label => `<span class="processing-wave">${label}</span>`)
+        .find(markup => content.includes(markup));
 
-      if (hasProcessingWave) {
+      if (processingWaveMarkup) {
         const parts = content.split('click here to abort');
         const beforeAbort = parts[0].replace(
-          '<span class="processing-wave">Thinking...</span>',
+          processingWaveMarkup,
           ''
         );
+        const waveLabel = processingWaveLabels.find(label => processingWaveMarkup.includes(label)) ?? 'Thinking...';
 
         return (
           <span>
-            <span className="processing-wave">Thinking...</span>
+            <span className="processing-wave">{waveLabel}</span>
             {beforeAbort}
             <button onClick={onAbort} className="abort-link">
               click here to abort
