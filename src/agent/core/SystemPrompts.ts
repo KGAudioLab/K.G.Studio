@@ -262,6 +262,6 @@ export class SystemPrompts {
    * Clear the cached template (useful for development/testing)
    */
   static clearCache(): void {
-    this.cachedTemplate = null;
+    this.cachedTemplates.clear();
   }
 }

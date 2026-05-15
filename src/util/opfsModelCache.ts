@@ -123,13 +123,14 @@ export class OpfsModelCache {
       const finalWritable = await finalHandle.createWritable();
       try {
         const tempFile = await tempHandle.getFile();
+        const tempBuffer = await tempFile.arrayBuffer();
         console.log('[opfsModelCache] Temp file ready for finalize copy.', {
           filename,
           tempFilename,
           tempSize: tempFile.size,
           expectedSize: sizeValue,
         });
-        await finalWritable.write(tempFile);
+        await finalWritable.write(tempBuffer);
         await finalWritable.close();
       } catch (error) {
         await finalWritable.abort();
