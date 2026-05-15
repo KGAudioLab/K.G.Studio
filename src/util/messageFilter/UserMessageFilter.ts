@@ -17,6 +17,48 @@ export interface UserMessageFilterResult {
   metadata?: Record<string, unknown>;
 }
 
+function hasText(value: unknown): boolean {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function getWelcomeVariant(configManager: ConfigManager): 'local' | 'new' | 'again' {
+  const provider = (configManager.get('general.llm_provider') as string) || LOCAL_LLM_PROVIDER_KEY;
+
+  if (provider === LOCAL_LLM_PROVIDER_KEY) {
+    return 'local';
+  }
+
+  switch (provider) {
+    case 'openai':
+      return hasText(configManager.get('general.openai.api_key')) ? 'again' : 'new';
+    case 'gemini':
+      return hasText(configManager.get('general.gemini.api_key')) ? 'again' : 'new';
+    case 'claude':
+      return hasText(configManager.get('general.claude.api_key')) ? 'again' : 'new';
+    case 'claude_openrouter':
+      return hasText(configManager.get('general.claude_openrouter.api_key')) ? 'again' : 'new';
+    case 'openai_compatible':
+      return hasText(configManager.get('general.openai_compatible.base_url'))
+        && hasText(configManager.get('general.openai_compatible.model'))
+        ? 'again'
+        : 'new';
+    default:
+      return 'new';
+  }
+}
+
+function getWelcomeUrl(variant: 'local' | 'new' | 'again'): string {
+  switch (variant) {
+    case 'local':
+      return `${import.meta.env.BASE_URL}chat/welcome_local_llm.md`;
+    case 'again':
+      return `${import.meta.env.BASE_URL}chat/welcome_again.md`;
+    case 'new':
+    default:
+      return `${import.meta.env.BASE_URL}chat/welcome_new.md`;
+  }
+}
+
 /**
  * Process a user message before it is displayed or sent to the LLM.
  * Handles slash-commands and returns a structured decision.
@@ -53,12 +95,8 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
             await configManager.initialize();
           }
 
-          const openaiKey = (configManager.get('general.openai.api_key') as string) || '';
-          const oaiCompatKey = (configManager.get('general.openai_compatible.api_key') as string) || '';
-          const oaiCompatBaseUrl = (configManager.get('general.openai_compatible.base_url') as string) || '';
-          const isNew = openaiKey.trim() === '' && oaiCompatKey.trim() === '' && oaiCompatBaseUrl.trim() === '';
-
-          const url = isNew ? `${import.meta.env.BASE_URL}chat/welcome_new.md` : `${import.meta.env.BASE_URL}chat/welcome_again.md`;
+          const variant = getWelcomeVariant(configManager);
+          const url = getWelcomeUrl(variant);
           const resp = await fetch(url);
           if (!resp.ok) {
             throw new Error(`Failed to fetch ${url}: ${resp.status}`);
@@ -69,7 +107,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
             sendToLLM: false,
             finalMessageForLLM: null,
             pseudoAssistantResponse: md,
-            metadata: { command: 'welcome', variant: isNew ? 'new' : 'again' }
+            metadata: { command: 'welcome', variant }
           };
         } catch (err) {
           const fallback = 'Welcome to K.G.Studio Musician Assistant.';
@@ -267,4 +305,3 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
     };
   }
 }
-
