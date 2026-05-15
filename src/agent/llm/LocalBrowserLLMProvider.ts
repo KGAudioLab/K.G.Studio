@@ -66,11 +66,7 @@ export class LocalBrowserLLMProvider implements LLMProvider {
         LOCAL_LLM_MODEL_URL,
         LOCAL_LLM_MODEL_FILENAME,
         progress => {
-          if (progress.fromCache) {
-            LocalLLMModelManager.notifyLoadStart(true);
-          } else {
-            LocalLLMModelManager.notifyLoadProgress(progress.receivedBytes, progress.totalBytes, false);
-          }
+          LocalLLMModelManager.notifyLoadProgress(progress.receivedBytes, progress.totalBytes, progress.fromCache);
         },
       ),
     ]);

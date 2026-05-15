@@ -13,6 +13,42 @@ export interface CachedModelStreamResult {
   cacheWritePromise: Promise<void> | null;
 }
 
+const createProgressReader = (
+  file: File,
+  onProgress?: (progress: ModelDownloadProgress & { fromCache: boolean }) => void,
+): ReadableStreamDefaultReader<Uint8Array> => {
+  const sourceReader = file.stream().getReader();
+  let receivedBytes = 0;
+
+  const monitoredStream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await sourceReader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+
+      if (!value) {
+        return;
+      }
+
+      receivedBytes += value.byteLength;
+      onProgress?.({
+        receivedBytes,
+        totalBytes: file.size,
+        percent: file.size > 0 ? (receivedBytes / file.size) * 100 : 0,
+        fromCache: true,
+      });
+      controller.enqueue(value);
+    },
+    async cancel(reason) {
+      await sourceReader.cancel(reason);
+    },
+  });
+
+  return monitoredStream.getReader();
+};
+
 export class LocalLLMModelCache {
   public static async exists(filename: string = LOCAL_LLM_MODEL_FILENAME): Promise<boolean> {
     return cache.exists(filename);
@@ -41,14 +77,8 @@ export class LocalLLMModelCache {
 
     if (await this.exists(filename)) {
       const file = await this.getFile(filename);
-      onProgress?.({
-        receivedBytes: file.size,
-        totalBytes: file.size,
-        percent: 100,
-        fromCache: true,
-      });
       return {
-        reader: file.stream().getReader(),
+        reader: createProgressReader(file, onProgress),
         totalBytes: file.size,
         fromCache: true,
         cacheWritePromise: null,

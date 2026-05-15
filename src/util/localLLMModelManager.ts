@@ -116,8 +116,8 @@ export class LocalLLMModelManager {
 
   public static notifyLoadStart(fromCache: boolean): void {
     this.setState({
-      isDownloading: !fromCache,
-      progressPercent: fromCache ? 100 : 0,
+      isDownloading: true,
+      progressPercent: 0,
       progressText: fromCache ? 'Loading local language model from browser cache...' : 'Downloading local language model...',
       error: '',
     });
@@ -127,10 +127,12 @@ export class LocalLLMModelManager {
     const receivedMb = (receivedBytes / (1024 * 1024)).toFixed(1);
     const totalMb = totalBytes ? (totalBytes / (1024 * 1024)).toFixed(1) : null;
     this.setState({
-      isDownloading: !fromCache,
+      isDownloading: true,
       progressPercent: totalBytes ? (receivedBytes / totalBytes) * 100 : 0,
       progressText: fromCache
-        ? 'Loading local language model from browser cache...'
+        ? totalMb
+          ? `Loading local language model from browser cache... ${receivedMb} / ${totalMb} MB`
+          : `Loading local language model from browser cache... ${receivedMb} MB`
         : totalMb
           ? `Downloading local language model... ${receivedMb} / ${totalMb} MB`
           : `Downloading local language model... ${receivedMb} MB`,
@@ -143,7 +145,7 @@ export class LocalLLMModelManager {
       isCached: true,
       isDownloading: false,
       progressPercent: 100,
-      progressText: 'Local language model is ready.',
+      progressText: 'Using the local browser model. No external API requests are being sent.',
       error: '',
     });
   }
