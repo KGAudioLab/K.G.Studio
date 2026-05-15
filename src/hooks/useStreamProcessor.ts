@@ -38,6 +38,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       let assistantResponse = '';
       let tokenCount = 0;
       let hasTextContent = false;
+      let performanceInfo: ChatMessage['performanceInfo'];
 
       console.log(`------------ ${logPrefix} ------------`);
       console.log(input);
@@ -65,7 +66,8 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
               ...msg,
               content: assistantResponse,
               isStreaming: false,
-              tokenCount: undefined
+              tokenCount: undefined,
+              performanceInfo
             }));
 
             console.log('------------ ASSISTANT ------------');
@@ -98,19 +100,22 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           assistantResponse = '';
           tokenCount = 0;
           hasTextContent = false;
+          performanceInfo = undefined;
 
           // Create a fresh streaming placeholder for the next LLM response
           const nextMsg = createStreamingMessage();
           currentStreamingId = nextMsg.id;
           onMessageAdd(nextMsg);
         } else if (chunk.type === 'done') {
+          performanceInfo = chunk.performanceInfo;
           // Finalize the streaming message
           if (hasTextContent) {
             onMessageUpdate(currentStreamingId, (msg) => ({
               ...msg,
               content: assistantResponse,
               isStreaming: false,
-              tokenCount: undefined
+              tokenCount: undefined,
+              performanceInfo
             }));
           } else {
             // No text in final response — remove empty placeholder

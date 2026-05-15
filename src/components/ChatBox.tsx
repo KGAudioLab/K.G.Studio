@@ -434,6 +434,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               key={message.id}
               content={message.content}
               isStreaming={message.isStreaming}
+              performanceInfo={message.performanceInfo}
               onAbort={message.isStreaming ? handleAbort : undefined}
             />
           )

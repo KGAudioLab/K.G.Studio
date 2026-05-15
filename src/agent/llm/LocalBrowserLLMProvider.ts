@@ -296,6 +296,14 @@ export class LocalBrowserLLMProvider implements LLMProvider {
       yield { type: 'tool_call', content: '', toolCall };
     }
 
-    yield { type: 'done', content: '', finishReason };
+    yield {
+      type: 'done',
+      content: '',
+      finishReason,
+      performanceInfo: {
+        prefillTps,
+        generationTps,
+      },
+    };
   }
 }

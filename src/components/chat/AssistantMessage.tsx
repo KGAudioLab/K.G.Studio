@@ -3,11 +3,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import type { PerformanceInfo } from '../../agent/llm/StreamingTypes';
 
 interface AssistantMessageProps {
   content: string;
   isStreaming?: boolean;
   onAbort?: () => void;
+  performanceInfo?: PerformanceInfo;
 }
 
 // Memoized code component to prevent SyntaxHighlighter re-renders
@@ -30,7 +32,19 @@ const CodeComponent = memo(({ inline, className, children, ...props }: any) => {
   );
 });
 
-const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreaming, onAbort }) => {
+const formatTps = (value?: number): string | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value.toFixed(1);
+};
+
+const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreaming, onAbort, performanceInfo }) => {
+  const prefillTps = formatTps(performanceInfo?.prefillTps);
+  const generationTps = formatTps(performanceInfo?.generationTps);
+  const hasPerformanceInfo = Boolean(prefillTps || generationTps);
+
   const renderContent = () => {
     // Handle special abort link for streaming messages
     if (isStreaming && onAbort && content.includes('click here to abort')) {
@@ -83,6 +97,13 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
     <div className="message-container message-assistant">
       <div className="message-content">
         {renderContent()}
+        {hasPerformanceInfo && (
+          <div className="message-performance-info">
+            {prefillTps ? `Prefill: ${prefillTps} t/s` : 'Prefill: -'}
+            {' · '}
+            {generationTps ? `Generation: ${generationTps} t/s` : 'Generation: -'}
+          </div>
+        )}
       </div>
     </div>
   );

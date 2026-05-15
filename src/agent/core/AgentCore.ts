@@ -110,6 +110,7 @@ export class AgentCore {
         let assistantTextContent = '';
         const accumulatedToolCalls: ToolCall[] = [];
         let finishReason = 'stop';
+        let performanceInfo: StreamChunk['performanceInfo'];
 
         for await (const chunk of this.llmProvider.generateStream(conversationHistory, systemPrompt, tools)) {
           if (chunk.type === 'text') {
@@ -120,6 +121,7 @@ export class AgentCore {
             accumulatedToolCalls.push(chunk.toolCall);
           } else if (chunk.type === 'done') {
             finishReason = chunk.finishReason ?? 'stop';
+            performanceInfo = chunk.performanceInfo;
           }
         }
 
@@ -163,10 +165,9 @@ export class AgentCore {
           // LLM finished with text response (stop reason)
           this.agentState.updateMessage(this.currentAssistantMessageId, assistantTextContent);
           continueLoop = false;
+          yield { type: 'done', content: '', finishReason, performanceInfo };
         }
       }
-
-      yield { type: 'done', content: '', finishReason: 'stop' };
     } finally {
       this.currentUserMessageId = null;
       this.currentAssistantMessageId = null;

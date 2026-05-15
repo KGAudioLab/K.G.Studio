@@ -226,6 +226,12 @@
   font-weight: bold;
 }
 
+.message-performance-info {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #909090;
+}
+
 /* Abort link styling */
 .abort-link {
   background: none !important;
