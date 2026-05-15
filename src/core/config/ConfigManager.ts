@@ -6,8 +6,11 @@ import { KGConfigStorage } from '../io/KGConfigStorage';
 interface AppConfig {
   general: {
     language: string;
-    llm_provider: 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
+    llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
+    local_browser: {
+      context_length: 32768 | 65536 | 131072;
+    };
     openai: {
       api_key: string;
       flex: boolean;
@@ -183,7 +186,7 @@ export class ConfigManager {
       this.defaultConfig = {
         general: {
           language: 'en_us',
-          llm_provider: 'openai',
+          llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           openai: {
             api_key: '',
@@ -207,6 +210,9 @@ export class ConfigManager {
             api_key: '',
             base_url: '',
             model: ''
+          },
+          local_browser: {
+            context_length: 32768
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'
@@ -247,7 +253,7 @@ export class ConfigManager {
           },
         },
         editor: {
-          playhead_update_frequency: 10,
+          playhead_update_frequency: 30,
           spectrogram_height_resolution: 3
         },
         chatbox: {

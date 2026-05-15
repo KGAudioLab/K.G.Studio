@@ -22,25 +22,26 @@ interface SystemPromptContext {
  * System prompts for the AI agent with dynamic context loading
  */
 export class SystemPrompts {
-  private static cachedTemplate: string | null = null;
+  private static cachedTemplates: Map<string, string> = new Map();
   private static readonly FALLBACK_PROMPT = `You are K.G.Studio Musician Assistant Agent, a highly skilled music musician with extensive knowledge in music theory, composition, and production.`;
   
   /**
    * Load the system prompt template from the public folder
    */
-  private static async loadTemplate(): Promise<string> {
-    if (this.cachedTemplate) {
-      return this.cachedTemplate;
+  private static async loadTemplate(templatePath: string = 'prompts/system.md'): Promise<string> {
+    if (this.cachedTemplates.has(templatePath)) {
+      return this.cachedTemplates.get(templatePath)!;
     }
     
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}prompts/system.md`);
+      const response = await fetch(`${import.meta.env.BASE_URL}${templatePath}`);
       if (!response.ok) {
         throw new Error(`Failed to load system prompt: ${response.status}`);
       }
       
-      this.cachedTemplate = await response.text();
-      return this.cachedTemplate;
+      const template = await response.text();
+      this.cachedTemplates.set(templatePath, template);
+      return template;
     } catch (error) {
       console.error('Failed to load system prompt template:', error);
       return this.FALLBACK_PROMPT;
@@ -231,9 +232,9 @@ export class SystemPrompts {
   /**
    * Get the system prompt with current context applied (backward compatible)
    */
-  static async getSystemPromptWithContext(): Promise<string> {
+  static async getSystemPromptWithContext(templatePath?: string): Promise<string> {
     try {
-      const template = await this.loadTemplate();
+      const template = await this.loadTemplate(templatePath);
       let promptWithContext = await this.getPromptWithContext(template);
 
       // Append custom instructions from config if provided
@@ -261,6 +262,6 @@ export class SystemPrompts {
    * Clear the cached template (useful for development/testing)
    */
   static clearCache(): void {
-    this.cachedTemplate = null;
+    this.cachedTemplates.clear();
   }
 }

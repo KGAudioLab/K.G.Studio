@@ -17,11 +17,19 @@ vi.mock('../core/KGCore', () => ({
         getName: vi.fn().mockReturnValue('Test Project'),
         getBpm: vi.fn().mockReturnValue(120),
         getTimeSignature: vi.fn().mockReturnValue({ numerator: 4, denominator: 4 }),
-        getTracks: vi.fn().mockReturnValue([])
+        getTracks: vi.fn().mockReturnValue([]),
+        getMaxBars: vi.fn().mockReturnValue(64),
+        getBarWidthMultiplier: vi.fn().mockReturnValue(1),
+        getIsLooping: vi.fn().mockReturnValue(false),
+        getLoopingRange: vi.fn().mockReturnValue([0, 0])
       }),
       getSelectedItems: vi.fn().mockReturnValue([]),
       setSelectedItems: vi.fn(),
-      executeCommand: vi.fn()
+      executeCommand: vi.fn(),
+      setPlayheadUpdateCallback: vi.fn(),
+      setPlaybackStateChangeCallback: vi.fn(),
+      setSelectionChangeCallback: vi.fn(),
+      onSelectionChanged: vi.fn()
     })
   }
 }));

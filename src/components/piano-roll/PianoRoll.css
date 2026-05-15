@@ -610,9 +610,9 @@
   position: absolute;
   left: 0;
   right: 0;
-  background-color: rgba(123, 104, 238, 0.15);
-  border-top: 1px solid rgba(123, 104, 238, 0.3);
-  border-bottom: 1px solid rgba(123, 104, 238, 0.3);
+  background-color: rgba(135, 206, 250, 0.15);
+  border-top: 1px solid rgba(135, 206, 250, 0.3);
+  border-bottom: 1px solid rgba(135, 206, 250, 0.3);
   pointer-events: none;
   z-index: 1;
   transition: opacity 0.1s ease;
@@ -622,9 +622,9 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background-color: rgba(123, 104, 238, 0.1);
-  border-left: 1px solid rgba(123, 104, 238, 0.25);
-  border-right: 1px solid rgba(123, 104, 238, 0.25);
+  background-color: rgba(135, 206, 250, 0.1);
+  border-left: 1px solid rgba(135, 206, 250, 0.25);
+  border-right: 1px solid rgba(135, 206, 250, 0.25);
   pointer-events: none;
   z-index: 1;
   transition: opacity 0.1s ease;

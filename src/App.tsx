@@ -195,19 +195,20 @@ function App() {
 export default App;
 
 // Local component to subscribe to pool events and manage a counter
-const GlobalLoadingOverlayContainer: React.FC = () => {
+export const GlobalLoadingOverlayContainer: React.FC = () => {
   const [loadingCount, setLoadingCount] = useState<number>(() => KGToneBuffersPool.instance().getActiveLoadCount());
   const [overdue, setOverdue] = useState<boolean>(false);
   const timeoutRef = useRef<number | null>(null);
 
   useEffectReact(() => {
     const pool = KGToneBuffersPool.instance();
-    const listener = (evt: { type: 'start' | 'end'; instrument: string }) => {
-      setLoadingCount(prev => {
-        if (evt.type === 'start') return prev + 1;
-        return Math.max(0, prev - 1);
-      });
+    const syncLoadingCount = () => {
+      setLoadingCount(pool.getActiveLoadCount());
     };
+    const listener = (_evt: { type: 'start' | 'end'; instrument: string }) => {
+      syncLoadingCount();
+    };
+    syncLoadingCount();
     pool.addLoadingListener(listener);
     return () => {
       pool.removeLoadingListener(listener);
@@ -219,8 +220,11 @@ const GlobalLoadingOverlayContainer: React.FC = () => {
     // When loading starts, start a 30s timer if not already overdue/timed
     if (loadingCount > 0 && !overdue && timeoutRef.current === null) {
       timeoutRef.current = window.setTimeout(async () => {
-        // Only trigger if still loading
-        if (loadingCount > 0) {
+        const activeLoadCount = KGToneBuffersPool.instance().getActiveLoadCount();
+        setLoadingCount(activeLoadCount);
+
+        // Only trigger if still loading according to the source of truth
+        if (activeLoadCount > 0) {
           setOverdue(true);
           await showAlert(
             'Loading resources is taking longer than expected and may have partially failed. If you notice any playback issues, please refresh the page to retry downloading the audio files.'

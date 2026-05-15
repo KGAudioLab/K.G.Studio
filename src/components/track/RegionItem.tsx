@@ -45,6 +45,7 @@ interface RegionItemProps {
   audioBuffer?: AudioBuffer;
   previewWaveformPeaks?: AudioRecordingPeak[];
   isPreview?: boolean;
+  isAudioRegion?: boolean;
 }
 
 const RegionItem: React.FC<RegionItemProps> = ({
@@ -71,6 +72,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   audioBuffer,
   previewWaveformPeaks,
   isPreview = false,
+  isAudioRegion = false,
 }) => {
   // Get selection state and time signature from store
   const { selectedRegionIds, timeSignature, bpm } = useProjectStore();
@@ -652,7 +654,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   return (
     <div
       key={id}
-      className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? (isPrimarySelected ? 'selected' : 'selected-secondary') : ''} ${audioRegion ? 'audio-region' : ''}`}
+      className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? (isPrimarySelected ? 'selected' : 'selected-secondary') : ''} ${(audioRegion || isAudioRegion) ? 'audio-region' : ''}`}
       style={{ ...style, cursor: isPreview ? 'default' : cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
       onMouseMove={isPreview ? undefined : handleMouseMove}
       onMouseLeave={isPreview ? undefined : handleMouseLeave}
@@ -666,7 +668,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       <div className="region-header">
         {name}
       </div>
-      <div className={`region-content${audioRegion ? ' audio-region-content' : ''}`} ref={regionContentRef}>
+      <div className={`region-content${(audioRegion || isAudioRegion) ? ' audio-region-content' : ''}`} ref={regionContentRef}>
         {!isPreview && <div className="region-left-buttons">
           {!audioRegion && (
             <button

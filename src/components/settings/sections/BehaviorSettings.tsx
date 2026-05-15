@@ -7,7 +7,7 @@ import {
 } from '../../../util/spectrogramUtil';
 
 const BehaviorSettings: React.FC = () => {
-  const [playheadUpdateFrequency, setPlayheadUpdateFrequency] = useState<number>(10);
+  const [playheadUpdateFrequency, setPlayheadUpdateFrequency] = useState<number>(30);
   const [spectrogramHeightResolution, setSpectrogramHeightResolution] = useState<SpectrogramHeightResolution>(3);
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
   const [audioLookaheadTime, setAudioLookaheadTime] = useState<string>('50');
@@ -28,7 +28,7 @@ const BehaviorSettings: React.FC = () => {
         await configManager.initialize();
       }
 
-      setPlayheadUpdateFrequency((configManager.get('editor.playhead_update_frequency') as number) ?? 10);
+      setPlayheadUpdateFrequency((configManager.get('editor.playhead_update_frequency') as number) ?? 30);
       setSpectrogramHeightResolution(
         normalizeSpectrogramHeightResolution(configManager.get('editor.spectrogram_height_resolution'))
       );

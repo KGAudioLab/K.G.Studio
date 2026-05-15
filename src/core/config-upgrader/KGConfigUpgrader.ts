@@ -1,6 +1,8 @@
 import { KGConfigStorage } from '../io/KGConfigStorage';
 import { CONFIG_UPGRADER_CONSTANTS } from '../../constants/coreConstants';
 import { upgradeConfigToV1 } from './upgradeConfigToV1';
+import { upgradeConfigToV2 } from './upgradeConfigToV2';
+import { upgradeConfigToV3 } from './upgradeConfigToV3';
 
 /**
  * KGConfigUpgrader — Orchestrates app-level migrations (e.g., storage backend changes).
@@ -31,6 +33,14 @@ export class KGConfigUpgrader {
       switch (nextVersion) {
         case 1: {
           await upgradeConfigToV1();
+          break;
+        }
+        case 2: {
+          await upgradeConfigToV2();
+          break;
+        }
+        case 3: {
+          await upgradeConfigToV3();
           break;
         }
         default: {

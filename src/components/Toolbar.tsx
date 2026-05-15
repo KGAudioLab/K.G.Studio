@@ -49,7 +49,7 @@ const Toolbar: React.FC = () => {
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
@@ -114,6 +114,30 @@ const Toolbar: React.FC = () => {
 
     // If the name hasn't changed from the saved state, just save without prompting
     if (newName === savedProjectName) {
+      setProjectName(newName);
+      await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+        setSavedProjectName(finalName);
+        if (finalName !== newName) setProjectName(finalName);
+      });
+      return;
+    }
+
+    // Untitled Project is ephemeral — no existing save to preserve, so rename directly
+    if (savedProjectName === RESERVED_PROJECT_NAME) {
+      const storage = KGProjectStorage.getInstance();
+      const exists = await storage.exists(newName);
+      if (exists) {
+        const confirmed = await showConfirm(
+          `Project "${newName}" already exists. Do you want to overwrite it?`
+        );
+        if (!confirmed) return;
+        setProjectName(newName);
+        await saveProject(newName, savedProjectName, setStatus, (finalName) => {
+          setSavedProjectName(finalName);
+          if (finalName !== newName) setProjectName(finalName);
+        }, true /* forceOverwrite */);
+        return;
+      }
       setProjectName(newName);
       await saveProject(newName, savedProjectName, setStatus, (finalName) => {
         setSavedProjectName(finalName);
@@ -946,7 +970,11 @@ const Toolbar: React.FC = () => {
       console.log("Chat button clicked");
     }
 
-    toggleChatBox();
+    if (showSettings) {
+      activateSidePanel('chat');
+    } else {
+      toggleChatBox();
+    }
     setStatus("Chat toggled");
   };
 
@@ -961,12 +989,16 @@ const Toolbar: React.FC = () => {
   };
 
   // K.G.One panel toggle
-  const isKGOneEnabled = ConfigManager.instance().get('general.kgone.enabled') as boolean ?? false;
-
   const handleKGOneClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("K.G.One button clicked");
     }
+
+    if (showSettings) {
+      activateSidePanel('kgone');
+      return;
+    }
+
     toggleKGOnePanel();
   };
 
@@ -974,6 +1006,12 @@ const Toolbar: React.FC = () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Event List button clicked");
     }
+
+    if (showSettings) {
+      activateSidePanel('eventList');
+      return;
+    }
+
     toggleEventListPanel();
   };
 
@@ -1156,7 +1194,7 @@ const Toolbar: React.FC = () => {
           {!isPlaying ? (
             <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
           ) : (
-            <button title="Pause" className="button-pause" onClick={handlePauseClick}><FaPause /></button>
+            <button title="Pause" className="tool-button button-pause active" onClick={handlePauseClick}><FaPause /></button>
           )}
           <button
             title={isRecording ? "Stop Recording" : "Record"}
@@ -1241,25 +1279,23 @@ const Toolbar: React.FC = () => {
             </div>
           </div>
           <button
-            title={isKGOneEnabled ? 'K.G.One Music Generator' : 'K.G.One integration is disabled — enable it in Settings'}
+            title="K.G.One Music Generator"
             onClick={handleKGOneClick}
-            disabled={!isKGOneEnabled}
-            className={showKGOnePanel ? 'active' : ''}
-            style={!isKGOneEnabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+            className={!showSettings && showKGOnePanel ? 'active' : ''}
           >
             <FaWandMagicSparkles />
           </button>
           <button
             title="Chat"
             onClick={handleChatClick}
-            className={showChatBox ? 'active' : ''}
+            className={!showSettings && showChatBox ? 'active' : ''}
           >
             <FaComments />
           </button>
           <button
             title="Event List Editor"
             onClick={handleEventListClick}
-            className={showEventListPanel ? 'active' : ''}
+            className={!showSettings && showEventListPanel ? 'active' : ''}
           >
             <FaListUl />
           </button>

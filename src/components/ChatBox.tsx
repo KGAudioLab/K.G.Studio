@@ -3,7 +3,8 @@ import './ChatBox.css';
 import { FaPlus, FaBan, FaDownload } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
-import { LLMProvider } from '../agent/llm/LLMProvider';
+import { OpenAICompatibleLLMProvider, type LLMProvider } from '../agent/llm/LLMProvider';
+import { LocalBrowserLLMProvider } from '../agent/llm/LocalBrowserLLMProvider';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { useProjectStore } from '../stores/projectStore';
 import { SystemPrompts } from '../agent/core/SystemPrompts';
@@ -13,6 +14,8 @@ import { useStreamProcessor } from '../hooks/useStreamProcessor';
 import { createMessage, addWelcomeMessage } from '../utils/chatMessageUtils';
 import { formatLocalDateTime } from '../util/timeUtil';
 import { downloadBlob, buildTimestampSuffix } from '../util/miscUtil';
+import { LocalLLMModelManager, type LocalLLMModelState } from '../util/localLLMModelManager';
+import { LOCAL_LLM_DISPLAY_NAME, LOCAL_LLM_PROVIDER_KEY } from '../util/localLLMConfig';
 import KGDropdown from './common/KGDropdown';
 
 import type { ChatMessage } from '../types/projectTypes';
@@ -32,6 +35,8 @@ const createLLMProviderFromConfig = (): LLMProvider => {
   let baseURL: string | undefined;
 
   switch (providerType) {
+    case LOCAL_LLM_PROVIDER_KEY:
+      return new LocalBrowserLLMProvider();
     case 'openai':
       apiKey = configManager.get('general.openai.api_key') as string;
       model = configManager.get('general.openai.model') as string;
@@ -50,7 +55,7 @@ const createLLMProviderFromConfig = (): LLMProvider => {
       break;
   }
 
-  return new LLMProvider(apiKey, model, baseURL);
+  return new OpenAICompatibleLLMProvider(apiKey, model, baseURL);
 };
 
 interface ChatBoxProps {
@@ -64,6 +69,8 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
+  const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
+  const [activeProvider, setActiveProvider] = useState<string>('openai');
 
   // Track if this is the first message (for system prompt logging)
   const [isFirstMessage, setIsFirstMessage] = useState(true);
@@ -180,9 +187,11 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       }
 
       const applyProviderFromConfig = () => {
+        const providerType = (configManager.get('general.llm_provider') as string) || 'openai';
         const provider = createLLMProviderFromConfig();
         const agentCore = AgentCore.instance();
         agentCore.setLLMProvider(provider);
+        setActiveProvider(providerType);
         console.log('LLM provider configured');
       };
 
@@ -191,6 +200,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       const unsubscribe = configManager.addChangeListener((changedKeys) => {
         if (
           changedKeys.includes('general.llm_provider') ||
+          changedKeys.includes('general.local_browser.context_length') ||
           changedKeys.some(k => k.startsWith('general.openai.')) ||
           changedKeys.some(k => k.startsWith('general.openai_compatible.'))
         ) {
@@ -204,6 +214,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     registerClearChatUICallback(clearChatUI);
 
     const maybeUnsubscribePromise = initializeProvider();
+    const unsubscribeLocalModel = LocalLLMModelManager.subscribe(setLocalModelState);
 
     (async () => {
       if (hasShownWelcomeOnceInRuntime) return;
@@ -216,6 +227,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     })();
 
     return () => {
+      unsubscribeLocalModel();
       Promise.resolve(maybeUnsubscribePromise).then((cleanup) => {
         if (typeof cleanup === 'function') cleanup();
       }).catch(() => {});
@@ -266,7 +278,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       // Log system prompt only for first message
       if (isFirstMessage) {
         try {
-          const systemPrompt = await SystemPrompts.getSystemPromptWithContext();
+          const provider = AgentCore.instance().getLLMProvider();
+          const systemPrompt = await SystemPrompts.getSystemPromptWithContext(
+            provider?.getPreferredSystemPromptPath?.(),
+          );
           console.log('------------ SYSTEM ------------');
           console.log(systemPrompt);
           console.log('--------------------------------');
@@ -372,6 +387,45 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
         </div>
       </div>
 
+      {activeProvider === LOCAL_LLM_PROVIDER_KEY && (
+        <div className="chatbox-local-runtime-section">
+          <div className="chatbox-local-runtime-card">
+            <h4 className="chatbox-local-mode-title">{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
+            {!localModelState.runtimeSupport.supported && (
+              <div className="chatbox-local-runtime-warning">
+                {localModelState.runtimeSupport.reason}
+              </div>
+            )}
+            {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
+              <div className="chatbox-local-runtime-help">
+                The local language model has not been downloaded yet. It will be downloaded automatically the next time you send a chat request with this provider.
+              </div>
+            )}
+            {(localModelState.isChecking || localModelState.isDownloading || localModelState.progressText) && (
+              <div className="chatbox-progress-block">
+                <div
+                  className="chatbox-progress-track"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.max(0, Math.min(100, localModelState.progressPercent))}
+                >
+                  <div className="chatbox-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localModelState.progressPercent))}%` }} />
+                </div>
+                <div className="chatbox-gen-hint">
+                  {localModelState.isChecking ? 'Checking local model cache...' : localModelState.progressText}
+                </div>
+              </div>
+            )}
+            {localModelState.error && (
+              <div className="chatbox-local-runtime-error">
+                {localModelState.error}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="chatbox-messages">
         {messages.map((message) => (
           message.role === 'user' ? (
@@ -381,6 +435,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               key={message.id}
               content={message.content}
               isStreaming={message.isStreaming}
+              performanceInfo={message.performanceInfo}
               onAbort={message.isStreaming ? handleAbort : undefined}
             />
           )

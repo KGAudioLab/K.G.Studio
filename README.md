@@ -4,9 +4,13 @@
 
 # K.G.Studio — A Browser-based DAW with AI Assistant
 
+<div align="center">
+  <h3><a href="https://kgaudiolab.github.io/kgstudio"><b>◀ Start using K.G.Studio online inside of your browser ▶</b></a></h3>
+</div>
+
 ## New!
 
-> ### ✦ [**K.G.One Music Studio is available now.**](https://github.com/KGAudioLab/K.G.One) ✦ <br />
+> ### ✦ [K.G.One Music Studio is available now.](https://github.com/KGAudioLab/K.G.One) ✦ <br />
 > [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) is a fully local, open-source integrated platform built around **K.G.Studio** (this project). It bundles [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) for full-song generation, [Foundation-1](https://huggingface.co/RoyalCities/Foundation-1) for audio clip and MIDI loop generation, and [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator) for stem separation — bringing GPU-accelerated AI music generation directly into your browser-based production workflow.
 
 ## What is K.G.Studio?
@@ -19,9 +23,11 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
   <img src="./docs/KGOne-Demo-GIF.gif" alt="K.G.One Logo" width="640" />
 </div>
 
-> Note: Full-Song Generation Feature, Audio Clip Generation Feature, and Stem Separation Feature requires [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration.
+> Note: Full-Song Generation Feature and Audio Clip Generation Feature requires [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration.
 
 ## Latest Updates
+
+- **2026.05.15**: Added **browser-embedded AI models** — two AI models now run entirely in the browser with no external service, no API key, and no K.G.One server required. The **K.G.Studio Musician Assistant** gains a new **Local LLM (Browser)** provider powered by **Gemma 4 E4B** via LiteRT-LM with WebGPU acceleration; the model is downloaded once and cached in OPFS for instant subsequent launches, with configurable context length (32 k / 64 k / 128 k tokens) and live inference performance statistics. **Stem separation** now also runs locally through a browser-embedded **UVR-MDX-NET-Inst_HQ_3** ONNX model with WebGPU acceleration — open the **Music Generator** panel (✦ button), download the model once, and separate vocals from instruments entirely on-device. Both features require a WebGPU-capable browser (Chrome 113+ or Edge 113+) and a secure context (HTTPS or localhost). Recommended hardware: a GPU with at least 8 GB VRAM or a system with at least 16 GB unified RAM.
 
 - **2026.05.10**: Added **staff notation (sheet music) view** — the piano roll now offers a full standard notation mode. Switch between Piano Roll and Sheet Music views using the toggle in the piano roll toolbar. In sheet music mode, notes are engraved via VexFlow with automatic clef selection (treble or bass) based on the active instrument, key signature rendering, automatic beam grouping, ties across bar lines, and configurable quantization for note-value resolution. Enable **Track Scope** to render all MIDI regions on the track as a continuous score rather than a single isolated region.
 
@@ -46,8 +52,6 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 **K.G.Studio is an experimental project in early development.** We're exploring the possibilities of integrating AI agents and LLMs into music production workflows — essentially building a "Cursor or Claude Code for DAW" experience. 
 
 This project investigates how AI-human collaboration can enhance creative music-making, from intelligent harmony suggestions to automated editing tasks. As an experimental platform, expect frequent changes, evolving features, and occasional instability as we push the boundaries of what's possible in AI-assisted music production.
-
-### Start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
 
 ## Demo Videos
 
@@ -329,14 +333,16 @@ Feature priorities might change.
 - [X] Recording
 - [X] Event List
 - [X] Add support for OpenAI's open source models (`gpt-oss-20b` and `gpt-oss-120b`)
+- [X] Stuff notation
+- [X] K.G.One Music Studio integration
+- [X] Browser-embedded AI models (on-device LLM via Gemma 4 E4B; on-device stem separation via UVR-MDX-NET-Inst_HQ_3)
 
 ### Post 1.0
 
-- [ ] Stuff notation
+- [ ] EQ
 - [ ] Filters and effects
 - [ ] Virtual MIDI device output
 - [ ] Enhanced AI Music Assistant Agent
-
 
 ## Help Needed
 
@@ -385,4 +391,4 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - No patent applications using this software or assets
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
-Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, and prompt structure notes) are included in `LICENSE`.
+Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, and MediaPipe) are included in `LICENSE`.

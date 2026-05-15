@@ -1,4 +1,5 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
+import type { PerformanceInfo } from '../agent/llm/StreamingTypes';
 
 export interface TimeSignature {
     numerator: number;
@@ -11,6 +12,7 @@ export interface ChatMessage {
     content: string;
     isStreaming?: boolean;
     tokenCount?: number;
+    performanceInfo?: PerformanceInfo;
 }
 
 /**

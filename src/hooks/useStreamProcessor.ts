@@ -16,6 +16,8 @@ interface StreamProcessorResult {
   isProcessing: boolean;
 }
 
+const PROCESSING_WAVE = '<span class="processing-wave">Processing...</span>';
+
 export const useStreamProcessor = (options: StreamProcessorOptions): StreamProcessorResult => {
   const { onMessageUpdate, onMessageAdd, onMessageRemove, onProcessingChange } = options;
   const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -38,6 +40,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       let assistantResponse = '';
       let tokenCount = 0;
       let hasTextContent = false;
+      let performanceInfo: ChatMessage['performanceInfo'];
 
       console.log(`------------ ${logPrefix} ------------`);
       console.log(input);
@@ -55,7 +58,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
 
           onMessageUpdate(currentStreamingId, (msg) => ({
             ...msg,
-            content: `<span class="processing-wave">Thinking...</span>${tokenCount > 0 ? ` ${tokenCount} tokens received.` : ''} click here to abort.`,
+            content: `${PROCESSING_WAVE}${tokenCount > 0 ? ` ${tokenCount} tokens received.` : ''} click here to abort.`,
             tokenCount
           }));
         } else if (chunk.type === 'tool_call' && chunk.toolCall) {
@@ -65,7 +68,8 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
               ...msg,
               content: assistantResponse,
               isStreaming: false,
-              tokenCount: undefined
+              tokenCount: undefined,
+              performanceInfo
             }));
 
             console.log('------------ ASSISTANT ------------');
@@ -98,19 +102,22 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           assistantResponse = '';
           tokenCount = 0;
           hasTextContent = false;
+          performanceInfo = undefined;
 
           // Create a fresh streaming placeholder for the next LLM response
           const nextMsg = createStreamingMessage();
           currentStreamingId = nextMsg.id;
           onMessageAdd(nextMsg);
         } else if (chunk.type === 'done') {
+          performanceInfo = chunk.performanceInfo;
           // Finalize the streaming message
           if (hasTextContent) {
             onMessageUpdate(currentStreamingId, (msg) => ({
               ...msg,
               content: assistantResponse,
               isStreaming: false,
-              tokenCount: undefined
+              tokenCount: undefined,
+              performanceInfo
             }));
           } else {
             // No text in final response — remove empty placeholder

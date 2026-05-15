@@ -53,6 +53,16 @@ function updateBarWidthMultiplierCSS(multiplier: number): void {
   );
 }
 
+type SidePanelType = 'kgone' | 'chat' | 'eventList';
+
+function getSidePanelVisibilityState(activePanel: SidePanelType | null) {
+  return {
+    showKGOnePanel: activePanel === 'kgone',
+    showChatBox: activePanel === 'chat',
+    showEventListPanel: activePanel === 'eventList',
+  };
+}
+
 // Define the store state interface
 interface ProjectState {
   // State
@@ -101,6 +111,8 @@ interface ProjectState {
 
   // Event list panel state
   showEventListPanel: boolean;
+  lastActiveSidePanel: SidePanelType | null;
+  settingsReturnSidePanel: SidePanelType | null;
 
   // Instrument selection panel state
   showInstrumentSelection: boolean;
@@ -199,6 +211,7 @@ interface ProjectState {
 
   // Event List panel actions
   toggleEventListPanel: () => void;
+  activateSidePanel: (panel: SidePanelType) => void;
 
   // Instrument selection panel actions
   openInstrumentSelectionForTrack: () => void;
@@ -430,6 +443,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial Event List panel state
     showEventListPanel: false,
+    lastActiveSidePanel: initialChatBoxState ? 'chat' : null,
+    settingsReturnSidePanel: null,
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
@@ -1579,27 +1594,52 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     // ChatBox action implementations
-    setShowChatBox: (show: boolean) => {
+    activateSidePanel: (panel: SidePanelType) => {
       set({
-        showChatBox: show,
-        showKGOnePanel: show ? false : get().showKGOnePanel,
-        showEventListPanel: show ? false : get().showEventListPanel
+        ...getSidePanelVisibilityState(panel),
+        lastActiveSidePanel: panel,
+        showSettings: false,
+        settingsReturnSidePanel: null,
       });
     },
 
+    setShowChatBox: (show: boolean) => {
+      if (show) {
+        get().activateSidePanel('chat');
+        return;
+      }
+
+      set({ showChatBox: false });
+    },
+
     toggleChatBox: () => {
-      const { showChatBox } = get();
-      set({ showChatBox: !showChatBox, showKGOnePanel: false, showEventListPanel: false });
+      const { showChatBox, showSettings } = get();
+      if (showSettings || !showChatBox) {
+        get().activateSidePanel('chat');
+        return;
+      }
+
+      set({ showChatBox: false });
     },
 
     toggleKGOnePanel: () => {
-      const { showKGOnePanel } = get();
-      set({ showKGOnePanel: !showKGOnePanel, showChatBox: false, showEventListPanel: false });
+      const { showKGOnePanel, showSettings } = get();
+      if (showSettings || !showKGOnePanel) {
+        get().activateSidePanel('kgone');
+        return;
+      }
+
+      set({ showKGOnePanel: false });
     },
 
     toggleEventListPanel: () => {
-      const { showEventListPanel } = get();
-      set({ showEventListPanel: !showEventListPanel, showChatBox: false, showKGOnePanel: false });
+      const { showEventListPanel, showSettings } = get();
+      if (showSettings || !showEventListPanel) {
+        get().activateSidePanel('eventList');
+        return;
+      }
+
+      set({ showEventListPanel: false });
     },
 
     // Instrument selection panel actions
@@ -1615,7 +1655,29 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Settings action implementations
     setShowSettings: (show: boolean) => {
-      set({ showSettings: show });
+      if (show) {
+        const { showKGOnePanel, showChatBox, showEventListPanel } = get();
+        const activePanel = showKGOnePanel
+          ? 'kgone'
+          : showChatBox
+            ? 'chat'
+            : showEventListPanel
+              ? 'eventList'
+              : null;
+
+        set({
+          showSettings: true,
+          settingsReturnSidePanel: activePanel,
+        });
+        return;
+      }
+
+      const { settingsReturnSidePanel } = get();
+      set({
+        showSettings: false,
+        settingsReturnSidePanel: null,
+        ...getSidePanelVisibilityState(settingsReturnSidePanel),
+      });
     },
 
     toggleSettings: () => {
