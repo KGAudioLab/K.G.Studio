@@ -49,9 +49,11 @@ export class LocalLLMModelManager {
   }
 
   public static async refresh(): Promise<void> {
+    const runtimeSupport = detectLocalLLMRuntimeSupport();
+    this.logSoftRuntimeWarning(runtimeSupport);
     this.setState({
       isChecking: true,
-      runtimeSupport: detectLocalLLMRuntimeSupport(),
+      runtimeSupport,
     });
     try {
       await this.cleanupLegacyEntries();
@@ -66,6 +68,7 @@ export class LocalLLMModelManager {
 
   public static async ensureRuntimeSupported(): Promise<void> {
     const runtimeSupport = detectLocalLLMRuntimeSupport();
+    this.logSoftRuntimeWarning(runtimeSupport);
     this.setState({ runtimeSupport });
     if (!runtimeSupport.supported) {
       throw new Error(runtimeSupport.reason ?? 'Local browser LLM is not supported in this browser.');
@@ -99,6 +102,17 @@ export class LocalLLMModelManager {
     };
     for (const listener of this.listeners) {
       listener(this.getState());
+    }
+  }
+
+  private static logSoftRuntimeWarning(runtimeSupport: LocalLLMRuntimeSupport): void {
+    if (runtimeSupport.supported && runtimeSupport.reason) {
+      console.warn('[localLLM] Runtime warning:', runtimeSupport.reason, {
+        secureContext: runtimeSupport.secureContext,
+        webgpuExposed: runtimeSupport.webgpuExposed,
+        crossOriginIsolated: runtimeSupport.crossOriginIsolated,
+        sharedArrayBufferAvailable: runtimeSupport.sharedArrayBufferAvailable,
+      });
     }
   }
 

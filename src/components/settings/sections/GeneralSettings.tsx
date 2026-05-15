@@ -234,7 +234,6 @@ const GeneralSettings: React.FC = () => {
 
   const localRuntimeMessage = localModelState.runtimeSupport.reason;
   const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
-  const hasLocalRuntimeWarning = localModelState.runtimeSupport.supported && !!localRuntimeMessage;
 
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
@@ -285,12 +284,6 @@ const GeneralSettings: React.FC = () => {
 
         <div className="settings-group">
           <h4>{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
-
-          {hasLocalRuntimeWarning && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#d0a56b', marginTop: '4px', marginBottom: '8px' }}>
-              {localRuntimeMessage}
-            </div>
-          )}
 
           {hasLocalRuntimeHardFailure && (
             <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a', marginTop: '4px', marginBottom: '8px' }}>
