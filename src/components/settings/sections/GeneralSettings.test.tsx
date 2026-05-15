@@ -119,7 +119,7 @@ describe('GeneralSettings', () => {
     });
   });
 
-  it('shows a warning when runtime may fail on this host but is still allowed', async () => {
+  it('keeps local runtime available when runtime may fail on this host', async () => {
     localModelState.runtimeSupport = {
       supported: true,
       webgpuExposed: true,
@@ -131,7 +131,8 @@ describe('GeneralSettings', () => {
 
     render(<GeneralSettings />);
 
-    expect(await screen.findByText(/may not support the local browser runtime reliably/i)).toBeTruthy();
+    expect(await screen.findByText('Gemma 4 E4B Local Runtime')).toBeTruthy();
+    expect(screen.queryByText(/may not support the local browser runtime reliably/i)).toBeNull();
     expect(screen.getByText(/The local model downloads automatically/i)).toBeTruthy();
   });
 });

@@ -7,18 +7,15 @@ export interface ModelDownloadProgress {
 interface OpfsModelCacheOptions {
   directoryName?: string;
   sizeSuffix?: string;
-  tempSuffix?: string;
 }
 
 export class OpfsModelCache {
   private readonly directoryName: string;
   private readonly sizeSuffix: string;
-  private readonly tempSuffix: string;
 
   constructor(options: OpfsModelCacheOptions = {}) {
     this.directoryName = options.directoryName ?? 'models';
     this.sizeSuffix = options.sizeSuffix ?? '.size';
-    this.tempSuffix = options.tempSuffix ?? '.download';
   }
 
   public async exists(filename: string): Promise<boolean> {
@@ -62,8 +59,6 @@ export class OpfsModelCache {
     const dir = await this.getDir();
     await this.removeIfExists(dir, filename);
     await this.removeIfExists(dir, this.getSizeFilename(filename));
-    await this.removeIfExists(dir, `${filename}${this.tempSuffix}`);
-    await this.removeIfExists(dir, `${this.getSizeFilename(filename)}${this.tempSuffix}`);
   }
 
   public async download(
@@ -92,9 +87,8 @@ export class OpfsModelCache {
     const dir = await this.getDir();
     await this.delete(filename);
 
-    const tempFilename = `${filename}${this.tempSuffix}`;
-    const tempHandle = await dir.getFileHandle(tempFilename, { create: true });
-    const tempWritable = await tempHandle.createWritable();
+    const finalHandle = await dir.getFileHandle(filename, { create: true });
+    const finalWritable = await finalHandle.createWritable();
     const reader = stream.getReader();
     let receivedBytes = 0;
 
@@ -103,7 +97,7 @@ export class OpfsModelCache {
         const { done, value } = await reader.read();
         if (done) break;
         if (!value) continue;
-        await tempWritable.write(value);
+        await finalWritable.write(value);
         receivedBytes += value.byteLength;
         onProgress?.({
           receivedBytes,
@@ -111,30 +105,11 @@ export class OpfsModelCache {
           percent: totalBytes ? (receivedBytes / totalBytes) * 100 : 0,
         });
       }
-      await tempWritable.close();
+      await finalWritable.close();
 
       const sizeValue = totalBytes ?? receivedBytes;
       if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
         throw new Error('Model download did not provide a valid size.');
-      }
-
-      console.log(`[opfsModelCache] Finalizing cached model ${filename} from temp file ${tempFilename}.`);
-      const finalHandle = await dir.getFileHandle(filename, { create: true });
-      const finalWritable = await finalHandle.createWritable();
-      try {
-        const tempFile = await tempHandle.getFile();
-        const tempBuffer = await tempFile.arrayBuffer();
-        console.log('[opfsModelCache] Temp file ready for finalize copy.', {
-          filename,
-          tempFilename,
-          tempSize: tempFile.size,
-          expectedSize: sizeValue,
-        });
-        await finalWritable.write(tempBuffer);
-        await finalWritable.close();
-      } catch (error) {
-        await finalWritable.abort();
-        throw error;
       }
 
       const sizeHandle = await dir.getFileHandle(this.getSizeFilename(filename), { create: true });
@@ -158,14 +133,13 @@ export class OpfsModelCache {
       });
     } catch (error) {
       try {
-        await tempWritable.abort();
+        await finalWritable.abort();
       } catch {
         // Ignore abort cleanup errors.
       }
       await this.delete(filename);
       throw error;
     } finally {
-      await this.removeIfExists(dir, tempFilename);
       reader.releaseLock();
     }
   }
