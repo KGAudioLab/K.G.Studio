@@ -25,6 +25,24 @@ const configState = new Map<string, unknown>([
   ['general.kgone.base_url', 'http://127.0.0.1:8000'],
 ]);
 
+const localModelState = {
+  isCached: false,
+  isChecking: false,
+  isDownloading: false,
+  isDeleting: false,
+  progressPercent: 0,
+  progressText: '',
+  error: '',
+  runtimeSupport: {
+    supported: true,
+    webgpuExposed: true,
+    crossOriginIsolated: true,
+    sharedArrayBufferAvailable: true,
+    secureContext: true,
+    reason: null as string | null,
+  },
+};
+
 const configManagerMock = {
   getIsInitialized: vi.fn(() => true),
   initialize: vi.fn().mockResolvedValue(undefined),
@@ -44,41 +62,9 @@ vi.mock('../../../core/config/ConfigManager', () => ({
 
 vi.mock('../../../util/localLLMModelManager', () => ({
   LocalLLMModelManager: {
-    getState: () => ({
-      isCached: false,
-      isChecking: false,
-      isDownloading: false,
-      isDeleting: false,
-      progressPercent: 0,
-      progressText: '',
-      error: '',
-      runtimeSupport: {
-        supported: true,
-        webgpuExposed: true,
-        crossOriginIsolated: true,
-        sharedArrayBufferAvailable: true,
-        secureContext: true,
-        reason: null,
-      },
-    }),
+    getState: () => localModelState,
     subscribe: (listener: (state: unknown) => void) => {
-      listener({
-        isCached: false,
-        isChecking: false,
-        isDownloading: false,
-        isDeleting: false,
-        progressPercent: 0,
-        progressText: '',
-        error: '',
-        runtimeSupport: {
-          supported: true,
-          webgpuExposed: true,
-          crossOriginIsolated: true,
-          sharedArrayBufferAvailable: true,
-          secureContext: true,
-          reason: null,
-        },
-      });
+      listener(localModelState);
       return () => {};
     },
     deleteCachedModel: vi.fn().mockResolvedValue(undefined),
@@ -90,6 +76,21 @@ describe('GeneralSettings', () => {
     configState.set('general.local_browser.context_length', 65536);
     configManagerMock.get.mockClear();
     configManagerMock.set.mockClear();
+    localModelState.isCached = false;
+    localModelState.isChecking = false;
+    localModelState.isDownloading = false;
+    localModelState.isDeleting = false;
+    localModelState.progressPercent = 0;
+    localModelState.progressText = '';
+    localModelState.error = '';
+    localModelState.runtimeSupport = {
+      supported: true,
+      webgpuExposed: true,
+      crossOriginIsolated: true,
+      sharedArrayBufferAvailable: true,
+      secureContext: true,
+      reason: null,
+    };
   });
 
   it('renders the local context length selector and VRAM hint', async () => {
@@ -116,5 +117,21 @@ describe('GeneralSettings', () => {
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.local_browser.context_length', 131072);
     });
+  });
+
+  it('shows a warning when runtime may fail on this host but is still allowed', async () => {
+    localModelState.runtimeSupport = {
+      supported: true,
+      webgpuExposed: true,
+      crossOriginIsolated: false,
+      sharedArrayBufferAvailable: false,
+      secureContext: true,
+      reason: 'This host may not support the local browser runtime reliably because cross-origin isolation or SharedArrayBuffer is unavailable. COOP/COEP headers may be missing.',
+    };
+
+    render(<GeneralSettings />);
+
+    expect(await screen.findByText(/may not support the local browser runtime reliably/i)).toBeTruthy();
+    expect(screen.getByText(/The local model downloads automatically/i)).toBeTruthy();
   });
 });

@@ -103,4 +103,37 @@ describe('LocalBrowserLLMProvider', () => {
     const options = await runProviderAndCaptureOptions(99999);
     expect(options.maxTokens).toBe(32768);
   });
+
+  it('reports runtime initialization failures through the model manager', async () => {
+    configGetMock.mockReturnValue(32768);
+    loadModelReaderWithCacheMock.mockResolvedValue({
+      reader: new Uint8Array([1, 2, 3]),
+      totalBytes: 3,
+      fromCache: false,
+      cacheWritePromise: null,
+    });
+
+    const runtimeError = new Error('runtime init failed');
+    vi.spyOn(LocalBrowserLLMProvider.prototype as never, 'getMediaPipeModule' as never).mockResolvedValue({
+      FilesetResolver: {
+        forGenAiTasks: vi.fn(async () => ({})),
+      },
+      LlmInference: {
+        createFromOptions: vi.fn(async () => {
+          throw runtimeError;
+        }),
+      },
+    });
+
+    const provider = new LocalBrowserLLMProvider();
+
+    await expect(async () => {
+      for await (const _chunk of provider.generateStream([])) {
+        // No-op.
+      }
+    }).rejects.toThrow('runtime init failed');
+
+    expect(ensureRuntimeSupportedMock).toHaveBeenCalled();
+    expect(notifyLoadErrorMock).toHaveBeenCalledWith(runtimeError);
+  });
 });

@@ -339,6 +339,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     }
   }, [isProcessing]);
 
+  const localRuntimeMessage = localModelState.runtimeSupport.reason;
+  const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
+  const hasLocalRuntimeWarning = localModelState.runtimeSupport.supported && !!localRuntimeMessage;
+
   return (
     <div className={`chatbox ${isVisible ? '' : 'is-hidden'}`}>
       <div className="chatbox-header">
@@ -391,9 +395,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
         <div className="chatbox-local-runtime-section">
           <div className="chatbox-local-runtime-card">
             <h4 className="chatbox-local-mode-title">{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
-            {!localModelState.runtimeSupport.supported && (
+            {hasLocalRuntimeWarning && (
               <div className="chatbox-local-runtime-warning">
-                {localModelState.runtimeSupport.reason}
+                {localRuntimeMessage}
+              </div>
+            )}
+            {hasLocalRuntimeHardFailure && (
+              <div className="chatbox-local-runtime-error">
+                {localRuntimeMessage}
               </div>
             )}
             {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
