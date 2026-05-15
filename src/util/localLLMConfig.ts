@@ -1,6 +1,6 @@
 export const LOCAL_LLM_PROVIDER_KEY = 'local_browser';
 export const LOCAL_LLM_MODEL_URL =
-  'http://localhost:3000/models/gemma-4-E4B-it-web.task';
+  'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task';
 export const LOCAL_LLM_MODEL_FILENAME = 'gemma-4-E4B-it-web.task';
 export const LOCAL_LLM_DISPLAY_NAME = 'Gemma 4 E4B';
 export const LOCAL_LLM_LEGACY_FILENAMES = [
