@@ -1,6 +1,6 @@
 # License
 
-Copyright 2025 Xiaohan Tian
+Copyright 2025-2026 Xiaohan Tian
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this project except in compliance with the License.
@@ -17,7 +17,7 @@ You may obtain a copy of the License at:
    If you use this project in any public or commercial product, you must provide the following credit in a prominent location (such as an "About" screen or documentation):
 
    > Powered by **K.G.Studio**  
-   > © 2025 Xiaohan Tian
+   > © 2025-2026 Xiaohan Tian
 
 ## Standard Terms
 
@@ -156,6 +156,74 @@ licensed under the Apache License, Version 2.0.
 Original project: [Cline](https://github.com/cline/cline)
 
 Modifications: Substantial textual and functional changes have been made; only the general content structure remains.
+
+---
+
+### 5. Gemma 4 E4B (LiteRT-LM)
+
+This project uses the Gemma 4 E4B model by Google LLC, accessed via LiteRT-LM.
+Gemma is licensed under the Apache License, Version 2.0, subject to the
+Google Gemma Terms of Use.
+
+Original model: https://huggingface.co/google/gemma-4-E4B-it
+Gemma Terms of Use: https://ai.google.dev/gemma/terms
+Prohibited Use Policy: https://ai.google.dev/gemma/prohibited_use_policy
+
+Gemma is provided under and subject to the Gemma Terms of Use found at
+ai.google.dev/gemma/terms.
+
+Copyright 2025 Google LLC
+
+---
+
+### 6. UVR-MDX-NET-Inst_HQ_3
+
+This project uses the UVR-MDX-NET-Inst_HQ_3 model from the Ultimate Vocal
+Remover (UVR) project, distributed as an ONNX model via
+https://huggingface.co/notabilia/uvr5-models.
+
+Ultimate Vocal Remover — https://github.com/Anjok07/ultimatevocalremovergui
+Authors: Anjok07, KimberleyJSN, and the UVR development community
+
+MDX-NET architecture — https://github.com/kuielab/mdx-net
+Authors: Woosung Choi, Minseok Kim, Jaehwa Chung, Daewon Lee, Soonyoung Jung (KUIELab)
+
+```
+MIT License
+
+Copyright (c) Anjok07, KimberleyJSN, and the UVR contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+---
+
+### 7. MediaPipe / LiteRT (GenAI runtime)
+
+This project bundles the MediaPipe GenAI WebAssembly runtime
+(`genai_bundle.mjs`, `genai_wasm_internal.js/wasm`,
+`genai_wasm_module_internal.js/wasm`) from Google's MediaPipe project.
+
+MediaPipe is licensed under the Apache License, Version 2.0.
+
+Original project: https://github.com/google-ai-edge/mediapipe
+Copyright 2019 The MediaPipe Authors
 
 ---
 
