@@ -9,9 +9,15 @@ import {
   parseToolCalls,
   stripToolProtocol,
 } from './gemmaToolProtocol';
-import { LOCAL_LLM_MODEL_FILENAME, LOCAL_LLM_MODEL_URL } from '../../util/localLLMConfig';
+import {
+  LOCAL_LLM_DEFAULT_CONTEXT_LENGTH,
+  LOCAL_LLM_MODEL_FILENAME,
+  LOCAL_LLM_MODEL_URL,
+  normalizeLocalLLMContextLength,
+} from '../../util/localLLMConfig';
 import { LocalLLMModelCache } from '../../util/localLLMModelCache';
 import type { LLMProvider } from './LLMProvider';
+import { ConfigManager } from '../../core/config/ConfigManager';
 
 type MediaPipeGenAI = {
   FilesetResolver: {
@@ -60,6 +66,9 @@ export class LocalBrowserLLMProvider implements LLMProvider {
       return this.inference;
     }
 
+    const maxTokens = this.getConfiguredContextLength();
+    console.log(`[localLLM] Initializing with max context length: ${maxTokens} tokens`);
+
     const [{ FilesetResolver, LlmInference }, modelLoad] = await Promise.all([
       this.getMediaPipeModule(),
       LocalLLMModelCache.loadModelReaderWithCache(
@@ -86,7 +95,7 @@ export class LocalBrowserLLMProvider implements LLMProvider {
           modelAssetBuffer: modelLoad.reader,
         },
         numResponses: 1,
-        maxTokens: 32768,
+        maxTokens,
         topK: 64,
         temperature: 1.0,
       });
@@ -110,6 +119,17 @@ export class LocalBrowserLLMProvider implements LLMProvider {
 
   private async getMediaPipeModule(): Promise<MediaPipeGenAI> {
     return importMediaPipe();
+  }
+
+  private getConfiguredContextLength(): number {
+    try {
+      const configManager = ConfigManager.instance();
+      return normalizeLocalLLMContextLength(
+        configManager.get('general.local_browser.context_length'),
+      );
+    } catch {
+      return LOCAL_LLM_DEFAULT_CONTEXT_LENGTH;
+    }
   }
 
   private applyTemplate(message: { role: 'user' | 'model'; text: string }): string {

@@ -6,6 +6,10 @@ export const LOCAL_LLM_DISPLAY_NAME = 'Gemma 4 E4B';
 export const LOCAL_LLM_LEGACY_FILENAMES = [
   'gemma-3n-E4B-it-int4-Web.litertlm',
 ];
+export const LOCAL_LLM_CONTEXT_LENGTH_OPTIONS = [32768, 65536, 131072] as const;
+export const LOCAL_LLM_DEFAULT_CONTEXT_LENGTH = 32768;
+
+export type LocalLLMContextLength = typeof LOCAL_LLM_CONTEXT_LENGTH_OPTIONS[number];
 
 export interface LocalLLMRuntimeSupport {
   supported: boolean;
@@ -39,4 +43,17 @@ export function detectLocalLLMRuntimeSupport(): LocalLLMRuntimeSupport {
     secureContext,
     reason,
   };
+}
+
+export function isLocalLLMContextLength(value: unknown): value is LocalLLMContextLength {
+  return typeof value === 'number'
+    && (LOCAL_LLM_CONTEXT_LENGTH_OPTIONS as readonly number[]).includes(value);
+}
+
+export function normalizeLocalLLMContextLength(value: unknown): LocalLLMContextLength {
+  return isLocalLLMContextLength(value) ? value : LOCAL_LLM_DEFAULT_CONTEXT_LENGTH;
+}
+
+export function formatLocalLLMContextLength(value: LocalLLMContextLength): string {
+  return `${Math.round(value / 1024)}k`;
 }

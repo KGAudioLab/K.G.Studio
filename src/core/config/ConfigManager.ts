@@ -8,6 +8,9 @@ interface AppConfig {
     language: string;
     llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
+    local_browser: {
+      context_length: 32768 | 65536 | 131072;
+    };
     openai: {
       api_key: string;
       flex: boolean;
@@ -207,6 +210,9 @@ export class ConfigManager {
             api_key: '',
             base_url: '',
             model: ''
+          },
+          local_browser: {
+            context_length: 32768
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'

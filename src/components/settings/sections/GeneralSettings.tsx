@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
-import { LOCAL_LLM_DISPLAY_NAME, LOCAL_LLM_PROVIDER_KEY } from '../../../util/localLLMConfig';
+import {
+  formatLocalLLMContextLength,
+  LOCAL_LLM_CONTEXT_LENGTH_OPTIONS,
+  LOCAL_LLM_DEFAULT_CONTEXT_LENGTH,
+  LOCAL_LLM_DISPLAY_NAME,
+  LOCAL_LLM_PROVIDER_KEY,
+  normalizeLocalLLMContextLength,
+  type LocalLLMContextLength,
+} from '../../../util/localLLMConfig';
 
 const GeneralSettings: React.FC = () => {
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
@@ -24,6 +32,7 @@ const GeneralSettings: React.FC = () => {
   const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
   const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
   const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
+  const [localContextLength, setLocalContextLength] = useState<LocalLLMContextLength>(LOCAL_LLM_DEFAULT_CONTEXT_LENGTH);
   const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
 
   const configManager = ConfigManager.instance();
@@ -64,6 +73,7 @@ const GeneralSettings: React.FC = () => {
       setCompatibleKey((configManager.get('general.openai_compatible.api_key') as string) || '');
       setCompatibleBaseUrl((configManager.get('general.openai_compatible.base_url') as string) || '');
       setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
+      setLocalContextLength(normalizeLocalLLMContextLength(configManager.get('general.local_browser.context_length')));
       setSoundfontBaseUrl((configManager.get('general.soundfont.base_url') as string) || '');
       setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
       setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
@@ -210,6 +220,18 @@ const GeneralSettings: React.FC = () => {
     }
   };
 
+  const handleLocalContextLengthChange = async (value: string) => {
+    const parsed = Number(value);
+    const normalized = normalizeLocalLLMContextLength(parsed);
+    setLocalContextLength(normalized);
+    try {
+      await configManager.set('general.local_browser.context_length', normalized);
+      console.log('Local browser context length changed to:', normalized);
+    } catch (error) {
+      console.error('Failed to save local browser context length:', error);
+    }
+  };
+
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
     <div className="settings-section">
@@ -276,6 +298,27 @@ const GeneralSettings: React.FC = () => {
                 : localModelState.isCached
                   ? 'Downloaded in browser cache.'
                   : 'Not downloaded yet.'}
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="local-llm-context-length">
+              Context Length
+            </label>
+            <select
+              id="local-llm-context-length"
+              className="settings-select"
+              value={localContextLength}
+              onChange={(e) => void handleLocalContextLengthChange(e.target.value)}
+            >
+              {LOCAL_LLM_CONTEXT_LENGTH_OPTIONS.map(option => (
+                <option key={option} value={option}>
+                  {formatLocalLLMContextLength(option)}
+                </option>
+              ))}
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Larger context lengths require more VRAM and may also reduce performance as conversations become longer.
             </div>
           </div>
 

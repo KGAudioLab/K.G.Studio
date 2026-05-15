@@ -104,7 +104,7 @@ export const OPFS_CONSTANTS = {
 
 export const CONFIG_UPGRADER_CONSTANTS = {
   VERSION_KEY: '__config_version',
-  CURRENT_VERSION: 2,
+  CURRENT_VERSION: 3,
 };
 
 export const URL_CONSTANTS = {

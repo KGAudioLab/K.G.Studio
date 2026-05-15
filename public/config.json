@@ -25,6 +25,9 @@
             "api_key": "",
             "base_url": "",
             "model": ""
+        },
+        "local_browser": {
+            "context_length": 32768
         }, 
         "soundfont": {
             "base_url": "https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/"

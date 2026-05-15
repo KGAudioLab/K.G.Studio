@@ -200,6 +200,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       const unsubscribe = configManager.addChangeListener((changedKeys) => {
         if (
           changedKeys.includes('general.llm_provider') ||
+          changedKeys.includes('general.local_browser.context_length') ||
           changedKeys.some(k => k.startsWith('general.openai.')) ||
           changedKeys.some(k => k.startsWith('general.openai_compatible.'))
         ) {
