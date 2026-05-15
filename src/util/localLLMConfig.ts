@@ -29,14 +29,14 @@ export function detectLocalLLMRuntimeSupport(): LocalLLMRuntimeSupport {
   let reason: string | null = null;
   if (!secureContext) {
     reason = 'Local browser LLM requires a secure context (HTTPS or localhost).';
-  } else if (!crossOriginIsolated || !sharedArrayBufferAvailable) {
-    reason = 'Local browser LLM requires SharedArrayBuffer support. Ensure COOP/COEP headers are enabled.';
   } else if (!webgpuExposed) {
     reason = 'Local browser LLM currently requires a browser with WebGPU support.';
+  } else if (!crossOriginIsolated || !sharedArrayBufferAvailable) {
+    reason = 'This host may not support the local browser runtime reliably because cross-origin isolation or SharedArrayBuffer is unavailable. COOP/COEP headers may be missing.';
   }
 
   return {
-    supported: reason === null,
+    supported: secureContext && webgpuExposed,
     webgpuExposed,
     crossOriginIsolated,
     sharedArrayBufferAvailable,
