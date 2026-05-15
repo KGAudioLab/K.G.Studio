@@ -1,6 +1,8 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { PerformanceInfo } from '../../agent/llm/StreamingTypes';
@@ -40,11 +42,45 @@ const formatTps = (value?: number): string | null => {
   return value.toFixed(1);
 };
 
+const THINKING_LABEL = 'Thinking...';
+const PROCESSING_LABEL = 'Processing...';
+
+const formatThinkingDuration = (elapsedSeconds: number): string => {
+  if (elapsedSeconds < 60) {
+    return `Thinking for ${elapsedSeconds}s...`;
+  }
+
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  return `Thinking for ${minutes}m ${seconds.toString().padStart(2, '0')}s...`;
+};
+
 const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreaming, onAbort, performanceInfo }) => {
   const prefillTps = formatTps(performanceInfo?.prefillTps);
   const generationTps = formatTps(performanceInfo?.generationTps);
   const hasPerformanceInfo = Boolean(prefillTps || generationTps);
-  const processingWaveLabels = ['Thinking...', 'Processing...'];
+  const [thinkingElapsedSeconds, setThinkingElapsedSeconds] = useState(0);
+  const processingWaveLabels = [THINKING_LABEL, PROCESSING_LABEL];
+  const isThinking = isStreaming && content.includes(`<span class="processing-wave">${THINKING_LABEL}</span>`);
+
+  useEffect(() => {
+    if (!isThinking) {
+      setThinkingElapsedSeconds(0);
+      return;
+    }
+
+    setThinkingElapsedSeconds(0);
+
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+      setThinkingElapsedSeconds(elapsedSeconds);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isThinking]);
 
   const renderContent = () => {
     // Handle special abort link for streaming messages
@@ -59,7 +95,9 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
           processingWaveMarkup,
           ''
         );
-        const waveLabel = processingWaveLabels.find(label => processingWaveMarkup.includes(label)) ?? 'Thinking...';
+        const waveLabel = processingWaveMarkup.includes(THINKING_LABEL)
+          ? formatThinkingDuration(thinkingElapsedSeconds)
+          : processingWaveLabels.find(label => processingWaveMarkup.includes(label)) ?? THINKING_LABEL;
 
         return (
           <span>
@@ -87,7 +125,8 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
 
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
           code: CodeComponent,
         }}

@@ -278,6 +278,16 @@
   color: #ccc;
 }
 
+.message-content .katex-display {
+  margin: 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.message-content .katex {
+  max-width: 100%;
+}
+
 .message-content table {
   border-collapse: collapse;
   width: 100%;
