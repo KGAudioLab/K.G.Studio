@@ -9,6 +9,7 @@ import { upgradeToV7 } from './upgradeToV7';
 import { upgradeToV8 } from './upgradeToV8';
 import { upgradeToV9 } from './upgradeToV9';
 import { upgradeToV10 } from './upgradeToV10';
+import { upgradeToV11 } from './upgradeToV11';
 
 /**
  * Upgrade the given project to the latest structure version, one version at a time.
@@ -66,6 +67,10 @@ export function upgradeProjectToLatest(project: KGProject): KGProject {
       }
       case 10: {
         workingProject = upgradeToV10(workingProject);
+        break;
+      }
+      case 11: {
+        workingProject = upgradeToV11(workingProject);
         break;
       }
       default: {

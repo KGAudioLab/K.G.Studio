@@ -96,8 +96,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const volumeInputRef = useRef<HTMLInputElement>(null);
   // Local flag to track slider interaction; not used for rendering
   const isAdjustingVolumeRef = useRef(false);
-  const [muted, setMuted] = useState(false);
-  const [solo, setSolo] = useState(false);
+  const [muted, setMuted] = useState(track.getMuted());
+  const [solo, setSolo] = useState(track.getSolo());
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -135,11 +135,10 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     setVolume(track.getVolume());
   }, [allTracks, track]);
 
-  // Sync mute/solo UI with audio interface state on track/project changes
+  // Sync mute/solo UI with the track model on track/project changes
   useEffect(() => {
-    const audioInterface = KGAudioInterface.instance();
-    setMuted(audioInterface.getTrackMuted(track.getId().toString()));
-    setSolo(audioInterface.getTrackSolo(track.getId().toString()));
+    setMuted(track.getMuted());
+    setSolo(track.getSolo());
   }, [allTracks, track]);
   
   // Handle track name edit within the component
@@ -252,22 +251,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     e.stopPropagation();
     const next = !muted;
     setMuted(next);
-    try {
-      KGAudioInterface.instance().setTrackMute(track.getId().toString(), next);
-    } catch (err) {
+    useProjectStore.getState().updateTrackProperties(track.getId(), { muted: next }).catch(err => {
+      setMuted(track.getMuted());
       console.error('Failed to toggle mute:', err);
-    }
+    });
   };
 
   const handleToggleSolo = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     const next = !solo;
     setSolo(next);
-    try {
-      KGAudioInterface.instance().setTrackSolo(track.getId().toString(), next);
-    } catch (err) {
+    useProjectStore.getState().updateTrackProperties(track.getId(), { solo: next }).catch(err => {
+      setSolo(track.getSolo());
       console.error('Failed to toggle solo:', err);
-    }
+    });
   };
 
   // Handle track click

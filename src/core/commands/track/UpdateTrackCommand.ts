@@ -12,6 +12,8 @@ export interface TrackUpdateProperties {
   instrument?: InstrumentType; // Only applies to MIDI tracks
   type?: TrackType;
   volume?: number;
+  muted?: boolean;
+  solo?: boolean;
 }
 
 /**
@@ -47,6 +49,8 @@ export class UpdateTrackCommand extends KGCommand {
       name: this.targetTrack.getName(),
       type: this.targetTrack.getType(),
       volume: this.targetTrack.getVolume(),
+      muted: this.targetTrack.getMuted(),
+      solo: this.targetTrack.getSolo(),
     };
 
     // Store original instrument if it's a MIDI track
@@ -103,6 +107,32 @@ export class UpdateTrackCommand extends KGCommand {
       updatedProperties.push(`volume: ${originalVolume} → ${newVolume}`);
     }
 
+    if (this.newProperties.muted !== undefined && this.newProperties.muted !== this.originalProperties.muted) {
+      const newMuted = this.newProperties.muted;
+      const originalMuted = this.originalProperties.muted;
+
+      this.targetTrack.setMuted(newMuted);
+
+      const audioInterface = KGAudioInterface.instance();
+      audioInterface.setTrackMute(this.trackId.toString(), newMuted);
+
+      this.changedProperties.add('muted');
+      updatedProperties.push(`muted: ${originalMuted} → ${newMuted}`);
+    }
+
+    if (this.newProperties.solo !== undefined && this.newProperties.solo !== this.originalProperties.solo) {
+      const newSolo = this.newProperties.solo;
+      const originalSolo = this.originalProperties.solo;
+
+      this.targetTrack.setSolo(newSolo);
+
+      const audioInterface = KGAudioInterface.instance();
+      audioInterface.setTrackSolo(this.trackId.toString(), newSolo);
+
+      this.changedProperties.add('solo');
+      updatedProperties.push(`solo: ${originalSolo} → ${newSolo}`);
+    }
+
     if (updatedProperties.length > 0) {
       console.log(`Updated track ${this.trackId}: ${updatedProperties.join(', ')}`);
     } else {
@@ -156,6 +186,24 @@ export class UpdateTrackCommand extends KGCommand {
       restoredProperties.push(`volume: ${this.originalProperties.volume}`);
     }
 
+    if (this.changedProperties.has('muted') && this.originalProperties.muted !== undefined) {
+      this.targetTrack.setMuted(this.originalProperties.muted);
+
+      const audioInterface = KGAudioInterface.instance();
+      audioInterface.setTrackMute(this.trackId.toString(), this.originalProperties.muted);
+
+      restoredProperties.push(`muted: ${this.originalProperties.muted}`);
+    }
+
+    if (this.changedProperties.has('solo') && this.originalProperties.solo !== undefined) {
+      this.targetTrack.setSolo(this.originalProperties.solo);
+
+      const audioInterface = KGAudioInterface.instance();
+      audioInterface.setTrackSolo(this.trackId.toString(), this.originalProperties.solo);
+
+      restoredProperties.push(`solo: ${this.originalProperties.solo}`);
+    }
+
     console.log(`Restored track ${this.trackId}: ${restoredProperties.join(', ')}`);
   }
 
@@ -174,6 +222,12 @@ export class UpdateTrackCommand extends KGCommand {
     }
     if (this.newProperties.volume !== undefined) {
       updatedProps.push('volume');
+    }
+    if (this.newProperties.muted !== undefined) {
+      updatedProps.push('muted');
+    }
+    if (this.newProperties.solo !== undefined) {
+      updatedProps.push('solo');
     }
 
     if (updatedProps.length === 1) {

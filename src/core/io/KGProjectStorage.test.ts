@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KGProjectStorage, DuplicateEntryError } from './KGProjectStorage';
 import { KGProject } from '../KGProject';
+import { KGTrack } from '../track/KGTrack';
 
 // --- OPFS mock infrastructure ---
 
@@ -119,6 +120,22 @@ describe('KGProjectStorage', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.getName()).toBe('My Song');
     expect(loaded!.getBpm()).toBe(120);
+  });
+
+  it('preserves track mute and solo state when saving and loading', async () => {
+    const track = new KGTrack('Track 1', 1);
+    track.setMuted(true);
+    track.setSolo(true);
+    const project = new KGProject('My Song', 16, 0, 120, undefined, undefined, undefined, undefined, undefined, 1, [track], 11);
+
+    await storage.save('My Song', project);
+
+    const loaded = await storage.load('My Song');
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.getTracks()).toHaveLength(1);
+    expect(loaded!.getTracks()[0].getMuted()).toBe(true);
+    expect(loaded!.getTracks()[0].getSolo()).toBe(true);
   });
 
   it('creates meta.json and media/ directory on save', async () => {

@@ -873,6 +873,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           }
         }
 
+        // Reapply restored mute/solo state after all buses exist so solo logic can be
+        // computed against the full track set.
+        for (const track of tracks) {
+          const trackId = track.getId().toString();
+          audioInterface.setTrackMute(trackId, track.getMuted());
+          audioInterface.setTrackSolo(trackId, track.getSolo());
+        }
+
         // Update CSS variables
         updateTimeSignatureCSS(timeSignature);
         updateMaxBarsCSS(maxBars);
