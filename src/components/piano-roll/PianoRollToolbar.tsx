@@ -256,28 +256,30 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           </div>
         )}
 
-        <div className="quant-dropdown-container" ref={zoomSliderRef}>
-          <button
-            className="quant-button"
-            onClick={() => setShowZoomSlider(!showZoomSlider)}
-            title="Zoom"
-          >
-            {zoom}x
-          </button>
-          {showZoomSlider && (
-            <div className="piano-roll-zoom-popup">
-              <input
-                type="range"
-                min="1"
-                max="8"
-                step="1"
-                value={zoom}
-                onChange={(e) => onZoomChange(parseInt(e.target.value))}
-              />
-              <span className="piano-roll-zoom-value">{zoom}x</span>
-            </div>
-          )}
-        </div>
+        {!sheetMusicViewEnabled && (
+          <div className="quant-dropdown-container" ref={zoomSliderRef}>
+            <button
+              className="quant-button"
+              onClick={() => setShowZoomSlider(!showZoomSlider)}
+              title="Zoom"
+            >
+              {zoom}x
+            </button>
+            {showZoomSlider && (
+              <div className="piano-roll-zoom-popup">
+                <input
+                  type="range"
+                  min="1"
+                  max="8"
+                  step="1"
+                  value={zoom}
+                  onChange={(e) => onZoomChange(parseInt(e.target.value))}
+                />
+                <span className="piano-roll-zoom-value">{zoom}x</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
