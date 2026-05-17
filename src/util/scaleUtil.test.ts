@@ -387,6 +387,12 @@ describe('scaleUtil', () => {
       expect(typeof result).toBe('string');
       expect(result).toContain('#282828');
       expect(result).toContain('#303030');
+      expect(result).toContain('#404040 calc(var(--region-grid-bar-width) - 1px)');
+      expect(result).toContain('#343434 calc(var(--region-grid-beat-width) - 1px)');
+      expect(result).toContain('#303030 calc(var(--region-piano-key-height) * 0)');
+      expect(result).toContain('#404040 calc(var(--region-piano-key-height) * 12 - 1px)');
+      expect(result).toContain('#282828 calc(var(--region-piano-key-height) * 1)');
+      expect(result).toContain('#343434 calc(var(--region-piano-key-height) * 2 - 1px)');
     });
 
     it('should generate different backgrounds for different modes', () => {

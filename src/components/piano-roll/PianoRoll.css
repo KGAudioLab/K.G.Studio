@@ -593,7 +593,10 @@
   width: 100%;
   height: 100%;
   position: relative;
-  background-size: var(--region-grid-beat-width) var(--region-piano-key-height), 100% 100%;
+  background-size:
+    var(--region-grid-bar-width) var(--region-piano-key-height),
+    var(--region-grid-beat-width) var(--region-piano-key-height),
+    100% 100%;
   /* background-image is now set dynamically via React inline styles in PianoGrid component */
 }
 

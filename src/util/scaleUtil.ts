@@ -304,6 +304,9 @@ export const generatePianoGridBackground = (
   selectedMode: string,
   keySignature: KeySignature
 ): string => {
+  const majorGridLineColor = '#404040';
+  const minorGridLineColor = '#343434';
+
   // Get root note and scale pitch classes
   const rootNote = getRootNoteFromKeySignature(keySignature);
   const modeSteps = getModeSteps(selectedMode);
@@ -314,37 +317,36 @@ export const generatePianoGridBackground = (
     const pitch = pianoRollIndexToPitch(index);
     const pitchClass = pitch % 12;
     const isInScale = scalePitchClasses.includes(pitchClass);
+    const isCRow = pitchClass === 0;
 
     // Calculate row positions using CSS calc() with --region-piano-key-height variable
     const rowTop = `calc(var(--region-piano-key-height) * ${index})`;
     const rowBottomMinusOne = `calc(var(--region-piano-key-height) * ${index + 1} - 1px)`;
     const rowBottom = `calc(var(--region-piano-key-height) * ${index + 1})`;
+    const rowFillColor = isInScale ? '#303030' : '#282828';
+    const horizontalLineColor = isCRow ? majorGridLineColor : minorGridLineColor;
 
     // Match the event list palette while preserving scale-aware row distinction.
-    if (isInScale) {
-      return `
-        #282828 ${rowTop},
-        #282828 ${rowBottomMinusOne},
-        #3a3a3a ${rowBottomMinusOne},
-        #3a3a3a ${rowBottom}
-      `.trim();
-    } else {
-      return `
-        #303030 ${rowTop},
-        #303030 ${rowBottomMinusOne},
-        #3a3a3a ${rowBottomMinusOne},
-        #3a3a3a ${rowBottom}
-      `.trim();
-    }
+    return `
+      ${rowFillColor} ${rowTop},
+      ${rowFillColor} ${rowBottomMinusOne},
+      ${horizontalLineColor} ${rowBottomMinusOne},
+      ${horizontalLineColor} ${rowBottom}
+    `.trim();
   }).join(',\n');
 
   // Return complete background-image with vertical and horizontal gradients
-  // Note: Vertical beat lines gradient should be preserved from existing CSS
+  // Major bar lines sit above minor beat lines so bar boundaries remain the primary anchors.
   return `
     linear-gradient(to right,
+      transparent calc(var(--region-grid-bar-width) - 1px),
+      ${majorGridLineColor} calc(var(--region-grid-bar-width) - 1px),
+      ${majorGridLineColor} var(--region-grid-bar-width)
+    ),
+    linear-gradient(to right,
       transparent calc(var(--region-grid-beat-width) - 1px),
-      #3a3a3a calc(var(--region-grid-beat-width) - 1px),
-      #3a3a3a var(--region-grid-beat-width)
+      ${minorGridLineColor} calc(var(--region-grid-beat-width) - 1px),
+      ${minorGridLineColor} var(--region-grid-beat-width)
     ),
     linear-gradient(to bottom, ${horizontalLines})
   `;
