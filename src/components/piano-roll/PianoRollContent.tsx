@@ -351,7 +351,6 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                   keySignature={sheetKeySignature}
                   instrument={sheetInstrument}
                   quantization={sheetQuantization}
-                  noteScrollRef={noteScrollRef}
                   onMetricsChange={onSheetMeasureMetricsChange ?? NOOP_SHEET_METRICS_CHANGE}
                 />
               ) : (
