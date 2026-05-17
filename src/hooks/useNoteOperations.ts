@@ -279,6 +279,28 @@ export const useNoteOperations = ({
     // Find the note being resized
     const note = activeRegion.getNotes().find(n => n.getId() === noteId);
     if (!note) return;
+
+    const selectedNotesInRegion = core.getSelectedItems().filter(item =>
+      item instanceof KGMidiNote &&
+      activeRegion.getNotes().some(regionNote => regionNote.getId() === item.getId())
+    ) as KGMidiNote[];
+    const isResizedNoteSelected = selectedNotesInRegion.some(selectedNote => selectedNote.getId() === noteId);
+
+    if (!isResizedNoteSelected) {
+      selectedNotesInRegion.forEach(selectedNote => {
+        selectedNote.deselect();
+      });
+      useProjectStore.getState().clearAllSelections();
+
+      note.select();
+      core.addSelectedItem(note);
+      KGPianoRollState.instance().setLastEditedNoteLength(note.getEndBeat() - note.getStartBeat());
+
+      const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
+      if (track) {
+        updateTrack(track);
+      }
+    }
     
     // Store the initial start and end beats
     initialStartBeatRef.current = note.getStartBeat();
