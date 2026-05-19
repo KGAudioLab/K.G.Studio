@@ -3,6 +3,10 @@ import { act } from '@testing-library/react';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 
+const pianoRollStateMocks = vi.hoisted(() => ({
+  setSheetMusicViewEnabled: vi.fn(),
+}));
+
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 const mockProject = {
   getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
@@ -76,10 +80,17 @@ vi.mock('../core/config/ConfigManager', () => ({
   },
 }));
 
+vi.mock('../core/state/KGPianoRollState', () => ({
+  KGPianoRollState: {
+    instance: () => pianoRollStateMocks,
+  },
+}));
+
 describe('projectStore piano roll state', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.resetModules();
+    pianoRollStateMocks.setSheetMusicViewEnabled.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
@@ -118,10 +129,34 @@ describe('projectStore piano roll state', () => {
     });
 
     state = useProjectStore.getState();
+    expect(pianoRollStateMocks.setSheetMusicViewEnabled).toHaveBeenCalledWith(false);
     expect(state.showPianoRoll).toBe(true);
     expect(state.pianoRollMode).toBe('midi-edit');
     expect(state.activeRegionId).toBe('midi-b');
     expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.requestedSheetMusicViewEnabled).toBe(false);
+    expect(state.pianoRollViewRequestVersion).toBe(1);
+  });
+
+  it('opens a MIDI region in sheet music view when requested', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().openHybridMode('midi-a', 'audio-a');
+    });
+
+    act(() => {
+      useProjectStore.getState().openMidiPianoRollWithSheetMusicView('midi-b', true);
+    });
+
+    const state = useProjectStore.getState();
+    expect(pianoRollStateMocks.setSheetMusicViewEnabled).toHaveBeenCalledWith(true);
+    expect(state.showPianoRoll).toBe(true);
+    expect(state.pianoRollMode).toBe('midi-edit');
+    expect(state.activeRegionId).toBe('midi-b');
+    expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.requestedSheetMusicViewEnabled).toBe(true);
+    expect(state.pianoRollViewRequestVersion).toBe(1);
   });
 
   it('tracks playback preparation around startPlaying success', async () => {

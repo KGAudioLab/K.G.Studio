@@ -35,6 +35,8 @@ const storeState = {
     storeState.activeRegionId = regionId;
   }),
   pianoRollMode: 'midi-edit' as const,
+  requestedSheetMusicViewEnabled: false,
+  pianoRollViewRequestVersion: 0,
   openMidiPianoRoll: vi.fn(),
   openSpectrogramViewer: vi.fn(),
   openHybridMode: vi.fn(),

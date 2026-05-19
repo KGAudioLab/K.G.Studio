@@ -17,7 +17,7 @@ import { showAlert } from '../util/dialogUtil';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRoll, openSpectrogramViewer, playheadPosition, refreshProjectState } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRollWithSheetMusicView, openSpectrogramViewer, playheadPosition, refreshProjectState } = useProjectStore();
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   useEffect(() => {
@@ -256,9 +256,36 @@ export const useGlobalKeyboardHandler = () => {
           }
         }
         if (foundMidi) {
-          openMidiPianoRoll(candidateId);
+          openMidiPianoRollWithSheetMusicView(candidateId, false);
         } else if (foundAudio) {
           openSpectrogramViewer(candidateId);
+        }
+        return;
+      }
+
+      // Check for sheet music shortcut (N) — open piano roll for MIDI in sheet music view
+      if (event.key.toLowerCase() === 'n' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+        event.preventDefault();
+        const candidateId = activeRegionId ?? lastSelectedRegionId;
+        if (!candidateId) {
+          void showAlert('Please select a region to open the editor.');
+          return;
+        }
+        const tracks = KGCore.instance().getCurrentProject().getTracks();
+        let foundMidi = false;
+        let foundAudio = false;
+        for (const track of tracks) {
+          const region = track.getRegions().find(r => r.getId() === candidateId);
+          if (region) {
+            if (region instanceof KGMidiRegion) foundMidi = true;
+            else foundAudio = true;
+            break;
+          }
+        }
+        if (foundMidi) {
+          openMidiPianoRollWithSheetMusicView(candidateId, true);
+        } else if (foundAudio) {
+          void showAlert('Sheet music view is only available for MIDI regions.');
         }
         return;
       }
@@ -307,7 +334,7 @@ export const useGlobalKeyboardHandler = () => {
     setActiveRegionId,
     setShowPianoRoll,
     showPianoRoll,
-    openMidiPianoRoll,
+    openMidiPianoRollWithSheetMusicView,
     openSpectrogramViewer,
     playheadPosition,
     refreshProjectState,

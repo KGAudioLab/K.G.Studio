@@ -46,6 +46,8 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll,
     setActiveRegionId,
     pianoRollMode,
+    requestedSheetMusicViewEnabled,
+    pianoRollViewRequestVersion,
     openMidiPianoRoll,
     openSpectrogramViewer,
     openHybridMode,
@@ -1052,6 +1054,8 @@ const MainContent: React.FC<MainContentProps> = ({
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
           mode={pianoRollMode}
+          requestedSheetMusicViewEnabled={requestedSheetMusicViewEnabled}
+          pianoRollViewRequestVersion={pianoRollViewRequestVersion}
           audioRegion={(() => {
             // spectrogram mode: audio region IS the activeRegionId
             // hybrid mode: audio region is hybridAudioRegionId

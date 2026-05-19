@@ -2,11 +2,26 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGlobalKeyboardHandler } from './useGlobalKeyboardHandler';
+import { showAlert } from '../util/dialogUtil';
 
 const regionEditUtilMocks = vi.hoisted(() => ({
   splitSelectedRegionAtPlayhead: vi.fn(),
   mergeSelectedMidiRegions: vi.fn(),
 }));
+
+const MockMidiRegion = vi.hoisted(() => class {
+  private readonly id: string;
+
+  constructor(id: string) {
+    this.id = id;
+  }
+
+  getId() {
+    return this.id;
+  }
+});
+
+let mockTracks: Array<{ getRegions: () => Array<{ getId: () => string }> }> = [];
 
 const storeState = {
   undo: vi.fn(),
@@ -30,6 +45,7 @@ const storeState = {
   setShowPianoRoll: vi.fn(),
   showPianoRoll: false,
   openMidiPianoRoll: vi.fn(),
+  openMidiPianoRollWithSheetMusicView: vi.fn(),
   openSpectrogramViewer: vi.fn(),
   playheadPosition: 12,
   refreshProjectState: vi.fn(),
@@ -101,7 +117,7 @@ vi.mock('../core/KGCore', () => ({
   KGCore: {
     instance: () => ({
       getCurrentProject: () => ({
-        getTracks: () => [],
+        getTracks: () => mockTracks,
       }),
     }),
   },
@@ -116,7 +132,7 @@ vi.mock('../core/midi-input/KGMidiInput', () => ({
 }));
 
 vi.mock('../core/region/KGMidiRegion', () => ({
-  KGMidiRegion: class {},
+  KGMidiRegion: MockMidiRegion,
 }));
 
 vi.mock('../core/track/KGAudioTrack', () => ({
@@ -139,9 +155,18 @@ const HookHarness = () => {
 
 describe('useGlobalKeyboardHandler region shortcuts', () => {
   beforeEach(() => {
+    mockTracks = [];
     regionEditUtilMocks.splitSelectedRegionAtPlayhead.mockReset();
     regionEditUtilMocks.mergeSelectedMidiRegions.mockReset();
     storeState.setStatus.mockClear();
+    storeState.setShowPianoRoll.mockClear();
+    storeState.showPianoRoll = false;
+    storeState.activeRegionId = null;
+    storeState.selectedRegionIds = ['region-a', 'region-b'];
+    storeState.openMidiPianoRoll.mockClear();
+    storeState.openMidiPianoRollWithSheetMusicView.mockClear();
+    storeState.openSpectrogramViewer.mockClear();
+    vi.mocked(showAlert).mockClear();
   });
 
   it('triggers split on Ctrl+T', async () => {
@@ -179,5 +204,77 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
     await waitFor(() => {
       expect(storeState.setStatus).toHaveBeenCalledWith('Merged 2 MIDI regions');
     });
+  });
+
+  it('opens a selected MIDI region in piano roll view on E', () => {
+    mockTracks = [
+      {
+        getRegions: () => [new MockMidiRegion('region-b')],
+      },
+    ];
+
+    render(<HookHarness />);
+    fireEvent.keyDown(document.body, { key: 'e' });
+
+    expect(storeState.openMidiPianoRollWithSheetMusicView).toHaveBeenCalledWith('region-b', false);
+    expect(storeState.openSpectrogramViewer).not.toHaveBeenCalled();
+  });
+
+  it('opens a selected MIDI region in sheet music view on N', () => {
+    mockTracks = [
+      {
+        getRegions: () => [new MockMidiRegion('region-b')],
+      },
+    ];
+
+    render(<HookHarness />);
+    fireEvent.keyDown(document.body, { key: 'n' });
+
+    expect(storeState.openMidiPianoRollWithSheetMusicView).toHaveBeenCalledWith('region-b', true);
+    expect(storeState.setShowPianoRoll).not.toHaveBeenCalled();
+  });
+
+  it('shows the editor alert on N when no region is selected', () => {
+    storeState.selectedRegionIds = [];
+
+    render(<HookHarness />);
+    fireEvent.keyDown(document.body, { key: 'n' });
+
+    expect(showAlert).toHaveBeenCalledWith('Please select a region to open the editor.');
+    expect(storeState.openMidiPianoRollWithSheetMusicView).not.toHaveBeenCalled();
+  });
+
+  it('does not open spectrogram on N for an audio region', () => {
+    mockTracks = [
+      {
+        getRegions: () => [
+          {
+            getId: () => 'region-b',
+          },
+        ],
+      },
+    ];
+
+    render(<HookHarness />);
+    fireEvent.keyDown(document.body, { key: 'n' });
+
+    expect(showAlert).toHaveBeenCalledWith('Sheet music view is only available for MIDI regions.');
+    expect(storeState.openSpectrogramViewer).not.toHaveBeenCalled();
+    expect(storeState.openMidiPianoRollWithSheetMusicView).not.toHaveBeenCalled();
+  });
+
+  it('does not close the editor when N is pressed while piano roll is already open', () => {
+    storeState.showPianoRoll = true;
+    mockTracks = [
+      {
+        getRegions: () => [new MockMidiRegion('region-b')],
+      },
+    ];
+
+    render(<HookHarness />);
+    fireEvent.keyDown(document.body, { key: 'n' });
+
+    expect(storeState.setShowPianoRoll).not.toHaveBeenCalled();
+    expect(storeState.openMidiPianoRollWithSheetMusicView).toHaveBeenCalledWith('region-b', true);
   });
 });

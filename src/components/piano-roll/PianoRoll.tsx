@@ -63,6 +63,8 @@ interface PianoRollProps {
   initialPosition?: { x: number; y: number };
   initialSize?: { width: number; height: number };
   mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  requestedSheetMusicViewEnabled?: boolean;
+  pianoRollViewRequestVersion?: number;
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;
@@ -74,6 +76,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   initialPosition,
   initialSize,
   mode = 'midi-edit',
+  requestedSheetMusicViewEnabled = false,
+  pianoRollViewRequestVersion = 0,
   audioRegion,
   trackId,
   projectName,
@@ -153,6 +157,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pendingModeSwitchRequestRef = useRef<PendingModeSwitchRequest | null>(null);
   const previousSheetMusicViewEnabledRef = useRef<boolean>(false);
   const previousActiveRegionIdRef = useRef<string | null>(null);
+  const lastAppliedViewRequestVersionRef = useRef<number>(0);
 
   // Ref for storing the setNoteUpdateCounter function
   const triggerNoteUpdateRef = useRef<React.Dispatch<React.SetStateAction<number>> | null>(null);
@@ -267,6 +272,42 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       console.log(`Synced piano roll state on mount - snap: ${currentSnap}, tool: ${currentTool}`);
     }
   }, []); // Empty dependency array means this runs once on mount
+
+  useEffect(() => {
+    if (isSpectrogram) {
+      return;
+    }
+
+    if (pianoRollViewRequestVersion === 0 || lastAppliedViewRequestVersionRef.current === pianoRollViewRequestVersion) {
+      return;
+    }
+
+    lastAppliedViewRequestVersionRef.current = pianoRollViewRequestVersion;
+
+    if (activeRegion) {
+      pendingModeSwitchRequestRef.current = createPendingModeSwitchRequest({
+        playheadBeat: playheadPosition,
+        regionStartBeat: activeRegion.getStartFromBeat(),
+        regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+        sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
+        destinationSheetMusicViewEnabled: requestedSheetMusicViewEnabled,
+        destinationSheetMusicTrackScopeEnabled: requestedSheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
+      });
+    } else {
+      pendingModeSwitchRequestRef.current = null;
+    }
+
+    setSheetMusicViewEnabled(requestedSheetMusicViewEnabled);
+    KGPianoRollState.instance().setSheetMusicViewEnabled(requestedSheetMusicViewEnabled);
+  }, [
+    activeRegion,
+    isSpectrogram,
+    pianoRollViewRequestVersion,
+    playheadPosition,
+    requestedSheetMusicViewEnabled,
+    sheetMusicTrackScopeEnabled,
+    sheetMusicViewEnabled,
+  ]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
