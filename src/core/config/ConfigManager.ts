@@ -47,6 +47,7 @@ interface AppConfig {
       hold_to_create_region: string;
       play: string;
       loop: string;
+      record: string;
       undo: string;
       redo: string;
       select_all: string;
@@ -54,6 +55,8 @@ interface AppConfig {
       cut: string;
       paste: string;
       save: string;
+      split_region: string;
+      merge_regions: string;
     };
     piano_roll: {
       switch: string;

@@ -49,7 +49,9 @@
             "copy": "ctrl+c",
             "cut": "ctrl+x",
             "paste": "ctrl+v",
-            "save": "ctrl+s"
+            "save": "ctrl+s",
+            "split_region": "ctrl+t",
+            "merge_regions": "ctrl+j"
         },
         "piano_roll": {
             "switch": "tab", 

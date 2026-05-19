@@ -9,6 +9,7 @@ import { KGCore } from '../core/KGCore';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import { mergeSelectedMidiRegions, splitSelectedRegionAtPlayhead } from '../util/regionEditUtil';
 import { showAlert } from '../util/dialogUtil';
 
 /**
@@ -16,14 +17,14 @@ import { showAlert } from '../util/dialogUtil';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRoll, openSpectrogramViewer } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRoll, openSpectrogramViewer, playheadPosition, refreshProjectState } = useProjectStore();
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Skip if user is typing in an input field
-      const target = event.target as HTMLElement;
-      if (target && (
+      const target = event.target;
+      if (target instanceof HTMLElement && (
         target.tagName === 'INPUT' || 
         target.tagName === 'TEXTAREA' || 
         target.contentEditable === 'true' ||
@@ -71,6 +72,8 @@ export const useGlobalKeyboardHandler = () => {
       const loopShortcut = configManager.get('hotkeys.main.loop') as string;
       const saveShortcut = configManager.get('hotkeys.main.save') as string;
       const recordShortcut = configManager.get('hotkeys.main.record') as string;
+      const splitShortcut = configManager.get('hotkeys.main.split_region') as string;
+      const mergeShortcut = configManager.get('hotkeys.main.merge_regions') as string;
 
       // Check for undo shortcut
       if (undoShortcut && matchesKeyboardShortcut(event, undoShortcut)) {
@@ -202,6 +205,33 @@ export const useGlobalKeyboardHandler = () => {
         return;
       }
 
+      if (splitShortcut && matchesKeyboardShortcut(event, splitShortcut)) {
+        event.preventDefault();
+        void splitSelectedRegionAtPlayhead({
+          selectedRegionIds,
+          playheadPosition,
+          refreshProjectState,
+        }).then(status => {
+          if (status) {
+            setStatus(status);
+          }
+        });
+        return;
+      }
+
+      if (mergeShortcut && matchesKeyboardShortcut(event, mergeShortcut)) {
+        event.preventDefault();
+        void mergeSelectedMidiRegions({
+          selectedRegionIds,
+          refreshProjectState,
+        }).then(status => {
+          if (status) {
+            setStatus(status);
+          }
+        });
+        return;
+      }
+
       // Check for edit/view shortcut (E) — open piano roll for MIDI, spectrogram for audio
       if (event.key.toLowerCase() === 'e' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
         event.preventDefault();
@@ -272,11 +302,14 @@ export const useGlobalKeyboardHandler = () => {
     startRecording,
     stopRecording,
     activeRegionId,
+    selectedRegionIds,
     lastSelectedRegionId,
     setActiveRegionId,
     setShowPianoRoll,
     showPianoRoll,
     openMidiPianoRoll,
     openSpectrogramViewer,
+    playheadPosition,
+    refreshProjectState,
   ]); // Include dependencies for store actions
 };
