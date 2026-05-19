@@ -15,6 +15,7 @@ export class KGPianoRollState {
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;
   private currentAutomationType: string = "pitch-bend";
+  private pianoRollZoom: number = 1;
   private sheetMusicViewEnabled: boolean = false;
   private sheetMusicTrackScopeEnabled: boolean = false;
   private sheetQuantization: string = '16,48';
@@ -84,6 +85,14 @@ export class KGPianoRollState {
 
   public setCurrentAutomationType(type: string): void {
     this.currentAutomationType = type;
+  }
+
+  public getPianoRollZoom(): number {
+    return this.pianoRollZoom;
+  }
+
+  public setPianoRollZoom(zoom: number): void {
+    this.pianoRollZoom = zoom;
   }
 
   public getSheetMusicViewEnabled(): boolean {

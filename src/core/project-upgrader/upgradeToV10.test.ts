@@ -26,7 +26,7 @@ describe('upgradeToV10', () => {
 
     const upgraded = upgradeProjectToLatest(project);
 
-    expect(upgraded.getProjectStructureVersion()).toBe(11);
+    expect(upgraded.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     expect(upgraded.getTracks()[0].getVolumeAutomation()).toHaveLength(1);
   });
 });

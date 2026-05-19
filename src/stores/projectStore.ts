@@ -308,6 +308,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
   // Get initial ChatBox state from config
   const configManager = ConfigManager.instance();
+  KGPianoRollState.instance().setPianoRollZoom(currentProject.getPianoRollZoom());
   const initialChatBoxState = configManager.getIsInitialized()
     ? (configManager.get('chatbox.default_open') as boolean) ?? false
     : false;
@@ -942,6 +943,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(1);
+        KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
 
         // Add a status message
         KGCore.instance().setStatus(`Project "${projectToLoad.getName()}" loaded with audio setup`);

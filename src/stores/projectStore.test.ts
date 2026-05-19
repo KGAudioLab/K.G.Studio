@@ -5,6 +5,7 @@ import { KGMidiTrack } from '../core/track/KGMidiTrack';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
+  setPianoRollZoom: vi.fn(),
 }));
 
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
@@ -19,13 +20,23 @@ const mockProject = {
   getSelectedMode: () => 'major',
   getIsLooping: () => false,
   getLoopingRange: () => [0, 0] as [number, number],
+  getPianoRollZoom: () => 1,
 };
+let currentProject = mockProject;
 
 const mockAudioInterface = {
   getTransportPosition: vi.fn().mockReturnValue(8),
   startAudioRecording: vi.fn().mockResolvedValue({ usedDeviceId: 'default', fellBackToDefault: false }),
   stopAudioRecording: vi.fn().mockResolvedValue(null),
   cancelAudioRecording: vi.fn().mockResolvedValue(undefined),
+  removeTrackSynth: vi.fn(),
+  removeTrackAudioPlayerBus: vi.fn(),
+  createTrackAudioPlayerBus: vi.fn().mockResolvedValue(undefined),
+  loadAudioBufferForTrack: vi.fn(),
+  createTrackSynth: vi.fn(),
+  setTrackVolume: vi.fn(),
+  setTrackMute: vi.fn(),
+  setTrackSolo: vi.fn(),
 };
 
 const configValues = new Map<string, unknown>([
@@ -33,7 +44,10 @@ const configValues = new Map<string, unknown>([
 ]);
 
 const mockCore = {
-  getCurrentProject: () => mockProject,
+  getCurrentProject: () => currentProject,
+  setCurrentProject: vi.fn((project: typeof mockProject) => {
+    currentProject = project;
+  }),
   setPlayheadUpdateCallback: vi.fn(),
   setPlaybackStateChangeCallback: vi.fn(),
   setLoopBoundaryReachedCallback: vi.fn(),
@@ -49,6 +63,7 @@ const mockCore = {
   redo: vi.fn(() => true),
   clearSelectedItems: vi.fn(),
   getStatus: () => 'Ready',
+  setStatus: vi.fn(),
   getPlayheadPosition: () => 0,
   setPlayheadPosition: vi.fn(),
   getIsPlaying: () => false,
@@ -91,7 +106,9 @@ describe('projectStore piano roll state', () => {
     vi.useFakeTimers();
     vi.resetModules();
     pianoRollStateMocks.setSheetMusicViewEnabled.mockReset();
+    pianoRollStateMocks.setPianoRollZoom.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
+    currentProject = mockProject;
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();

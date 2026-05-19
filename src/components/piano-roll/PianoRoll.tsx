@@ -96,7 +96,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     useState<SpectrogramHeightResolution>(3);
 
   // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
-  const [pianoRollZoom, setPianoRollZoom] = useState<number>(1);
+  const [pianoRollZoom, setPianoRollZoom] = useState<number>(() => KGPianoRollState.instance().getPianoRollZoom());
   const [automationEnabled, setAutomationEnabled] = useState(false);
   const [automationType, setAutomationType] = useState<PianoRollAutomationType>('pitch-bend');
   const [sheetMusicViewEnabled, setSheetMusicViewEnabled] = useState(false);
@@ -785,6 +785,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       }
     }
 
+    KGPianoRollState.instance().setPianoRollZoom(nextZoom);
+    KGCore.instance().getCurrentProject().setPianoRollZoom(nextZoom);
     setPianoRollZoom(nextZoom);
   }, [pianoRollZoom]);
 
@@ -1027,7 +1029,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
   }, [pianoRollZoom]);
 
-  // Scroll horizontally to the active region's starting bar
+  // Scroll horizontally to the active region's starting position
   useEffect(() => {
     if (!pianoRollNoteScrollRef.current || !activeRegion) {
       previousActiveRegionIdRef.current = activeRegion?.getId() ?? null;
@@ -1043,27 +1045,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Get the starting beat of the region
       const startBeat = activeRegion.getStartFromBeat();
 
-      // Get the time signature to calculate beats per bar
-      const beatsPerBar = timeSignature.numerator;
-
-      // Calculate the bar number (0-indexed)
-      const barNumber = Math.floor(startBeat / beatsPerBar);
-
       if (DEBUG_MODE.PIANO_ROLL) {
-        console.log(`Scrolling to region's starting bar: ${barNumber + 1} (startBeat: ${startBeat}, beatsPerBar: ${beatsPerBar})`);
+        console.log(`Scrolling to region's starting position: startBeat=${startBeat}`);
       }
 
-      // Calculate the pixel position (each bar is --region-grid-bar-width wide, which is 160px by default)
-      const barWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-bar-width')) || 160;
-
-      // Calculate the scroll position to scroll to the starting bar
-      const scrollPosition = barNumber * barWidth;
+      const scrollPosition = getRegionStartScrollLeft(startBeat);
 
       // Scroll to the calculated position
       pianoRollNoteScrollRef.current.scrollLeft = Math.max(0, scrollPosition);
       previousActiveRegionIdRef.current = activeRegion.getId();
     }
-  }, [activeRegion, timeSignature]);
+  }, [activeRegion]);
 
   useLayoutEffect(() => {
     const request = pendingModeSwitchRequestRef.current;
@@ -1588,4 +1580,12 @@ export function getScrollLeftForViewportRequest({
     scopeEndPx: endPx,
     container,
   });
+}
+
+export function getRegionStartScrollLeft(startBeat: number): number {
+  const beatWidth = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
+  ) || TOOLBAR_CONSTANTS.BASE_BAR_WIDTH;
+
+  return Math.max(0, startBeat * beatWidth);
 }

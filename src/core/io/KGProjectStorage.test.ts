@@ -105,6 +105,13 @@ describe('KGProjectStorage', () => {
     return new KGProject(name, 16, 0, 120);
   }
 
+  it('defaults both zoom levels to 1 on a fresh project', () => {
+    const project = new KGProject();
+
+    expect(project.getBarWidthMultiplier()).toBe(1);
+    expect(project.getPianoRollZoom()).toBe(1);
+  });
+
   it('initializes and creates the projects directory', async () => {
     // The projects directory should exist after init
     const projects = await mockRoot.getDirectoryHandle('projects');
@@ -136,6 +143,20 @@ describe('KGProjectStorage', () => {
     expect(loaded!.getTracks()).toHaveLength(1);
     expect(loaded!.getTracks()[0].getMuted()).toBe(true);
     expect(loaded!.getTracks()[0].getSolo()).toBe(true);
+  });
+
+  it('preserves both main-grid and piano-roll zoom levels when saving and loading', async () => {
+    const project = createTestProject('Zoom Song');
+    project.setBarWidthMultiplier(3);
+    project.setPianoRollZoom(5);
+
+    await storage.save('Zoom Song', project);
+
+    const loaded = await storage.load('Zoom Song');
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.getBarWidthMultiplier()).toBe(3);
+    expect(loaded!.getPianoRollZoom()).toBe(5);
   });
 
   it('creates meta.json and media/ directory on save', async () => {
