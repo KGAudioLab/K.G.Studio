@@ -16,6 +16,7 @@ import {
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { plainToInstance } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles, FaListUl } from 'react-icons/fa6';

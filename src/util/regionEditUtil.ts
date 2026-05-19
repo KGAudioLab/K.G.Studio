@@ -1,7 +1,10 @@
 import { KGCore } from '../core/KGCore';
+import { SplitSelectedNotesCommand } from '../core/commands/note/SplitSelectedNotesCommand';
 import { SplitRegionCommand } from '../core/commands/region/SplitRegionCommand';
 import { MergeMidiRegionsCommand } from '../core/commands/region/MergeMidiRegionsCommand';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGPianoRollState } from '../core/state/KGPianoRollState';
+import { useProjectStore } from '../stores/projectStore';
 import { showAlert, showConfirm } from './dialogUtil';
 
 interface SplitSelectedRegionParams {
@@ -16,6 +19,95 @@ interface MergeSelectedMidiRegionsParams {
 }
 
 export const splitSelectedRegionAtPlayhead = async ({
+  selectedRegionIds,
+  playheadPosition,
+  refreshProjectState,
+}: SplitSelectedRegionParams): Promise<string | null> => {
+  const {
+    activeRegionId,
+    pianoRollMode,
+    selectedNoteIds,
+    showPianoRoll,
+  } = useProjectStore.getState();
+  const sheetMusicViewEnabled = KGPianoRollState.instance().getSheetMusicViewEnabled();
+
+  if (
+    showPianoRoll &&
+    pianoRollMode === 'midi-edit' &&
+    !sheetMusicViewEnabled &&
+    activeRegionId &&
+    selectedNoteIds.length > 0
+  ) {
+    return splitSelectedNotesAtPlayhead({
+      activeRegionId,
+      selectedNoteIds,
+      playheadPosition,
+      refreshProjectState,
+    });
+  }
+
+  return splitSingleSelectedRegionAtPlayhead({
+    selectedRegionIds,
+    playheadPosition,
+    refreshProjectState,
+  });
+};
+
+const splitSelectedNotesAtPlayhead = async ({
+  activeRegionId,
+  selectedNoteIds,
+  playheadPosition,
+  refreshProjectState,
+}: {
+  activeRegionId: string;
+  selectedNoteIds: string[];
+  playheadPosition: number;
+  refreshProjectState: () => void;
+}): Promise<string | null> => {
+  const tracks = KGCore.instance().getCurrentProject().getTracks();
+  let activeRegion: KGMidiRegion | null = null;
+
+  for (const track of tracks) {
+    const region = track.getRegions().find(candidate => candidate.getId() === activeRegionId);
+    if (region instanceof KGMidiRegion) {
+      activeRegion = region;
+      break;
+    }
+  }
+
+  if (!activeRegion) {
+    await showAlert('The active MIDI region could not be found. Please reopen the piano roll and try again.');
+    return null;
+  }
+
+  const selectedNoteIdSet = new Set(selectedNoteIds);
+  const selectedNotes = activeRegion.getNotes().filter(note => selectedNoteIdSet.has(note.getId()));
+  if (selectedNotes.length === 0) {
+    await showAlert('The selected notes could not be found in the active MIDI region. Please reselect the notes and try again.');
+    return null;
+  }
+
+  const regionRelativePlayhead = playheadPosition - activeRegion.getStartFromBeat();
+  const splitCount = selectedNotes.filter(note => (
+    note.getStartBeat() < regionRelativePlayhead && regionRelativePlayhead < note.getEndBeat()
+  )).length;
+  if (splitCount === 0) {
+    await showAlert('The playhead is not inside any selected note. Move the playhead inside a selected note before splitting.');
+    return null;
+  }
+
+  try {
+    const command = new SplitSelectedNotesCommand(activeRegionId, selectedNoteIds, regionRelativePlayhead);
+    KGCore.instance().executeCommand(command, { rethrow: true });
+    refreshProjectState();
+    return `Split ${splitCount} note${splitCount === 1 ? '' : 's'} at beat ${playheadPosition.toFixed(2)}`;
+  } catch (error) {
+    await showAlert(error instanceof Error ? error.message : 'Unable to split the selected notes.');
+    return null;
+  }
+};
+
+const splitSingleSelectedRegionAtPlayhead = async ({
   selectedRegionIds,
   playheadPosition,
   refreshProjectState,

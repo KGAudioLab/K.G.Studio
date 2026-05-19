@@ -231,13 +231,16 @@ export class ConfigManager {
             hold_to_create_region: 'ctrl',
             play: 'space',
             loop: 'c',
+            record: 'r',
             undo: 'ctrl+z',
             redo: 'ctrl+shift+z',
             select_all: 'ctrl+a',
             copy: 'ctrl+c',
             cut: 'ctrl+x',
             paste: 'ctrl+v',
-            save: 'ctrl+s'
+            save: 'ctrl+s',
+            split_region: 'ctrl+t',
+            merge_regions: 'ctrl+j'
           },
           piano_roll: {
             switch: 'tab', 

@@ -25,6 +25,7 @@ const storeState = {
   stopRecording: vi.fn(),
   activeRegionId: null,
   selectedRegionIds: ['region-a', 'region-b'],
+  selectedNoteIds: [],
   setActiveRegionId: vi.fn(),
   setShowPianoRoll: vi.fn(),
   showPianoRoll: false,
@@ -32,6 +33,7 @@ const storeState = {
   openSpectrogramViewer: vi.fn(),
   playheadPosition: 12,
   refreshProjectState: vi.fn(),
+  pianoRollMode: 'midi-edit' as const,
 };
 
 type StoreState = typeof storeState;
@@ -143,7 +145,7 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
   });
 
   it('triggers split on Ctrl+T', async () => {
-    regionEditUtilMocks.splitSelectedRegionAtPlayhead.mockResolvedValue('Split region at beat 12.00');
+    regionEditUtilMocks.splitSelectedRegionAtPlayhead.mockResolvedValue('Split 1 note at beat 12.00');
 
     render(<HookHarness />);
     fireEvent.keyDown(document.body, { key: 't', ctrlKey: true });
@@ -157,7 +159,7 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
     });
 
     await waitFor(() => {
-      expect(storeState.setStatus).toHaveBeenCalledWith('Split region at beat 12.00');
+      expect(storeState.setStatus).toHaveBeenCalledWith('Split 1 note at beat 12.00');
     });
   });
 

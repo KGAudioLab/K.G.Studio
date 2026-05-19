@@ -41,6 +41,7 @@ export { DeleteNotesCommand, DeleteNoteCommand } from './note/DeleteNotesCommand
 export { ResizeNotesCommand } from './note/ResizeNotesCommand';
 export { MoveNotesCommand } from './note/MoveNotesCommand';
 export { PasteNotesCommand } from './note/PasteNotesCommand';
+export { SplitSelectedNotesCommand } from './note/SplitSelectedNotesCommand';
 export { UpdateNotePropertiesCommand } from './note/UpdateNotePropertiesCommand';
 export { UpdatePitchBendPropertiesCommand } from './note/UpdatePitchBendPropertiesCommand';
 export { UpdateControllerEventPropertiesCommand } from './note/UpdateControllerEventPropertiesCommand';
