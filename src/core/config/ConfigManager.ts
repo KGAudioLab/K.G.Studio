@@ -80,6 +80,7 @@ interface AppConfig {
     default_open: boolean;
   };
   audio: {
+    bounce_starts_from_beat_1: boolean;
     enable_audio_capture_for_screen_sharing: boolean;
     input_device_id: string;
     lookahead_time: number;
@@ -260,6 +261,7 @@ export class ConfigManager {
           default_open: true
         },
         audio: {
+          bounce_starts_from_beat_1: true,
           enable_audio_capture_for_screen_sharing: false,
           input_device_id: 'default',
           lookahead_time: 0.05,

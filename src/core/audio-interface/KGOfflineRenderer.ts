@@ -99,6 +99,7 @@ export class KGOfflineRenderer {
 
     let renderStartBeat = 0;
     let renderEndBeat: number;
+    const bounceStartsFromBeat1 = (ConfigManager.instance().get('audio.bounce_starts_from_beat_1') as boolean) ?? true;
 
     const isLooping = project.getIsLooping();
     // Looping range is determined up-front; non-looping range is computed
@@ -272,7 +273,7 @@ export class KGOfflineRenderer {
       }
 
       if (contentEnd > 0) {
-        renderStartBeat = contentStart;
+        renderStartBeat = bounceStartsFromBeat1 ? 0 : contentStart;
         renderEndBeat = contentEnd;
       }
       // else: no content found, keep the full project range as fallback

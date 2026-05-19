@@ -76,6 +76,7 @@
         "default_open": true
     },
     "audio": {
+        "bounce_starts_from_beat_1": true,
         "enable_audio_capture_for_screen_sharing": false,
         "input_device_id": "default",
         "lookahead_time": 0.05,
