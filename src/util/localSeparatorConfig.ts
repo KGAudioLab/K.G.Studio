@@ -1,9 +1,10 @@
 import type { LocalSeparatorModelConfig } from './localSeparatorTypes';
 
-export const LOCAL_SEPARATOR_MODEL_URL =
+export const LOCAL_SEPARATOR_DEFAULT_MODEL_URL =
   'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx';
 
 export const LOCAL_SEPARATOR_MODEL_FILENAME = 'UVR-MDX-NET-Inst_HQ_3.onnx';
+export const LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES = 66759214;
 
 export const LOCAL_SEPARATOR_MODEL_CONFIG: LocalSeparatorModelConfig = {
   filename: LOCAL_SEPARATOR_MODEL_FILENAME,

@@ -1,5 +1,5 @@
 import { OpfsModelCache, type ModelDownloadProgress } from './opfsModelCache';
-import { LOCAL_LLM_MODEL_FILENAME } from './localLLMConfig';
+import { LOCAL_LLM_MODEL_EXPECTED_SIZE_BYTES, LOCAL_LLM_MODEL_FILENAME } from './localLLMConfig';
 
 const cache = new OpfsModelCache({ directoryName: 'models' });
 let writingToCachePromise: Promise<void> | null = null;
@@ -51,7 +51,9 @@ const createProgressReader = (
 
 export class LocalLLMModelCache {
   public static async exists(filename: string = LOCAL_LLM_MODEL_FILENAME): Promise<boolean> {
-    return cache.exists(filename);
+    return cache.exists(filename, {
+      expectedSizeBytes: LOCAL_LLM_MODEL_EXPECTED_SIZE_BYTES,
+    });
   }
 
   public static async getFile(filename: string = LOCAL_LLM_MODEL_FILENAME): Promise<File> {
@@ -98,6 +100,9 @@ export class LocalLLMModelCache {
       streamForCache,
       filename,
       totalBytes > 0 ? totalBytes : null,
+      {
+        expectedSizeBytes: LOCAL_LLM_MODEL_EXPECTED_SIZE_BYTES,
+      },
       progress => onProgress?.({ ...progress, fromCache: false }),
     );
     writingToCachePromise = writingToCachePromise.finally(() => {
@@ -117,6 +122,13 @@ export class LocalLLMModelCache {
     filename: string = LOCAL_LLM_MODEL_FILENAME,
     onProgress?: (progress: ModelDownloadProgress) => void,
   ): Promise<void> {
-    await cache.download(sourceUrl, filename, onProgress);
+    await cache.download(
+      sourceUrl,
+      filename,
+      {
+        expectedSizeBytes: LOCAL_LLM_MODEL_EXPECTED_SIZE_BYTES,
+      },
+      onProgress,
+    );
   }
 }

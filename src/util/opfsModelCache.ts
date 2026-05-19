@@ -9,6 +9,10 @@ interface OpfsModelCacheOptions {
   sizeSuffix?: string;
 }
 
+interface ModelCacheValidationOptions {
+  expectedSizeBytes?: number | null;
+}
+
 export class OpfsModelCache {
   private readonly directoryName: string;
   private readonly sizeSuffix: string;
@@ -18,7 +22,7 @@ export class OpfsModelCache {
     this.sizeSuffix = options.sizeSuffix ?? '.size';
   }
 
-  public async exists(filename: string): Promise<boolean> {
+  public async exists(filename: string, options: ModelCacheValidationOptions = {}): Promise<boolean> {
     try {
       const dir = await this.getDir();
       const fileHandle = await dir.getFileHandle(filename);
@@ -26,6 +30,10 @@ export class OpfsModelCache {
       const [file, sizeFile] = await Promise.all([fileHandle.getFile(), sizeHandle.getFile()]);
       const expectedSize = Number(await sizeFile.text());
       if (!Number.isFinite(expectedSize) || expectedSize <= 0) {
+        await this.delete(filename);
+        return false;
+      }
+      if (options.expectedSizeBytes != null && expectedSize !== options.expectedSizeBytes) {
         await this.delete(filename);
         return false;
       }
@@ -64,6 +72,7 @@ export class OpfsModelCache {
   public async download(
     sourceUrl: string,
     filename: string,
+    options: ModelCacheValidationOptions = {},
     onProgress?: (progress: ModelDownloadProgress) => void,
   ): Promise<void> {
     const response = await fetch(sourceUrl);
@@ -75,13 +84,14 @@ export class OpfsModelCache {
     if (!response.body) {
       throw new Error('Model download response did not include a readable body.');
     }
-    await this.downloadStream(response.body, filename, totalBytes, onProgress);
+    await this.downloadStream(response.body, filename, totalBytes, options, onProgress);
   }
 
   public async downloadStream(
     stream: ReadableStream<Uint8Array>,
     filename: string,
     totalBytes: number | null,
+    options: ModelCacheValidationOptions = {},
     onProgress?: (progress: ModelDownloadProgress) => void,
   ): Promise<void> {
     const dir = await this.getDir();
@@ -110,6 +120,9 @@ export class OpfsModelCache {
       const sizeValue = totalBytes ?? receivedBytes;
       if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
         throw new Error('Model download did not provide a valid size.');
+      }
+      if (options.expectedSizeBytes != null && receivedBytes !== options.expectedSizeBytes) {
+        throw new Error(`Model download size mismatch for ${filename}: expected ${options.expectedSizeBytes} bytes, got ${receivedBytes}.`);
       }
 
       const sizeHandle = await dir.getFileHandle(this.getSizeFilename(filename), { create: true });

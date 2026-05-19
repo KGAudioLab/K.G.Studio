@@ -18,7 +18,7 @@ import { showAlert } from '../util/dialogUtil';
 import {
   LOCAL_SEPARATOR_MODEL_CONFIG,
   LOCAL_SEPARATOR_MODEL_FILENAME,
-  LOCAL_SEPARATOR_MODEL_URL,
+  LOCAL_SEPARATOR_DEFAULT_MODEL_URL,
 } from '../util/localSeparatorConfig';
 import { LocalSeparatorModelCache } from '../util/localSeparatorModelCache';
 import { runLocalSeparator } from '../util/localSeparatorRunner';
@@ -959,6 +959,13 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     return null;
   }, [selectedRegionIds]);
 
+  const getConfiguredLocalSeparatorModelUrl = useCallback(() => {
+    const configured = ConfigManager.instance().get('general.uvr5_web_runtime.mdx_net_model_url');
+    return typeof configured === 'string' && configured.trim()
+      ? configured
+      : LOCAL_SEPARATOR_DEFAULT_MODEL_URL;
+  }, []);
+
   const isGenerating = genStatus !== 'idle' && genStatus !== 'done' && genStatus !== 'error';
 
   const handleDownloadLocalModel = useCallback(async () => {
@@ -969,7 +976,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
     try {
       await LocalSeparatorModelCache.download(
-        LOCAL_SEPARATOR_MODEL_URL,
+        getConfiguredLocalSeparatorModelUrl(),
         LOCAL_SEPARATOR_MODEL_FILENAME,
         progress => {
           const receivedMb = (progress.receivedBytes / (1024 * 1024)).toFixed(1);
@@ -992,7 +999,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     } finally {
       setIsDownloadingLocalModel(false);
     }
-  }, [refreshLocalModelCacheState]);
+  }, [getConfiguredLocalSeparatorModelUrl, refreshLocalModelCacheState]);
 
   const handleDeleteLocalModel = useCallback(async () => {
     setIsDeletingLocalModel(true);

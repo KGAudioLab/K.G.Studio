@@ -2,7 +2,6 @@ import {
   detectLocalLLMRuntimeSupport,
   LOCAL_LLM_LEGACY_FILENAMES,
   LOCAL_LLM_MODEL_FILENAME,
-  LOCAL_LLM_MODEL_URL,
   type LocalLLMRuntimeSupport,
 } from './localLLMConfig';
 import { LocalLLMModelCache } from './localLLMModelCache';

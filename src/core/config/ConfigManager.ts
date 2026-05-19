@@ -10,6 +10,10 @@ interface AppConfig {
     persist_api_keys_non_localhost: boolean;
     local_browser: {
       context_length: 32768 | 65536 | 131072;
+      model_url: string;
+    };
+    uvr5_web_runtime: {
+      mdx_net_model_url: string;
     };
     openai: {
       api_key: string;
@@ -216,7 +220,11 @@ export class ConfigManager {
             model: ''
           },
           local_browser: {
-            context_length: 32768
+            context_length: 32768,
+            model_url: 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'
+          },
+          uvr5_web_runtime: {
+            mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx'
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'

@@ -12,7 +12,7 @@ import {
 import {
   LOCAL_LLM_DEFAULT_CONTEXT_LENGTH,
   LOCAL_LLM_MODEL_FILENAME,
-  LOCAL_LLM_MODEL_URL,
+  LOCAL_LLM_DEFAULT_MODEL_URL,
   normalizeLocalLLMContextLength,
 } from '../../util/localLLMConfig';
 import { LocalLLMModelCache } from '../../util/localLLMModelCache';
@@ -67,12 +67,13 @@ export class LocalBrowserLLMProvider implements LLMProvider {
     }
 
     const maxTokens = this.getConfiguredContextLength();
+    const modelUrl = this.getConfiguredModelUrl();
     console.log(`[localLLM] Initializing with max context length: ${maxTokens} tokens`);
 
     const [{ FilesetResolver, LlmInference }, modelLoad] = await Promise.all([
       this.getMediaPipeModule(),
       LocalLLMModelCache.loadModelReaderWithCache(
-        LOCAL_LLM_MODEL_URL,
+        modelUrl,
         LOCAL_LLM_MODEL_FILENAME,
         progress => {
           LocalLLMModelManager.notifyLoadProgress(progress.receivedBytes, progress.totalBytes, progress.fromCache);
@@ -129,6 +130,16 @@ export class LocalBrowserLLMProvider implements LLMProvider {
       );
     } catch {
       return LOCAL_LLM_DEFAULT_CONTEXT_LENGTH;
+    }
+  }
+
+  private getConfiguredModelUrl(): string {
+    try {
+      const configManager = ConfigManager.instance();
+      const configured = configManager.get('general.local_browser.model_url');
+      return typeof configured === 'string' && configured.trim() ? configured : LOCAL_LLM_DEFAULT_MODEL_URL;
+    } catch {
+      return LOCAL_LLM_DEFAULT_MODEL_URL;
     }
   }
 
