@@ -18,6 +18,11 @@ export interface RegionUI {
   name: string;
 }
 
+export interface RegionPreviewContentStyle {
+  left: string;
+  width: string;
+}
+
 export interface RegionClickOptions {
   shiftKey: boolean;
 }

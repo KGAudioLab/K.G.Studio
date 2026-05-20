@@ -147,4 +147,35 @@ describe('RegionItem', () => {
     expect(context.stroke).toHaveBeenCalled();
     rectSpy.mockRestore();
   });
+
+  it('applies preview content clipping styles when provided', () => {
+    const { container } = renderRegion({
+      previewContentStyle: {
+        left: '-40px',
+        width: '120px',
+      },
+    });
+
+    const previewContent = container.querySelector('.region-preview-content');
+
+    expect(previewContent).toBeTruthy();
+    expect(previewContent).toHaveAttribute('data-preview-content-active', 'true');
+    expect(previewContent).toHaveStyle({
+      left: '-40px',
+      width: '120px',
+    });
+  });
+
+  it('uses the default preview content wrapper sizing for normal regions', () => {
+    const { container } = renderRegion();
+
+    const previewContent = container.querySelector('.region-preview-content');
+
+    expect(previewContent).toBeTruthy();
+    expect(previewContent).toHaveAttribute('data-preview-content-active', 'false');
+    expect(previewContent).not.toHaveStyle({
+      left: '-40px',
+      width: '120px',
+    });
+  });
 });

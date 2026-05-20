@@ -9,6 +9,7 @@ import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import type { AudioRecordingPeak } from '../../core/audio-interface/KGAudioRecorder';
+import type { RegionPreviewContentStyle } from '../interfaces';
 
 const DRAG_START_THRESHOLD_PX = 4;
 
@@ -46,6 +47,7 @@ interface RegionItemProps {
   previewWaveformPeaks?: AudioRecordingPeak[];
   isPreview?: boolean;
   isAudioRegion?: boolean;
+  previewContentStyle?: RegionPreviewContentStyle;
 }
 
 const RegionItem: React.FC<RegionItemProps> = ({
@@ -73,6 +75,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   previewWaveformPeaks,
   isPreview = false,
   isAudioRegion = false,
+  previewContentStyle,
 }) => {
   // Get selection state and time signature from store
   const { selectedRegionIds, timeSignature, bpm } = useProjectStore();
@@ -98,24 +101,26 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
   // Canvas ref for note visualization
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const regionContentRef = useRef<HTMLDivElement | null>(null);
+  const previewContentRef = useRef<HTMLDivElement | null>(null);
 
   // Function to render notes on canvas
   const renderNotesOnCanvas = () => {
-    if (!canvasRef.current || !regionContentRef.current || !midiRegion) return;
+    if (!canvasRef.current || !previewContentRef.current || !midiRegion) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // Get the current dimensions of the region content
-    const contentRect = regionContentRef.current.getBoundingClientRect();
-    const width = contentRect.width;
-    const height = contentRect.height;
+    const contentRect = previewContentRef.current.getBoundingClientRect();
+    const width = Math.max(1, Math.round(contentRect.width));
+    const height = Math.max(1, Math.round(contentRect.height));
 
     // Set canvas size to match the region content
     canvas.width = width;
     canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     // Clear the canvas
     ctx.clearRect(0, 0, width, height);
@@ -242,18 +247,20 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
   // Function to render audio waveform on canvas
   const renderWaveformOnCanvas = () => {
-    if (!canvasRef.current || !regionContentRef.current || !audioBuffer) return;
+    if (!canvasRef.current || !previewContentRef.current || !audioBuffer) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const contentRect = regionContentRef.current.getBoundingClientRect();
-    const width = contentRect.width;
-    const height = contentRect.height;
+    const contentRect = previewContentRef.current.getBoundingClientRect();
+    const width = Math.max(1, Math.round(contentRect.width));
+    const height = Math.max(1, Math.round(contentRect.height));
 
     canvas.width = width;
     canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -311,18 +318,20 @@ const RegionItem: React.FC<RegionItemProps> = ({
   };
 
   const renderPreviewWaveformOnCanvas = () => {
-    if (!canvasRef.current || !regionContentRef.current || !previewWaveformPeaks || previewWaveformPeaks.length === 0) return;
+    if (!canvasRef.current || !previewContentRef.current || !previewWaveformPeaks || previewWaveformPeaks.length === 0) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const contentRect = regionContentRef.current.getBoundingClientRect();
-    const width = contentRect.width;
-    const height = contentRect.height;
+    const contentRect = previewContentRef.current.getBoundingClientRect();
+    const width = Math.max(1, Math.round(contentRect.width));
+    const height = Math.max(1, Math.round(contentRect.height));
 
     canvas.width = width;
     canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
     ctx.clearRect(0, 0, width, height);
 
     const centerY = height / 2;
@@ -374,11 +383,11 @@ const RegionItem: React.FC<RegionItemProps> = ({
     } else {
       renderNotesOnCanvas();
     }
-  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length]);
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length, previewContentStyle?.width]);
 
   // Re-render canvas when region content size changes
   useEffect(() => {
-    if (!regionContentRef.current) return;
+    if (!previewContentRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
       if (previewWaveformPeaks && previewWaveformPeaks.length > 0) {
@@ -390,14 +399,14 @@ const RegionItem: React.FC<RegionItemProps> = ({
       }
     });
 
-    resizeObserver.observe(regionContentRef.current);
+    resizeObserver.observe(previewContentRef.current);
 
     return () => {
-      if (regionContentRef.current) {
-        resizeObserver.unobserve(regionContentRef.current);
+      if (previewContentRef.current) {
+        resizeObserver.unobserve(previewContentRef.current);
       }
     };
-  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm]);
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, previewContentStyle?.width]);
 
   // Handle mouse movement to detect edge proximity
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -668,7 +677,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       <div className="region-header">
         {name}
       </div>
-      <div className={`region-content${(audioRegion || isAudioRegion) ? ' audio-region-content' : ''}`} ref={regionContentRef}>
+      <div className={`region-content${(audioRegion || isAudioRegion) ? ' audio-region-content' : ''}`}>
         {!isPreview && <div className="region-left-buttons">
           {!audioRegion && (
             <button
@@ -771,7 +780,14 @@ const RegionItem: React.FC<RegionItemProps> = ({
             )}
           </div>
         </div>}
-        <canvas ref={canvasRef} />
+        <div
+          className="region-preview-content"
+          ref={previewContentRef}
+          style={previewContentStyle}
+          data-preview-content-active={previewContentStyle ? 'true' : 'false'}
+        >
+          <canvas ref={canvasRef} />
+        </div>
       </div>
     </div>
   );

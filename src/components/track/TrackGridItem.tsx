@@ -5,7 +5,7 @@ import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import RegionItem from './RegionItem';
 import TrackAutomationLane from './TrackAutomationLane';
-import type { RegionClickOptions, RegionUI, ResizeAction } from '../interfaces';
+import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
@@ -17,6 +17,7 @@ interface RegionResizePreviewBaseline {
   originalLength: number;
   originalLeft: number;
   originalWidth: number;
+  originalContentWidth: number;
 }
 
 interface RegionDragPreviewBaseline {
@@ -53,6 +54,8 @@ interface TrackGridItemProps {
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   previewRegionStyles?: Record<string, React.CSSProperties>;
   setPreviewRegionStyles?: React.Dispatch<React.SetStateAction<Record<string, React.CSSProperties>>>;
+  previewRegionContentStyles?: Record<string, RegionPreviewContentStyle>;
+  setPreviewRegionContentStyles?: React.Dispatch<React.SetStateAction<Record<string, RegionPreviewContentStyle>>>;
 }
 
 const TrackGridItem: React.FC<TrackGridItemProps> = ({
@@ -81,6 +84,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onKGOneClipDrop,
   previewRegionStyles,
   setPreviewRegionStyles,
+  previewRegionContentStyles,
+  setPreviewRegionContentStyles,
 }) => {
   const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
@@ -97,6 +102,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
   const [localTempRegionStyles, setLocalTempRegionStyles] = useState<Record<string, React.CSSProperties>>({});
+  const [localPreviewRegionContentStyles, setLocalPreviewRegionContentStyles] = useState<Record<string, RegionPreviewContentStyle>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
   
   // Refs for resize operations
@@ -120,6 +126,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const isBulkRegionEdit = (regionId: string) => selectedRegionIds.length > 1 && selectedRegionIds.includes(regionId);
   const tempRegionStyles = previewRegionStyles ?? localTempRegionStyles;
   const setTempRegionStyles = setPreviewRegionStyles ?? setLocalTempRegionStyles;
+  const tempPreviewRegionContentStyles = previewRegionContentStyles ?? localPreviewRegionContentStyles;
+  const setTempPreviewRegionContentStyles = setPreviewRegionContentStyles ?? setLocalPreviewRegionContentStyles;
 
   const getPreviewRegionIds = (regionId: string) => (
     selectedRegionIds.length > 1 && selectedRegionIds.includes(regionId)
@@ -140,6 +148,34 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       });
       return updated;
     });
+  };
+
+  const clearTempPreviewRegionContentStyles = (regionIds?: string[]) => {
+    if (!regionIds || regionIds.length === 0) {
+      setTempPreviewRegionContentStyles({});
+      return;
+    }
+
+    setTempPreviewRegionContentStyles(prev => {
+      const updated = { ...prev };
+      regionIds.forEach(id => {
+        delete updated[id];
+      });
+      return updated;
+    });
+  };
+
+  const getMeasuredRegionContentWidth = (regionId: string, fallbackWidth: number) => {
+    const regionElement = Array.from(document.querySelectorAll<HTMLElement>('[data-region-id]'))
+      .find(element => element.getAttribute('data-region-id') === regionId);
+    const regionContentElement = regionElement?.querySelector<HTMLElement>('.region-content');
+    const measuredWidth = regionContentElement?.getBoundingClientRect().width;
+
+    if (!measuredWidth || Number.isNaN(measuredWidth)) {
+      return fallbackWidth;
+    }
+
+    return measuredWidth;
   };
 
   // Update container width when the grid container changes size
@@ -253,6 +289,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
         originalLength: candidate.length,
         originalLeft: (candidate.barNumber - 1) * barWidth,
         originalWidth: candidate.length * barWidth,
+        originalContentWidth: getMeasuredRegionContentWidth(candidate.id, candidate.length * barWidth),
       }));
     resizePreviewRegionIdsRef.current = resizePreviewBaselinesRef.current.map(baseline => baseline.regionId);
 
@@ -264,6 +301,17 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           left: `${baseline.originalLeft}px`,
           width: `${baseline.originalWidth}px`,
           position: 'absolute' as const,
+        },
+      ])),
+    }));
+
+    setTempPreviewRegionContentStyles(prev => ({
+      ...prev,
+      ...Object.fromEntries(resizePreviewBaselinesRef.current.map(baseline => [
+        baseline.regionId,
+        {
+          left: '0px',
+          width: `${baseline.originalContentWidth}px`,
         },
       ])),
     }));
@@ -324,6 +372,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
         originalLength: region.length,
         originalLeft,
         originalWidth,
+        originalContentWidth: getMeasuredRegionContentWidth(regionId, originalWidth),
       }];
 
     setTempRegionStyles(prev => ({
@@ -334,6 +383,17 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           left: `${resizeAction === 'start' ? baseline.originalLeft + leftDelta : baseline.originalLeft}px`,
           width: `${baseline.originalWidth + widthDelta}px`,
           position: 'absolute' as const,
+        },
+      ])),
+    }));
+
+    setTempPreviewRegionContentStyles(prev => ({
+      ...prev,
+      ...Object.fromEntries(previewBaselines.map(baseline => [
+        baseline.regionId,
+        {
+          left: `${resizeAction === 'start' ? -(newLeft - originalLeft) : 0}px`,
+          width: `${baseline.originalContentWidth}px`,
         },
       ])),
     }));
@@ -401,6 +461,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Clear resizing state
     setResizingRegion(null);
     clearTempRegionStyles(resizePreviewRegionIdsRef.current);
+    clearTempPreviewRegionContentStyles(resizePreviewRegionIdsRef.current);
     currentResizeWidth.current = null;
     currentResizeLeft.current = null;
     currentResizeRegion.current = null;
@@ -602,6 +663,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Clear dragging state
     setDraggingRegion(null);
     clearTempRegionStyles(dragPreviewRegionIdsRef.current);
+    clearTempPreviewRegionContentStyles(dragPreviewRegionIdsRef.current);
     currentDragLeft.current = null;
     currentDragTop.current = null;
     currentDragRegion.current = null;
@@ -665,7 +727,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       }}
       onClick={(e) => {
         if (!isAutomationActive) {
-          onClick && onClick(e, index);
+          onClick?.(e, index);
         }
       }}
       ref={trackElementRef}
@@ -733,6 +795,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             midiRegion={midiRegion}
             audioRegion={audioRegion}
             audioBuffer={audioBuffer}
+            previewContentStyle={tempPreviewRegionContentStyles[region.id]}
           />
         );
       })}

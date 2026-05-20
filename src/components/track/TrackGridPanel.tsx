@@ -4,7 +4,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import TrackGridItem from './TrackGridItem';
 import { Playhead, FileImportModal } from '../common';
 import SelectionBox from '../piano-roll/SelectionBox';
-import type { RegionClickOptions, RegionUI } from '../interfaces';
+import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI } from '../interfaces';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
@@ -67,6 +67,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const [previewRegionStyles, setPreviewRegionStyles] = useState<Record<string, React.CSSProperties>>({});
+  const [previewRegionContentStyles, setPreviewRegionContentStyles] = useState<Record<string, RegionPreviewContentStyle>>({});
   const pendingAudioImportRef = useRef<{ barNumber: number; trackIndex: number } | null>(null);
   const isLassoSelectingRef = useRef(false);
   const isLassoShiftPressedRef = useRef(false);
@@ -910,6 +911,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onKGOneClipDrop={handleExternalDrop}
           previewRegionStyles={previewRegionStyles}
           setPreviewRegionStyles={setPreviewRegionStyles}
+          previewRegionContentStyles={previewRegionContentStyles}
+          setPreviewRegionContentStyles={setPreviewRegionContentStyles}
         />
       ))}
 

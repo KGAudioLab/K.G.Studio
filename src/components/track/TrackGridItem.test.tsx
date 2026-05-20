@@ -5,6 +5,7 @@ import TrackGridItem from './TrackGridItem';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
+import type { RegionPreviewContentStyle } from '../interfaces';
 
 const storeState = {
   selectedRegionIds: [] as string[],
@@ -56,6 +57,7 @@ vi.mock('../../core/audio-interface/KGAudioInterface', () => ({
 describe('TrackGridItem preview behavior', () => {
   const getRegionItem = (regionId: string) => regionItemProps.get(regionId) as {
     style: React.CSSProperties;
+    previewContentStyle?: RegionPreviewContentStyle;
     onResizeStart?: (regionId: string, resizeAction: 'start' | 'end', initialX: number) => void;
     onResize?: (regionId: string, resizeAction: 'start' | 'end', deltaX: number) => void;
     onResizeEnd?: (regionId: string, resizeAction: 'start' | 'end') => void;
@@ -145,6 +147,7 @@ describe('TrackGridItem preview behavior', () => {
 
     const SharedPreviewHarness = () => {
       const [previewRegionStyles, setPreviewRegionStyles] = useState<Record<string, React.CSSProperties>>({});
+      const [previewRegionContentStyles, setPreviewRegionContentStyles] = useState<Record<string, RegionPreviewContentStyle>>({});
 
       return (
         <>
@@ -153,6 +156,8 @@ describe('TrackGridItem preview behavior', () => {
             index={0}
             previewRegionStyles={previewRegionStyles}
             setPreviewRegionStyles={setPreviewRegionStyles}
+            previewRegionContentStyles={previewRegionContentStyles}
+            setPreviewRegionContentStyles={setPreviewRegionContentStyles}
             {...baseProps}
           />
           <TrackGridItem
@@ -160,6 +165,8 @@ describe('TrackGridItem preview behavior', () => {
             index={1}
             previewRegionStyles={previewRegionStyles}
             setPreviewRegionStyles={setPreviewRegionStyles}
+            previewRegionContentStyles={previewRegionContentStyles}
+            setPreviewRegionContentStyles={setPreviewRegionContentStyles}
             {...baseProps}
           />
         </>
@@ -205,10 +212,18 @@ describe('TrackGridItem preview behavior', () => {
       width: '140px',
       position: 'absolute',
     });
+    expect(getRegionItem('region-a').previewContentStyle).toEqual({
+      left: '0px',
+      width: '100px',
+    });
     expect(getRegionItem('region-b').style).toEqual({
       left: '200px',
       width: '240px',
       position: 'absolute',
+    });
+    expect(getRegionItem('region-b').previewContentStyle).toEqual({
+      left: '0px',
+      width: '200px',
     });
   });
 
@@ -231,10 +246,86 @@ describe('TrackGridItem preview behavior', () => {
       width: '160px',
       position: 'absolute',
     });
+    expect(getRegionItem('region-a').previewContentStyle).toEqual({
+      left: '-40px',
+      width: '200px',
+    });
     expect(getRegionItem('region-b').style).toEqual({
       left: '340px',
       width: '260px',
       position: 'absolute',
+    });
+    expect(getRegionItem('region-b').previewContentStyle).toEqual({
+      left: '-40px',
+      width: '300px',
+    });
+  });
+
+  it('keeps preview content fixed while shrinking from the end', () => {
+    renderSharedPreviewHarness(
+      ['region-a', 'region-b'],
+      [
+        { id: 'region-a', trackId: '1', trackIndex: 0, barNumber: 1, length: 2, name: 'Region A' },
+        { id: 'region-b', trackId: '2', trackIndex: 1, barNumber: 3, length: 3, name: 'Region B' },
+      ],
+    );
+
+    act(() => {
+      getRegionItem('region-a').onResizeStart?.('region-a', 'end', 0);
+      getRegionItem('region-a').onResize?.('region-a', 'end', -40);
+    });
+
+    expect(getRegionItem('region-a').style).toEqual({
+      left: '0px',
+      width: '160px',
+      position: 'absolute',
+    });
+    expect(getRegionItem('region-a').previewContentStyle).toEqual({
+      left: '0px',
+      width: '200px',
+    });
+    expect(getRegionItem('region-b').style).toEqual({
+      left: '200px',
+      width: '260px',
+      position: 'absolute',
+    });
+    expect(getRegionItem('region-b').previewContentStyle).toEqual({
+      left: '0px',
+      width: '300px',
+    });
+  });
+
+  it('shifts preview content right when extending from the start', () => {
+    renderSharedPreviewHarness(
+      ['region-a', 'region-b'],
+      [
+        { id: 'region-a', trackId: '1', trackIndex: 0, barNumber: 2, length: 2, name: 'Region A' },
+        { id: 'region-b', trackId: '2', trackIndex: 1, barNumber: 4, length: 3, name: 'Region B' },
+      ],
+    );
+
+    act(() => {
+      getRegionItem('region-a').onResizeStart?.('region-a', 'start', 0);
+      getRegionItem('region-a').onResize?.('region-a', 'start', -40);
+    });
+
+    expect(getRegionItem('region-a').style).toEqual({
+      left: '60px',
+      width: '240px',
+      position: 'absolute',
+    });
+    expect(getRegionItem('region-a').previewContentStyle).toEqual({
+      left: '40px',
+      width: '200px',
+    });
+    expect(getRegionItem('region-b').style).toEqual({
+      left: '260px',
+      width: '340px',
+      position: 'absolute',
+    });
+    expect(getRegionItem('region-b').previewContentStyle).toEqual({
+      left: '40px',
+      width: '300px',
     });
   });
 
@@ -320,11 +411,13 @@ describe('TrackGridItem preview behavior', () => {
       width: '100px',
       position: 'absolute',
     });
+    expect(getRegionItem('region-a').previewContentStyle).toBeUndefined();
     expect(getRegionItem('region-b').style).toEqual({
       left: '200px',
       width: '200px',
       position: 'absolute',
     });
+    expect(getRegionItem('region-b').previewContentStyle).toBeUndefined();
     expect(onRegionResizeEnd).toHaveBeenCalledWith('region-a', 1, 1);
 
     act(() => {
@@ -338,11 +431,13 @@ describe('TrackGridItem preview behavior', () => {
       width: '100px',
       position: 'absolute',
     });
+    expect(getRegionItem('region-a').previewContentStyle).toBeUndefined();
     expect(getRegionItem('region-b').style).toEqual({
       left: '200px',
       width: '200px',
       position: 'absolute',
     });
+    expect(getRegionItem('region-b').previewContentStyle).toBeUndefined();
     expect(onRegionDragEnd).toHaveBeenCalledWith('region-a', 2, 0);
   });
 });
