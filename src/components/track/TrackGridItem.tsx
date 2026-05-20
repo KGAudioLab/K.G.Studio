@@ -11,6 +11,22 @@ import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { useProjectStore } from '../../stores/projectStore';
 
+interface RegionResizePreviewBaseline {
+  regionId: string;
+  originalBarNumber: number;
+  originalLength: number;
+  originalLeft: number;
+  originalWidth: number;
+}
+
+interface RegionDragPreviewBaseline {
+  regionId: string;
+  originalBarNumber: number;
+  originalTrackIndex: number;
+  originalLeft: number;
+  originalWidth: number;
+}
+
 interface TrackGridItemProps {
   track: KGTrack;
   index: number;
@@ -35,6 +51,8 @@ interface TrackGridItemProps {
   onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
+  previewRegionStyles?: Record<string, React.CSSProperties>;
+  setPreviewRegionStyles?: React.Dispatch<React.SetStateAction<Record<string, React.CSSProperties>>>;
 }
 
 const TrackGridItem: React.FC<TrackGridItemProps> = ({
@@ -61,6 +79,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
+  previewRegionStyles,
+  setPreviewRegionStyles,
 }) => {
   const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
@@ -76,7 +96,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const [containerWidth, setContainerWidth] = useState(0);
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
-  const [tempRegionStyles, setTempRegionStyles] = useState<Record<string, React.CSSProperties>>({});
+  const [localTempRegionStyles, setLocalTempRegionStyles] = useState<Record<string, React.CSSProperties>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
   
   // Refs for resize operations
@@ -86,14 +106,41 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const currentResizeRegion = useRef<RegionUI | null>(null);
   const initialBarNumberRef = useRef<number | null>(null);
   const initialLengthRef = useRef<number | null>(null);
+  const resizePreviewBaselinesRef = useRef<RegionResizePreviewBaseline[]>([]);
+  const resizePreviewRegionIdsRef = useRef<string[]>([]);
   
   // Refs for drag operations
   const currentDragLeft = useRef<number | null>(null);
   const currentDragTop = useRef<number | null>(null);
   const currentDragRegion = useRef<RegionUI | null>(null);
+  const dragPreviewBaselinesRef = useRef<RegionDragPreviewBaseline[]>([]);
+  const dragPreviewRegionIdsRef = useRef<string[]>([]);
   const trackElementRef = useRef<HTMLDivElement | null>(null);
 
   const isBulkRegionEdit = (regionId: string) => selectedRegionIds.length > 1 && selectedRegionIds.includes(regionId);
+  const tempRegionStyles = previewRegionStyles ?? localTempRegionStyles;
+  const setTempRegionStyles = setPreviewRegionStyles ?? setLocalTempRegionStyles;
+
+  const getPreviewRegionIds = (regionId: string) => (
+    selectedRegionIds.length > 1 && selectedRegionIds.includes(regionId)
+      ? selectedRegionIds
+      : [regionId]
+  );
+
+  const clearTempRegionStyles = (regionIds?: string[]) => {
+    if (!regionIds || regionIds.length === 0) {
+      setTempRegionStyles({});
+      return;
+    }
+
+    setTempRegionStyles(prev => {
+      const updated = { ...prev };
+      regionIds.forEach(id => {
+        delete updated[id];
+      });
+      return updated;
+    });
+  };
 
   // Update container width when the grid container changes size
   useEffect(() => {
@@ -144,7 +191,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   // Calculate region position and style
   const getRegionStyle = (region: RegionUI) => {
     // Check if there's a temporary style for this region during resize or drag
-    if ((resizingRegion === region.id || draggingRegion === region.id) && tempRegionStyles[region.id]) {
+    if (tempRegionStyles[region.id]) {
       return tempRegionStyles[region.id];
     }
     
@@ -195,17 +242,30 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Store the initial width and left position
     currentResizeWidth.current = region.length * barWidth;
     currentResizeLeft.current = (region.barNumber - 1) * barWidth;
-    
-    // Set initial style to current position/size
-    const initialStyle = {
-      left: `${currentResizeLeft.current}px`,
-      width: `${currentResizeWidth.current}px`,
-      position: 'absolute' as const, // Fixed: Use const assertion
-    };
-    
+
+    const previewRegionIds = getPreviewRegionIds(regionId);
+    resizePreviewBaselinesRef.current = previewRegionIds
+      .map(id => regions.find(candidate => candidate.id === id))
+      .filter((candidate): candidate is RegionUI => candidate !== undefined)
+      .map(candidate => ({
+        regionId: candidate.id,
+        originalBarNumber: candidate.barNumber,
+        originalLength: candidate.length,
+        originalLeft: (candidate.barNumber - 1) * barWidth,
+        originalWidth: candidate.length * barWidth,
+      }));
+    resizePreviewRegionIdsRef.current = resizePreviewBaselinesRef.current.map(baseline => baseline.regionId);
+
     setTempRegionStyles(prev => ({
       ...prev,
-      [regionId]: initialStyle
+      ...Object.fromEntries(resizePreviewBaselinesRef.current.map(baseline => [
+        baseline.regionId,
+        {
+          left: `${baseline.originalLeft}px`,
+          width: `${baseline.originalWidth}px`,
+          position: 'absolute' as const,
+        },
+      ])),
     }));
   };
 
@@ -254,16 +314,28 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       console.log(`RESIZE: regionId=${regionId}, action=${resizeAction}, deltaX=${deltaX}, newBarNumber=${newBarNumber}, newLength=${newLength}`);
     }
     
-    // Update the temporary style for this region
-    const newStyle = {
-      left: `${newLeft}px`,
-      width: `${newWidth}px`,
-      position: 'absolute' as const, // Fixed: Use const assertion
-    };
-    
+    const leftDelta = newLeft - originalLeft;
+    const widthDelta = newWidth - originalWidth;
+    const previewBaselines = resizePreviewBaselinesRef.current.length > 0
+      ? resizePreviewBaselinesRef.current
+      : [{
+        regionId,
+        originalBarNumber: region.barNumber,
+        originalLength: region.length,
+        originalLeft,
+        originalWidth,
+      }];
+
     setTempRegionStyles(prev => ({
       ...prev,
-      [regionId]: newStyle
+      ...Object.fromEntries(previewBaselines.map(baseline => [
+        baseline.regionId,
+        {
+          left: `${resizeAction === 'start' ? baseline.originalLeft + leftDelta : baseline.originalLeft}px`,
+          width: `${baseline.originalWidth + widthDelta}px`,
+          position: 'absolute' as const,
+        },
+      ])),
     }));
     
     // Notify parent about resize
@@ -328,16 +400,14 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // Clear resizing state
     setResizingRegion(null);
-    setTempRegionStyles(prev => {
-      const updated = { ...prev };
-      delete updated[regionId];
-      return updated;
-    });
+    clearTempRegionStyles(resizePreviewRegionIdsRef.current);
     currentResizeWidth.current = null;
     currentResizeLeft.current = null;
     currentResizeRegion.current = null;
     initialBarNumberRef.current = null;
     initialLengthRef.current = null;
+    resizePreviewBaselinesRef.current = [];
+    resizePreviewRegionIdsRef.current = [];
     
     // Notify parent about resize end with rounded values
     if (onRegionResizeEnd) {
@@ -378,18 +448,32 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Store the initial position
     currentDragLeft.current = left;
     currentDragTop.current = 0; // Initially at the top of the current track
-    
-    // Set initial style
-    const initialStyle = {
-      left: `${left}px`,
-      width: `${width}px`,
-      position: 'absolute' as const, // Fixed: Use const assertion
-      zIndex: 100, // Bring to front during drag
-    };
-    
+
+    const previewRegionIds = getPreviewRegionIds(regionId);
+    dragPreviewBaselinesRef.current = previewRegionIds
+      .map(id => regions.find(candidate => candidate.id === id))
+      .filter((candidate): candidate is RegionUI => candidate !== undefined)
+      .map(candidate => ({
+        regionId: candidate.id,
+        originalBarNumber: candidate.barNumber,
+        originalTrackIndex: candidate.trackIndex,
+        originalLeft: (candidate.barNumber - 1) * barWidth,
+        originalWidth: candidate.length * barWidth,
+      }));
+    dragPreviewRegionIdsRef.current = dragPreviewBaselinesRef.current.map(baseline => baseline.regionId);
+
     setTempRegionStyles(prev => ({
       ...prev,
-      [regionId]: initialStyle
+      ...Object.fromEntries(dragPreviewBaselinesRef.current.map(baseline => [
+        baseline.regionId,
+        {
+          left: `${baseline.originalLeft}px`,
+          width: `${baseline.originalWidth}px`,
+          position: 'absolute' as const,
+          zIndex: 100,
+          transform: 'translateY(0px)',
+        },
+      ])),
     }));
   };
 
@@ -425,18 +509,29 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       console.log(`DRAG: regionId=${regionId}, deltaX=${deltaX}, deltaY=${deltaY}, newBarNumber=${newBarNumber}`);
     }
     
-    // Update the temporary style for this region
-    const newStyle = {
-      left: `${newLeft}px`,
-      width: `${region.length * barWidth}px`,
-      position: 'absolute' as const,
-      zIndex: 100, // Keep on top during drag
-      transform: `translateY(${appliedDeltaY}px)`,
-    };
-    
+    const leftDelta = newLeft - initialLeft;
+    const previewBaselines = dragPreviewBaselinesRef.current.length > 0
+      ? dragPreviewBaselinesRef.current
+      : [{
+        regionId,
+        originalBarNumber: region.barNumber,
+        originalTrackIndex: region.trackIndex,
+        originalLeft: initialLeft,
+        originalWidth: region.length * barWidth,
+      }];
+
     setTempRegionStyles(prev => ({
       ...prev,
-      [regionId]: newStyle
+      ...Object.fromEntries(previewBaselines.map(baseline => [
+        baseline.regionId,
+        {
+          left: `${baseline.originalLeft + leftDelta}px`,
+          width: `${baseline.originalWidth}px`,
+          position: 'absolute' as const,
+          zIndex: 100,
+          transform: `translateY(${appliedDeltaY}px)`,
+        },
+      ])),
     }));
     
     // We'll calculate the track index on drag end, but still notify parent about the drag
@@ -506,14 +601,12 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // Clear dragging state
     setDraggingRegion(null);
-    setTempRegionStyles(prev => {
-      const updated = { ...prev };
-      delete updated[regionId];
-      return updated;
-    });
+    clearTempRegionStyles(dragPreviewRegionIdsRef.current);
     currentDragLeft.current = null;
     currentDragTop.current = null;
     currentDragRegion.current = null;
+    dragPreviewBaselinesRef.current = [];
+    dragPreviewRegionIdsRef.current = [];
     
     if (finalBarNumber === region.barNumber && finalTrackIndex === region.trackIndex) {
       if (DEBUG_MODE.TRACK_GRID_ITEM) {

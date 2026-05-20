@@ -66,6 +66,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   const refreshProjectState = useProjectStore(state => state.refreshProjectState);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
+  const [previewRegionStyles, setPreviewRegionStyles] = useState<Record<string, React.CSSProperties>>({});
   const pendingAudioImportRef = useRef<{ barNumber: number; trackIndex: number } | null>(null);
   const isLassoSelectingRef = useRef(false);
   const isLassoShiftPressedRef = useRef(false);
@@ -907,6 +908,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onOpenHybrid={onOpenHybrid}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}
+          previewRegionStyles={previewRegionStyles}
+          setPreviewRegionStyles={setPreviewRegionStyles}
         />
       ))}
 

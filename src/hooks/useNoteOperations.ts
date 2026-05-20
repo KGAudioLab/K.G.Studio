@@ -25,6 +25,25 @@ interface UseNoteOperationsProps {
   pianoGridRef: MutableRefObject<HTMLDivElement | null>;
 }
 
+interface ResizePreviewBaseline {
+  noteId: string;
+  originalStartBeat: number;
+  originalEndBeat: number;
+  originalLeft: number;
+  originalWidth: number;
+}
+
+interface DragPreviewBaseline {
+  noteId: string;
+  originalStartBeat: number;
+  originalEndBeat: number;
+  originalPitch: number;
+  originalLeft: number;
+  originalTop: number;
+  originalWidth: number;
+  originalHeight: number;
+}
+
 export const useNoteOperations = ({
   activeRegion,
   timeSignature,
@@ -44,6 +63,8 @@ export const useNoteOperations = ({
   const currentResizeLeft = useRef<number | null>(null);
   const initialStartBeatRef = useRef<number | null>(null);
   const initialEndBeatRef = useRef<number | null>(null);
+  const resizePreviewBaselinesRef = useRef<ResizePreviewBaseline[]>([]);
+  const resizePreviewNoteIdsRef = useRef<string[]>([]);
   
   // Refs for drag operations
   const initialDragLeft = useRef<number | null>(null);
@@ -51,12 +72,29 @@ export const useNoteOperations = ({
   const currentDragLeft = useRef<number | null>(null);
   const currentDragTop = useRef<number | null>(null);
   const initialPitchRef = useRef<number | null>(null);
+  const dragPreviewBaselinesRef = useRef<DragPreviewBaseline[]>([]);
+  const dragPreviewNoteIdsRef = useRef<string[]>([]);
   
   // Counter to trigger re-renders when notes are updated
   const [noteUpdateCounter, setNoteUpdateCounter] = useState(0);
 
   // Get KGCore instance for accessing selected items
   const core = KGCore.instance();
+
+  const clearTempNoteStyles = (noteIds?: string[]) => {
+    if (!noteIds || noteIds.length === 0) {
+      setTempNoteStyles({});
+      return;
+    }
+
+    setTempNoteStyles(prev => {
+      const updated = { ...prev };
+      noteIds.forEach(id => {
+        delete updated[id];
+      });
+      return updated;
+    });
+  };
   
   // Utility function to delete selected notes from the active region using commands
   const deleteSelectedNotes = () => {
@@ -301,6 +339,10 @@ export const useNoteOperations = ({
         updateTrack(track);
       }
     }
+
+    const resizeTargetNotes = isResizedNoteSelected
+      ? selectedNotesInRegion
+      : [note];
     
     // Store the initial start and end beats
     initialStartBeatRef.current = note.getStartBeat();
@@ -324,15 +366,28 @@ export const useNoteOperations = ({
     currentResizeWidth.current = width;
     currentResizeLeft.current = left;
     
-    // Set initial style to current position/size
-    const initialStyle = {
-      left: `${left}px`,
-      width: `${width}px`,
-    };
-    
+    resizePreviewBaselinesRef.current = resizeTargetNotes.map(targetNote => {
+      const targetAbsStartBeat = targetNote.getStartBeat() + regionStartBeat;
+      const targetAbsEndBeat = targetNote.getEndBeat() + regionStartBeat;
+      return {
+        noteId: targetNote.getId(),
+        originalStartBeat: targetNote.getStartBeat(),
+        originalEndBeat: targetNote.getEndBeat(),
+        originalLeft: targetAbsStartBeat * beatWidth,
+        originalWidth: (targetAbsEndBeat - targetAbsStartBeat) * beatWidth,
+      };
+    });
+    resizePreviewNoteIdsRef.current = resizeTargetNotes.map(targetNote => targetNote.getId());
+
     setTempNoteStyles(prev => ({
       ...prev,
-      [noteId]: initialStyle
+      ...Object.fromEntries(resizePreviewBaselinesRef.current.map(baseline => [
+        baseline.noteId,
+        {
+          left: `${baseline.originalLeft}px`,
+          width: `${baseline.originalWidth}px`,
+        },
+      ])),
     }));
   };
 
@@ -402,15 +457,41 @@ export const useNoteOperations = ({
     currentResizeWidth.current = snappedWidth;
     currentResizeLeft.current = newLeft;
     
-    // Update the temporary style for this note
-    const newStyle = {
-      left: `${newLeft}px`,
-      width: `${snappedWidth}px`,
-    };
-    
+    const startBeatDelta = resizeEdge === 'start'
+      ? (newLeft - originalLeft) / beatWidth
+      : 0;
+    const endBeatDelta = resizeEdge === 'end'
+      ? (snappedWidth - originalWidth) / beatWidth
+      : 0;
+
+    const previewBaselines = resizePreviewBaselinesRef.current.length > 0
+      ? resizePreviewBaselinesRef.current
+      : [{
+        noteId,
+        originalStartBeat: note.getStartBeat(),
+        originalEndBeat: note.getEndBeat(),
+        originalLeft: originalLeft,
+        originalWidth: originalWidth,
+      }];
+
     setTempNoteStyles(prev => ({
       ...prev,
-      [noteId]: newStyle
+      ...Object.fromEntries(previewBaselines.map(baseline => {
+        const previewLeft = resizeEdge === 'start'
+          ? baseline.originalLeft + (startBeatDelta * beatWidth)
+          : baseline.originalLeft;
+        const previewWidth = resizeEdge === 'end'
+          ? baseline.originalWidth + (endBeatDelta * beatWidth)
+          : baseline.originalWidth - (startBeatDelta * beatWidth);
+
+        return [
+          baseline.noteId,
+          {
+            left: `${previewLeft}px`,
+            width: `${previewWidth}px`,
+          },
+        ];
+      })),
     }));
     
     if (DEBUG_MODE.PIANO_ROLL) {
@@ -440,11 +521,9 @@ export const useNoteOperations = ({
         initialStartBeatRef.current === null || initialEndBeatRef.current === null) {
       // Reset resizing state
       setResizingNoteId(null);
-      setTempNoteStyles(prev => {
-        const updated = { ...prev };
-        delete updated[noteId];
-        return updated;
-      });
+      clearTempNoteStyles(resizePreviewNoteIdsRef.current);
+      resizePreviewBaselinesRef.current = [];
+      resizePreviewNoteIdsRef.current = [];
       return;
     }
     
@@ -535,15 +614,13 @@ export const useNoteOperations = ({
       console.error('Error resizing notes:', error);
       // Reset resizing state and return early on error
       setResizingNoteId(null);
-      setTempNoteStyles(prev => {
-        const updated = { ...prev };
-        delete updated[noteId];
-        return updated;
-      });
+      clearTempNoteStyles(resizePreviewNoteIdsRef.current);
       currentResizeWidth.current = null;
       currentResizeLeft.current = null;
       initialStartBeatRef.current = null;
       initialEndBeatRef.current = null;
+      resizePreviewBaselinesRef.current = [];
+      resizePreviewNoteIdsRef.current = [];
       return;
     }
 
@@ -560,15 +637,13 @@ export const useNoteOperations = ({
     
     // Reset resizing state
     setResizingNoteId(null);
-    setTempNoteStyles(prev => {
-      const updated = { ...prev };
-      delete updated[noteId];
-      return updated;
-    });
+    clearTempNoteStyles(resizePreviewNoteIdsRef.current);
     currentResizeWidth.current = null;
     currentResizeLeft.current = null;
     initialStartBeatRef.current = null;
     initialEndBeatRef.current = null;
+    resizePreviewBaselinesRef.current = [];
+    resizePreviewNoteIdsRef.current = [];
     
     // Increment the note update counter to trigger a re-render
     setNoteUpdateCounter(prev => prev + 1);
@@ -598,6 +673,15 @@ export const useNoteOperations = ({
     // Find the note being dragged
     const note = activeRegion.getNotes().find(n => n.getId() === noteId);
     if (!note) return;
+
+    const selectedNotesInRegion = core.getSelectedItems().filter(item =>
+      item instanceof KGMidiNote &&
+      activeRegion.getNotes().some(regionNote => regionNote.getId() === item.getId())
+    ) as KGMidiNote[];
+    const isDraggedNoteSelected = selectedNotesInRegion.some(selectedNote => selectedNote.getId() === noteId);
+    const dragTargetNotes = isDraggedNoteSelected
+      ? selectedNotesInRegion
+      : [note];
     
     // Store the initial pitch
     initialPitchRef.current = note.getPitch();
@@ -625,19 +709,37 @@ export const useNoteOperations = ({
     initialDragTop.current = top;
     currentDragLeft.current = left;
     currentDragTop.current = top;
-    
-    // Set initial style
-    const initialStyle = {
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${width}px`,
-      height: `${noteHeight}px`,
-      zIndex: 100, // Bring to front during drag
-    };
-    
+
+    dragPreviewBaselinesRef.current = dragTargetNotes.map(targetNote => {
+      const targetAbsStartBeat = targetNote.getStartBeat() + regionStartBeat;
+      const targetWidth = (targetNote.getEndBeat() - targetNote.getStartBeat()) * beatWidth;
+      const targetTop = (107 - targetNote.getPitch()) * noteHeight;
+
+      return {
+        noteId: targetNote.getId(),
+        originalStartBeat: targetNote.getStartBeat(),
+        originalEndBeat: targetNote.getEndBeat(),
+        originalPitch: targetNote.getPitch(),
+        originalLeft: targetAbsStartBeat * beatWidth,
+        originalTop: targetTop,
+        originalWidth: targetWidth,
+        originalHeight: noteHeight,
+      };
+    });
+    dragPreviewNoteIdsRef.current = dragTargetNotes.map(targetNote => targetNote.getId());
+
     setTempNoteStyles(prev => ({
       ...prev,
-      [noteId]: initialStyle
+      ...Object.fromEntries(dragPreviewBaselinesRef.current.map(baseline => [
+        baseline.noteId,
+        {
+          left: `${baseline.originalLeft}px`,
+          top: `${baseline.originalTop}px`,
+          width: `${baseline.originalWidth}px`,
+          height: `${baseline.originalHeight}px`,
+          zIndex: 100,
+        },
+      ])),
     }));
   };
   
@@ -681,21 +783,33 @@ export const useNoteOperations = ({
     currentDragLeft.current = newLeft;
     currentDragTop.current = newTop;
     
-    // Calculate width based on note duration
-    const width = (note.getEndBeat() - note.getStartBeat()) * beatWidth;
-    
-    // Update the temporary style for this note
-    const newStyle = {
-      left: `${newLeft}px`,
-      top: `${newTop}px`,
-      width: `${width}px`,
-      height: `${noteHeight}px`,
-      zIndex: 100, // Keep on top during drag
-    };
-    
+    const previewBaselines = dragPreviewBaselinesRef.current.length > 0
+      ? dragPreviewBaselinesRef.current
+      : [{
+        noteId,
+        originalStartBeat: note.getStartBeat(),
+        originalEndBeat: note.getEndBeat(),
+        originalPitch: note.getPitch(),
+        originalLeft,
+        originalTop,
+        originalWidth: (note.getEndBeat() - note.getStartBeat()) * beatWidth,
+        originalHeight: noteHeight,
+      }];
+    const leftDelta = newLeft - originalLeft;
+    const topDelta = newTop - originalTop;
+
     setTempNoteStyles(prev => ({
       ...prev,
-      [noteId]: newStyle
+      ...Object.fromEntries(previewBaselines.map(baseline => [
+        baseline.noteId,
+        {
+          left: `${baseline.originalLeft + leftDelta}px`,
+          top: `${baseline.originalTop + topDelta}px`,
+          width: `${baseline.originalWidth}px`,
+          height: `${baseline.originalHeight}px`,
+          zIndex: 100,
+        },
+      ])),
     }));
     
     if (DEBUG_MODE.PIANO_ROLL) {
@@ -727,11 +841,9 @@ export const useNoteOperations = ({
         initialPitchRef.current === null) {
       // Reset dragging state
       setDraggingNoteId(null);
-      setTempNoteStyles(prev => {
-        const updated = { ...prev };
-        delete updated[noteId];
-        return updated;
-      });
+      clearTempNoteStyles(dragPreviewNoteIdsRef.current);
+      dragPreviewBaselinesRef.current = [];
+      dragPreviewNoteIdsRef.current = [];
       return;
     }
 
@@ -793,16 +905,14 @@ export const useNoteOperations = ({
       console.error('Error moving notes:', error);
       // Reset dragging state and return early on error
       setDraggingNoteId(null);
-      setTempNoteStyles(prev => {
-        const updated = { ...prev };
-        delete updated[noteId];
-        return updated;
-      });
+      clearTempNoteStyles(dragPreviewNoteIdsRef.current);
       currentDragLeft.current = null;
       currentDragTop.current = null;
       initialDragLeft.current = null;
       initialDragTop.current = null;
       initialPitchRef.current = null;
+      dragPreviewBaselinesRef.current = [];
+      dragPreviewNoteIdsRef.current = [];
       return;
     }
     
@@ -820,16 +930,14 @@ export const useNoteOperations = ({
     
     // Reset dragging state
     setDraggingNoteId(null);
-    setTempNoteStyles(prev => {
-      const updated = { ...prev };
-      delete updated[noteId];
-      return updated;
-    });
+    clearTempNoteStyles(dragPreviewNoteIdsRef.current);
     currentDragLeft.current = null;
     currentDragTop.current = null;
     initialDragLeft.current = null;
     initialDragTop.current = null;
     initialPitchRef.current = null;
+    dragPreviewBaselinesRef.current = [];
+    dragPreviewNoteIdsRef.current = [];
     
     // Increment the note update counter to trigger a re-render
     setNoteUpdateCounter(prev => prev + 1);
