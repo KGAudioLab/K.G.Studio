@@ -239,8 +239,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
       
       const noteId = note.getId();
       
-      // Check if this note is being resized or dragged and has a temporary style
-      if ((resizingNoteId === noteId || draggingNoteId === noteId) && tempNoteStyles[noteId]) {
+      // Use preview geometry whenever this note has an active temporary style.
+      if (tempNoteStyles[noteId]) {
         // Use the temporary style for position and size
         const tempStyle = tempNoteStyles[noteId];
         
@@ -351,7 +351,6 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                   keySignature={sheetKeySignature}
                   instrument={sheetInstrument}
                   quantization={sheetQuantization}
-                  noteScrollRef={noteScrollRef}
                   onMetricsChange={onSheetMeasureMetricsChange ?? NOOP_SHEET_METRICS_CHANGE}
                 />
               ) : (

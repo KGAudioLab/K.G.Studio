@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import GeneralSettings from './GeneralSettings';
 
+const { localSeparatorModelCacheMock } = vi.hoisted(() => ({
+  localSeparatorModelCacheMock: {
+    delete: vi.fn().mockResolvedValue(undefined),
+    exists: vi.fn().mockResolvedValue(true),
+  },
+}));
+
 const configState = new Map<string, unknown>([
   ['general.llm_provider', 'local_browser'],
   ['general.persist_api_keys_non_localhost', false],
@@ -20,6 +27,8 @@ const configState = new Map<string, unknown>([
   ['general.openai_compatible.base_url', ''],
   ['general.openai_compatible.model', ''],
   ['general.local_browser.context_length', 65536],
+  ['general.local_browser.model_url', 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'],
+  ['general.uvr5_web_runtime.mdx_net_model_url', 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx'],
   ['general.soundfont.base_url', 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'],
   ['general.kgone.enabled', false],
   ['general.kgone.base_url', 'http://127.0.0.1:8000'],
@@ -71,6 +80,10 @@ vi.mock('../../../util/localLLMModelManager', () => ({
   },
 }));
 
+vi.mock('../../../util/localSeparatorModelCache', () => ({
+  LocalSeparatorModelCache: localSeparatorModelCacheMock,
+}));
+
 describe('GeneralSettings', () => {
   beforeEach(() => {
     configState.set('general.local_browser.context_length', 65536);
@@ -91,6 +104,9 @@ describe('GeneralSettings', () => {
       secureContext: true,
       reason: null,
     };
+    localSeparatorModelCacheMock.delete.mockClear();
+    localSeparatorModelCacheMock.exists.mockClear();
+    localSeparatorModelCacheMock.exists.mockResolvedValue(true);
   });
 
   it('renders the local context length selector and VRAM hint', async () => {
@@ -116,6 +132,65 @@ describe('GeneralSettings', () => {
 
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.local_browser.context_length', 131072);
+    });
+  });
+
+  it('renders and persists local runtime download URLs', async () => {
+    render(<GeneralSettings />);
+
+    expect(await screen.findByDisplayValue('https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task')).toBeTruthy();
+    expect(screen.getByDisplayValue('https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx')).toBeTruthy();
+
+    const inputs = screen.getAllByRole('textbox');
+    const gemmaUrlInput = inputs.find(input =>
+      (input as HTMLInputElement).value.includes('gemma-4-E4B-it-web.task'),
+    ) as HTMLInputElement | undefined;
+    const uvr5UrlInput = inputs.find(input =>
+      (input as HTMLInputElement).value.includes('UVR-MDX-NET-Inst_HQ_3.onnx'),
+    ) as HTMLInputElement | undefined;
+
+    expect(gemmaUrlInput).toBeTruthy();
+    expect(uvr5UrlInput).toBeTruthy();
+
+    fireEvent.change(gemmaUrlInput!, { target: { value: 'https://example.com/gemma.task' } });
+    fireEvent.change(uvr5UrlInput!, { target: { value: 'https://example.com/uvr5.onnx' } });
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.local_browser.model_url', 'https://example.com/gemma.task');
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.uvr5_web_runtime.mdx_net_model_url', 'https://example.com/uvr5.onnx');
+    });
+  });
+
+  it('restores default download URLs and deletes the UVR5 model cache', async () => {
+    localSeparatorModelCacheMock.exists
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    render(<GeneralSettings />);
+
+    expect(await screen.findByText('UVR5 Web Runtime')).toBeTruthy();
+
+    const restoreLinks = screen.getAllByText('Restore default');
+    fireEvent.click(restoreLinks[0]);
+    fireEvent.click(restoreLinks[1]);
+    const uvr5DeleteButton = screen.getAllByRole('button', { name: 'Delete Cached Model' })[1];
+    expect(uvr5DeleteButton).not.toBeDisabled();
+    fireEvent.click(uvr5DeleteButton);
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith(
+        'general.local_browser.model_url',
+        'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task',
+      );
+      expect(configManagerMock.set).toHaveBeenCalledWith(
+        'general.uvr5_web_runtime.mdx_net_model_url',
+        'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx',
+      );
+      expect(localSeparatorModelCacheMock.delete).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Delete Cached Model' })[1]).toBeDisabled();
     });
   });
 

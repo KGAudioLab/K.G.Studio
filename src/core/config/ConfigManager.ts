@@ -10,6 +10,10 @@ interface AppConfig {
     persist_api_keys_non_localhost: boolean;
     local_browser: {
       context_length: 32768 | 65536 | 131072;
+      model_url: string;
+    };
+    uvr5_web_runtime: {
+      mdx_net_model_url: string;
     };
     openai: {
       api_key: string;
@@ -47,6 +51,7 @@ interface AppConfig {
       hold_to_create_region: string;
       play: string;
       loop: string;
+      record: string;
       undo: string;
       redo: string;
       select_all: string;
@@ -54,6 +59,8 @@ interface AppConfig {
       cut: string;
       paste: string;
       save: string;
+      split_region: string;
+      merge_regions: string;
     };
     piano_roll: {
       switch: string;
@@ -80,6 +87,7 @@ interface AppConfig {
     default_open: boolean;
   };
   audio: {
+    bounce_starts_from_beat_1: boolean;
     enable_audio_capture_for_screen_sharing: boolean;
     input_device_id: string;
     lookahead_time: number;
@@ -212,7 +220,11 @@ export class ConfigManager {
             model: ''
           },
           local_browser: {
-            context_length: 32768
+            context_length: 32768,
+            model_url: 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'
+          },
+          uvr5_web_runtime: {
+            mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx'
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'
@@ -227,13 +239,16 @@ export class ConfigManager {
             hold_to_create_region: 'ctrl',
             play: 'space',
             loop: 'c',
+            record: 'r',
             undo: 'ctrl+z',
             redo: 'ctrl+shift+z',
             select_all: 'ctrl+a',
             copy: 'ctrl+c',
             cut: 'ctrl+x',
             paste: 'ctrl+v',
-            save: 'ctrl+s'
+            save: 'ctrl+s',
+            split_region: 'ctrl+t',
+            merge_regions: 'ctrl+j'
           },
           piano_roll: {
             switch: 'tab', 
@@ -260,6 +275,7 @@ export class ConfigManager {
           default_open: true
         },
         audio: {
+          bounce_starts_from_beat_1: true,
           enable_audio_capture_for_screen_sharing: false,
           input_device_id: 'default',
           lookahead_time: 0.05,

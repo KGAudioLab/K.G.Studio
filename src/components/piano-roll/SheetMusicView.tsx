@@ -26,7 +26,6 @@ interface SheetMusicViewProps {
   keySignature: KeySignature;
   instrument: InstrumentType;
   quantization: SheetQuantization;
-  noteScrollRef: React.MutableRefObject<HTMLDivElement | null>;
   onMetricsChange: (metrics: SheetMeasureMetric[]) => void;
 }
 
@@ -61,7 +60,6 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   keySignature,
   instrument,
   quantization,
-  noteScrollRef,
   onMetricsChange,
 }) => {
   const setPlayheadPosition = useProjectStore(state => state.setPlayheadPosition);
@@ -245,7 +243,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     }
 
     const rect = headerRef.current.getBoundingClientRect();
-    const relativeX = event.clientX - rect.left + (noteScrollRef.current?.scrollLeft ?? 0);
+    const relativeX = event.clientX - rect.left;
     const metric = metrics.find(candidate => (
       relativeX >= candidate.leftPx && relativeX <= candidate.leftPx + candidate.widthPx
     ));
@@ -365,7 +363,6 @@ const arePropsEqual = (previous: SheetMusicViewProps, next: SheetMusicViewProps)
     previous.quantization.raw === next.quantization.raw &&
     previous.timeSignature.numerator === next.timeSignature.numerator &&
     previous.timeSignature.denominator === next.timeSignature.denominator &&
-    previous.noteScrollRef === next.noteScrollRef &&
     previous.onMetricsChange === next.onMetricsChange
   );
 };

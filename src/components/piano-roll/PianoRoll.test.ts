@@ -33,6 +33,7 @@ vi.mock('../../stores/projectStore', () => ({
 
 import {
   createPendingModeSwitchRequest,
+  getRegionStartScrollLeft,
   getRegionPlayheadRelation,
   getScrollLeftForViewportRequest,
 } from './PianoRoll';
@@ -55,6 +56,13 @@ describe('PianoRoll viewport switch helpers', () => {
     expect(getRegionPlayheadRelation(15, 16, 24)).toBe('before');
     expect(getRegionPlayheadRelation(20, 16, 24)).toBe('inside');
     expect(getRegionPlayheadRelation(25, 16, 24)).toBe('after');
+  });
+
+  it('uses the zoomed beat width when scrolling to a different region in piano-roll view', () => {
+    document.documentElement.style.setProperty('--region-grid-beat-width', '80px');
+    document.documentElement.style.setProperty('--region-grid-bar-width', 'calc(var(--region-grid-beat-width) * var(--time-signature-numerator))');
+
+    expect(getRegionStartScrollLeft(16)).toBe(1280);
   });
 
   it('centers an in-region playhead when switching to region-scope sheet view', () => {

@@ -165,7 +165,7 @@ export const createMockProject = (overrides: Partial<{
     [0, 0], // loopingRange
     1, // barWidthMultiplier
     defaults.tracks, // tracks
-    5 // projectStructureVersion
+    KGProject.CURRENT_PROJECT_STRUCTURE_VERSION // projectStructureVersion
   );
   
   return project;

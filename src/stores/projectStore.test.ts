@@ -3,6 +3,11 @@ import { act } from '@testing-library/react';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 
+const pianoRollStateMocks = vi.hoisted(() => ({
+  setSheetMusicViewEnabled: vi.fn(),
+  setPianoRollZoom: vi.fn(),
+}));
+
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 const mockProject = {
   getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
@@ -15,13 +20,23 @@ const mockProject = {
   getSelectedMode: () => 'major',
   getIsLooping: () => false,
   getLoopingRange: () => [0, 0] as [number, number],
+  getPianoRollZoom: () => 1,
 };
+let currentProject = mockProject;
 
 const mockAudioInterface = {
   getTransportPosition: vi.fn().mockReturnValue(8),
   startAudioRecording: vi.fn().mockResolvedValue({ usedDeviceId: 'default', fellBackToDefault: false }),
   stopAudioRecording: vi.fn().mockResolvedValue(null),
   cancelAudioRecording: vi.fn().mockResolvedValue(undefined),
+  removeTrackSynth: vi.fn(),
+  removeTrackAudioPlayerBus: vi.fn(),
+  createTrackAudioPlayerBus: vi.fn().mockResolvedValue(undefined),
+  loadAudioBufferForTrack: vi.fn(),
+  createTrackSynth: vi.fn(),
+  setTrackVolume: vi.fn(),
+  setTrackMute: vi.fn(),
+  setTrackSolo: vi.fn(),
 };
 
 const configValues = new Map<string, unknown>([
@@ -29,7 +44,10 @@ const configValues = new Map<string, unknown>([
 ]);
 
 const mockCore = {
-  getCurrentProject: () => mockProject,
+  getCurrentProject: () => currentProject,
+  setCurrentProject: vi.fn((project: typeof mockProject) => {
+    currentProject = project;
+  }),
   setPlayheadUpdateCallback: vi.fn(),
   setPlaybackStateChangeCallback: vi.fn(),
   setLoopBoundaryReachedCallback: vi.fn(),
@@ -45,6 +63,7 @@ const mockCore = {
   redo: vi.fn(() => true),
   clearSelectedItems: vi.fn(),
   getStatus: () => 'Ready',
+  setStatus: vi.fn(),
   getPlayheadPosition: () => 0,
   setPlayheadPosition: vi.fn(),
   getIsPlaying: () => false,
@@ -76,11 +95,20 @@ vi.mock('../core/config/ConfigManager', () => ({
   },
 }));
 
+vi.mock('../core/state/KGPianoRollState', () => ({
+  KGPianoRollState: {
+    instance: () => pianoRollStateMocks,
+  },
+}));
+
 describe('projectStore piano roll state', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.resetModules();
+    pianoRollStateMocks.setSheetMusicViewEnabled.mockReset();
+    pianoRollStateMocks.setPianoRollZoom.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
+    currentProject = mockProject;
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
@@ -118,10 +146,34 @@ describe('projectStore piano roll state', () => {
     });
 
     state = useProjectStore.getState();
+    expect(pianoRollStateMocks.setSheetMusicViewEnabled).toHaveBeenCalledWith(false);
     expect(state.showPianoRoll).toBe(true);
     expect(state.pianoRollMode).toBe('midi-edit');
     expect(state.activeRegionId).toBe('midi-b');
     expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.requestedSheetMusicViewEnabled).toBe(false);
+    expect(state.pianoRollViewRequestVersion).toBe(1);
+  });
+
+  it('opens a MIDI region in sheet music view when requested', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().openHybridMode('midi-a', 'audio-a');
+    });
+
+    act(() => {
+      useProjectStore.getState().openMidiPianoRollWithSheetMusicView('midi-b', true);
+    });
+
+    const state = useProjectStore.getState();
+    expect(pianoRollStateMocks.setSheetMusicViewEnabled).toHaveBeenCalledWith(true);
+    expect(state.showPianoRoll).toBe(true);
+    expect(state.pianoRollMode).toBe('midi-edit');
+    expect(state.activeRegionId).toBe('midi-b');
+    expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.requestedSheetMusicViewEnabled).toBe(true);
+    expect(state.pianoRollViewRequestVersion).toBe(1);
   });
 
   it('tracks playback preparation around startPlaying success', async () => {

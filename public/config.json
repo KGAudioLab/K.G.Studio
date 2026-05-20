@@ -27,8 +27,12 @@
             "model": ""
         },
         "local_browser": {
-            "context_length": 32768
+            "context_length": 32768,
+            "model_url": "https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task"
         }, 
+        "uvr5_web_runtime": {
+            "mdx_net_model_url": "https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx"
+        },
         "soundfont": {
             "base_url": "https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/"
         },
@@ -49,7 +53,9 @@
             "copy": "ctrl+c",
             "cut": "ctrl+x",
             "paste": "ctrl+v",
-            "save": "ctrl+s"
+            "save": "ctrl+s",
+            "split_region": "ctrl+t",
+            "merge_regions": "ctrl+j"
         },
         "piano_roll": {
             "switch": "tab", 
@@ -76,6 +82,7 @@
         "default_open": true
     },
     "audio": {
+        "bounce_starts_from_beat_1": true,
         "enable_audio_capture_for_screen_sharing": false,
         "input_device_id": "default",
         "lookahead_time": 0.05,

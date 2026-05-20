@@ -7,6 +7,8 @@
   height: 50px;
   padding: 0 10px;
   border-bottom: 1px solid #3a3a3a;
+  position: relative;
+  z-index: 2000;
 }
 
 .toolbar-left,

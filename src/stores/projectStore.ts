@@ -98,6 +98,8 @@ interface ProjectState {
   activeRegionId: string | null;
   pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
+  requestedSheetMusicViewEnabled: boolean;
+  pianoRollViewRequestVersion: number;
   automationRedrawVersion: number;
   activeTrackAutomationTrackId: string | null;
   activeTrackAutomationType: TrackAutomationType | null;
@@ -194,6 +196,7 @@ interface ProjectState {
   setShowPianoRoll: (show: boolean) => void;
   setActiveRegionId: (regionId: string | null) => void;
   openMidiPianoRoll: (regionId: string) => void;
+  openMidiPianoRollWithSheetMusicView: (regionId: string, sheetMusicViewEnabled: boolean) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
   bumpAutomationRedrawVersion: () => void;
@@ -305,6 +308,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
   // Get initial ChatBox state from config
   const configManager = ConfigManager.instance();
+  KGPianoRollState.instance().setPianoRollZoom(currentProject.getPianoRollZoom());
   const initialChatBoxState = configManager.getIsInitialized()
     ? (configManager.get('chatbox.default_open') as boolean) ?? false
     : false;
@@ -430,6 +434,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
+    requestedSheetMusicViewEnabled: false,
+    pianoRollViewRequestVersion: 0,
     automationRedrawVersion: 0,
     activeTrackAutomationTrackId: null,
     activeTrackAutomationType: null,
@@ -873,6 +879,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           }
         }
 
+        // Reapply restored mute/solo state after all buses exist so solo logic can be
+        // computed against the full track set.
+        for (const track of tracks) {
+          const trackId = track.getId().toString();
+          audioInterface.setTrackMute(trackId, track.getMuted());
+          audioInterface.setTrackSolo(trackId, track.getSolo());
+        }
+
         // Update CSS variables
         updateTimeSignatureCSS(timeSignature);
         updateMaxBarsCSS(maxBars);
@@ -929,6 +943,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(1);
+        KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
 
         // Add a status message
         KGCore.instance().setStatus(`Project "${projectToLoad.getName()}" loaded with audio setup`);
@@ -1552,15 +1567,47 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     openMidiPianoRoll: (regionId: string) => {
-      set({ showPianoRoll: true, activeRegionId: regionId, pianoRollMode: 'midi-edit', hybridAudioRegionId: null });
+      KGPianoRollState.instance().setSheetMusicViewEnabled(false);
+      set(state => ({
+        showPianoRoll: true,
+        activeRegionId: regionId,
+        pianoRollMode: 'midi-edit',
+        hybridAudioRegionId: null,
+        requestedSheetMusicViewEnabled: false,
+        pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
+      }));
+    },
+
+    openMidiPianoRollWithSheetMusicView: (regionId: string, sheetMusicViewEnabled: boolean) => {
+      KGPianoRollState.instance().setSheetMusicViewEnabled(sheetMusicViewEnabled);
+      set(state => ({
+        showPianoRoll: true,
+        activeRegionId: regionId,
+        pianoRollMode: 'midi-edit',
+        hybridAudioRegionId: null,
+        requestedSheetMusicViewEnabled: sheetMusicViewEnabled,
+        pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
+      }));
     },
 
     openSpectrogramViewer: (regionId: string) => {
-      set({ showPianoRoll: true, activeRegionId: regionId, pianoRollMode: 'spectrogram', hybridAudioRegionId: null });
+      set({
+        showPianoRoll: true,
+        activeRegionId: regionId,
+        pianoRollMode: 'spectrogram',
+        hybridAudioRegionId: null,
+        requestedSheetMusicViewEnabled: false,
+      });
     },
 
     openHybridMode: (midiRegionId: string, audioRegionId: string) => {
-      set({ showPianoRoll: true, activeRegionId: midiRegionId, hybridAudioRegionId: audioRegionId, pianoRollMode: 'hybrid' });
+      set({
+        showPianoRoll: true,
+        activeRegionId: midiRegionId,
+        hybridAudioRegionId: audioRegionId,
+        pianoRollMode: 'hybrid',
+        requestedSheetMusicViewEnabled: false,
+      });
     },
     bumpAutomationRedrawVersion: () => {
       set(state => ({ automationRedrawVersion: state.automationRedrawVersion + 1 }));
@@ -1579,6 +1626,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: null,
         hybridAudioRegionId: null,
         pianoRollMode: 'midi-edit',
+        requestedSheetMusicViewEnabled: false,
+        pianoRollViewRequestVersion: 0,
         activeTrackAutomationTrackId: null,
         activeTrackAutomationType: null,
         trackAutomationRedrawVersion: 0,

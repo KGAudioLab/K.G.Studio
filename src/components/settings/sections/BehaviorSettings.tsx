@@ -14,6 +14,7 @@ const BehaviorSettings: React.FC = () => {
   const [midiAutomationInterpolationIntervalMs, setMidiAutomationInterpolationIntervalMs] = useState<number>(10);
   const [playbackDelay, setPlaybackDelay] = useState<string>('200');
   const [recordingOffset, setRecordingOffset] = useState<string>('0');
+  const [bounceStartsFromBeat1, setBounceStartsFromBeat1] = useState<boolean>(true);
   const [enableAudioCapture, setEnableAudioCapture] = useState<boolean>(false);
   const [lookaheadValidationErrors, setLookaheadValidationErrors] = useState<string[]>([]);
   const [playbackDelayValidationErrors, setPlaybackDelayValidationErrors] = useState<string[]>([]);
@@ -42,6 +43,7 @@ const BehaviorSettings: React.FC = () => {
       setPlaybackDelay(((playbackDelaySeconds * 1000).toFixed(0)));
       const recordingOffsetSeconds = (configManager.get('audio.recording_offset') as number) ?? 0;
       setRecordingOffset(((recordingOffsetSeconds * 1000).toFixed(0)));
+      setBounceStartsFromBeat1((configManager.get('audio.bounce_starts_from_beat_1') as boolean) ?? true);
       setEnableAudioCapture((configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean) ?? false);
     };
 
@@ -156,6 +158,12 @@ const BehaviorSettings: React.FC = () => {
     const boolValue = value === 'yes';
     setEnableAudioCapture(boolValue);
     await configManager.set('audio.enable_audio_capture_for_screen_sharing', boolValue);
+  };
+
+  const handleBounceStartsFromBeat1Change = async (value: string) => {
+    const boolValue = value === 'yes';
+    setBounceStartsFromBeat1(boolValue);
+    await configManager.set('audio.bounce_starts_from_beat_1', boolValue);
   };
 
   return (
@@ -322,6 +330,23 @@ const BehaviorSettings: React.FC = () => {
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               Timing correction for MIDI recording (0-500ms). If recorded notes appear slightly late compared to where you intended to play them, increase this value to match your MIDI device's input latency. Each note's position is shifted back by this amount when committed.
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              Bounce Starts From Beat 1
+            </label>
+            <select
+              className="settings-select"
+              value={bounceStartsFromBeat1 ? 'yes' : 'no'}
+              onChange={(e) => handleBounceStartsFromBeat1Change(e.target.value)}
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Yes includes leading silence from the start of the song up to the first rendered region when bouncing WAV/MP3. No trims that leading silence and starts bounce at the first rendered note or audio region.
             </div>
           </div>
 

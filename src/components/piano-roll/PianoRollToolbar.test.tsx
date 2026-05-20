@@ -130,8 +130,21 @@ describe('PianoRollToolbar', () => {
     expect(screen.getByRole('button', { name: 'Sheet Music View' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /16,48/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show Entire Track' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '1x' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pointer Tool' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the zoom button outside sheet mode', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        sheetMusicViewEnabled={false}
+        mode="midi-edit"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: '1x' })).toBeInTheDocument();
   });
 
   it('toggles the full-track sheet scope button', () => {

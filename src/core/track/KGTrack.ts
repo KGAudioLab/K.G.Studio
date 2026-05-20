@@ -37,6 +37,14 @@ export class KGTrack {
   @Expose()
   @WithDefault(AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME)
   protected volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
+
+  @Expose()
+  @WithDefault(false)
+  protected muted: boolean = false;
+
+  @Expose()
+  @WithDefault(false)
+  protected solo: boolean = false;
   
   @Expose()
   @Type(() => KGRegion, {
@@ -91,6 +99,14 @@ export class KGTrack {
     return this.volume;
   }
 
+  public getMuted(): boolean {
+    return this.muted;
+  }
+
+  public getSolo(): boolean {
+    return this.solo;
+  }
+
   // Setters  
   public setName(name: string): void {
     this.name = name;
@@ -118,6 +134,14 @@ export class KGTrack {
       AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB,
       Math.min(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB, volume)
     );
+  }
+
+  public setMuted(muted: boolean): void {
+    this.muted = muted;
+  }
+
+  public setSolo(solo: boolean): void {
+    this.solo = solo;
   }
 
   public setRegions(regions: KGRegion[]): void {

@@ -2,6 +2,13 @@ import { KGAudioInterface } from '../audio-interface/KGAudioInterface';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMidiTrack } from '../track/KGMidiTrack';
 
+export interface LiveMidiNoteActivityEvent {
+  pitch: number;
+  isNoteOn: boolean;
+}
+
+type LiveNoteActivityListener = (...args: [LiveMidiNoteActivityEvent]) => void;
+
 /**
  * KGMidiInput - MIDI input manager for the DAW
  * Implements the singleton pattern for global MIDI device management
@@ -32,6 +39,7 @@ export class KGMidiInput {
   private onRecordControlChange: ((controller: number, value: number) => void) | null = null;
   private liveNoteTrackOwnership: Map<number, string[]> = new Map();
   private sustainPolarityInverted: boolean | null = null;
+  private liveNoteActivityListeners: LiveNoteActivityListener[] = [];
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -178,12 +186,14 @@ export class KGMidiInput {
     // Note On: command = 0x90 (144)
     if (command === 0x90 && velocity > 0) {
       console.log(`MIDI Note On: pitch=${pitch}, velocity=${velocity}, channel=${channel}`);
+      this.emitLiveNoteActivity({ pitch, isNoteOn: true });
       this.triggerNoteOn(pitch, velocity);
       this.onRecordNoteOn?.(pitch, velocity);
     }
     // Note Off: command = 0x80 (128) or Note On with velocity 0
     else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
       console.log(`MIDI Note Off: pitch=${pitch}, channel=${channel}`);
+      this.emitLiveNoteActivity({ pitch, isNoteOn: false });
       this.triggerNoteOff(pitch);
       this.onRecordNoteOff?.(pitch);
     }
@@ -354,6 +364,16 @@ export class KGMidiInput {
     return this.sustainPolarityInverted ? !rawPressed : rawPressed;
   }
 
+  private emitLiveNoteActivity(event: LiveMidiNoteActivityEvent): void {
+    for (const listener of this.liveNoteActivityListeners) {
+      try {
+        listener(event);
+      } catch {
+        // Swallow listener errors to avoid disrupting MIDI handling.
+      }
+    }
+  }
+
   /**
    * Clean up MIDI resources
    */
@@ -374,6 +394,7 @@ export class KGMidiInput {
       this.isInitialized = false;
       this.liveNoteTrackOwnership.clear();
       this.sustainPolarityInverted = null;
+      this.liveNoteActivityListeners = [];
 
       console.log("MIDI resources disposed successfully");
     } catch (error) {
@@ -393,6 +414,14 @@ export class KGMidiInput {
     this.onRecordNoteOff = onNoteOff;
     this.onRecordPitchBend = onPitchBend;
     this.onRecordControlChange = onControlChange;
+  }
+
+  public addLiveNoteActivityListener(listener: LiveNoteActivityListener): void {
+    this.liveNoteActivityListeners.push(listener);
+  }
+
+  public removeLiveNoteActivityListener(listener: LiveNoteActivityListener): void {
+    this.liveNoteActivityListeners = this.liveNoteActivityListeners.filter(current => current !== listener);
   }
 
   // ===== GETTERS =====

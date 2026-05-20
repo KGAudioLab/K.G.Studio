@@ -46,6 +46,8 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll,
     setActiveRegionId,
     pianoRollMode,
+    requestedSheetMusicViewEnabled,
+    pianoRollViewRequestVersion,
     openMidiPianoRoll,
     openSpectrogramViewer,
     openHybridMode,
@@ -334,6 +336,21 @@ const MainContent: React.FC<MainContentProps> = ({
     setRegions(updatedRegions);
   }, [tracks, timeSignature]);
 
+  useEffect(() => {
+    if (!showPianoRoll || !activeRegionId) {
+      return;
+    }
+
+    const activeRegionStillExists = tracks.some(track =>
+      track.getRegions().some(region => region.getId() === activeRegionId)
+    );
+
+    if (!activeRegionStillExists) {
+      setShowPianoRoll(false);
+      setActiveRegionId(null);
+    }
+  }, [tracks, showPianoRoll, activeRegionId, setShowPianoRoll, setActiveRegionId]);
+
   // Apply auto-selection for newly created/imported regions after the regions state commits.
   useEffect(() => {
     const pendingRegionId = pendingAutoSelectionRegionIdRef.current;
@@ -587,7 +604,9 @@ const MainContent: React.FC<MainContentProps> = ({
       : null;
 
     setSelectedRegionId(lastSelectedRegionId);
-    setActiveRegionId(lastSelectedRegionId);
+    if (lastSelectedRegionId) {
+      setActiveRegionId(lastSelectedRegionId);
+    }
 
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Selected regions: ${selectedRegions.map(selectedRegion => selectedRegion.getId()).join(', ')}`);
@@ -598,7 +617,6 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     if (!lastSelectedRegionId) {
-      setShowPianoRoll(false);
       return;
     }
 
@@ -1052,6 +1070,8 @@ const MainContent: React.FC<MainContentProps> = ({
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
           mode={pianoRollMode}
+          requestedSheetMusicViewEnabled={requestedSheetMusicViewEnabled}
+          pianoRollViewRequestVersion={pianoRollViewRequestVersion}
           audioRegion={(() => {
             // spectrogram mode: audio region IS the activeRegionId
             // hybrid mode: audio region is hybridAudioRegionId

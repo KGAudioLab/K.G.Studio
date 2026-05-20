@@ -1,6 +1,36 @@
-import { describe, it, expect } from 'vitest';
-import { applyOfflinePitchBendAutomation, encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
 import { bakeMidiAutomationPointsInWindow } from '../../util/midiAutomationUtil';
+
+const { offlineMock, configGetMock } = vi.hoisted(() => ({
+  offlineMock: vi.fn(),
+  configGetMock: vi.fn(),
+}));
+
+vi.mock('tone', () => ({
+  Offline: offlineMock,
+}));
+
+vi.mock('./KGAudioInterface', () => ({
+  KGAudioInterface: {
+    instance: vi.fn(() => ({
+      getTrackVolume: vi.fn().mockReturnValue(0),
+      getTrackMuted: vi.fn().mockReturnValue(false),
+      getTrackSolo: vi.fn().mockReturnValue(false),
+      getAudioBuffer: vi.fn().mockReturnValue(null),
+    })),
+  },
+}));
+
+vi.mock('../config/ConfigManager', () => ({
+  ConfigManager: {
+    instance: vi.fn(() => ({
+      get: configGetMock,
+    })),
+  },
+}));
+
+import { KGOfflineRenderer, applyOfflinePitchBendAutomation, encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
 
 /**
  * Create a minimal AudioBuffer-like object for testing.
@@ -226,5 +256,79 @@ describe('offline pitch bend automation', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0][1]).toBe(0.26);
+  });
+});
+
+describe('renderToBuffer bounce range', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    configGetMock.mockImplementation((key: string) => {
+      if (key === 'audio.bounce_starts_from_beat_1') return true;
+      if (key === 'audio.midi_automation_interpolation_interval_ms') return 10;
+      return null;
+    });
+    offlineMock.mockResolvedValue({
+      duration: 0,
+      numberOfChannels: 2,
+      get: vi.fn(),
+    });
+    ;(KGOfflineRenderer as unknown as { _instance: KGOfflineRenderer | null })._instance = null;
+  });
+
+  it('starts non-looping bounce at beat 0 when configured to include leading silence', async () => {
+    const region = createMockMidiRegion({
+      startFromBeat: 8,
+      notes: [createMockMidiNote({ startBeat: 0, endBeat: 4 })],
+    });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+
+    await KGOfflineRenderer.instance().renderToBuffer(project, { tailSeconds: 0 });
+
+    expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), 6, 2, 44100);
+  });
+
+  it('starts non-looping bounce at first content when the setting is disabled', async () => {
+    configGetMock.mockImplementation((key: string) => {
+      if (key === 'audio.bounce_starts_from_beat_1') return false;
+      if (key === 'audio.midi_automation_interpolation_interval_ms') return 10;
+      return null;
+    });
+
+    const region = createMockMidiRegion({
+      startFromBeat: 8,
+      notes: [createMockMidiNote({ startBeat: 0, endBeat: 4 })],
+    });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+
+    await KGOfflineRenderer.instance().renderToBuffer(project, { tailSeconds: 0 });
+
+    expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), 2, 2, 44100);
+  });
+
+  it('keeps looping bounce bounds regardless of the beat-1 setting', async () => {
+    configGetMock.mockImplementation((key: string) => {
+      if (key === 'audio.bounce_starts_from_beat_1') return false;
+      if (key === 'audio.midi_automation_interpolation_interval_ms') return 10;
+      return null;
+    });
+
+    const project = createMockProject({ bpm: 120, tracks: [] });
+    project.setIsLooping(true);
+    project.setLoopingRange([2, 5]);
+
+    await KGOfflineRenderer.instance().renderToBuffer(project, { tailSeconds: 0 });
+
+    expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), 8, 2, 44100);
+  });
+
+  it('falls back to the full project length when there is no renderable content', async () => {
+    const project = createMockProject({ bpm: 120, tracks: [] });
+    project.setMaxBars(16);
+
+    await KGOfflineRenderer.instance().renderToBuffer(project, { tailSeconds: 0 });
+
+    expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), 32, 2, 44100);
   });
 });

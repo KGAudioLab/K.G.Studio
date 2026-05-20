@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
+import { LocalSeparatorModelCache } from '../../../util/localSeparatorModelCache';
 import {
   formatLocalLLMContextLength,
   LOCAL_LLM_CONTEXT_LENGTH_OPTIONS,
+  LOCAL_LLM_DEFAULT_MODEL_URL,
   LOCAL_LLM_DEFAULT_CONTEXT_LENGTH,
   LOCAL_LLM_DISPLAY_NAME,
   LOCAL_LLM_PROVIDER_KEY,
   normalizeLocalLLMContextLength,
   type LocalLLMContextLength,
 } from '../../../util/localLLMConfig';
+import { LOCAL_SEPARATOR_DEFAULT_MODEL_URL } from '../../../util/localSeparatorConfig';
 
 const GeneralSettings: React.FC = () => {
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
@@ -34,6 +37,11 @@ const GeneralSettings: React.FC = () => {
   const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
   const [localContextLength, setLocalContextLength] = useState<LocalLLMContextLength>(LOCAL_LLM_DEFAULT_CONTEXT_LENGTH);
   const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
+  const [localModelUrl, setLocalModelUrl] = useState<string>('');
+  const [uvr5ModelUrl, setUvr5ModelUrl] = useState<string>('');
+  const [isUvr5ModelCached, setIsUvr5ModelCached] = useState<boolean>(false);
+  const [isCheckingUvr5ModelCache, setIsCheckingUvr5ModelCache] = useState<boolean>(false);
+  const [isDeletingUvr5Model, setIsDeletingUvr5Model] = useState<boolean>(false);
 
   const configManager = ConfigManager.instance();
 
@@ -48,6 +56,18 @@ const GeneralSettings: React.FC = () => {
       return localHosts.has(hostname);
     } catch {
       return false;
+    }
+  }, []);
+
+  const refreshUvr5ModelCacheState = useCallback(async () => {
+    setIsCheckingUvr5ModelCache(true);
+    try {
+      setIsUvr5ModelCached(await LocalSeparatorModelCache.exists());
+    } catch (error) {
+      console.error('Failed to check UVR5 cached model state:', error);
+      setIsUvr5ModelCached(false);
+    } finally {
+      setIsCheckingUvr5ModelCache(false);
     }
   }, []);
 
@@ -74,6 +94,8 @@ const GeneralSettings: React.FC = () => {
       setCompatibleBaseUrl((configManager.get('general.openai_compatible.base_url') as string) || '');
       setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
       setLocalContextLength(normalizeLocalLLMContextLength(configManager.get('general.local_browser.context_length')));
+      setLocalModelUrl((configManager.get('general.local_browser.model_url') as string) || LOCAL_LLM_DEFAULT_MODEL_URL);
+      setUvr5ModelUrl((configManager.get('general.uvr5_web_runtime.mdx_net_model_url') as string) || LOCAL_SEPARATOR_DEFAULT_MODEL_URL);
       setSoundfontBaseUrl((configManager.get('general.soundfont.base_url') as string) || '');
       setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
       setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
@@ -83,8 +105,9 @@ const GeneralSettings: React.FC = () => {
 
     loadConfig();
     const unsubscribe = LocalLLMModelManager.subscribe(setLocalModelState);
+    void refreshUvr5ModelCacheState();
     return unsubscribe;
-  }, [configManager]);
+  }, [configManager, refreshUvr5ModelCacheState]);
 
   // Debounced save function for text inputs
   const debouncedSave = useCallback((key: string, value: string) => {
@@ -212,11 +235,34 @@ const GeneralSettings: React.FC = () => {
     debouncedSave('general.kgone.base_url', value);
   };
 
+  const handleLocalModelUrlChange = (value: string) => {
+    setLocalModelUrl(value);
+    debouncedSave('general.local_browser.model_url', value);
+  };
+
+  const handleUvr5ModelUrlChange = (value: string) => {
+    setUvr5ModelUrl(value);
+    debouncedSave('general.uvr5_web_runtime.mdx_net_model_url', value);
+  };
+
   const handleDeleteLocalModel = async () => {
     try {
       await LocalLLMModelManager.deleteCachedModel();
     } catch (error) {
       console.error('Failed to delete local language model cache:', error);
+    }
+  };
+
+  const handleDeleteUvr5Model = async () => {
+    setIsDeletingUvr5Model(true);
+    try {
+      await LocalSeparatorModelCache.delete();
+      setIsUvr5ModelCached(false);
+    } catch (error) {
+      console.error('Failed to delete UVR5 cached model:', error);
+    } finally {
+      setIsDeletingUvr5Model(false);
+      await refreshUvr5ModelCacheState();
     }
   };
 
@@ -325,6 +371,32 @@ const GeneralSettings: React.FC = () => {
             </div>
           </div>
 
+          <div className="settings-item">
+            <label className="settings-label">
+              Download URL
+            </label>
+            <input
+              type="text"
+              className="settings-input"
+              placeholder={`e.g. ${LOCAL_LLM_DEFAULT_MODEL_URL}`}
+              value={localModelUrl}
+              onChange={(e) => handleLocalModelUrlChange(e.target.value)}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Changing this URL may break downloads or point to an incompatible model file.{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleLocalModelUrlChange(LOCAL_LLM_DEFAULT_MODEL_URL);
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Restore default
+              </a>
+            </div>
+          </div>
+
           {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
               The local model downloads automatically the next time you chat with `Local LLM (Browser)`.
@@ -362,6 +434,47 @@ const GeneralSettings: React.FC = () => {
               disabled={localModelState.isDeleting || localModelState.isDownloading || !localModelState.isCached}
             >
               {localModelState.isDeleting ? 'Deleting...' : 'Delete Cached Model'}
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>UVR5 Web Runtime</h4>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              UVR-MDX-NET-Inst_HQ_3 Download URL
+            </label>
+            <input
+              type="text"
+              className="settings-input"
+              placeholder={`e.g. ${LOCAL_SEPARATOR_DEFAULT_MODEL_URL}`}
+              value={uvr5ModelUrl}
+              onChange={(e) => handleUvr5ModelUrlChange(e.target.value)}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Changing this URL may break downloads or point to an incompatible model file.{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleUvr5ModelUrlChange(LOCAL_SEPARATOR_DEFAULT_MODEL_URL);
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Restore default
+              </a>
+            </div>
+          </div>
+
+          <div className="settings-item" style={{ marginTop: '12px' }}>
+            <button
+              type="button"
+              className="settings-btn settings-btn-danger"
+              onClick={() => void handleDeleteUvr5Model()}
+              disabled={isCheckingUvr5ModelCache || isDeletingUvr5Model || !isUvr5ModelCached}
+            >
+              {isDeletingUvr5Model ? 'Deleting...' : 'Delete Cached Model'}
             </button>
           </div>
         </div>

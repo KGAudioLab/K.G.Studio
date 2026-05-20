@@ -242,11 +242,13 @@ export class KGAudioInterface {
       console.log(`Creating audio bus for track ${trackId} with instrument ${instrumentType}`);
       
       // Create new audio bus
-      // Initialize with track's stored volume if available
+      // Initialize with track's stored mix state if available
       const project = KGCore.instance().getCurrentProject();
       const track = project.getTracks().find(t => t.getId().toString() === trackId);
       const initialVolume = track ? track.getVolume() : AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
-      const audioBus = await KGAudioBus.create(instrumentType, initialVolume, 0);
+      const initialMuted = track ? track.getMuted() : false;
+      const initialSolo = track ? track.getSolo() : false;
+      const audioBus = await KGAudioBus.create(instrumentType, initialVolume, 0, initialMuted, initialSolo);
       
       // Connect to master gain if available, otherwise to destination
       if (this.masterGain) {
@@ -299,7 +301,11 @@ export class KGAudioInterface {
 
     try {
       console.log(`Creating audio player bus for track ${trackId}`);
-      const playerBus = await KGAudioPlayerBus.create(volume, 0);
+      const project = KGCore.instance().getCurrentProject();
+      const track = project.getTracks().find(t => t.getId().toString() === trackId);
+      const initialMuted = track ? track.getMuted() : false;
+      const initialSolo = track ? track.getSolo() : false;
+      const playerBus = await KGAudioPlayerBus.create(volume, 0, initialMuted, initialSolo);
 
       if (this.masterGain) {
         playerBus.connect(this.masterGain);

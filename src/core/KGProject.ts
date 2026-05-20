@@ -50,10 +50,14 @@ export class KGProject {
   private barWidthMultiplier: number = 1;
 
   @Expose()
+  @WithDefault(1)
+  private pianoRollZoom: number = 1;
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 10;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 12;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -69,7 +73,7 @@ export class KGProject {
   private tracks: KGTrack[] = [];
 
   // Constructor
-  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 1, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION) {
+  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 1, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
@@ -82,6 +86,7 @@ export class KGProject {
     this.barWidthMultiplier = barWidthMultiplier;
     this.tracks = tracks;
     this.projectStructureVersion = projectStructureVersion;
+    this.pianoRollZoom = pianoRollZoom;
   }
 
   // Getters
@@ -180,5 +185,13 @@ export class KGProject {
 
   public setBarWidthMultiplier(barWidthMultiplier: number): void {
     this.barWidthMultiplier = barWidthMultiplier;
+  }
+
+  public getPianoRollZoom(): number {
+    return this.pianoRollZoom;
+  }
+
+  public setPianoRollZoom(pianoRollZoom: number): void {
+    this.pianoRollZoom = pianoRollZoom;
   }
 }

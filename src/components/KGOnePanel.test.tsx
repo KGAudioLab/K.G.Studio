@@ -5,6 +5,10 @@ import KGOnePanel from './KGOnePanel';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 
+const { mockLocalSeparatorDownload } = vi.hoisted(() => ({
+  mockLocalSeparatorDownload: vi.fn(async (_url?: string, _filename?: string, _onProgress?: unknown) => undefined),
+}));
+
 let kgoneEnabled = false;
 let selectedRegionIds: string[] = [];
 let localModelCached = false;
@@ -31,6 +35,7 @@ vi.mock('../core/config/ConfigManager', () => ({
       get: (key: string) => {
         if (key === 'general.kgone.enabled') return kgoneEnabled;
         if (key === 'general.kgone.base_url') return 'http://127.0.0.1:8000';
+        if (key === 'general.uvr5_web_runtime.mdx_net_model_url') return 'https://example.com/custom-uvr5.onnx';
         return undefined;
       },
     }),
@@ -79,8 +84,9 @@ vi.mock('../util/audioUtil', () => ({
 vi.mock('../util/localSeparatorModelCache', () => ({
   LocalSeparatorModelCache: {
     exists: vi.fn(async () => localModelCached),
-    download: vi.fn(async () => {
+    download: vi.fn(async (url: string, filename: string, onProgress: (progress: unknown) => void) => {
       localModelCached = true;
+      return mockLocalSeparatorDownload(url, filename, onProgress);
     }),
     delete: vi.fn(async () => {
       localModelCached = false;
@@ -124,6 +130,7 @@ describe('KGOnePanel local separator mode', () => {
       { name: 'Instrumental', blob: new Blob(['instrumental'], { type: 'audio/wav' }) },
       { name: 'Vocals', blob: new Blob(['vocals'], { type: 'audio/wav' }) },
     ];
+    mockLocalSeparatorDownload.mockClear();
     mockRefreshProjectState.mockReset();
     mockExecuteCommand.mockReset();
   });
@@ -153,6 +160,20 @@ describe('KGOnePanel local separator mode', () => {
     fireEvent.click(screen.getByRole('button', { name: /Advanced Settings/i }));
     expect(screen.getByLabelText('Optional audio chunk duration (seconds)')).toBeInTheDocument();
     expect(screen.getByLabelText('MDX overlap')).toBeInTheDocument();
+  });
+
+  it('uses the configured UVR5 model URL when downloading the local model', async () => {
+    render(<KGOnePanel isVisible={true} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Download Model' }));
+
+    await waitFor(() => {
+      expect(mockLocalSeparatorDownload).toHaveBeenCalledWith(
+        'https://example.com/custom-uvr5.onnx',
+        'UVR-MDX-NET-Inst_HQ_3.onnx',
+        expect.any(Function),
+      );
+    });
   });
 
   it('prompts for an audio region when the model is cached but nothing is selected', async () => {
