@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGAudioTrack } from '../track/KGAudioTrack';
 import { KGMidiTrack } from '../track/KGMidiTrack';
 
+type TestMidiEvent = { data: Uint8Array };
+type TestLiveNoteActivityListener = (...args: [{ pitch: number; isNoteOn: boolean }]) => void;
+
 const { getStateMock, audioInterfaceMock } = vi.hoisted(() => ({
   getStateMock: vi.fn(),
   audioInterfaceMock: {
@@ -45,19 +48,40 @@ describe('KGMidiInput pitch bend', () => {
 
   it('routes live MIDI note on/off through the live monitoring path', () => {
     const midiInput = KGMidiInput.instance() as unknown as {
-      handleMIDIMessage: (event: { data: Uint8Array }) => void;
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
+      addLiveNoteActivityListener: (...args: [TestLiveNoteActivityListener]) => void;
     };
+    const listener = vi.fn();
+
+    midiInput.addLiveNoteActivityListener(listener);
 
     midiInput.handleMIDIMessage({ data: new Uint8Array([0x90, 60, 100]) });
     midiInput.handleMIDIMessage({ data: new Uint8Array([0x80, 60, 0]) });
 
     expect(audioInterfaceMock.triggerLiveMidiNoteAttack).toHaveBeenCalledWith('1', 60, 100);
     expect(audioInterfaceMock.releaseLiveMidiNote).toHaveBeenCalledWith('1', 60);
+    expect(listener).toHaveBeenNthCalledWith(1, { pitch: 60, isNoteOn: true });
+    expect(listener).toHaveBeenNthCalledWith(2, { pitch: 60, isNoteOn: false });
+  });
+
+  it('stops notifying removed live note activity listeners', () => {
+    const midiInput = KGMidiInput.instance() as unknown as {
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
+      addLiveNoteActivityListener: (...args: [TestLiveNoteActivityListener]) => void;
+      removeLiveNoteActivityListener: (...args: [TestLiveNoteActivityListener]) => void;
+    };
+    const listener = vi.fn();
+
+    midiInput.addLiveNoteActivityListener(listener);
+    midiInput.removeLiveNoteActivityListener(listener);
+    midiInput.handleMIDIMessage({ data: new Uint8Array([0x90, 60, 100]) });
+
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it('latches live note ownership to the note-on track', () => {
     const midiInput = KGMidiInput.instance() as unknown as {
-      handleMIDIMessage: (event: { data: Uint8Array }) => void;
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
     };
 
     midiInput.handleMIDIMessage({ data: new Uint8Array([0x90, 60, 100]) });
@@ -73,7 +97,7 @@ describe('KGMidiInput pitch bend', () => {
 
   it('normalizes MIDI pitch bend and forwards it to the selected track', () => {
     const midiInput = KGMidiInput.instance() as unknown as {
-      handleMIDIMessage: (event: { data: Uint8Array }) => void;
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
     };
 
     midiInput.handleMIDIMessage({ data: new Uint8Array([0xe0, 0x00, 0x40]) });
@@ -87,7 +111,7 @@ describe('KGMidiInput pitch bend', () => {
 
   it('maps supported CC messages to live expression and sustain for standard pedals', () => {
     const midiInput = KGMidiInput.instance() as unknown as {
-      handleMIDIMessage: (event: { data: Uint8Array }) => void;
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
     };
 
     midiInput.handleMIDIMessage({ data: new Uint8Array([0xb0, 0x01, 0x20]) });
@@ -106,7 +130,7 @@ describe('KGMidiInput pitch bend', () => {
 
   it('calibrates inverted sustain pedals from the first observed CC64 message', () => {
     const midiInput = KGMidiInput.instance() as unknown as {
-      handleMIDIMessage: (event: { data: Uint8Array }) => void;
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
     };
 
     midiInput.handleMIDIMessage({ data: new Uint8Array([0xb0, 0x40, 0x00]) });
@@ -123,7 +147,7 @@ describe('KGMidiInput pitch bend', () => {
     });
 
     const midiInput = KGMidiInput.instance() as unknown as {
-      handleMIDIMessage: (event: { data: Uint8Array }) => void;
+      handleMIDIMessage: (...args: [TestMidiEvent]) => void;
     };
 
     midiInput.handleMIDIMessage({ data: new Uint8Array([0x90, 60, 100]) });

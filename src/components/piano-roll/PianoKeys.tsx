@@ -1,30 +1,94 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
-import { noteNameToPitch, midiPercussionKeyMap, pitchToNoteNameString } from '../../util/midiUtil';
+import { noteNameToPitch, midiPercussionKeyMap } from '../../util/midiUtil';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { KGMidiInput, type LiveMidiNoteActivityEvent } from '../../core/midi-input/KGMidiInput';
 
 interface PianoKeysProps {
   activeRegion: KGMidiRegion | null;
 }
 
+function incrementPitchCount(source: Map<number, number>, pitch: number): Map<number, number> {
+  const next = new Map(source);
+  next.set(pitch, (next.get(pitch) ?? 0) + 1);
+  return next;
+}
+
+function decrementPitchCount(source: Map<number, number>, pitch: number): Map<number, number> {
+  const next = new Map(source);
+  const current = next.get(pitch) ?? 0;
+
+  if (current <= 1) {
+    next.delete(pitch);
+  } else {
+    next.set(pitch, current - 1);
+  }
+
+  return next;
+}
+
 const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
-  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
-  const pressedKeysRef = useRef<Set<string>>(new Set());
-  const { tracks } = useProjectStore();
+  const [mouseActivePitches, setMouseActivePitches] = useState<Map<number, number>>(new Map());
+  const [midiActivePitches, setMidiActivePitches] = useState<Map<number, number>>(new Map());
+  const mouseActivePitchesRef = useRef<Map<number, number>>(new Map());
+  const tracks = useProjectStore(state => state.tracks);
+  const playheadPosition = useProjectStore(state => state.playheadPosition);
+  const isPlaying = useProjectStore(state => state.isPlaying);
 
   // Check if current active region belongs to a drum track
-  const isDrumTrack = React.useMemo(() => {
+  const isDrumTrack = useMemo(() => {
     if (!activeRegion) return false;
     const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
     return track instanceof KGMidiTrack && track.getInstrument() === 'standard';
   }, [activeRegion, tracks]);
 
+  const playbackActivePitches = useMemo(() => {
+    if (!activeRegion || !isPlaying) {
+      return new Set<number>();
+    }
+
+    const activePitches = new Set<number>();
+    const absolutePlayhead = playheadPosition;
+    const regionStartBeat = activeRegion.getStartFromBeat();
+
+    activeRegion.getNotes().forEach(note => {
+      const startBeat = regionStartBeat + note.getStartBeat();
+      const endBeat = regionStartBeat + note.getEndBeat();
+
+      if (absolutePlayhead >= startBeat && absolutePlayhead < endBeat) {
+        activePitches.add(note.getPitch());
+      }
+    });
+
+    return activePitches;
+  }, [activeRegion, isPlaying, playheadPosition]);
+
+  useEffect(() => {
+    const midiInput = KGMidiInput.instance();
+
+    const handleLiveNoteActivity = (event: LiveMidiNoteActivityEvent) => {
+      setMidiActivePitches(current => (
+        event.isNoteOn
+          ? incrementPitchCount(current, event.pitch)
+          : decrementPitchCount(current, event.pitch)
+      ));
+    };
+
+    midiInput.addLiveNoteActivityListener(handleLiveNoteActivity);
+
+    return () => {
+      midiInput.removeLiveNoteActivityListener(handleLiveNoteActivity);
+    };
+  }, []);
+
   // Handle mouse down on piano key
   const handleKeyMouseDown = (keyId: string) => {
+    const pitch = noteNameToPitch(keyId);
+
     // Prevent double pressing the same key
-    if (pressedKeysRef.current.has(keyId)) {
+    if ((mouseActivePitchesRef.current.get(pitch) ?? 0) > 0) {
       return;
     }
 
@@ -37,9 +101,6 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
     const trackId = activeRegion.getTrackId();
     
     try {
-      // Convert note name to pitch (keyId is always a note name like "C4")
-      const pitch = noteNameToPitch(keyId);
-      
       // Get audio interface and start playing the note
       const audioInterface = KGAudioInterface.instance();
       if (audioInterface.getIsInitialized()) {
@@ -54,11 +115,9 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
         if (audioInterface.getIsAudioContextStarted()) {
           audioInterface.triggerNoteAttack(trackId, pitch, 127);
           
-          // Update pressed keys state
-          const newPressedKeys = new Set(pressedKeysRef.current);
-          newPressedKeys.add(keyId);
-          pressedKeysRef.current = newPressedKeys;
-          setPressedKeys(newPressedKeys);
+          const nextMouseActivePitches = incrementPitchCount(mouseActivePitchesRef.current, pitch);
+          mouseActivePitchesRef.current = nextMouseActivePitches;
+          setMouseActivePitches(nextMouseActivePitches);
           
           console.log(`Started playing piano key: ${keyId} (pitch ${pitch})`);
         }
@@ -70,8 +129,10 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
 
   // Handle mouse up on piano key
   const handleKeyMouseUp = (keyId: string) => {
+    const pitch = noteNameToPitch(keyId);
+
     // Only release if key was actually pressed
-    if (!pressedKeysRef.current.has(keyId)) {
+    if ((mouseActivePitchesRef.current.get(pitch) ?? 0) === 0) {
       return;
     }
 
@@ -83,19 +144,14 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
     const trackId = activeRegion.getTrackId();
     
     try {
-      // Convert note name to pitch (keyId is always a note name like "C4")
-      const pitch = noteNameToPitch(keyId);
-      
       // Get audio interface and stop playing the note
       const audioInterface = KGAudioInterface.instance();
       if (audioInterface.getIsInitialized() && audioInterface.getIsAudioContextStarted()) {
         audioInterface.releaseNote(trackId, pitch);
         
-        // Update pressed keys state
-        const newPressedKeys = new Set(pressedKeysRef.current);
-        newPressedKeys.delete(keyId);
-        pressedKeysRef.current = newPressedKeys;
-        setPressedKeys(newPressedKeys);
+        const nextMouseActivePitches = decrementPitchCount(mouseActivePitchesRef.current, pitch);
+        mouseActivePitchesRef.current = nextMouseActivePitches;
+        setMouseActivePitches(nextMouseActivePitches);
         
         console.log(`Stopped playing piano key: ${keyId} (pitch ${pitch})`);
       }
@@ -123,14 +179,25 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
         const note = notes[i];
         const isSharp = note.includes('#');
         const keyId = `${note}${octave}`;
-        const isPressed = pressedKeys.has(keyId);
-        const keyClass = `piano-key ${isSharp ? 'sharp' : 'natural'} ${isPressed ? 'pressed' : ''}`;
+        const pitch = noteNameToPitch(keyId);
+        const isMouseActive = (mouseActivePitches.get(pitch) ?? 0) > 0;
+        const isMidiActive = (midiActivePitches.get(pitch) ?? 0) > 0;
+        const isPlaybackActive = playbackActivePitches.has(pitch);
+        const showIndicator = isMouseActive || isMidiActive;
+        const hasBackgroundFeedback = isMouseActive || isPlaybackActive;
+        const keyClass = [
+          'piano-key',
+          isSharp ? 'sharp' : 'natural',
+          isMouseActive ? 'mouse-active' : '',
+          isMidiActive ? 'midi-active' : '',
+          isPlaybackActive ? 'playback-active' : '',
+          hasBackgroundFeedback ? 'visual-active' : '',
+        ].filter(Boolean).join(' ');
         const isC = note === 'C';
         
         // For drum tracks, show drum labels when available
         let labelContent = null;
         if (isDrumTrack) {
-          const pitch = noteNameToPitch(keyId);
           const drumInfo = midiPercussionKeyMap[pitch];
           if (drumInfo) {
             labelContent = <span className="key-label">{drumInfo.shortName}</span>;
@@ -153,6 +220,7 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
             }}
           >
             {labelContent}
+            {showIndicator ? <span className="piano-key-activity-dot" data-testid={`piano-key-dot-${keyId}`} /> : null}
           </div>
         );
       }

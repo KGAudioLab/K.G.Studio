@@ -572,6 +572,8 @@
   display: flex;
   align-items: center;
   border-bottom: 1px solid #3a3a3a;
+  position: relative;
+  transition: background-color 0.08s ease;
 }
 
 .piano-key.natural {
@@ -584,9 +586,37 @@
   color: #e0e0e0;
 }
 
+.piano-key.natural.visual-active {
+  background-color: #b8b8b8;
+}
+
+.piano-key.sharp.visual-active {
+  background-color: #5a5a5a;
+}
+
 .key-label {
   font-size: 10px;
   padding-left: 5px;
+  padding-right: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.piano-key-activity-dot {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 999px;
+  background-color: #000;
+  border: 1px solid #000;
+}
+
+.piano-key.sharp .piano-key-activity-dot {
+  background-color: #fff;
+  border-color: #fff;
 }
 
 .piano-grid {
