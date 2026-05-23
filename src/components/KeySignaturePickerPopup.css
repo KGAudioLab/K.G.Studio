@@ -145,14 +145,15 @@
   font-size: 11px;
 }
 
-.key-signature-picker-button.selected {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .key-signature-picker-label {
   display: inline-flex;
   align-items: flex-start;
+}
+
+.key-signature-picker-label.selected {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
 }
 
 .key-signature-picker-accidental {

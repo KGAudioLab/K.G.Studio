@@ -34,21 +34,21 @@ function splitAccidental(label: string): { base: string; accidental: string | nu
   return { base: label, accidental: null };
 }
 
-const KeyLabel: React.FC<{ label: string }> = ({ label }) => {
+const KeyLabel: React.FC<{ label: string; selected?: boolean }> = ({ label, selected = false }) => {
   const { base, accidental } = splitAccidental(label);
   return (
-    <span className="key-signature-picker-label">
+    <span className={`key-signature-picker-label ${selected ? 'selected' : ''}`.trim()}>
       <span>{base}</span>
       {accidental && <sup className="key-signature-picker-accidental">{accidental}</sup>}
     </span>
   );
 };
 
-const CombinedKeyLabel: React.FC<{ labels: string[] }> = ({ labels }) => (
+const CombinedKeyLabel: React.FC<{ labels: string[]; selectedIndex?: number }> = ({ labels, selectedIndex = -1 }) => (
   <span className="key-signature-picker-label">
     {labels.map((label, index) => (
       <React.Fragment key={label}>
-        <KeyLabel label={label} />
+        <KeyLabel label={label} selected={index === selectedIndex} />
         {index < labels.length - 1 && <span className="key-signature-picker-divider">/</span>}
       </React.Fragment>
     ))}
@@ -97,7 +97,10 @@ const KeySignaturePickerPopup: React.FC<KeySignaturePickerPopupProps> = ({ value
                     aria-label={`Select ${slot.outerItems.map(item => item.keySignature).join(' or ')}`}
                     title={slot.outerItems.map(item => item.keySignature).join(' / ')}
                   >
-                    <CombinedKeyLabel labels={slot.outerItems.map(item => item.label)} />
+                    <CombinedKeyLabel
+                      labels={slot.outerItems.map(item => item.label)}
+                      selectedIndex={slot.outerItems.findIndex(item => item.keySignature === value)}
+                    />
                   </button>
                 ) : (
                   <div className="key-signature-picker-item-stack">
@@ -105,11 +108,11 @@ const KeySignaturePickerPopup: React.FC<KeySignaturePickerPopupProps> = ({ value
                       <div className="key-signature-picker-key" key={item.keySignature}>
                         <button
                           type="button"
-                          className={`key-signature-picker-button major ${value === item.keySignature ? 'selected' : ''}`.trim()}
-                          onClick={() => onChange(item.keySignature)}
-                          aria-label={`Select ${item.keySignature}`}
-                        >
-                          <KeyLabel label={item.label} />
+                        className={`key-signature-picker-button major ${value === item.keySignature ? 'selected' : ''}`.trim()}
+                        onClick={() => onChange(item.keySignature)}
+                        aria-label={`Select ${item.keySignature}`}
+                      >
+                          <KeyLabel label={item.label} selected={value === item.keySignature} />
                         </button>
                       </div>
                     ))}
@@ -128,7 +131,10 @@ const KeySignaturePickerPopup: React.FC<KeySignaturePickerPopupProps> = ({ value
                     aria-label={`Select ${slot.innerItems.map(item => item.keySignature).join(' or ')}`}
                     title={slot.innerItems.map(item => item.keySignature).join(' / ')}
                   >
-                    <CombinedKeyLabel labels={slot.innerItems.map(item => item.label)} />
+                    <CombinedKeyLabel
+                      labels={slot.innerItems.map(item => item.label)}
+                      selectedIndex={slot.innerItems.findIndex(item => item.keySignature === value)}
+                    />
                   </button>
                 ) : (
                   <div className="key-signature-picker-item-stack">
@@ -140,7 +146,7 @@ const KeySignaturePickerPopup: React.FC<KeySignaturePickerPopupProps> = ({ value
                         onClick={() => onChange(item.keySignature)}
                         aria-label={`Select ${item.keySignature}`}
                       >
-                        <KeyLabel label={item.label} />
+                        <KeyLabel label={item.label} selected={value === item.keySignature} />
                       </button>
                     ))}
                   </div>
