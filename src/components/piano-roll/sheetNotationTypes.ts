@@ -1,3 +1,5 @@
+import type { KeySignature } from '../../core/KGProject';
+
 export interface SheetMeasureMetric {
   barIndex: number;
   startBeat: number;
@@ -24,7 +26,9 @@ export interface SheetDisplayEvent {
 
 export interface SheetMeasureModel {
   barIndex: number;
+  absoluteBarIndex: number;
   startBeat: number;
   endBeat: number;
+  keySignature: KeySignature;
   events: SheetDisplayEvent[];
 }

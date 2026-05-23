@@ -8,6 +8,7 @@ import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { createDefaultGlobalTracks } from '../core/global-track';
 import { createMockMidiTrack } from '../test/utils/mock-data';
 
+const executeCommandMock = vi.fn();
 const midiRegion = new KGMidiRegion('region-1', '1', 0, 'Region 1', 0, 4);
 const anotherMidiRegion = new KGMidiRegion('region-2', '1', 0, 'Region 2', 8, 4);
 const audioRegion = new KGAudioRegion('audio-1', '2', 1, 'Audio 1', 4, 4);
@@ -93,7 +94,7 @@ vi.mock('../core/KGCore', () => ({
       clearSelectedItems: () => {
         storeState.selectedRegionIds = [];
       },
-      executeCommand: vi.fn(),
+      executeCommand: executeCommandMock,
       getCurrentProject: () => ({
         getTracks: () => storeState.tracks,
       }),
@@ -149,6 +150,7 @@ describe('MainContent', () => {
     storeState.openSpectrogramViewer.mockClear();
     storeState.addTrack.mockClear();
     storeState.addAudioTrack.mockClear();
+    executeCommandMock.mockClear();
   });
 
   it('updates activeRegionId when selecting a region with piano roll closed', () => {
@@ -309,14 +311,14 @@ describe('MainContent', () => {
 
     expect(screen.queryByText('Marker')).not.toBeInTheDocument();
     expect(screen.queryByText('Tempo')).not.toBeInTheDocument();
-    expect(screen.queryByText('Signature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Key Signature')).not.toBeInTheDocument();
     expect(screen.queryByText('Chord')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
 
     expect(screen.getByText('Marker')).toBeInTheDocument();
     expect(screen.getByText('Tempo')).toBeInTheDocument();
-    expect(screen.getByText('Signature')).toBeInTheDocument();
+    expect(screen.getByText('Key Signature')).toBeInTheDocument();
     expect(screen.getByText('Chord')).toBeInTheDocument();
 
     const globalTracksInfoShell = screen.getByRole('button', { name: 'Add Marker global track item' }).closest('.global-tracks-info-shell') as HTMLElement;
@@ -326,22 +328,21 @@ describe('MainContent', () => {
 
     expect(screen.queryByText('Marker')).not.toBeInTheDocument();
     expect(screen.queryByText('Tempo')).not.toBeInTheDocument();
-    expect(screen.queryByText('Signature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Key Signature')).not.toBeInTheDocument();
     expect(screen.queryByText('Chord')).not.toBeInTheDocument();
   });
 
-  it('keeps the non-marker global track add buttons as visual-only controls', () => {
+  it('keeps the tempo and chord global track add buttons as visual-only controls', () => {
     render(<MainContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
 
     const addButtons = [
       screen.getByRole('button', { name: 'Add Tempo global track item' }),
-      screen.getByRole('button', { name: 'Add Signature global track item' }),
       screen.getByRole('button', { name: 'Add Chord global track item' }),
     ];
 
-    expect(addButtons).toHaveLength(3);
+    expect(addButtons).toHaveLength(2);
 
     addButtons.forEach(button => {
       fireEvent.click(button);
@@ -349,5 +350,15 @@ describe('MainContent', () => {
 
     expect(storeState.addTrack).not.toHaveBeenCalled();
     expect(storeState.addAudioTrack).not.toHaveBeenCalled();
+    expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('routes the signature global track add button through a command', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Key Signature global track item' }));
+
+    expect(executeCommandMock).toHaveBeenCalledTimes(1);
   });
 });

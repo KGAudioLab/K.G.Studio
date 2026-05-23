@@ -2,7 +2,10 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Toolbar from './Toolbar';
+import { createDefaultGlobalTracks } from '../core/global-track';
+import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
 
+const executeCommandMock = vi.fn();
 const storeState = {
   projectName: 'Test Project',
   setProjectName: vi.fn(),
@@ -59,6 +62,7 @@ const storeState = {
   requestMainContentScroll: vi.fn(),
   requestPianoRollScroll: vi.fn(),
   tracks: [] as unknown[],
+  globalTracks: createDefaultGlobalTracks(),
 };
 
 type StoreState = typeof storeState;
@@ -104,7 +108,7 @@ vi.mock('../util/projectNameUtil', () => ({
   isReservedProjectName: vi.fn(() => false),
   RESERVED_PROJECT_NAME: 'Untitled Project',
 }));
-vi.mock('../core/KGCore', () => ({ KGCore: { instance: vi.fn(() => ({ getCurrentProject: vi.fn(() => ({ getTracks: () => [] })) })) } }));
+vi.mock('../core/KGCore', () => ({ KGCore: { instance: vi.fn(() => ({ getCurrentProject: vi.fn(() => ({ getTracks: () => [] })), executeCommand: executeCommandMock })) } }));
 vi.mock('../core/midi-input/KGMidiInput', () => ({ KGMidiInput: { instance: vi.fn(() => ({ getConnectedInputCount: () => 0 })) } }));
 vi.mock('../core/region/KGMidiRegion', () => ({ KGMidiRegion: class {} }));
 vi.mock('../core/track/KGAudioTrack', () => ({ KGAudioTrack: class {} }));
@@ -207,7 +211,11 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.showKGOnePanel = true;
     storeState.showEventListPanel = false;
     storeState.keySignature = 'C major';
+    storeState.playheadPosition = 0;
+    storeState.globalTracks = createDefaultGlobalTracks();
     storeState.setKeySignature.mockClear();
+    storeState.refreshProjectState.mockClear();
+    executeCommandMock.mockClear();
   });
 
   it('suppresses active styling for side-panel buttons while Settings is visible', () => {
@@ -271,6 +279,26 @@ describe('Toolbar settings side-panel behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: /choose key signature/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Select E minor' }));
     expect(storeState.setKeySignature).toHaveBeenCalledWith('E minor');
+    expect(storeState.setStatus).toHaveBeenCalledWith('Key signature changed to E minor');
+  });
+
+  it('shows the effective region key at the playhead and updates that region instead of the project default', () => {
+    const signatureTrack = storeState.globalTracks.find(track => track.getType() === 'signature');
+    signatureTrack?.setRegions([
+      new KGKeySignatureRegion('sig-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 2, 4, 4),
+    ]);
+    storeState.playheadPosition = 8;
+
+    render(<Toolbar />);
+
+    expect(screen.getByRole('button', { name: /choose key signature, current G major/i })).toHaveTextContent('G major');
+
+    fireEvent.click(screen.getByRole('button', { name: /choose key signature/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select E minor' }));
+
+    expect(executeCommandMock).toHaveBeenCalledTimes(1);
+    expect(storeState.setKeySignature).not.toHaveBeenCalled();
+    expect(storeState.refreshProjectState).toHaveBeenCalled();
     expect(storeState.setStatus).toHaveBeenCalledWith('Key signature changed to E minor');
   });
 });

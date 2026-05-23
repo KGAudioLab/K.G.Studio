@@ -3,15 +3,18 @@ import './MainContent.css';
 import { createPortal } from 'react-dom';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
+import type { KeySignature } from '../core/KGProject';
 import { GlobalTrackType } from '../core/global-track';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGRegion } from '../core/region/KGRegion';
 import { KGGlobalRegion } from '../core/region/KGGlobalRegion';
+import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGMarkerRegion } from '../core/region/KGMarkerRegion';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
+import GlobalKeySignatureLane from './global-track/GlobalKeySignatureLane';
 import GlobalMarkerLane from './global-track/GlobalMarkerLane';
 import PianoRoll from './piano-roll/PianoRoll';
 import { TrackCreateDialog } from './common';
@@ -23,13 +26,18 @@ import { KGMainContentState } from '../core/state/KGMainContentState';
 import {
   ChangeLoopSettingsCommand,
   CreateGlobalMarkerRegionCommand,
+  CreateKeySignatureRegionCommand,
+  DeleteKeySignatureRegionCommand,
+  DeleteMultipleKeySignatureRegionsCommand,
   DeleteMultipleGlobalRegionsCommand,
   DeleteTrackAutomationPointsCommand,
   MoveGlobalRegionCommand,
+  ResizeKeySignatureRegionCommand,
   ResizeGlobalRegionCommand,
+  UpdateKeySignatureRegionCommand,
   UpdateGlobalRegionTextCommand,
 } from '../core/commands';
-import { DEFAULT_MARKER_REGION_NAME } from '../util/globalTrackUtil';
+import { DEFAULT_MARKER_REGION_NAME, getSortedKeySignatureRegions } from '../util/globalTrackUtil';
 import { FaPlus } from 'react-icons/fa';
 import { FaSquareArrowUpRight } from 'react-icons/fa6';
 
@@ -45,7 +53,7 @@ interface GlobalTrackDefinition {
 const GLOBAL_TRACKS: GlobalTrackDefinition[] = [
   { id: 'marker', label: 'Marker' },
   { id: 'tempo', label: 'Tempo' },
-  { id: 'signature', label: 'Signature' },
+  { id: 'signature', label: 'Key Signature' },
   { id: 'chord', label: 'Chord' },
 ];
 
@@ -110,6 +118,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const [animateGlobalTracksMock, setAnimateGlobalTracksMock] = useState(false);
   const [editingGlobalRegionId, setEditingGlobalRegionId] = useState<string | null>(null);
   const [editingGlobalRegionText, setEditingGlobalRegionText] = useState('');
+  const [editingKeySignatureRegionId, setEditingKeySignatureRegionId] = useState<string | null>(null);
 
   // Use the region operations hook
   const { deleteSelectedRegions } = useRegionOperations({
@@ -162,6 +171,8 @@ const MainContent: React.FC<MainContentProps> = ({
   const markerRegions = (markerTrack?.getRegions() ?? []).filter(
     (region): region is KGMarkerRegion => region instanceof KGMarkerRegion
   );
+  const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null;
+  const signatureRegions = signatureTrack ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator) : [];
 
   const findProjectRegionById = useCallback((regionId: string): KGRegion | null => {
     for (const track of tracks) {
@@ -193,10 +204,27 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     try {
-      KGCore.instance().executeCommand(new DeleteMultipleGlobalRegionsCommand(selectedGlobalRegionIds));
+      const signatureRegionIds = selectedGlobalRegionIds.filter((regionId) => findProjectRegionById(regionId) instanceof KGKeySignatureRegion);
+      const markerRegionIds = selectedGlobalRegionIds.filter((regionId) => findProjectRegionById(regionId) instanceof KGMarkerRegion);
+
+      if (signatureRegionIds.length > 0 && markerRegionIds.length === 0) {
+        KGCore.instance().executeCommand(
+          signatureRegionIds.length === 1
+            ? new DeleteKeySignatureRegionCommand(signatureRegionIds[0])
+            : new DeleteMultipleKeySignatureRegionsCommand(signatureRegionIds)
+        );
+      } else if (markerRegionIds.length > 0 && signatureRegionIds.length === 0) {
+        KGCore.instance().executeCommand(new DeleteMultipleGlobalRegionsCommand(markerRegionIds));
+      } else {
+        KGCore.instance().executeCommand(new DeleteMultipleGlobalRegionsCommand(selectedGlobalRegionIds));
+      }
+
       if (editingGlobalRegionId && selectedGlobalRegionIds.includes(editingGlobalRegionId)) {
         setEditingGlobalRegionId(null);
         setEditingGlobalRegionText('');
+      }
+      if (editingKeySignatureRegionId && selectedGlobalRegionIds.includes(editingKeySignatureRegionId)) {
+        setEditingKeySignatureRegionId(null);
       }
       refreshProjectState();
       return true;
@@ -204,7 +232,7 @@ const MainContent: React.FC<MainContentProps> = ({
       console.error('Error deleting global marker regions:', error);
       return false;
     }
-  }, [editingGlobalRegionId, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
+  }, [editingGlobalRegionId, editingKeySignatureRegionId, findProjectRegionById, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
 
   // Register the delete function with the global manager
   useEffect(() => {
@@ -877,6 +905,15 @@ const MainContent: React.FC<MainContentProps> = ({
     setEditingGlobalRegionText(region.getName());
   }, [findProjectRegionById]);
 
+  const beginEditingKeySignatureRegion = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGKeySignatureRegion)) {
+      return;
+    }
+
+    setEditingKeySignatureRegionId(regionId);
+  }, [findProjectRegionById]);
+
   const commitGlobalRegionEdit = useCallback((regionId: string) => {
     const region = findProjectRegionById(regionId);
     if (!(region instanceof KGMarkerRegion)) {
@@ -953,6 +990,57 @@ const MainContent: React.FC<MainContentProps> = ({
       refreshProjectState();
     } catch (error) {
       console.error('Error resizing marker region:', error);
+    }
+  }, [refreshProjectState]);
+
+  const createKeySignatureAtBar = useCallback((requestedStartBar: number) => {
+    const normalizedStartBar = Math.max(0, Math.min(requestedStartBar, maxBars - 1));
+    const existingRegionAtStart = signatureRegions.find(region => region.getStartBar() === normalizedStartBar);
+    if (existingRegionAtStart) {
+      selectGlobalRegion(existingRegionAtStart.getId(), { shiftKey: false });
+      beginEditingKeySignatureRegion(existingRegionAtStart.getId());
+      return;
+    }
+
+    try {
+      const command = new CreateKeySignatureRegionCommand(normalizedStartBar);
+      KGCore.instance().executeCommand(command);
+      refreshProjectState();
+
+      const createdRegion = command.getCreatedRegion();
+      if (!createdRegion) {
+        return;
+      }
+
+      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      setEditingKeySignatureRegionId(createdRegion.getId());
+    } catch (error) {
+      console.error('Error creating key signature region:', error);
+    }
+  }, [beginEditingKeySignatureRegion, maxBars, refreshProjectState, selectGlobalRegion, signatureRegions]);
+
+  const createKeySignatureAtPlayheadBar = useCallback(() => {
+    const beatsPerBar = timeSignature.numerator;
+    const startBar = Math.floor(playheadPosition / beatsPerBar);
+    createKeySignatureAtBar(startBar);
+  }, [createKeySignatureAtBar, playheadPosition, timeSignature.numerator]);
+
+  const resizeKeySignatureRegion = useCallback((regionId: string, edge: 'start' | 'end', bar: number) => {
+    try {
+      KGCore.instance().executeCommand(new ResizeKeySignatureRegionCommand(regionId, edge, Math.round(bar)));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error resizing key signature region:', error);
+    }
+  }, [refreshProjectState]);
+
+  const updateKeySignatureRegion = useCallback((regionId: string, keySignature: KeySignature) => {
+    try {
+      KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(regionId, keySignature));
+      setEditingKeySignatureRegionId(null);
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error updating key signature region:', error);
     }
   }, [refreshProjectState]);
 
@@ -1306,6 +1394,11 @@ const MainContent: React.FC<MainContentProps> = ({
                         e.stopPropagation();
                         if (track.id === 'marker') {
                           createMarkerAtPlayheadBar();
+                          return;
+                        }
+
+                        if (track.id === 'signature') {
+                          createKeySignatureAtPlayheadBar();
                         }
                       }}
                     >
@@ -1323,6 +1416,7 @@ const MainContent: React.FC<MainContentProps> = ({
                       key={track.id}
                       markerRegions={markerRegions}
                       maxBars={maxBars}
+                      barWidthMultiplier={barWidthMultiplier}
                       timeSignature={timeSignature}
                       selectedRegionIds={selectedRegionIds}
                       editingRegionId={editingGlobalRegionId}
@@ -1338,6 +1432,22 @@ const MainContent: React.FC<MainContentProps> = ({
                       onCreateAtBeat={createMarkerAtBeat}
                       onMoveRegion={moveGlobalMarkerRegion}
                       onResizeRegion={resizeGlobalMarkerRegion}
+                    />
+                  ) : track.id === 'signature' ? (
+                    <GlobalKeySignatureLane
+                      key={track.id}
+                      signatureRegions={signatureRegions}
+                      maxBars={maxBars}
+                      barWidthMultiplier={barWidthMultiplier}
+                      timeSignature={timeSignature}
+                      selectedRegionIds={selectedRegionIds}
+                      pickerRegionId={editingKeySignatureRegionId}
+                      onClosePicker={() => setEditingKeySignatureRegionId(null)}
+                      onSelectRegion={selectGlobalRegion}
+                      onCreateAtBar={createKeySignatureAtBar}
+                      onResizeRegion={resizeKeySignatureRegion}
+                      onChangeKeySignature={updateKeySignatureRegion}
+                      onOpenPicker={beginEditingKeySignatureRegion}
                     />
                   ) : (
                     <div

@@ -36,10 +36,14 @@ export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 
 // Global region commands
 export { CreateGlobalMarkerRegionCommand } from './global-region/CreateGlobalMarkerRegionCommand';
+export { CreateKeySignatureRegionCommand } from './global-region/CreateKeySignatureRegionCommand';
 export { MoveGlobalRegionCommand } from './global-region/MoveGlobalRegionCommand';
 export { ResizeGlobalRegionCommand, type GlobalRegionResizeEdge } from './global-region/ResizeGlobalRegionCommand';
+export { ResizeKeySignatureRegionCommand } from './global-region/ResizeKeySignatureRegionCommand';
 export { DeleteGlobalRegionCommand, DeleteMultipleGlobalRegionsCommand } from './global-region/DeleteGlobalRegionCommand';
 export { UpdateGlobalRegionTextCommand } from './global-region/UpdateGlobalRegionTextCommand';
+export { DeleteKeySignatureRegionCommand, DeleteMultipleKeySignatureRegionsCommand } from './global-region/DeleteKeySignatureRegionCommand';
+export { UpdateKeySignatureRegionCommand } from './global-region/UpdateKeySignatureRegionCommand';
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';

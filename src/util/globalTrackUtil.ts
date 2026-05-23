@@ -1,10 +1,12 @@
 import { KGProject } from '../core/KGProject';
+import type { KeySignature } from '../core/KGProject';
 import {
   GlobalTrackType,
   KGGlobalTrack,
   createDefaultGlobalTracks,
 } from '../core/global-track';
 import { KGGlobalRegion } from '../core/region/KGGlobalRegion';
+import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
 
 export const DEFAULT_MARKER_REGION_NAME = 'Marker';
 
@@ -82,4 +84,56 @@ export function findMarkerNeighborBounds(
   }
 
   return { minStartBeat, maxEndBeat, nextStartBeat };
+}
+
+export function getSongEndBar(project: KGProject): number {
+  return project.getMaxBars();
+}
+
+export function getSortedKeySignatureRegions(track: KGGlobalTrack, beatsPerBar: number): KGKeySignatureRegion[] {
+  return track.getRegions()
+    .filter((region): region is KGKeySignatureRegion => region instanceof KGKeySignatureRegion)
+    .map((region) => {
+      region.syncBarsFromBeats(beatsPerBar);
+      region.syncBeatsFromBars(beatsPerBar);
+      return region;
+    })
+    .sort((left, right) => left.getStartBar() - right.getStartBar());
+}
+
+export function cloneKeySignatureRegions(regions: KGKeySignatureRegion[], beatsPerBar: number): KGKeySignatureRegion[] {
+  return regions.map(region => new KGKeySignatureRegion(
+    region.getId(),
+    region.getTrackId(),
+    region.getTrackIndex(),
+    region.getKeySignature(),
+    region.getStartBar(),
+    region.getLengthBars(),
+    beatsPerBar
+  ));
+}
+
+export function findKeySignatureRegionAtBar(project: KGProject, bar: number): KGKeySignatureRegion | null {
+  const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
+  if (!track) {
+    return null;
+  }
+
+  const beatsPerBar = project.getTimeSignature().numerator;
+  return getSortedKeySignatureRegions(track, beatsPerBar)
+    .find(region => bar >= region.getStartBar() && bar < region.getEndBar()) ?? null;
+}
+
+export function findKeySignatureRegionAtBeat(project: KGProject, beat: number): KGKeySignatureRegion | null {
+  const beatsPerBar = project.getTimeSignature().numerator;
+  const bar = Math.floor(beat / beatsPerBar);
+  return findKeySignatureRegionAtBar(project, bar);
+}
+
+export function getEffectiveKeySignatureAtBeat(project: KGProject, beat: number): KeySignature {
+  return findKeySignatureRegionAtBeat(project, beat)?.getKeySignature() ?? project.getKeySignature();
+}
+
+export function getClampedKeySignatureRegionEndBar(region: KGKeySignatureRegion, maxBars: number): number {
+  return Math.max(region.getStartBar(), Math.min(region.getEndBar(), maxBars));
 }

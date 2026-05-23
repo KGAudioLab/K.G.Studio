@@ -1,3 +1,4 @@
+import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import type { KeySignature } from '../../core/KGProject';
 import type { KGMidiNote } from '../../core/midi/KGMidiNote';
@@ -30,6 +31,8 @@ export interface BuildSheetNotationOptions {
   projectMaxBars?: number;
   timeSignature: { numerator: number; denominator: number };
   quantization: SheetQuantization;
+  defaultKeySignature?: KeySignature;
+  resolveKeySignatureAtBar?: (barIndex: number) => KeySignature;
 }
 
 interface WorkingEvent {
@@ -52,6 +55,32 @@ export function getSheetQuantizationOptions(): string[] {
 export function projectKeySignatureToVexFlow(keySignature: KeySignature): string {
   const [tonic, quality] = keySignature.split(' ');
   return quality === 'minor' ? `${tonic}m` : tonic;
+}
+
+export function getSheetKeySignatureChangeModifierWidth(
+  keySignature: KeySignature,
+  previousKeySignature: KeySignature | null
+): number {
+  if (!previousKeySignature || previousKeySignature === keySignature) {
+    return 0;
+  }
+
+  const currentEntry = KEY_SIGNATURE_MAP[keySignature];
+  const previousEntry = KEY_SIGNATURE_MAP[previousKeySignature];
+  const currentCount = currentEntry.accidentals.length;
+  const previousCount = previousEntry.accidentals.length;
+  const differentTypes = (
+    (currentEntry.sharps > 0 && previousEntry.flats > 0) ||
+    (currentEntry.flats > 0 && previousEntry.sharps > 0)
+  );
+  const cancelledNaturals = differentTypes
+    ? previousCount
+    : Math.max(0, previousCount - currentCount);
+  const glyphCount = cancelledNaturals + currentCount;
+
+  // Roughly matches the added horizontal space VexFlow needs for
+  // naturals followed by the new key signature accidentals.
+  return 24 + glyphCount * 12;
 }
 
 export function parseSheetQuantization(value: string): SheetQuantization {
@@ -203,10 +232,13 @@ export function buildSheetMeasureModels({
   projectMaxBars,
   timeSignature,
   quantization,
+  defaultKeySignature = 'C major',
+  resolveKeySignatureAtBar,
 }: BuildSheetNotationOptions): SheetMeasureModel[] {
   const beatsPerBar = timeSignature.numerator;
   const isTrackScope = scope === 'track';
   const timelineStartBeat = isTrackScope ? 0 : 0;
+  const regionStartBar = Math.floor(region.getStartFromBeat() / beatsPerBar);
   const measureCount = isTrackScope
     ? Math.max(1, projectMaxBars ?? 1)
     : Math.max(1, Math.ceil(region.getLength() / beatsPerBar));
@@ -226,8 +258,10 @@ export function buildSheetMeasureModels({
 
   const measures: SheetMeasureModel[] = Array.from({ length: measureCount }, (_, barIndex) => ({
     barIndex,
+    absoluteBarIndex: isTrackScope ? barIndex : regionStartBar + barIndex,
     startBeat: timelineStartBeat + barIndex * beatsPerBar,
     endBeat: timelineStartBeat + (barIndex + 1) * beatsPerBar,
+    keySignature: resolveKeySignatureAtBar?.(isTrackScope ? barIndex : regionStartBar + barIndex) ?? defaultKeySignature,
     events: [],
   }));
 

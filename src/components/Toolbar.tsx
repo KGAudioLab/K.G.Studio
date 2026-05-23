@@ -15,7 +15,9 @@ import {
   FaCog, FaMagnet, FaCut, FaCircle, FaCompress
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
+import { GlobalTrackType } from '../core/global-track';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
+import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { plainToInstance } from 'class-transformer';
@@ -36,6 +38,7 @@ import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { mergeSelectedMidiRegions, splitSelectedRegionAtPlayhead } from '../util/regionEditUtil';
 import { showAlert, showChoice, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
+import { UpdateKeySignatureRegionCommand } from '../core/commands';
 
 const Toolbar: React.FC = () => {
   const {
@@ -47,6 +50,7 @@ const Toolbar: React.FC = () => {
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
+    globalTracks,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
@@ -65,6 +69,16 @@ const Toolbar: React.FC = () => {
 
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
+
+  const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null;
+  const signatureRegions = (signatureTrack?.getRegions() ?? [])
+    .filter((region): region is KGKeySignatureRegion => region instanceof KGKeySignatureRegion)
+    .sort((left, right) => left.getStartBar() - right.getStartBar());
+  const playheadBar = Math.floor(playheadPosition / timeSignature.numerator);
+  const activeKeySignatureRegion = signatureRegions.find(
+    region => playheadBar >= region.getStartBar() && playheadBar < region.getEndBar()
+  ) ?? null;
+  const displayedKeySignature = activeKeySignatureRegion?.getKeySignature() ?? keySignature;
 
   // State for export dropdown
   const [showExportDropdown, setShowExportDropdown] = React.useState(false);
@@ -691,10 +705,18 @@ const Toolbar: React.FC = () => {
 
   const handleKeySignatureChange = (newKeySignature: string) => {
     if (DEBUG_MODE.TOOLBAR) {
-      console.log("Key signature changed from", keySignature, "to", newKeySignature);
+      console.log("Key signature changed from", displayedKeySignature, "to", newKeySignature);
     }
 
-    setKeySignature(newKeySignature as KeySignature);
+    if (activeKeySignatureRegion) {
+      KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(
+        activeKeySignatureRegion.getId(),
+        newKeySignature as KeySignature
+      ));
+      refreshProjectState();
+    } else {
+      setKeySignature(newKeySignature as KeySignature);
+    }
     setStatus(`Key signature changed to ${newKeySignature}`);
     setShowKeySignatureDropdown(false);
   };
@@ -1167,13 +1189,13 @@ const Toolbar: React.FC = () => {
                     onClick={() => setShowKeySignatureDropdown((current) => !current)}
                     aria-haspopup="dialog"
                     aria-expanded={showKeySignatureDropdown}
-                    aria-label={`Choose key signature, current ${keySignature}`}
+                    aria-label={`Choose key signature, current ${displayedKeySignature}`}
                   >
-                    {keySignature}
+                    {displayedKeySignature}
                   </button>
                 )}
               >
-                <KeySignaturePickerPopup value={keySignature} onChange={handleKeySignatureChange} />
+                <KeySignaturePickerPopup value={displayedKeySignature} onChange={handleKeySignatureChange} />
               </FloatingPopup>
             </div>
           </div>

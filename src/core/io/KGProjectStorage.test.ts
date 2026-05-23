@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KGProjectStorage, DuplicateEntryError } from './KGProjectStorage';
 import { KGProject } from '../KGProject';
 import { GlobalTrackType } from '../global-track';
+import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
 import { KGMarkerRegion } from '../region/KGMarkerRegion';
 import { KGTrack } from '../track/KGTrack';
 
@@ -177,6 +178,25 @@ describe('KGProjectStorage', () => {
     expect(loadedMarkerTrack?.getRegions()).toHaveLength(1);
     expect(loadedMarkerTrack?.getRegions()[0]).toBeInstanceOf(KGMarkerRegion);
     expect(loadedMarkerTrack?.getRegions()[0].getName()).toBe('Intro');
+  });
+
+  it('preserves key signature regions when saving and loading', async () => {
+    const project = createTestProject('Signature Song');
+    const signatureTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Signature);
+
+    expect(signatureTrack).toBeDefined();
+    signatureTrack?.addRegion(new KGKeySignatureRegion('signature-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 4, 12, 4));
+
+    await storage.save('Signature Song', project);
+
+    const loaded = await storage.load('Signature Song');
+    const loadedSignatureTrack = loaded?.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Signature);
+
+    expect(loadedSignatureTrack).toBeDefined();
+    expect(loadedSignatureTrack?.getRegions()).toHaveLength(1);
+    expect(loadedSignatureTrack?.getRegions()[0]).toBeInstanceOf(KGKeySignatureRegion);
+    expect((loadedSignatureTrack?.getRegions()[0] as KGKeySignatureRegion).getKeySignature()).toBe('G major');
+    expect((loadedSignatureTrack?.getRegions()[0] as KGKeySignatureRegion).getStartBar()).toBe(4);
   });
 
   it('creates meta.json and media/ directory on save', async () => {

@@ -5,20 +5,29 @@ import SheetMusicView from './SheetMusicView';
 import { getSheetPlayheadPixel, parseSheetQuantization } from './sheetNotation';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { createMockMidiNote, createMockMidiRegion } from '../../test/utils/mock-data';
+import { createDefaultGlobalTracks } from '../../core/global-track';
+import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
 
 const setPlayheadPosition = vi.fn();
 const requestMainContentScroll = vi.fn();
+const vexflowMocks = vi.hoisted(() => ({
+  addKeySignatureMock: vi.fn(),
+  applyAccidentalsMock: vi.fn(),
+}));
+const storeState = {
+  playheadPosition: 0,
+  setPlayheadPosition,
+  requestMainContentScroll,
+  globalTracks: createDefaultGlobalTracks(),
+};
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector: (state: {
     playheadPosition: number;
     setPlayheadPosition: typeof setPlayheadPosition;
     requestMainContentScroll: typeof requestMainContentScroll;
-  }) => unknown) => selector({
-    playheadPosition: 0,
-    setPlayheadPosition,
-    requestMainContentScroll,
-  }),
+    globalTracks: typeof storeState.globalTracks;
+  }) => unknown) => selector(storeState),
 }));
 
 vi.mock('../common', () => ({
@@ -66,6 +75,7 @@ vi.mock('vexflow', () => {
     }
 
     addKeySignature() {
+      vexflowMocks.addKeySignatureMock(...arguments);
       return this;
     }
 
@@ -143,7 +153,7 @@ vi.mock('vexflow', () => {
   }
 
   return {
-    Accidental: { applyAccidentals: vi.fn() },
+    Accidental: { applyAccidentals: vexflowMocks.applyAccidentalsMock },
     BarlineType: { SINGLE: 1, NONE: 0 },
     Beam: MockBeam,
     Dot: { buildAndAttach: vi.fn() },
@@ -169,6 +179,9 @@ describe('SheetMusicView', () => {
     setPlayheadPosition.mockClear();
     requestMainContentScroll.mockClear();
     onMetricsChange.mockClear();
+    vexflowMocks.addKeySignatureMock.mockClear();
+    vexflowMocks.applyAccidentalsMock.mockClear();
+    storeState.globalTracks = createDefaultGlobalTracks();
   });
 
   it('maps header clicks in region scope without adding scroll offset', () => {
@@ -298,5 +311,65 @@ describe('SheetMusicView', () => {
     );
 
     expect(screen.getByTestId('playhead')).toBeInTheDocument();
+  });
+
+  it('renders sheet measures using effective key signatures from the global signature track', () => {
+    const activeRegion = createMockMidiRegion({
+      startFromBeat: 0,
+      length: 12,
+      notes: [createMockMidiNote({ startBeat: 0, endBeat: 1, pitch: 60 })],
+    });
+    const signatureTrack = storeState.globalTracks.find(track => track.getType() === 'signature');
+    signatureTrack?.setRegions([
+      new KGKeySignatureRegion('sig-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 1, 2, 4),
+    ]);
+
+    render(
+      <SheetMusicView
+        activeRegion={activeRegion}
+        midiRegions={[activeRegion]}
+        maxBars={8}
+        sheetMusicTrackScopeEnabled={false}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        keySignature="C major"
+        instrument="acoustic_grand_piano"
+        quantization={quantization}
+        onMetricsChange={onMetricsChange}
+      />
+    );
+
+    expect(vexflowMocks.addKeySignatureMock).toHaveBeenCalledWith('C');
+    expect(vexflowMocks.addKeySignatureMock).toHaveBeenCalledWith('G', 'C');
+    expect(vexflowMocks.applyAccidentalsMock).toHaveBeenCalledWith(expect.any(Array), 'C');
+    expect(vexflowMocks.applyAccidentalsMock).toHaveBeenCalledWith(expect.any(Array), 'G');
+  });
+
+  it('widens a measure when a key change header is inserted', () => {
+    const activeRegion = createMockMidiRegion({
+      startFromBeat: 0,
+      length: 12,
+      notes: [],
+    });
+    const signatureTrack = storeState.globalTracks.find(track => track.getType() === 'signature');
+    signatureTrack?.setRegions([
+      new KGKeySignatureRegion('sig-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 1, 2, 4),
+    ]);
+
+    render(
+      <SheetMusicView
+        activeRegion={activeRegion}
+        midiRegions={[activeRegion]}
+        maxBars={8}
+        sheetMusicTrackScopeEnabled={false}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        keySignature="C major"
+        instrument="acoustic_grand_piano"
+        quantization={quantization}
+        onMetricsChange={onMetricsChange}
+      />
+    );
+
+    const metrics = getLatestMetrics();
+    expect(metrics[1].widthPx).toBeGreaterThan(metrics[2].widthPx);
   });
 });

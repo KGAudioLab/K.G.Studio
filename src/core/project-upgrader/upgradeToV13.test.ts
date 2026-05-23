@@ -18,6 +18,7 @@ describe('upgradeToV13', () => {
       GlobalTrackType.Signature,
       GlobalTrackType.Chord,
     ]);
+    expect(project.getGlobalTracks()[2].getName()).toBe('Key Signature');
   });
 
   it('runs through the main upgrader path', () => {

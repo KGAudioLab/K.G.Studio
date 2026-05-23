@@ -5,6 +5,7 @@ import {
   getSheetBeatAtPixel,
   buildSheetMeasureModels,
   getSheetPlayheadPixel,
+  getSheetKeySignatureChangeModifierWidth,
   getSheetQuantizationOptions,
   isDrumInstrument,
   parseSheetQuantization,
@@ -52,8 +53,8 @@ describe('sheetNotation', () => {
 
   it('maps playhead position through variable-width bars', () => {
     const metrics = buildSheetMeasureMetrics([
-      { barIndex: 0, startBeat: 0, endBeat: 4, events: [] },
-      { barIndex: 1, startBeat: 4, endBeat: 8, events: [] },
+      { barIndex: 0, absoluteBarIndex: 0, startBeat: 0, endBeat: 4, keySignature: 'C major', events: [] },
+      { barIndex: 1, absoluteBarIndex: 1, startBeat: 4, endBeat: 8, keySignature: 'C major', events: [] },
     ], [120, 240]);
 
     expect(getSheetPlayheadPixel(0, metrics)).toBe(0);
@@ -72,6 +73,13 @@ describe('sheetNotation', () => {
     expect(projectKeySignatureToVexFlow('C major')).toBe('C');
     expect(projectKeySignatureToVexFlow('C# minor')).toBe('C#m');
     expect(projectKeySignatureToVexFlow('F# major')).toBe('F#');
+  });
+
+  it('estimates extra width for cancelled naturals and new accidentals on key changes', () => {
+    expect(getSheetKeySignatureChangeModifierWidth('C major', 'G major')).toBeGreaterThan(0);
+    expect(getSheetKeySignatureChangeModifierWidth('G major', 'C major')).toBeGreaterThan(0);
+    expect(getSheetKeySignatureChangeModifierWidth('D major', 'G major')).toBeGreaterThan(0);
+    expect(getSheetKeySignatureChangeModifierWidth('C major', 'C major')).toBe(0);
   });
 
   it('keeps bar-aligned quarter notes in the correct measure model', () => {
@@ -132,11 +140,30 @@ describe('sheetNotation', () => {
 
   it('maps absolute track beats through sheet metrics for full-track mode', () => {
     const metrics = buildSheetMeasureMetrics([
-      { barIndex: 0, startBeat: 0, endBeat: 4, events: [] },
-      { barIndex: 1, startBeat: 4, endBeat: 8, events: [] },
+      { barIndex: 0, absoluteBarIndex: 0, startBeat: 0, endBeat: 4, keySignature: 'C major', events: [] },
+      { barIndex: 1, absoluteBarIndex: 1, startBeat: 4, endBeat: 8, keySignature: 'C major', events: [] },
     ], [120, 240]);
 
     expect(getSheetPlayheadPixel(5, metrics)).toBe(180);
     expect(getSheetBeatAtPixel(180, metrics)).toBe(5);
+  });
+
+  it('attaches effective key signatures to sheet measures', () => {
+    const region = createMockMidiRegion({
+      startFromBeat: 4,
+      length: 12,
+      notes: [createMockMidiNote({ startBeat: 0, endBeat: 1, pitch: 60 })],
+    });
+
+    const measures = buildSheetMeasureModels({
+      region,
+      timeSignature: { numerator: 4, denominator: 4 },
+      quantization: parseSheetQuantization('16,48'),
+      defaultKeySignature: 'C major',
+      resolveKeySignatureAtBar: (barIndex) => (barIndex >= 2 ? 'G major' : 'C major'),
+    });
+
+    expect(measures.map((measure) => measure.absoluteBarIndex)).toEqual([1, 2, 3]);
+    expect(measures.map((measure) => measure.keySignature)).toEqual(['C major', 'G major', 'G major']);
   });
 });

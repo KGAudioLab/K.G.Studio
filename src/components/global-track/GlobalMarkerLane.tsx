@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
 import type { RegionClickOptions } from '../interfaces';
 import { isModifierKeyPressed } from '../../util/osUtil';
+import { TOOLBAR_CONSTANTS } from '../../constants';
 
 interface GlobalMarkerLaneProps {
   markerRegions: KGMarkerRegion[];
   maxBars: number;
+  barWidthMultiplier: number;
   timeSignature: { numerator: number; denominator: number };
   selectedRegionIds: string[];
   editingRegionId: string | null;
@@ -28,6 +30,7 @@ const DRAG_THRESHOLD_PX = 4;
 const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
   markerRegions,
   maxBars,
+  barWidthMultiplier,
   timeSignature,
   selectedRegionIds,
   editingRegionId,
@@ -57,11 +60,9 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
 
   const totalBeats = maxBars * timeSignature.numerator;
   const beatWidth = useMemo(() => {
-    const barWidth = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')
-    ) || 40;
+    const barWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
     return barWidth / timeSignature.numerator;
-  }, [timeSignature.numerator]);
+  }, [barWidthMultiplier, timeSignature.numerator]);
 
   const clampStartBeat = (value: number) => Math.max(0, Math.min(totalBeats - 1, value));
   const clampEndBeat = (value: number) => Math.max(1, Math.min(totalBeats, value));

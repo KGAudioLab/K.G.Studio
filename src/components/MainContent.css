@@ -211,6 +211,10 @@
   overflow: hidden;
 }
 
+.global-tracks-grid-shell.expanded {
+  overflow: visible;
+}
+
 .global-tracks-info-shell.collapsed,
 .global-tracks-grid-shell.collapsed {
   max-height: 0;
@@ -254,7 +258,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  cursor: default;
+  cursor: pointer;
 }
 
 .global-track-add-button svg {
@@ -303,6 +307,10 @@
   );
 }
 
+.global-key-signature-lane.popup-open {
+  z-index: 1004;
+}
+
 .global-marker-lane.pencil-cursor {
   cursor: crosshair;
 }
@@ -339,6 +347,42 @@
 
 .global-marker-region:active {
   cursor: grabbing;
+}
+
+.global-key-signature-region {
+  background: #d7f0c0;
+  color: #24311c;
+  overflow: visible;
+}
+
+.global-key-signature-region .floating-popup {
+  min-width: 0;
+  width: var(--track-grid-bar-width);
+}
+
+.global-key-signature-popup-anchor {
+  min-width: 0;
+  width: var(--track-grid-bar-width);
+  position: absolute;
+  left: calc((var(--track-grid-bar-width) - var(--track-grid-bar-width)) / 2);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1008;
+}
+
+.global-key-signature-trigger {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.global-key-signature-popup-surface {
+  z-index: 1007;
+}
+
+.global-key-signature-popup-anchor .floating-popup-surface {
+  z-index: 1009;
 }
 
 .global-marker-label {

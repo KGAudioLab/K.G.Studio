@@ -3,6 +3,8 @@ import { Accidental, BarlineType, Beam, Dot, Formatter, Renderer, Stave, StaveNo
 import { Playhead } from '../common';
 import { useProjectStore } from '../../stores/projectStore';
 import type { KeySignature } from '../../core/KGProject';
+import { GlobalTrackType } from '../../core/global-track';
+import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
 import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import type { SheetMeasureMetric, SheetMeasureModel, SheetQuantization } from './sheetNotationTypes';
@@ -11,6 +13,7 @@ import {
   getSheetBeatAtPixel,
   buildSheetMeasureModels,
   getSheetPlayheadPixel,
+  getSheetKeySignatureChangeModifierWidth,
   projectKeySignatureToVexFlow,
   resolveDurationSpec,
   resolveSheetClef,
@@ -64,12 +67,28 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 }) => {
   const setPlayheadPosition = useProjectStore(state => state.setPlayheadPosition);
   const requestMainContentScroll = useProjectStore(state => state.requestMainContentScroll);
+  const globalTracks = useProjectStore(state => state.globalTracks);
   const [metrics, setMetrics] = useState<SheetMeasureMetric[]>([]);
   const [tiePaths, setTiePaths] = useState<SheetTiePath[]>([]);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const measureHostRefs = useRef<Array<HTMLDivElement | null>>([]);
   const lastDrawSignatureRef = useRef<string | null>(null);
-  const vexKeySignature = useMemo(() => projectKeySignatureToVexFlow(keySignature), [keySignature]);
+  const signatureRegions = useMemo(() => {
+    const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature);
+    if (!signatureTrack) {
+      return [] as KGKeySignatureRegion[];
+    }
+
+    return signatureTrack.getRegions()
+      .filter((region): region is KGKeySignatureRegion => region instanceof KGKeySignatureRegion)
+      .sort((left, right) => left.getStartBar() - right.getStartBar());
+  }, [globalTracks]);
+  const resolveEffectiveKeySignatureAtBar = useMemo(
+    () => (barIndex: number): KeySignature => (
+      signatureRegions.find(region => barIndex >= region.getStartBar() && barIndex < region.getEndBar())?.getKeySignature() ?? keySignature
+    ),
+    [keySignature, signatureRegions]
+  );
   const startingBarNumber = useMemo(() => (
     sheetMusicTrackScopeEnabled
       ? 1
@@ -88,13 +107,24 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       projectMaxBars: maxBars,
       timeSignature,
       quantization,
+      defaultKeySignature: keySignature,
+      resolveKeySignatureAtBar: resolveEffectiveKeySignatureAtBar,
     });
-  }, [activeRegion, maxBars, midiRegions, quantization, sheetMusicTrackScopeEnabled, timeSignature]);
+  }, [activeRegion, keySignature, maxBars, midiRegions, quantization, resolveEffectiveKeySignatureAtBar, sheetMusicTrackScopeEnabled, timeSignature]);
   const measureWidths = useMemo(
     () => measureModels.map((measure, index) => (
       Math.max(
         MIN_MEASURE_WIDTH,
-        140 + measure.events.length * EVENT_WIDTH + (index === 0 ? FIRST_MEASURE_MODIFIER_WIDTH : 0)
+        140 +
+          measure.events.length * EVENT_WIDTH +
+          (
+            index === 0
+              ? FIRST_MEASURE_MODIFIER_WIDTH
+              : getSheetKeySignatureChangeModifierWidth(
+                  measure.keySignature,
+                  measureModels[index - 1]?.keySignature ?? null
+                )
+          )
       )
     )),
     [measureModels]
@@ -119,6 +149,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     clef,
     instrument,
     keySignature,
+    measureKeySignatures: measureModels.map((measure) => measure.keySignature),
     quantization: quantization.raw,
     numerator: timeSignature.numerator,
     denominator: timeSignature.denominator,
@@ -157,6 +188,8 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       renderer.resize(width, STAFF_HEIGHT);
       const context = renderer.getContext();
       const showLeadingModifiers = index === 0;
+      const measureVexKeySignature = projectKeySignatureToVexFlow(measure.keySignature);
+      const previousMeasureKeySignature = index > 0 ? measureModels[index - 1]?.keySignature : null;
       const staveX = showLeadingModifiers ? 8 : 0;
       const staveWidth = Math.max(0, width - staveX);
       const stave = new Stave(staveX, 10, staveWidth);
@@ -164,8 +197,13 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       stave.setEndBarType(BarlineType.SINGLE);
       if (showLeadingModifiers) {
         stave.addClef(clef);
-        stave.addKeySignature(vexKeySignature);
+        stave.addKeySignature(measureVexKeySignature);
         stave.addTimeSignature(`${timeSignature.numerator}/${timeSignature.denominator}`);
+      } else if (measure.keySignature !== previousMeasureKeySignature) {
+        stave.addKeySignature(
+          measureVexKeySignature,
+          previousMeasureKeySignature ? projectKeySignatureToVexFlow(previousMeasureKeySignature) : undefined
+        );
       }
       stave.setContext(context).draw();
 
@@ -176,7 +214,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       });
       voice.setStrict(false);
       voice.addTickables(notes);
-      Accidental.applyAccidentals([voice], vexKeySignature);
+      Accidental.applyAccidentals([voice], measureVexKeySignature);
       const beams = Beam.generateBeams(notes.filter(note => !note.isRest()));
       new Formatter().joinVoices([voice]).formatToStave([voice], stave, { stave });
       voice.draw(context, stave);
