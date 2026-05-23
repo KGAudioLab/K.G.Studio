@@ -69,6 +69,13 @@ type StoreSelector = (...args: [typeof storeState]) => unknown;
 // eslint-disable-next-line no-unused-vars
 type RegionClickHandler = (...args: [string, { shiftKey: boolean }]) => void;
 
+const finishTrackCreateDialogClose = () => {
+  const overlay = document.querySelector('.dialog-overlay');
+  if (overlay) {
+    fireEvent.animationEnd(overlay);
+  }
+};
+
 vi.mock('../stores/projectStore', () => ({
   useProjectStore: (selector?: StoreSelector) => (
     selector ? selector(storeState) : storeState
@@ -138,6 +145,8 @@ describe('MainContent', () => {
     storeState.setActiveRegionId.mockClear();
     storeState.openMidiPianoRoll.mockClear();
     storeState.openSpectrogramViewer.mockClear();
+    storeState.addTrack.mockClear();
+    storeState.addAudioTrack.mockClear();
   });
 
   it('updates activeRegionId when selecting a region with piano roll closed', () => {
@@ -205,11 +214,11 @@ describe('MainContent', () => {
     expect(storeState.setActiveRegionId).toHaveBeenCalledWith(null);
   });
 
-  it('renders the two-row timeline ruler with add-track buttons and beat markers', () => {
+  it('renders the two-row timeline ruler with track controls and beat markers', () => {
     const { container } = render(<MainContent />);
 
-    expect(screen.getByRole('button', { name: '+ MIDI' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '+ Audio' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create track' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show global tracks' })).toBeInTheDocument();
 
     const barCells = container.querySelectorAll('[data-testid="bar-number-cell"]');
     expect(barCells).toHaveLength(storeState.maxBars);
@@ -229,5 +238,67 @@ describe('MainContent', () => {
     const firstBeatRow = container.querySelector('[data-testid="bar-beat-markers"]');
 
     expect(firstBeatRow?.querySelectorAll('.beat-marker')).toHaveLength(2);
+  });
+
+  it('opens the track creation modal with MIDI selected by default', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create track' }));
+
+    expect(screen.getByRole('dialog', { name: 'Create New Track' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'MIDI' }).className).toContain('selected');
+    expect(screen.getByRole('button', { name: 'Audio' }).className).not.toContain('selected');
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create' })).toBeInTheDocument();
+  });
+
+  it('creates an audio track when audio is selected in the modal', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create track' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Audio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    finishTrackCreateDialogClose();
+
+    expect(storeState.addAudioTrack).toHaveBeenCalledTimes(1);
+    expect(storeState.addTrack).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Create New Track' })).not.toBeInTheDocument();
+  });
+
+  it('creates a MIDI track by default when confirming the modal', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create track' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    finishTrackCreateDialogClose();
+
+    expect(storeState.addTrack).toHaveBeenCalledTimes(1);
+    expect(storeState.addAudioTrack).not.toHaveBeenCalled();
+  });
+
+  it('closes the track creation modal without creating a track when canceled', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create track' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    finishTrackCreateDialogClose();
+
+    expect(storeState.addTrack).not.toHaveBeenCalled();
+    expect(storeState.addAudioTrack).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Create New Track' })).not.toBeInTheDocument();
+  });
+
+  it('toggles the mock global tracks button active state locally', () => {
+    render(<MainContent />);
+
+    const globalTracksButton = screen.getByRole('button', { name: 'Show global tracks' });
+
+    expect(globalTracksButton.className).not.toContain('active');
+
+    fireEvent.click(globalTracksButton);
+    expect(globalTracksButton.className).toContain('active');
+
+    fireEvent.click(globalTracksButton);
+    expect(globalTracksButton.className).not.toContain('active');
   });
 });

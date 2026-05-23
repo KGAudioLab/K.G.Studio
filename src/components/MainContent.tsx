@@ -10,6 +10,7 @@ import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
+import { TrackCreateDialog } from './common';
 import type { RegionClickOptions, RegionUI } from './interfaces';
 import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants';
 import { useRegionOperations } from '../hooks/useRegionOperations';
@@ -17,6 +18,8 @@ import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import { ChangeLoopSettingsCommand } from '../core/commands';
 import { DeleteTrackAutomationPointsCommand } from '../core/commands';
+import { FaPlus } from 'react-icons/fa';
+import { FaSquareArrowUpRight } from 'react-icons/fa6';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -76,6 +79,8 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Region selection state
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  const [showCreateTrackModal, setShowCreateTrackModal] = useState(false);
+  const [showGlobalTracksMock, setShowGlobalTracksMock] = useState(false);
 
   // Use the region operations hook
   const { deleteSelectedRegions } = useRegionOperations({
@@ -763,6 +768,11 @@ const MainContent: React.FC<MainContentProps> = ({
     setActiveRegionId(null);
   };
 
+  const openCreateTrackModal = useCallback((e?: React.MouseEvent<HTMLButtonElement>) => {
+    e?.stopPropagation();
+    setShowCreateTrackModal(true);
+  }, []);
+
   /**
    * Add keyboard event listener for region deletion
    * Handles Backspace (Windows) and Delete (Mac) keys to delete selected regions
@@ -1011,8 +1021,29 @@ const MainContent: React.FC<MainContentProps> = ({
       <div className="main-content-wrapper" onClick={handleEmptyMainContentClick}>
         {/* Top-left spacer */}
         <div className="top-left-spacer">
-          <button className="add-track-btn" onClick={() => addTrack()}>+ MIDI</button>
-          <button className="add-track-btn" onClick={() => addAudioTrack()}>+ Audio</button>
+          <div className="track-header-controls">
+            <button
+              type="button"
+              className="track-header-button"
+              aria-label="Create track"
+              title="Create track"
+              onClick={openCreateTrackModal}
+            >
+              <FaPlus />
+            </button>
+            <button
+              type="button"
+              className={`track-header-button${showGlobalTracksMock ? ' active' : ''}`}
+              aria-label="Show global tracks"
+              title="Show global tracks"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowGlobalTracksMock(prev => !prev);
+              }}
+            >
+              <FaSquareArrowUpRight />
+            </button>
+          </div>
         </div>
 
         {/* Bar numbers at the top */}
@@ -1077,6 +1108,18 @@ const MainContent: React.FC<MainContentProps> = ({
       </div>
 
       {/* Piano Roll / Spectrogram Viewer - render using portal */}
+      {showCreateTrackModal && (
+        <TrackCreateDialog
+          onResolve={(result) => {
+            setShowCreateTrackModal(false);
+            if (result === 'audio') {
+              addAudioTrack();
+            } else if (result === 'midi') {
+              addTrack();
+            }
+          }}
+        />
+      )}
       {showPianoRoll && createPortal(
         <PianoRoll
           onClose={handlePianoRollClose}

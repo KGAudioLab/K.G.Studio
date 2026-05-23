@@ -3,14 +3,16 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  overflow: auto; /* Main scrollable container */
+  overflow: auto;
+  /* Main scrollable container */
   position: relative;
 }
 
 .main-content-wrapper {
   display: flex;
   flex-direction: column;
-  min-width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width)); /* info width + grid width */
+  min-width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
+  /* info width + grid width */
   min-height: fit-content;
   position: relative;
 }
@@ -24,10 +26,73 @@
   background-color: #2d2d2d;
   border-bottom: 1px solid #3a3a3a;
   border-right: 1px solid #3a3a3a;
-  z-index: 1002; /* Higher than other elements to ensure it's always visible */
+  z-index: 1002;
+  /* Higher than other elements to ensure it's always visible */
   display: flex;
   flex-direction: row;
   align-items: stretch;
+}
+
+.track-header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.track-header-button {
+  --toolbar-button-bg: transparent;
+  --toolbar-button-fg: #e0e0e0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 3px;
+  background-color: var(--toolbar-button-bg);
+  color: var(--toolbar-button-fg);
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+
+.track-header-button svg {
+  font-size: 14px;
+}
+
+.track-header-button:hover {
+  --toolbar-button-bg: #3a3a3a;
+}
+
+.track-header-button.active {
+  --toolbar-button-bg: #e0e0e0;
+  --toolbar-button-fg: #2d2d2d;
+}
+
+.track-header-button.active:hover {
+  --toolbar-button-bg: #f0f0f0;
+}
+
+.track-header-button:active {
+  --toolbar-button-bg: #5a5a5a;
+  transform: scale(0.95);
+}
+
+.track-header-button.active:active {
+  --toolbar-button-bg: #d6d6d6;
+}
+
+.track-header-button:focus,
+.track-header-button:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* Offset spacer when instrument selection panel is visible on the left */
@@ -43,9 +108,12 @@
   border-bottom: 1px solid #3a3a3a;
   background-color: #2d2d2d;
   z-index: 20;
-  margin-left: var(--track-info-panel-width); /* Offset for info-container */
-  width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* Exact width for 32 bars */
-  cursor: pointer; /* Show pointer cursor on hover to indicate interactivity */
+  margin-left: var(--track-info-panel-width);
+  /* Offset for info-container */
+  width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
+  /* Exact width for 32 bars */
+  cursor: pointer;
+  /* Show pointer cursor on hover to indicate interactivity */
 }
 
 .bar-numbers:hover {
@@ -135,8 +203,11 @@
 }
 
 .grid-container {
-  margin-left: 0; /* No need for margin since we're using flex */
-  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width)); /* Ensure minimum width */
+  margin-left: 0;
+  /* No need for margin since we're using flex */
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
+  /* Ensure minimum width */
   min-height: fit-content;
-  position: relative; /* Required for absolute positioned playhead */
+  position: relative;
+  /* Required for absolute positioned playhead */
 }
