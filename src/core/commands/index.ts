@@ -34,6 +34,13 @@ export type { StemImportEntry } from './region/ImportStemsCommand';
 export { SplitRegionCommand } from './region/SplitRegionCommand';
 export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 
+// Global region commands
+export { CreateGlobalMarkerRegionCommand } from './global-region/CreateGlobalMarkerRegionCommand';
+export { MoveGlobalRegionCommand } from './global-region/MoveGlobalRegionCommand';
+export { ResizeGlobalRegionCommand, type GlobalRegionResizeEdge } from './global-region/ResizeGlobalRegionCommand';
+export { DeleteGlobalRegionCommand, DeleteMultipleGlobalRegionsCommand } from './global-region/DeleteGlobalRegionCommand';
+export { UpdateGlobalRegionTextCommand } from './global-region/UpdateGlobalRegionTextCommand';
+
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';
 export { DeleteMidiEventsCommand } from './note/DeleteMidiEventsCommand';

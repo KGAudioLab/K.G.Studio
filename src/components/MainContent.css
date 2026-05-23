@@ -287,6 +287,81 @@
   );
 }
 
+.global-marker-lane {
+  position: relative;
+  height: var(--global-track-height);
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
+  box-sizing: border-box;
+  border-bottom: 1px solid #3a3a3a;
+  background-color: #2d2d2d;
+  background-size: var(--track-grid-bar-width) var(--global-track-height);
+  background-image: linear-gradient(
+    to right,
+    transparent calc(var(--track-grid-bar-width) - 1px),
+    #3a3a3a calc(var(--track-grid-bar-width) - 1px),
+    #3a3a3a var(--track-grid-bar-width)
+  );
+}
+
+.global-marker-lane.pencil-cursor {
+  cursor: crosshair;
+}
+
+.global-marker-region {
+  position: absolute;
+  top: 2px;
+  height: calc(var(--global-track-height) - 4px);
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: #e0e0e0;
+  color: #2d2d2d;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 8px;
+  overflow: hidden;
+  user-select: none;
+  cursor: grab;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  transition: box-shadow 0.1s ease, border-color 0.1s ease;
+}
+
+.global-marker-region:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.global-marker-region.selected {
+  border-color: #ffffff;
+  box-shadow: none;
+}
+
+.global-marker-region:active {
+  cursor: grabbing;
+}
+
+.global-marker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-marker-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  font-family: inherit;
+  padding: 0;
+  outline: none;
+}
+
 .info-container {
   position: sticky;
   left: 0;

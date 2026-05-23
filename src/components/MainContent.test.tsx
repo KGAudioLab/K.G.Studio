@@ -5,6 +5,7 @@ import MainContent from './MainContent';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import { createDefaultGlobalTracks } from '../core/global-track';
 import { createMockMidiTrack } from '../test/utils/mock-data';
 
 const midiRegion = new KGMidiRegion('region-1', '1', 0, 'Region 1', 0, 4);
@@ -17,6 +18,7 @@ audioTrack.setRegions([audioRegion]);
 
 const storeState = {
   tracks: [midiTrack, audioTrack],
+  globalTracks: createDefaultGlobalTracks(),
   maxBars: 8,
   barWidthMultiplier: 1,
   reorderTracks: vi.fn(),
@@ -328,19 +330,18 @@ describe('MainContent', () => {
     expect(screen.queryByText('Chord')).not.toBeInTheDocument();
   });
 
-  it('renders visual-only add buttons for mock global tracks without mutating track state', () => {
+  it('keeps the non-marker global track add buttons as visual-only controls', () => {
     render(<MainContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
 
     const addButtons = [
-      screen.getByRole('button', { name: 'Add Marker global track item' }),
       screen.getByRole('button', { name: 'Add Tempo global track item' }),
       screen.getByRole('button', { name: 'Add Signature global track item' }),
       screen.getByRole('button', { name: 'Add Chord global track item' }),
     ];
 
-    expect(addButtons).toHaveLength(4);
+    expect(addButtons).toHaveLength(3);
 
     addButtons.forEach(button => {
       fireEvent.click(button);

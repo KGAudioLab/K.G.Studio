@@ -3,12 +3,16 @@ import './MainContent.css';
 import { createPortal } from 'react-dom';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
+import { GlobalTrackType } from '../core/global-track';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGRegion } from '../core/region/KGRegion';
+import { KGGlobalRegion } from '../core/region/KGGlobalRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { KGMarkerRegion } from '../core/region/KGMarkerRegion';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
+import GlobalMarkerLane from './global-track/GlobalMarkerLane';
 import PianoRoll from './piano-roll/PianoRoll';
 import { TrackCreateDialog } from './common';
 import type { RegionClickOptions, RegionUI } from './interfaces';
@@ -16,8 +20,16 @@ import { DEBUG_MODE, BAR_NUMBERS_CONSTANTS, TOOLBAR_CONSTANTS } from '../constan
 import { useRegionOperations } from '../hooks/useRegionOperations';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { KGMainContentState } from '../core/state/KGMainContentState';
-import { ChangeLoopSettingsCommand } from '../core/commands';
-import { DeleteTrackAutomationPointsCommand } from '../core/commands';
+import {
+  ChangeLoopSettingsCommand,
+  CreateGlobalMarkerRegionCommand,
+  DeleteMultipleGlobalRegionsCommand,
+  DeleteTrackAutomationPointsCommand,
+  MoveGlobalRegionCommand,
+  ResizeGlobalRegionCommand,
+  UpdateGlobalRegionTextCommand,
+} from '../core/commands';
+import { DEFAULT_MARKER_REGION_NAME } from '../util/globalTrackUtil';
 import { FaPlus } from 'react-icons/fa';
 import { FaSquareArrowUpRight } from 'react-icons/fa6';
 
@@ -42,6 +54,7 @@ const MainContent: React.FC<MainContentProps> = ({
 }) => {
   const {
     tracks,
+    globalTracks,
     maxBars,
     barWidthMultiplier,
     reorderTracks,
@@ -95,6 +108,8 @@ const MainContent: React.FC<MainContentProps> = ({
   const [showGlobalTracksMock, setShowGlobalTracksMock] = useState(false);
   const [renderGlobalTracksMock, setRenderGlobalTracksMock] = useState(false);
   const [animateGlobalTracksMock, setAnimateGlobalTracksMock] = useState(false);
+  const [editingGlobalRegionId, setEditingGlobalRegionId] = useState<string | null>(null);
+  const [editingGlobalRegionText, setEditingGlobalRegionText] = useState('');
 
   // Use the region operations hook
   const { deleteSelectedRegions } = useRegionOperations({
@@ -143,9 +158,60 @@ const MainContent: React.FC<MainContentProps> = ({
     refreshProjectState,
   ]);
 
+  const markerTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Marker) ?? null;
+  const markerRegions = (markerTrack?.getRegions() ?? []).filter(
+    (region): region is KGMarkerRegion => region instanceof KGMarkerRegion
+  );
+
+  const findProjectRegionById = useCallback((regionId: string): KGRegion | null => {
+    for (const track of tracks) {
+      const region = track.getRegions().find(candidate => candidate.getId() === regionId);
+      if (region) {
+        return region;
+      }
+    }
+
+    for (const globalTrack of globalTracks) {
+      const region = globalTrack.getRegions().find(candidate => candidate.getId() === regionId);
+      if (region) {
+        return region;
+      }
+    }
+
+    return null;
+  }, [globalTracks, tracks]);
+
+  const isGlobalRegionId = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    return region instanceof KGGlobalRegion;
+  }, [findProjectRegionById]);
+
+  const deleteSelectedGlobalRegions = useCallback((): boolean => {
+    const selectedGlobalRegionIds = selectedRegionIds.filter(regionId => isGlobalRegionId(regionId));
+    if (selectedGlobalRegionIds.length === 0) {
+      return false;
+    }
+
+    try {
+      KGCore.instance().executeCommand(new DeleteMultipleGlobalRegionsCommand(selectedGlobalRegionIds));
+      if (editingGlobalRegionId && selectedGlobalRegionIds.includes(editingGlobalRegionId)) {
+        setEditingGlobalRegionId(null);
+        setEditingGlobalRegionText('');
+      }
+      refreshProjectState();
+      return true;
+    } catch (error) {
+      console.error('Error deleting global marker regions:', error);
+      return false;
+    }
+  }, [editingGlobalRegionId, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
+
   // Register the delete function with the global manager
   useEffect(() => {
     regionDeleteManager.registerDeleteCallback(() => {
+      if (deleteSelectedGlobalRegions()) {
+        return true;
+      }
       if (deleteSelectedTrackAutomationPoints()) {
         return true;
       }
@@ -156,7 +222,7 @@ const MainContent: React.FC<MainContentProps> = ({
     return () => {
       regionDeleteManager.unregisterDeleteCallback();
     };
-  }, [deleteSelectedRegions, deleteSelectedTrackAutomationPoints]);
+  }, [deleteSelectedGlobalRegions, deleteSelectedRegions, deleteSelectedTrackAutomationPoints]);
 
   // Refs to track pending updates for verification
   const pendingUpdates = useRef<Map<string, { trackId: string, regionId: string, startBeat: number, length: number }>>(new Map());
@@ -594,25 +660,20 @@ const MainContent: React.FC<MainContentProps> = ({
   // Helper function to select a region (clears previous selections)
   const applyRegionSelection = (orderedSelectionIds: string[]) => {
     const core = KGCore.instance();
+    const allRegions = [
+      ...tracks.flatMap(projectTrack => projectTrack.getRegions()),
+      ...globalTracks.flatMap(globalTrack => globalTrack.getRegions()),
+    ];
 
-    tracks.forEach(projectTrack => {
-      projectTrack.getRegions().forEach(projectRegion => projectRegion.deselect());
-    });
+    allRegions.forEach(projectRegion => projectRegion.deselect());
 
     clearAllSelections();
 
     const selectedRegions: KGRegion[] = orderedSelectionIds
-      .map(selectedId => {
-        for (const projectTrack of tracks) {
-          const selectedRegion = projectTrack.getRegions().find(r => r.getId() === selectedId);
-          if (selectedRegion) {
-            selectedRegion.select();
-            return selectedRegion as KGRegion;
-          }
-        }
-        return null;
-      })
+      .map(selectedId => allRegions.find(region => region.getId() === selectedId) ?? null)
       .filter((selectedRegion): selectedRegion is KGRegion => selectedRegion !== null);
+
+    selectedRegions.forEach(selectedRegion => selectedRegion.select());
 
     if (selectedRegions.length > 0) {
       core.addSelectedItems(selectedRegions);
@@ -621,9 +682,12 @@ const MainContent: React.FC<MainContentProps> = ({
     const lastSelectedRegionId = selectedRegions.length > 0
       ? selectedRegions[selectedRegions.length - 1].getId()
       : null;
+    const lastSelectedRegion = selectedRegions.length > 0
+      ? selectedRegions[selectedRegions.length - 1]
+      : null;
 
     setSelectedRegionId(lastSelectedRegionId);
-    if (lastSelectedRegionId) {
+    if (lastSelectedRegionId && lastSelectedRegion && !(lastSelectedRegion instanceof KGGlobalRegion)) {
       setActiveRegionId(lastSelectedRegionId);
     }
 
@@ -639,7 +703,10 @@ const MainContent: React.FC<MainContentProps> = ({
       return;
     }
 
-    const lastSelectedRegion = selectedRegions[selectedRegions.length - 1];
+    if (!lastSelectedRegion || lastSelectedRegion instanceof KGGlobalRegion) {
+      return;
+    }
+
     if (lastSelectedRegion instanceof KGAudioRegion) {
       openSpectrogramViewer(lastSelectedRegionId);
     } else if (lastSelectedRegion instanceof KGMidiRegion) {
@@ -677,10 +744,22 @@ const MainContent: React.FC<MainContentProps> = ({
       return;
     }
 
+    const regularSelectedRegionIds = selectedRegionIds.filter(selectedId => !isGlobalRegionId(selectedId));
     const orderedSelection = options.shiftKey
       ? (selectedRegionIds.includes(regionId)
-        ? selectedRegionIds.filter(id => id !== regionId)
-        : [...selectedRegionIds, regionId])
+        ? regularSelectedRegionIds.filter(id => id !== regionId)
+        : [...regularSelectedRegionIds, regionId])
+      : [regionId];
+
+    applyRegionSelection(orderedSelection);
+  };
+
+  const selectGlobalRegion = (regionId: string, options: RegionClickOptions = { shiftKey: false }) => {
+    const globalSelectedRegionIds = selectedRegionIds.filter(selectedId => isGlobalRegionId(selectedId));
+    const orderedSelection = options.shiftKey
+      ? (globalSelectedRegionIds.includes(regionId)
+        ? globalSelectedRegionIds.filter(id => id !== regionId)
+        : [...globalSelectedRegionIds, regionId])
       : [regionId];
 
     applyRegionSelection(orderedSelection);
@@ -688,13 +767,14 @@ const MainContent: React.FC<MainContentProps> = ({
 
   const handleRegionLassoSelection = (regionIds: string[], options: RegionClickOptions = { shiftKey: false }) => {
     const orderedRegionIds = regionIds.filter(regionId => regions.some(region => region.id === regionId));
+    const regularSelectedRegionIds = selectedRegionIds.filter(selectedId => !isGlobalRegionId(selectedId));
     const orderedSelection = options.shiftKey
       ? orderedRegionIds.reduce<string[]>((nextSelection, regionId) => {
           if (nextSelection.includes(regionId)) {
             return nextSelection.filter(id => id !== regionId);
           }
           return [...nextSelection, regionId];
-        }, [...selectedRegionIds])
+        }, [...regularSelectedRegionIds])
       : orderedRegionIds;
 
     applyRegionSelection(orderedSelection);
@@ -787,6 +867,95 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowCreateTrackModal(true);
   }, []);
 
+  const beginEditingGlobalRegion = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGMarkerRegion)) {
+      return;
+    }
+
+    setEditingGlobalRegionId(regionId);
+    setEditingGlobalRegionText(region.getName());
+  }, [findProjectRegionById]);
+
+  const commitGlobalRegionEdit = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGMarkerRegion)) {
+      setEditingGlobalRegionId(null);
+      setEditingGlobalRegionText('');
+      return;
+    }
+
+    const trimmedText = editingGlobalRegionText.replace(/\r?\n/g, ' ').trim();
+    setEditingGlobalRegionId(null);
+    setEditingGlobalRegionText('');
+
+    if (!trimmedText || trimmedText === region.getName()) {
+      return;
+    }
+
+    try {
+      KGCore.instance().executeCommand(new UpdateGlobalRegionTextCommand(regionId, trimmedText));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error updating marker text:', error);
+    }
+  }, [editingGlobalRegionText, findProjectRegionById, refreshProjectState]);
+
+  const createMarkerAtBeat = useCallback((requestedStartBeat: number) => {
+    const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
+    const occupiedRegion = markerRegions.find(region => region.getStartFromBeat() === normalizedStartBeat);
+    if (occupiedRegion) {
+      selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+      beginEditingGlobalRegion(occupiedRegion.getId());
+      return;
+    }
+
+    try {
+      const command = new CreateGlobalMarkerRegionCommand(
+        normalizedStartBeat,
+        8 * timeSignature.numerator,
+        DEFAULT_MARKER_REGION_NAME
+      );
+      KGCore.instance().executeCommand(command);
+      refreshProjectState();
+
+      const createdRegion = command.getCreatedRegion();
+      if (!createdRegion) {
+        return;
+      }
+
+      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      setEditingGlobalRegionId(createdRegion.getId());
+      setEditingGlobalRegionText(createdRegion.getName());
+    } catch (error) {
+      console.error('Error creating marker region:', error);
+    }
+  }, [beginEditingGlobalRegion, markerRegions, refreshProjectState, selectGlobalRegion, timeSignature.numerator]);
+
+  const createMarkerAtPlayheadBar = useCallback(() => {
+    const beatsPerBar = timeSignature.numerator;
+    const startBeat = Math.floor(playheadPosition / beatsPerBar) * beatsPerBar;
+    createMarkerAtBeat(startBeat);
+  }, [createMarkerAtBeat, playheadPosition, timeSignature.numerator]);
+
+  const moveGlobalMarkerRegion = useCallback((regionId: string, startBeat: number) => {
+    try {
+      KGCore.instance().executeCommand(new MoveGlobalRegionCommand(regionId, Math.round(startBeat)));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error moving marker region:', error);
+    }
+  }, [refreshProjectState]);
+
+  const resizeGlobalMarkerRegion = useCallback((regionId: string, edge: 'start' | 'end', beat: number) => {
+    try {
+      KGCore.instance().executeCommand(new ResizeGlobalRegionCommand(regionId, edge, Math.round(beat)));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error resizing marker region:', error);
+    }
+  }, [refreshProjectState]);
+
   /**
    * Add keyboard event listener for region deletion
    * Handles Backspace (Windows) and Delete (Mac) keys to delete selected regions
@@ -811,9 +980,10 @@ const MainContent: React.FC<MainContentProps> = ({
         // Only handle if we're not in the piano roll (piano roll has its own delete handler)
         const isInPianoRoll = document.querySelector('.piano-roll')?.contains(event.target as Node);
         const isPianoRollOpen = showPianoRoll;
+        const hasSelectedGlobalRegions = selectedRegionIds.some(regionId => isGlobalRegionId(regionId));
 
-        if (!isInPianoRoll && !isPianoRollOpen) {
-          const deleted = deleteSelectedTrackAutomationPoints() || deleteSelectedRegions();
+        if (!isInPianoRoll && (!isPianoRollOpen || hasSelectedGlobalRegions)) {
+          const deleted = deleteSelectedGlobalRegions() || deleteSelectedTrackAutomationPoints() || deleteSelectedRegions();
           if (deleted) {
             // Prevent default behavior only if regions were actually deleted
             event.preventDefault();
@@ -829,7 +999,7 @@ const MainContent: React.FC<MainContentProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [deleteSelectedRegions, deleteSelectedTrackAutomationPoints, showPianoRoll]); // Dependencies for the effect
+  }, [deleteSelectedGlobalRegions, deleteSelectedRegions, deleteSelectedTrackAutomationPoints, showPianoRoll]); // Dependencies for the effect
 
   // Utility function to calculate playhead position from mouse coordinates (bar-level snapping)
   const calculatePlayheadFromMouse = useCallback((clientX: number): number | null => {
@@ -1134,6 +1304,9 @@ const MainContent: React.FC<MainContentProps> = ({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        if (track.id === 'marker') {
+                          createMarkerAtPlayheadBar();
+                        }
                       }}
                     >
                       <FaPlus />
@@ -1145,10 +1318,33 @@ const MainContent: React.FC<MainContentProps> = ({
             <div className={`global-tracks-grid-shell${animateGlobalTracksMock ? ' expanded' : ' collapsed'}`}>
               <div className="global-tracks-grid" aria-hidden="true">
                 {GLOBAL_TRACKS.map(track => (
-                  <div
-                    key={track.id}
-                    className="global-track-grid-row"
-                  />
+                  track.id === 'marker' ? (
+                    <GlobalMarkerLane
+                      key={track.id}
+                      markerRegions={markerRegions}
+                      maxBars={maxBars}
+                      timeSignature={timeSignature}
+                      selectedRegionIds={selectedRegionIds}
+                      editingRegionId={editingGlobalRegionId}
+                      editingText={editingGlobalRegionText}
+                      onEditingTextChange={setEditingGlobalRegionText}
+                      onCommitEdit={commitGlobalRegionEdit}
+                      onCancelEdit={() => {
+                        setEditingGlobalRegionId(null);
+                        setEditingGlobalRegionText('');
+                      }}
+                      onBeginEdit={beginEditingGlobalRegion}
+                      onSelectRegion={selectGlobalRegion}
+                      onCreateAtBeat={createMarkerAtBeat}
+                      onMoveRegion={moveGlobalMarkerRegion}
+                      onResizeRegion={resizeGlobalMarkerRegion}
+                    />
+                  ) : (
+                    <div
+                      key={track.id}
+                      className="global-track-grid-row"
+                    />
+                  )
                 ))}
               </div>
             </div>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGProject, type KeySignature } from '../core/KGProject';
+import { KGGlobalTrack } from '../core/global-track';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { beatsToTimeString } from '../util/timeUtil';
@@ -69,6 +70,7 @@ interface ProjectState {
   projectName: string;
   savedProjectName: string; // OPFS folder name where the project is currently saved
   tracks: KGTrack[];
+  globalTracks: KGGlobalTrack[];
   currentStatus: string;
   maxBars: number;
   barWidthMultiplier: number;
@@ -405,6 +407,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     projectName: currentProject.getName(),
     savedProjectName: currentProject.getName(),
     tracks: currentProject.getTracks() as KGTrack[],
+    globalTracks: currentProject.getGlobalTracks() as KGGlobalTrack[],
     currentStatus: KGCore.instance().getStatus() || 'Unknown',
     maxBars: currentProject.getMaxBars(),
     barWidthMultiplier: currentProject.getBarWidthMultiplier(),
@@ -517,7 +520,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...project.getGlobalTracks()] as KGGlobalTrack[],
+        });
 
         // Auto-select the newly created track and open instrument selection panel
         const newTrackId = command.getTrackId().toString();
@@ -539,7 +545,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         KGCore.instance().executeCommand(command);
 
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...project.getGlobalTracks()] as KGGlobalTrack[],
+        });
 
         const newTrackId = command.getTrackId().toString();
         set({
@@ -659,7 +668,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
         const remainingTracks = [...project.getTracks()] as KGTrack[];
-        set({ tracks: remainingTracks });
+        set({
+          tracks: remainingTracks,
+          globalTracks: [...project.getGlobalTracks()] as KGGlobalTrack[],
+        });
 
         // Auto-select another track if any remain
         if (remainingTracks.length > 0) {
@@ -744,7 +756,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state with the current project state
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...project.getGlobalTracks()] as KGGlobalTrack[],
+        });
 
         console.log(`Updated track ${trackId} properties`);
       } catch (error) {
@@ -773,7 +788,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state with the current project state
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...project.getGlobalTracks()] as KGGlobalTrack[],
+        });
 
         console.log(`Reordered track from index ${sourceIndex} to ${destinationIndex}`);
       } catch (error) {
@@ -902,6 +920,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           projectName: projectToLoad.getName(),
           savedProjectName: savedName ?? projectToLoad.getName(),
           tracks: [...tracks],
+          globalTracks: [...projectToLoad.getGlobalTracks()] as KGGlobalTrack[],
           maxBars,
           barWidthMultiplier: projectToLoad.getBarWidthMultiplier(),
           timeSignature,
@@ -1822,6 +1841,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({
         projectName: project.getName(),
         tracks: [...project.getTracks()] as KGTrack[], // Force new array reference - key for re-rendering!
+        globalTracks: [...project.getGlobalTracks()] as KGGlobalTrack[],
         maxBars: project.getMaxBars(),
         barWidthMultiplier: project.getBarWidthMultiplier(),
         timeSignature: project.getTimeSignature(),

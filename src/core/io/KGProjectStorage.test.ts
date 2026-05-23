@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KGProjectStorage, DuplicateEntryError } from './KGProjectStorage';
 import { KGProject } from '../KGProject';
+import { GlobalTrackType } from '../global-track';
+import { KGMarkerRegion } from '../region/KGMarkerRegion';
 import { KGTrack } from '../track/KGTrack';
 
 // --- OPFS mock infrastructure ---
@@ -157,6 +159,24 @@ describe('KGProjectStorage', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.getBarWidthMultiplier()).toBe(3);
     expect(loaded!.getPianoRollZoom()).toBe(5);
+  });
+
+  it('preserves global tracks and marker regions when saving and loading', async () => {
+    const project = createTestProject('Marker Song');
+    const markerTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Marker);
+
+    expect(markerTrack).toBeDefined();
+    markerTrack?.addRegion(new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, 8));
+
+    await storage.save('Marker Song', project);
+
+    const loaded = await storage.load('Marker Song');
+    const loadedMarkerTrack = loaded?.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Marker);
+
+    expect(loadedMarkerTrack).toBeDefined();
+    expect(loadedMarkerTrack?.getRegions()).toHaveLength(1);
+    expect(loadedMarkerTrack?.getRegions()[0]).toBeInstanceOf(KGMarkerRegion);
+    expect(loadedMarkerTrack?.getRegions()[0].getName()).toBe('Intro');
   });
 
   it('creates meta.json and media/ directory on save', async () => {
