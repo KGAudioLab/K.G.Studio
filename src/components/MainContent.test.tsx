@@ -301,4 +301,52 @@ describe('MainContent', () => {
     fireEvent.click(globalTracksButton);
     expect(globalTracksButton.className).not.toContain('active');
   });
+
+  it('renders the four mock global tracks only when toggled on', () => {
+    render(<MainContent />);
+
+    expect(screen.queryByText('Marker')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tempo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Signature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chord')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+
+    expect(screen.getByText('Marker')).toBeInTheDocument();
+    expect(screen.getByText('Tempo')).toBeInTheDocument();
+    expect(screen.getByText('Signature')).toBeInTheDocument();
+    expect(screen.getByText('Chord')).toBeInTheDocument();
+
+    const globalTracksInfoShell = screen.getByRole('button', { name: 'Add Marker global track item' }).closest('.global-tracks-info-shell') as HTMLElement;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.transitionEnd(globalTracksInfoShell);
+
+    expect(screen.queryByText('Marker')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tempo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Signature')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chord')).not.toBeInTheDocument();
+  });
+
+  it('renders visual-only add buttons for mock global tracks without mutating track state', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+
+    const addButtons = [
+      screen.getByRole('button', { name: 'Add Marker global track item' }),
+      screen.getByRole('button', { name: 'Add Tempo global track item' }),
+      screen.getByRole('button', { name: 'Add Signature global track item' }),
+      screen.getByRole('button', { name: 'Add Chord global track item' }),
+    ];
+
+    expect(addButtons).toHaveLength(4);
+
+    addButtons.forEach(button => {
+      fireEvent.click(button);
+    });
+
+    expect(storeState.addTrack).not.toHaveBeenCalled();
+    expect(storeState.addAudioTrack).not.toHaveBeenCalled();
+  });
 });

@@ -25,6 +25,18 @@ interface MainContentProps {
   onTrackClick?: () => void;
 }
 
+interface GlobalTrackDefinition {
+  id: 'marker' | 'tempo' | 'signature' | 'chord';
+  label: string;
+}
+
+const GLOBAL_TRACKS: GlobalTrackDefinition[] = [
+  { id: 'marker', label: 'Marker' },
+  { id: 'tempo', label: 'Tempo' },
+  { id: 'signature', label: 'Signature' },
+  { id: 'chord', label: 'Chord' },
+];
+
 const MainContent: React.FC<MainContentProps> = ({
   onTrackClick = () => { } // Default to empty function if not provided
 }) => {
@@ -81,6 +93,8 @@ const MainContent: React.FC<MainContentProps> = ({
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [showCreateTrackModal, setShowCreateTrackModal] = useState(false);
   const [showGlobalTracksMock, setShowGlobalTracksMock] = useState(false);
+  const [renderGlobalTracksMock, setRenderGlobalTracksMock] = useState(false);
+  const [animateGlobalTracksMock, setAnimateGlobalTracksMock] = useState(false);
 
   // Use the region operations hook
   const { deleteSelectedRegions } = useRegionOperations({
@@ -1004,6 +1018,29 @@ const MainContent: React.FC<MainContentProps> = ({
   const { showInstrumentSelection, isLooping, loopingRange } = useProjectStore();
   const beatTicksPerBar = Math.max(0, timeSignature.numerator - 1);
 
+  const handleToggleGlobalTracksMock = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+
+    if (!showGlobalTracksMock) {
+      setRenderGlobalTracksMock(true);
+      setShowGlobalTracksMock(true);
+      return;
+    }
+
+    setAnimateGlobalTracksMock(false);
+    setShowGlobalTracksMock(false);
+  };
+
+  useEffect(() => {
+    if (!renderGlobalTracksMock || !showGlobalTracksMock || animateGlobalTracksMock) return;
+
+    const frame = requestAnimationFrame(() => {
+      setAnimateGlobalTracksMock(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [renderGlobalTracksMock, showGlobalTracksMock, animateGlobalTracksMock]);
+
   // Helper function to check if a bar (0-indexed) is in the loop range
   const isBarInLoopRange = (barIndex: number): boolean => {
     if (!isLooping) return false;
@@ -1036,10 +1073,7 @@ const MainContent: React.FC<MainContentProps> = ({
               className={`track-header-button${showGlobalTracksMock ? ' active' : ''}`}
               aria-label="Show global tracks"
               title="Show global tracks"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowGlobalTracksMock(prev => !prev);
-              }}
+              onClick={handleToggleGlobalTracksMock}
             >
               <FaSquareArrowUpRight />
             </button>
@@ -1072,6 +1106,54 @@ const MainContent: React.FC<MainContentProps> = ({
             </div>
           ))}
         </div>
+
+        {renderGlobalTracksMock && (
+          <div
+            className="global-tracks-section"
+            aria-label="Global tracks"
+            aria-hidden={!showGlobalTracksMock}
+            style={{ ['--global-track-count' as string]: String(GLOBAL_TRACKS.length) }}
+          >
+            <div
+              className={`global-tracks-info-shell${animateGlobalTracksMock ? ' expanded' : ' collapsed'}`}
+              onTransitionEnd={() => {
+                if (!showGlobalTracksMock) {
+                  setRenderGlobalTracksMock(false);
+                }
+              }}
+            >
+              <div className="global-tracks-info">
+                {GLOBAL_TRACKS.map(track => (
+                  <div key={track.id} className="global-track-info-row">
+                    <span className="global-track-name">{track.label}</span>
+                    <button
+                      type="button"
+                      className="global-track-add-button"
+                      aria-label={`Add ${track.label} global track item`}
+                      title={`Add ${track.label} global track item`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      <FaPlus />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={`global-tracks-grid-shell${animateGlobalTracksMock ? ' expanded' : ' collapsed'}`}>
+              <div className="global-tracks-grid" aria-hidden="true">
+                {GLOBAL_TRACKS.map(track => (
+                  <div
+                    key={track.id}
+                    className="global-track-grid-row"
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="main-content-body" onClick={handleEmptyMainContentClick}>
           {/* Fixed left panel with track info */}

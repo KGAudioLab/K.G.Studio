@@ -180,6 +180,113 @@
   min-height: fit-content;
 }
 
+.global-tracks-section {
+  display: flex;
+  position: relative;
+  z-index: 1003;
+}
+
+.global-tracks-info-shell,
+.global-tracks-grid-shell {
+  max-height: calc(var(--global-track-count) * var(--global-track-height));
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 0.22s ease,
+    opacity 0.18s ease,
+    transform 0.22s ease;
+  will-change: max-height, opacity, transform;
+}
+
+.global-tracks-info-shell {
+  position: sticky;
+  left: 0;
+  width: var(--track-info-panel-width);
+  z-index: 1003;
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+.global-tracks-grid-shell {
+  overflow: hidden;
+}
+
+.global-tracks-info-shell.collapsed,
+.global-tracks-grid-shell.collapsed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+
+.global-tracks-info {
+  width: var(--track-info-panel-width);
+  background-color: #2d2d2d;
+  border-right: 1px solid #3a3a3a;
+}
+
+.global-track-info-row {
+  height: var(--global-track-height);
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid #3a3a3a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  color: #e0e0e0;
+  background-color: #4a4a4a;
+}
+
+.global-track-name {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.global-track-add-button {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 999px;
+  background: transparent;
+  color: #e0e0e0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: default;
+}
+
+.global-track-add-button svg {
+  font-size: 9px;
+}
+
+.global-track-add-button:focus,
+.global-track-add-button:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.global-tracks-grid {
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
+  background-color: #2d2d2d;
+}
+
+.global-track-grid-row {
+  height: var(--global-track-height);
+  min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
+  box-sizing: border-box;
+  border-bottom: 1px solid #3a3a3a;
+  background-color: #2d2d2d;
+  background-size: var(--track-grid-bar-width) var(--global-track-height);
+  background-image: linear-gradient(
+    to right,
+    transparent calc(var(--track-grid-bar-width) - 1px),
+    #3a3a3a calc(var(--track-grid-bar-width) - 1px),
+    #3a3a3a var(--track-grid-bar-width)
+  );
+}
+
 .info-container {
   position: sticky;
   left: 0;

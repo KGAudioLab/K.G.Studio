@@ -55,7 +55,7 @@ const Playhead: React.FC<PlayheadProps> = ({ context, pixelPositionOverride }) =
     bottom: 0,
     width: '2px',
     backgroundColor: '#4ECDC4', // Blue-green color similar to the reference image
-    zIndex: 1000,
+    zIndex: 150,
     pointerEvents: 'none', // Allow clicks to pass through
     boxShadow: '0 0 4px rgba(78, 205, 196, 0.5)', // Subtle glow effect
   };
@@ -70,7 +70,7 @@ const Playhead: React.FC<PlayheadProps> = ({ context, pixelPositionOverride }) =
     borderLeft: '6px solid transparent',
     borderRight: '6px solid transparent',
     borderTop: '8px solid #4ECDC4',
-    zIndex: 1001,
+    zIndex: 151,
     pointerEvents: 'none',
   };
 
