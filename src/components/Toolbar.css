@@ -195,19 +195,35 @@
   color: #fff;
 }
 
-.current-key-signature {
+.toolbar button.current-key-signature {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  display: inline-block;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
   font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-weight: normal;
   letter-spacing: 0.5px;
+  line-height: 1;
   cursor: pointer;
   transition: background-color 0.2s ease;
   padding: 2px 4px;
   border-radius: 2px;
+  white-space: nowrap;
 }
 
-.current-key-signature:hover {
+.toolbar button.current-key-signature:hover {
   background-color: #4a4a4a;
   color: #fff;
+}
+
+.toolbar button.current-key-signature:focus-visible {
+  outline: 1px solid #e0e0e0;
+  outline-offset: 1px;
 }
 
 .export-dropdown .quant-dropdown {
@@ -215,9 +231,21 @@
   left: 0;
 }
 
-.key-signature-dropdown .quant-dropdown {
-  width: 100px;
-  left: 0;
+.key-signature-popup-anchor {
+  display: inline-flex;
+}
+
+.key-signature-popup-surface {
+  --floating-popup-bg: #2d2d2d;
+  --floating-popup-border: #555;
+}
+
+.key-signature-popup-panel {
+  overflow: visible;
+}
+
+.key-signature-popup-arrow {
+  left: 50%;
 }
 
 /* Clickable zoom styling */

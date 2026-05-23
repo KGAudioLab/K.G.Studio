@@ -62,6 +62,7 @@ const storeState = {
 };
 
 type StoreState = typeof storeState;
+// eslint-disable-next-line no-unused-vars
 type StoreSelector = (state: StoreState) => unknown;
 
 vi.mock('../stores/projectStore', () => ({
@@ -83,7 +84,16 @@ vi.mock('../constants/coreConstants', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../constants/coreConstants')>();
   return {
     ...actual,
-    KEY_SIGNATURE_MAP: { ...actual.KEY_SIGNATURE_MAP, 'C major': [] },
+    KEY_SIGNATURE_MAP: {
+      ...actual.KEY_SIGNATURE_MAP,
+      'C major': actual.KEY_SIGNATURE_MAP['C major'],
+      'G major': actual.KEY_SIGNATURE_MAP['G major'],
+      'E minor': actual.KEY_SIGNATURE_MAP['E minor'],
+      'Gb major': actual.KEY_SIGNATURE_MAP['Gb major'],
+      'F# major': actual.KEY_SIGNATURE_MAP['F# major'],
+      'Eb minor': actual.KEY_SIGNATURE_MAP['Eb minor'],
+      'D# minor': actual.KEY_SIGNATURE_MAP['D# minor'],
+    },
   };
 });
 
@@ -125,7 +135,6 @@ vi.mock('../util/midiUtil', () => ({
   convertMidiToProject: vi.fn(),
 }));
 vi.mock('../core/audio-interface/KGOfflineRenderer', () => ({ KGOfflineRenderer: { instance: vi.fn(() => ({})) } }));
-vi.mock('./common/KGDropdown', () => ({ default: () => null }));
 vi.mock('./common/FileImportModal', () => ({ default: () => null }));
 vi.mock('./common/LoadingOverlay', () => ({ default: () => null }));
 vi.mock('./common/OpenProjectModal', () => ({ default: () => null }));
@@ -140,6 +149,49 @@ vi.mock('../util/dialogUtil', () => ({
   showPrompt: vi.fn(),
   showTimeSigPrompt: vi.fn(),
 }));
+vi.mock('vexflow', () => {
+  class MockRenderer {
+    static Backends = { SVG: 'svg' };
+    private readonly host: HTMLElement;
+
+    constructor(host: HTMLElement) {
+      this.host = host;
+    }
+
+    resize() {}
+
+    getContext() {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      this.host.appendChild(svg);
+      return {};
+    }
+  }
+
+  class MockStave {
+    constructor() {}
+
+    addClef() {
+      return this;
+    }
+
+    addKeySignature() {
+      return this;
+    }
+
+    setContext() {
+      return this;
+    }
+
+    draw() {
+      return this;
+    }
+  }
+
+  return {
+    Renderer: MockRenderer,
+    Stave: MockStave,
+  };
+});
 
 describe('Toolbar settings side-panel behavior', () => {
   beforeEach(() => {
@@ -154,6 +206,8 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.showChatBox = true;
     storeState.showKGOnePanel = true;
     storeState.showEventListPanel = false;
+    storeState.keySignature = 'C major';
+    storeState.setKeySignature.mockClear();
   });
 
   it('suppresses active styling for side-panel buttons while Settings is visible', () => {
@@ -192,5 +246,31 @@ describe('Toolbar settings side-panel behavior', () => {
     await waitFor(() => {
       expect(storeState.setStatus).toHaveBeenCalledWith('Split 1 note at beat 12.00');
     });
+  });
+
+  it('opens and closes the key signature popup from the toolbar trigger', () => {
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByRole('button', { name: /choose key signature/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Major')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('updates the store when a major or minor key is selected', () => {
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByRole('button', { name: /choose key signature/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select G major' }));
+    expect(storeState.setKeySignature).toHaveBeenCalledWith('G major');
+    expect(storeState.setStatus).toHaveBeenCalledWith('Key signature changed to G major');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /choose key signature/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select E minor' }));
+    expect(storeState.setKeySignature).toHaveBeenCalledWith('E minor');
+    expect(storeState.setStatus).toHaveBeenCalledWith('Key signature changed to E minor');
   });
 });

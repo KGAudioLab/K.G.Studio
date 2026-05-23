@@ -24,12 +24,13 @@ import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
-import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { KGOfflineRenderer } from '../core/audio-interface/KGOfflineRenderer';
 import KGDropdown from './common/KGDropdown';
+import FloatingPopup from './common/FloatingPopup';
 import FileImportModal from './common/FileImportModal';
 import LoadingOverlay from './common/LoadingOverlay';
 import OpenProjectModal from './common/OpenProjectModal';
+import KeySignaturePickerPopup from './KeySignaturePickerPopup';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
@@ -90,9 +91,6 @@ const Toolbar: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showZoomSlider]);
-
-  // Key signature options
-  const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
 
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
@@ -280,7 +278,7 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleConfirmOpenProject = async (_projectNameToLoad: string) => {
+  const handleConfirmOpenProject = async () => {
     const confirmed = await showConfirm(
       'Open this project? Any unsaved changes in the current project will be lost.'
     );
@@ -1154,25 +1152,29 @@ const Toolbar: React.FC = () => {
               <span className='current-time-signature' onClick={handleTimeSignatureClick} style={{ cursor: 'pointer' }}>{timeSignature.numerator + "/" + timeSignature.denominator}</span>
             </div>
             <div className="transport-item" style={{ position: 'relative' }}>
-              <span
-                className='current-key-signature'
-                onClick={() => setShowKeySignatureDropdown(!showKeySignatureDropdown)}
-                style={{ cursor: 'pointer' }}
+              <FloatingPopup
+                isOpen={showKeySignatureDropdown}
+                onClose={() => setShowKeySignatureDropdown(false)}
+                placement="bottom"
+                className="key-signature-popup-anchor"
+                contentClassName="key-signature-popup-surface"
+                panelClassName="key-signature-popup-panel"
+                arrowClassName="key-signature-popup-arrow"
+                trigger={(
+                  <button
+                    type="button"
+                    className='current-key-signature'
+                    onClick={() => setShowKeySignatureDropdown((current) => !current)}
+                    aria-haspopup="dialog"
+                    aria-expanded={showKeySignatureDropdown}
+                    aria-label={`Choose key signature, current ${keySignature}`}
+                  >
+                    {keySignature}
+                  </button>
+                )}
               >
-                {keySignature}
-              </span>
-              <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
-                <KGDropdown
-                  options={keySignatureOptions}
-                  value={keySignature}
-                  onChange={handleKeySignatureChange}
-                  label="Key Signature"
-                  hideButton={true}
-                  isOpen={showKeySignatureDropdown}
-                  onToggle={setShowKeySignatureDropdown}
-                  className="key-signature-dropdown"
-                />
-              </div>
+                <KeySignaturePickerPopup value={keySignature} onChange={handleKeySignatureChange} />
+              </FloatingPopup>
             </div>
           </div>
           <button
