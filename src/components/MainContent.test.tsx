@@ -131,6 +131,7 @@ describe('MainContent', () => {
     storeState.selectedRegionIds = [];
     storeState.activeRegionId = null;
     storeState.showPianoRoll = false;
+    storeState.timeSignature = { numerator: 4, denominator: 4 };
     storeState.clearAllSelections.mockClear();
     storeState.setSelectedTrack.mockClear();
     storeState.setShowPianoRoll.mockClear();
@@ -202,5 +203,31 @@ describe('MainContent', () => {
     expect(storeState.activeRegionId).toBeNull();
     expect(storeState.setShowPianoRoll).toHaveBeenCalledWith(false);
     expect(storeState.setActiveRegionId).toHaveBeenCalledWith(null);
+  });
+
+  it('renders the two-row timeline ruler with add-track buttons and beat markers', () => {
+    const { container } = render(<MainContent />);
+
+    expect(screen.getByRole('button', { name: '+ MIDI' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ Audio' })).toBeInTheDocument();
+
+    const barCells = container.querySelectorAll('[data-testid="bar-number-cell"]');
+    expect(barCells).toHaveLength(storeState.maxBars);
+    expect(barCells[0]).toHaveTextContent('1');
+    expect(barCells[storeState.maxBars - 1]).toHaveTextContent(String(storeState.maxBars));
+
+    const beatRows = container.querySelectorAll('[data-testid="bar-beat-markers"]');
+    expect(beatRows).toHaveLength(storeState.maxBars);
+    expect(beatRows[0].querySelectorAll('.beat-marker')).toHaveLength(storeState.timeSignature.numerator - 1);
+    expect(beatRows[0].querySelector('.bar-boundary-marker')).not.toBeNull();
+  });
+
+  it('updates lower-row beat ticks when the time signature numerator changes', () => {
+    storeState.timeSignature = { numerator: 3, denominator: 4 };
+
+    const { container } = render(<MainContent />);
+    const firstBeatRow = container.querySelector('[data-testid="bar-beat-markers"]');
+
+    expect(firstBeatRow?.querySelectorAll('.beat-marker')).toHaveLength(2);
   });
 });

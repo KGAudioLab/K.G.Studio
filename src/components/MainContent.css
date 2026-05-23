@@ -20,13 +20,14 @@
   top: 50px;
   left: 0;
   width: var(--track-info-panel-width);
-  height: 20px;
+  height: 40px;
   background-color: #2d2d2d;
   border-bottom: 1px solid #3a3a3a;
   border-right: 1px solid #3a3a3a;
   z-index: 1002; /* Higher than other elements to ensure it's always visible */
   display: flex;
   flex-direction: row;
+  align-items: stretch;
 }
 
 /* Offset spacer when instrument selection panel is visible on the left */
@@ -37,7 +38,7 @@
 .bar-numbers {
   position: sticky;
   top: 0;
-  height: 20px;
+  height: 40px;
   display: flex;
   border-bottom: 1px solid #3a3a3a;
   background-color: #2d2d2d;
@@ -56,15 +57,49 @@
   width: var(--track-grid-bar-width);
   flex-shrink: 0;
   flex-grow: 0;
-  height: 20px;
-  text-align: center;
-  font-size: 12px;
+  height: 40px;
   border-right: 1px solid #3a3a3a;
   color: #999;
   display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.bar-number-label {
+  height: 20px;
+  text-align: center;
+  font-size: 12px;
+  display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.bar-beat-markers {
+  position: relative;
+  height: 20px;
+  border-top: 1px solid #3a3a3a;
+  border-bottom: 1px solid #3a3a3a;
+  background-color: #1e1e1e;
   box-sizing: border-box;
+}
+
+.bar-boundary-marker {
+  position: absolute;
+  left: -1px;
+  bottom: 0;
+  width: 1px;
+  height: 100%;
+  background-color: #3a3a3a;
+}
+
+.beat-marker {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 50%;
+  background-color: #3a3a3a;
+  transform: translateX(-50%);
 }
 
 .bar-number-cell.looped {
@@ -91,7 +126,7 @@
    Only shift the fixed spacer when the left panel is present. */
 
 .track-top-spacer {
-  height: 20px;
+  height: 40px;
   border-bottom: 1px solid #3a3a3a;
   background-color: #2d2d2d;
   position: sticky;

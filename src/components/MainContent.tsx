@@ -992,6 +992,7 @@ const MainContent: React.FC<MainContentProps> = ({
   }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, setPlayheadPosition, requestPianoRollScroll]);
 
   const { showInstrumentSelection, isLooping, loopingRange } = useProjectStore();
+  const beatTicksPerBar = Math.max(0, timeSignature.numerator - 1);
 
   // Helper function to check if a bar (0-indexed) is in the loop range
   const isBarInLoopRange = (barIndex: number): boolean => {
@@ -1024,8 +1025,19 @@ const MainContent: React.FC<MainContentProps> = ({
             <div
               key={i}
               className={`bar-number-cell${isBarInLoopRange(i) ? ' looped' : ''}`}
+              data-testid="bar-number-cell"
             >
-              {i + 1}
+              <div className="bar-number-label">{i + 1}</div>
+              <div className="bar-beat-markers" data-testid="bar-beat-markers">
+                <div className="bar-boundary-marker" />
+                {Array.from({ length: beatTicksPerBar }, (_, beatIndex) => (
+                  <div
+                    key={beatIndex}
+                    className="beat-marker"
+                    style={{ left: `${((beatIndex + 1) / timeSignature.numerator) * 100}%` }}
+                  />
+                ))}
+              </div>
             </div>
           ))}
         </div>
