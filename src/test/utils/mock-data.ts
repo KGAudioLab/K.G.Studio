@@ -120,7 +120,7 @@ export const createMockMidiTrack = (overrides: Partial<{
     name: 'Test Track',
     id: 0,
     instrument: 'acoustic_grand_piano' as const,
-    volume: 0.8,
+    volume: 0,
     ...overrides
   };
   
