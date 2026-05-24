@@ -9,12 +9,14 @@ import { KGTrack } from '../core/track/KGTrack';
 import { KGRegion } from '../core/region/KGRegion';
 import { KGGlobalRegion } from '../core/region/KGGlobalRegion';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
+import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGMarkerRegion } from '../core/region/KGMarkerRegion';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import GlobalKeySignatureLane from './global-track/GlobalKeySignatureLane';
+import GlobalTempoLane from './global-track/GlobalTempoLane';
 import GlobalMarkerLane from './global-track/GlobalMarkerLane';
 import PianoRoll from './piano-roll/PianoRoll';
 import { TrackCreateDialog } from './common';
@@ -27,19 +29,25 @@ import {
   ChangeLoopSettingsCommand,
   CreateGlobalMarkerRegionCommand,
   CreateKeySignatureRegionCommand,
+  CreateTempoRegionCommand,
   DeleteKeySignatureRegionCommand,
   DeleteMultipleKeySignatureRegionsCommand,
+  DeleteMultipleTempoRegionsCommand,
+  DeleteTempoRegionCommand,
   DeleteMultipleGlobalRegionsCommand,
   DeleteTrackAutomationPointsCommand,
   MoveGlobalRegionCommand,
   ResizeKeySignatureRegionCommand,
+  ResizeTempoRegionCommand,
   ResizeGlobalRegionCommand,
   UpdateKeySignatureRegionCommand,
   UpdateGlobalRegionTextCommand,
+  UpdateTempoRegionCommand,
 } from '../core/commands';
-import { DEFAULT_MARKER_REGION_NAME, getSortedKeySignatureRegions } from '../util/globalTrackUtil';
+import { DEFAULT_MARKER_REGION_NAME, getAudioRegionDisplayLengthBeats, getSortedKeySignatureRegions, getSortedTempoRegions } from '../util/globalTrackUtil';
 import { FaPlus } from 'react-icons/fa';
 import { FaSquareArrowUpRight } from 'react-icons/fa6';
+import { TIME_CONSTANTS } from '../constants/coreConstants';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -98,6 +106,7 @@ const MainContent: React.FC<MainContentProps> = ({
     activeTrackAutomationType,
     selectedTrackAutomationPointIds,
     bumpTrackAutomationRedrawVersion,
+    bumpAudioWaveformRedrawVersion,
     refreshProjectState,
   } = useProjectStore();
 
@@ -119,6 +128,8 @@ const MainContent: React.FC<MainContentProps> = ({
   const [editingGlobalRegionId, setEditingGlobalRegionId] = useState<string | null>(null);
   const [editingGlobalRegionText, setEditingGlobalRegionText] = useState('');
   const [editingKeySignatureRegionId, setEditingKeySignatureRegionId] = useState<string | null>(null);
+  const [editingTempoRegionId, setEditingTempoRegionId] = useState<string | null>(null);
+  const [editingTempoText, setEditingTempoText] = useState('');
 
   // Use the region operations hook
   const { deleteSelectedRegions } = useRegionOperations({
@@ -173,6 +184,8 @@ const MainContent: React.FC<MainContentProps> = ({
   );
   const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null;
   const signatureRegions = signatureTrack ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator) : [];
+  const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
+  const tempoRegions = tempoTrack ? getSortedTempoRegions(tempoTrack, timeSignature.numerator) : [];
 
   const findProjectRegionById = useCallback((regionId: string): KGRegion | null => {
     for (const track of tracks) {
@@ -205,14 +218,22 @@ const MainContent: React.FC<MainContentProps> = ({
 
     try {
       const signatureRegionIds = selectedGlobalRegionIds.filter((regionId) => findProjectRegionById(regionId) instanceof KGKeySignatureRegion);
+      const tempoRegionIds = selectedGlobalRegionIds.filter((regionId) => findProjectRegionById(regionId) instanceof KGTempoRegion);
       const markerRegionIds = selectedGlobalRegionIds.filter((regionId) => findProjectRegionById(regionId) instanceof KGMarkerRegion);
 
-      if (signatureRegionIds.length > 0 && markerRegionIds.length === 0) {
+      if (signatureRegionIds.length > 0 && markerRegionIds.length === 0 && tempoRegionIds.length === 0) {
         KGCore.instance().executeCommand(
           signatureRegionIds.length === 1
             ? new DeleteKeySignatureRegionCommand(signatureRegionIds[0])
             : new DeleteMultipleKeySignatureRegionsCommand(signatureRegionIds)
         );
+      } else if (tempoRegionIds.length > 0 && markerRegionIds.length === 0 && signatureRegionIds.length === 0) {
+        KGCore.instance().executeCommand(
+          tempoRegionIds.length === 1
+            ? new DeleteTempoRegionCommand(tempoRegionIds[0])
+            : new DeleteMultipleTempoRegionsCommand(tempoRegionIds)
+        );
+        bumpAudioWaveformRedrawVersion();
       } else if (markerRegionIds.length > 0 && signatureRegionIds.length === 0) {
         KGCore.instance().executeCommand(new DeleteMultipleGlobalRegionsCommand(markerRegionIds));
       } else {
@@ -226,13 +247,17 @@ const MainContent: React.FC<MainContentProps> = ({
       if (editingKeySignatureRegionId && selectedGlobalRegionIds.includes(editingKeySignatureRegionId)) {
         setEditingKeySignatureRegionId(null);
       }
+      if (editingTempoRegionId && selectedGlobalRegionIds.includes(editingTempoRegionId)) {
+        setEditingTempoRegionId(null);
+        setEditingTempoText('');
+      }
       refreshProjectState();
       return true;
     } catch (error) {
       console.error('Error deleting global marker regions:', error);
       return false;
     }
-  }, [editingGlobalRegionId, editingKeySignatureRegionId, findProjectRegionById, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
+  }, [bumpAudioWaveformRedrawVersion, editingGlobalRegionId, editingKeySignatureRegionId, editingTempoRegionId, findProjectRegionById, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
 
   // Register the delete function with the global manager
   useEffect(() => {
@@ -430,7 +455,10 @@ const MainContent: React.FC<MainContentProps> = ({
           // Calculate bar number and length from beats
           const beatsPerBar = timeSignature.numerator;
           const barNumber = (region.getStartFromBeat() / beatsPerBar) + 1;
-          const length = region.getLength() / beatsPerBar;
+          const lengthBeats = region instanceof KGAudioRegion
+            ? getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), region)
+            : region.getLength();
+          const length = lengthBeats / beatsPerBar;
 
           // Create a RegionUI object
           updatedRegions.push({
@@ -447,7 +475,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
     // Update the regions state
     setRegions(updatedRegions);
-  }, [tracks, timeSignature]);
+  }, [globalTracks, tracks, timeSignature]);
 
   useEffect(() => {
     if (!showPianoRoll || !activeRegionId) {
@@ -914,6 +942,16 @@ const MainContent: React.FC<MainContentProps> = ({
     setEditingKeySignatureRegionId(regionId);
   }, [findProjectRegionById]);
 
+  const beginEditingTempoRegion = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGTempoRegion)) {
+      return;
+    }
+
+    setEditingTempoRegionId(regionId);
+    setEditingTempoText(region.getBpm().toString());
+  }, [findProjectRegionById]);
+
   const commitGlobalRegionEdit = useCallback((regionId: string) => {
     const region = findProjectRegionById(regionId);
     if (!(region instanceof KGMarkerRegion)) {
@@ -1043,6 +1081,84 @@ const MainContent: React.FC<MainContentProps> = ({
       console.error('Error updating key signature region:', error);
     }
   }, [refreshProjectState]);
+
+  const commitTempoRegionEdit = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGTempoRegion)) {
+      setEditingTempoRegionId(null);
+      setEditingTempoText('');
+      return;
+    }
+
+    const trimmed = editingTempoText.trim();
+    setEditingTempoRegionId(null);
+    setEditingTempoText('');
+
+    if (!trimmed) {
+      return;
+    }
+
+    const nextBpm = parseInt(trimmed, 10);
+    if (Number.isNaN(nextBpm)) {
+      return;
+    }
+
+    if (nextBpm <= TIME_CONSTANTS.MIN_BPM || nextBpm >= TIME_CONSTANTS.MAX_BPM || nextBpm === region.getBpm()) {
+      return;
+    }
+
+    try {
+      KGCore.instance().executeCommand(new UpdateTempoRegionCommand(regionId, nextBpm));
+      bumpAudioWaveformRedrawVersion();
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error updating tempo region:', error);
+    }
+  }, [bumpAudioWaveformRedrawVersion, editingTempoText, findProjectRegionById, refreshProjectState]);
+
+  const createTempoAtBar = useCallback((requestedStartBar: number) => {
+    const normalizedStartBar = Math.max(0, Math.min(requestedStartBar, maxBars - 1));
+    const existingRegionAtStart = tempoRegions.find(region => region.getStartBar() === normalizedStartBar);
+    if (existingRegionAtStart) {
+      selectGlobalRegion(existingRegionAtStart.getId(), { shiftKey: false });
+      beginEditingTempoRegion(existingRegionAtStart.getId());
+      return;
+    }
+
+    try {
+      const command = new CreateTempoRegionCommand(normalizedStartBar);
+      KGCore.instance().executeCommand(command);
+      bumpAudioWaveformRedrawVersion();
+      refreshProjectState();
+
+      const createdRegion = command.getCreatedRegion();
+      if (!createdRegion) {
+        return;
+      }
+
+      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      setEditingTempoRegionId(createdRegion.getId());
+      setEditingTempoText(createdRegion.getBpm().toString());
+    } catch (error) {
+      console.error('Error creating tempo region:', error);
+    }
+  }, [beginEditingTempoRegion, bumpAudioWaveformRedrawVersion, maxBars, refreshProjectState, selectGlobalRegion, tempoRegions]);
+
+  const createTempoAtPlayheadBar = useCallback(() => {
+    const beatsPerBar = timeSignature.numerator;
+    const startBar = Math.floor(playheadPosition / beatsPerBar);
+    createTempoAtBar(startBar);
+  }, [createTempoAtBar, playheadPosition, timeSignature.numerator]);
+
+  const resizeTempoRegion = useCallback((regionId: string, edge: 'start' | 'end', bar: number) => {
+    try {
+      KGCore.instance().executeCommand(new ResizeTempoRegionCommand(regionId, edge, Math.round(bar)));
+      bumpAudioWaveformRedrawVersion();
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error resizing tempo region:', error);
+    }
+  }, [bumpAudioWaveformRedrawVersion, refreshProjectState]);
 
   /**
    * Add keyboard event listener for region deletion
@@ -1397,6 +1513,11 @@ const MainContent: React.FC<MainContentProps> = ({
                           return;
                         }
 
+                        if (track.id === 'tempo') {
+                          createTempoAtPlayheadBar();
+                          return;
+                        }
+
                         if (track.id === 'signature') {
                           createKeySignatureAtPlayheadBar();
                         }
@@ -1432,6 +1553,26 @@ const MainContent: React.FC<MainContentProps> = ({
                       onCreateAtBeat={createMarkerAtBeat}
                       onMoveRegion={moveGlobalMarkerRegion}
                       onResizeRegion={resizeGlobalMarkerRegion}
+                    />
+                  ) : track.id === 'tempo' ? (
+                    <GlobalTempoLane
+                      key={track.id}
+                      tempoRegions={tempoRegions}
+                      maxBars={maxBars}
+                      barWidthMultiplier={barWidthMultiplier}
+                      selectedRegionIds={selectedRegionIds}
+                      editingRegionId={editingTempoRegionId}
+                      editingText={editingTempoText}
+                      onEditingTextChange={setEditingTempoText}
+                      onCommitEdit={commitTempoRegionEdit}
+                      onCancelEdit={() => {
+                        setEditingTempoRegionId(null);
+                        setEditingTempoText('');
+                      }}
+                      onBeginEdit={beginEditingTempoRegion}
+                      onSelectRegion={selectGlobalRegion}
+                      onCreateAtBar={createTempoAtBar}
+                      onResizeRegion={resizeTempoRegion}
                     />
                   ) : track.id === 'signature' ? (
                     <GlobalKeySignatureLane

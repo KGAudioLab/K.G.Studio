@@ -2,6 +2,7 @@ import { Expose, Type } from 'class-transformer';
 import { KGGlobalRegion } from '../region/KGGlobalRegion';
 import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
 import { KGMarkerRegion } from '../region/KGMarkerRegion';
+import { KGTempoRegion } from '../region/KGTempoRegion';
 
 export enum GlobalTrackType {
   Marker = 'marker',
@@ -33,6 +34,7 @@ export class KGGlobalTrack {
       subTypes: [
         { value: KGGlobalRegion, name: 'KGGlobalRegion' },
         { value: KGMarkerRegion, name: 'KGMarkerRegion' },
+        { value: KGTempoRegion, name: 'KGTempoRegion' },
         { value: KGKeySignatureRegion, name: 'KGKeySignatureRegion' },
       ],
     },

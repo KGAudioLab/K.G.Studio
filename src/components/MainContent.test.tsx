@@ -332,25 +332,19 @@ describe('MainContent', () => {
     expect(screen.queryByText('Chord')).not.toBeInTheDocument();
   });
 
-  it('keeps the tempo and chord global track add buttons as visual-only controls', () => {
+  it('routes the tempo global track add button through a command and keeps chord visual-only', () => {
     render(<MainContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
 
-    const addButtons = [
-      screen.getByRole('button', { name: 'Add Tempo global track item' }),
-      screen.getByRole('button', { name: 'Add Chord global track item' }),
-    ];
+    fireEvent.click(screen.getByRole('button', { name: 'Add Tempo global track item' }));
+    expect(executeCommandMock).toHaveBeenCalledTimes(1);
 
-    expect(addButtons).toHaveLength(2);
-
-    addButtons.forEach(button => {
-      fireEvent.click(button);
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Chord global track item' }));
 
     expect(storeState.addTrack).not.toHaveBeenCalled();
     expect(storeState.addAudioTrack).not.toHaveBeenCalled();
-    expect(executeCommandMock).not.toHaveBeenCalled();
+    expect(executeCommandMock).toHaveBeenCalledTimes(1);
   });
 
   it('routes the signature global track add button through a command', () => {

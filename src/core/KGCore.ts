@@ -11,6 +11,7 @@ import { KGMidiPitchBend } from './midi/KGMidiPitchBend';
 import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
+import { getEffectiveBpmAtBeat } from '../util/globalTrackUtil';
 
 interface PlaybackStartOptions {
   preserveLoopPreroll?: boolean;
@@ -150,7 +151,7 @@ export class KGCore {
     try {
       const audioInterface = KGAudioInterface.instance();
       if (audioInterface.getIsInitialized()) {
-        audioInterface.setBpm(project.getBpm());
+        audioInterface.setBpm(getEffectiveBpmAtBeat(project, 0));
       }
     } catch (error) {
       console.error('Error syncing project with audio interface:', error);
@@ -253,9 +254,6 @@ export class KGCore {
       audioInterface.preparePlayback(this.currentProject, this.playheadPosition, {
         allowStartBeforeLoopStart: options?.preserveLoopPreroll ?? false,
       });
-      
-      // Sync BPM and transport settings
-      audioInterface.setBpm(this.currentProject.getBpm());
       audioInterface.setTransportPosition(this.playheadPosition);
       
       console.log("Playback prepared successfully");
@@ -388,22 +386,8 @@ export class KGCore {
       this.stopPlaybackUpdates();
       return;
     }
-
-    // Calculate current playhead position based on elapsed time
-    const elapsedMs = performance.now() - this.playbackStartTime;
-
-    // Get playback delay from config
-    const configManager = ConfigManager.instance();
-    const playbackDelaySeconds = (configManager.get('audio.playback_delay') as number) ?? 0.2;
-    const playbackDelayMs = playbackDelaySeconds * 1000;
-
-    // Subtract the delay from elapsed time for visual sync
-    // During the initial delay period, playhead stays at start position
-    const adjustedElapsedMs = Math.max(0, elapsedMs - playbackDelayMs);
-
-    const bpm = this.currentProject.getBpm();
-    const beatsPerMs = bpm / (60 * 1000);
-    let newPosition = this.playbackStartPosition + (adjustedElapsedMs * beatsPerMs);
+    const audioInterface = KGAudioInterface.instance();
+    let newPosition = audioInterface.getTransportPosition();
 
     // Handle looping or end-of-project
     const beatsPerBar = this.currentProject.getTimeSignature().numerator;
@@ -415,10 +399,10 @@ export class KGCore {
 
       const loopStartBeats = startBar * beatsPerBar;
       const loopEndBeats = (endBar + 1) * beatsPerBar; // +1 because endBar is inclusive
-      const loopLengthBeats = loopEndBeats - loopStartBeats;
+      const previousPosition = this.playheadPosition;
 
-      // Wrap playhead position within loop range
-      if (newPosition >= loopEndBeats) {
+      // Tone.Transport position wraps back to loop start. Preserve the loop-end callback behavior.
+      if (this.loopBoundaryReachedCallback && previousPosition < loopEndBeats && newPosition < previousPosition) {
         if (this.loopBoundaryReachedCallback) {
           const callback = this.loopBoundaryReachedCallback;
           this.loopBoundaryReachedCallback = null;
@@ -426,16 +410,9 @@ export class KGCore {
           callback(loopEndBeats);
           return;
         }
-
-        // Calculate how far we've overshot and wrap back
-        const overshot = newPosition - loopEndBeats;
-        newPosition = loopStartBeats + (overshot % loopLengthBeats);
-
-        // Reset timing reference to prevent drift accumulation
-        const newElapsedBeats = newPosition - loopStartBeats;
-        this.playbackStartTime = performance.now() - (newElapsedBeats / beatsPerMs) - playbackDelayMs;
-        this.playbackStartPosition = loopStartBeats;
       }
+
+      newPosition = Math.max(loopStartBeats, Math.min(newPosition, loopEndBeats));
     } else {
       // Non-looping mode: stop at project end
       const maxBars = this.currentProject.getMaxBars();

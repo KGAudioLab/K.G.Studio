@@ -35,6 +35,8 @@ import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 import { KGMetronome } from './KGMetronome';
+import { GlobalTrackType } from '../global-track';
+import { beatRangeToSeconds, beatToSeconds, findGlobalTrackByType, getEffectiveBpmAtBeat, getSortedTempoRegions, secondsToBeat } from '../../util/globalTrackUtil';
 
 interface PreparePlaybackOptions {
   allowStartBeforeLoopStart?: boolean;
@@ -445,14 +447,14 @@ export class KGAudioInterface {
 
     try {
       // Set project BPM and time signature FIRST (this affects timing calculations)
-      Tone.Transport.bpm.value = project.getBpm();
+      Tone.Transport.bpm.value = getEffectiveBpmAtBeat(project, Math.max(startPosition, 0));
       const timeSignature = project.getTimeSignature();
-      const secondsPerBeat = 60 / project.getBpm();
+      const secondsPerBeat = 60 / Math.max(1, getEffectiveBpmAtBeat(project, Math.max(startPosition, 0)));
       const resumeSafetyOffsetBeats =
         KGAudioInterface.AUDIO_RESUME_SAFETY_OFFSET_SECONDS / secondsPerBeat;
       Tone.Transport.timeSignature = [timeSignature.numerator, timeSignature.denominator];
 
-      console.log(`Setting Tone.js BPM to ${project.getBpm()}, actual value: ${Tone.Transport.bpm.value}`);
+      console.log(`Setting Tone.js BPM to ${Tone.Transport.bpm.value}, actual value: ${Tone.Transport.bpm.value}`);
 
       // Configure loop settings
       const isLooping = project.getIsLooping();
@@ -486,8 +488,10 @@ export class KGAudioInterface {
         console.log("Loop mode disabled");
       }
 
+      this.scheduleTempoChanges(project, Math.max(startPosition, scheduleStartBeat), scheduleEndBeat);
+
       if (startPosition < 0) {
-        this.delayedTransportStartSeconds = Math.abs(startPosition) * secondsPerBeat;
+        this.delayedTransportStartSeconds = Math.abs(startPosition) * (60 / project.getBpm());
         this.virtualPrerollStartBeat = startPosition;
         this.virtualPrerollStartAudioTime = null;
       } else {
@@ -513,7 +517,7 @@ export class KGAudioInterface {
         const automationWindowStartBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
 
         this.applyTrackAutomationAtBeat(track, automationWindowStartBeat);
-        this.scheduleTrackAutomation(track, automationWindowStartBeat, scheduleEndBeat, interpolationIntervalMs, project.getBpm());
+        this.scheduleTrackAutomation(track, automationWindowStartBeat, scheduleEndBeat, interpolationIntervalMs, getEffectiveBpmAtBeat(project, automationWindowStartBeat));
 
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
@@ -622,7 +626,7 @@ export class KGAudioInterface {
             scheduleEndBeat,
             {
               maxIntervalMs: interpolationIntervalMs,
-              bpm: project.getBpm(),
+              bpm: getEffectiveBpmAtBeat(project, pitchBendWindowStartBeat),
               defaultValue: MIDI_PITCH_BEND_CENTER,
             }
           );
@@ -648,7 +652,7 @@ export class KGAudioInterface {
             scheduleEndBeat,
             {
               maxIntervalMs: interpolationIntervalMs,
-              bpm: project.getBpm(),
+              bpm: getEffectiveBpmAtBeat(project, pitchBendWindowStartBeat),
               defaultValue: 127,
               interpolationMode: 'linear',
               quantizeValue: clampMidiControllerValue,
@@ -676,7 +680,7 @@ export class KGAudioInterface {
             scheduleEndBeat,
             {
               maxIntervalMs: interpolationIntervalMs,
-              bpm: project.getBpm(),
+              bpm: getEffectiveBpmAtBeat(project, pitchBendWindowStartBeat),
               defaultValue: 0,
               interpolationMode: 'step',
               quantizeValue: clampMidiControllerValue,
@@ -699,20 +703,19 @@ export class KGAudioInterface {
           });
 
           trackNotes.forEach(({ note, absoluteStartBeat, absoluteEndBeat }) => {
-            const noteDurationBeats = absoluteEndBeat - absoluteStartBeat;
             const noteStartTime = this.beatsToToneTime(absoluteStartBeat);
-            const noteDuration = this.beatsToToneTime(noteDurationBeats);
+            const noteDurationSeconds = beatRangeToSeconds(project, absoluteStartBeat, absoluteEndBeat);
             const velocity = note.getVelocity() / 127;
             const noteName = pitchToNoteNameString(note.getPitch());
 
             console.log(
-              `Scheduling note ${noteName} at beat ${Number(absoluteStartBeat.toFixed ? absoluteStartBeat.toFixed(3) : absoluteStartBeat.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDuration).toFixed(3))}, delay: ${playbackDelay}s`
+              `Scheduling note ${noteName} at beat ${Number(absoluteStartBeat.toFixed ? absoluteStartBeat.toFixed(3) : absoluteStartBeat.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDurationSeconds).toFixed(3))}, delay: ${playbackDelay}s`
             );
 
             const eventId = Tone.Transport.schedule((time) => {
               const hasSoloedTracks = this.hasSoloedTracks();
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, Tone.Time(noteDuration).toSeconds());
+                audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, noteDurationSeconds);
               }
             }, noteStartTime);
 
@@ -740,17 +743,15 @@ export class KGAudioInterface {
               // Skip regions that start before playback start position
               if (regionStartBeat < startPosition) {
                 // Region starts before playhead — calculate offset into the audio file
-                const offsetBeats = startPosition - regionStartBeat;
-                const offsetSeconds = offsetBeats * secondsPerBeat;
-                const remainingBeats = regionEndBeat - startPosition;
-                const remainingSeconds = remainingBeats * secondsPerBeat;
+                const offsetSeconds = beatRangeToSeconds(project, regionStartBeat, startPosition);
+                const remainingSeconds = beatRangeToSeconds(project, startPosition, regionEndBeat);
                 const audioFileId = audioRegion.getAudioFileId();
 
                 // Cap duration at loop boundary to prevent overlap on loop re-trigger
                 let effectiveRemainingSeconds = remainingSeconds;
                 if (isLooping) {
                   const maxDurationBeats = scheduleEndBeat - startPosition;
-                  const maxDurationSeconds = maxDurationBeats * secondsPerBeat;
+                  const maxDurationSeconds = beatRangeToSeconds(project, startPosition, startPosition + maxDurationBeats);
                   effectiveRemainingSeconds = Math.min(remainingSeconds, maxDurationSeconds);
                 }
 
@@ -769,7 +770,7 @@ export class KGAudioInterface {
                     startPosition + resumeSafetyOffsetBeats,
                     regionEndBeat
                   );
-                  const extraOffsetSeconds = (safeResumeBeat - startPosition) * secondsPerBeat;
+                  const extraOffsetSeconds = beatRangeToSeconds(project, startPosition, safeResumeBeat);
                   const adjustedOffsetSeconds = clipStartOffsetSeconds + offsetSeconds + extraOffsetSeconds;
                   const adjustedRemainingSeconds = Math.max(
                     0,
@@ -800,7 +801,7 @@ export class KGAudioInterface {
 
               const audioFileId = audioRegion.getAudioFileId();
               // Effective duration: region length in seconds, capped at available audio after clip offset
-              const regionLengthSeconds = region.getLength() * secondsPerBeat;
+              const regionLengthSeconds = beatRangeToSeconds(project, regionStartBeat, regionEndBeat);
               let effectiveDurationSeconds = Math.min(
                 regionLengthSeconds,
                 audioDurationSeconds - clipStartOffsetSeconds
@@ -814,7 +815,7 @@ export class KGAudioInterface {
               // Cap duration at loop boundary to prevent overlap on loop re-trigger
               if (isLooping) {
                 const maxDurationBeats = scheduleEndBeat - regionStartBeat;
-                const maxDurationSeconds = maxDurationBeats * secondsPerBeat;
+                const maxDurationSeconds = beatRangeToSeconds(project, regionStartBeat, regionStartBeat + maxDurationBeats);
                 effectiveDurationSeconds = Math.min(effectiveDurationSeconds, maxDurationSeconds);
               }
 
@@ -1176,8 +1177,12 @@ export class KGAudioInterface {
         return Math.min(0, this.virtualPrerollStartBeat + elapsedBeats);
       }
 
-      const position = Tone.Transport.position;
-      return this.toneTimeToBeats(position);
+      const transportSeconds = Number(Tone.Transport.seconds);
+      if (Number.isFinite(transportSeconds)) {
+        return secondsToBeat(KGCore.instance().getCurrentProject(), transportSeconds);
+      }
+
+      return this.toneTimeToBeats(Tone.Transport.position);
     } catch (error) {
       console.error('Error getting transport position:', error);
       return 0;
@@ -1472,6 +1477,30 @@ export class KGAudioInterface {
       });
   }
 
+  private scheduleTempoChanges(project: KGProject, windowStartBeat: number, windowEndBeat: number): void {
+    const tempoTrack = findGlobalTrackByType(project, GlobalTrackType.Tempo);
+    if (!tempoTrack) {
+      return;
+    }
+
+    const tempoRegions = getSortedTempoRegions(tempoTrack, project.getTimeSignature().numerator);
+    if (tempoRegions.length === 0) {
+      return;
+    }
+
+    tempoRegions.forEach((region) => {
+      const regionStartBeat = region.getStartBar() * project.getTimeSignature().numerator;
+      if (regionStartBeat <= windowStartBeat || regionStartBeat >= windowEndBeat) {
+        return;
+      }
+
+      const eventId = Tone.Transport.schedule(() => {
+        Tone.Transport.bpm.value = region.getBpm();
+      }, this.beatsToToneTime(regionStartBeat));
+      this.scheduledEvents.add(eventId);
+    });
+  }
+
   private clearTrackAutomationOverrides(): void {
     this.trackAudioBuses.forEach(audioBus => {
       audioBus.setAutomationVolume(null);
@@ -1527,35 +1556,15 @@ export class KGAudioInterface {
    * This approach handles triplets and all subdivisions correctly
    */
   private beatsToToneTime(beats: number): Tone.Unit.Time {
-    const project = KGCore.instance().getCurrentProject();
-    const bpm = project.getBpm();
-    
-    // Calculate seconds per beat - BPM is always quarter note beats per minute
-    // Time signature denominator doesn't affect BPM, only subdivision
-    const secondsPerBeat = 60 / bpm;
-    
-    // Convert beats directly to seconds
-    const totalSeconds = beats * secondsPerBeat;
-    
-    return totalSeconds as Tone.Unit.Time;
+    return beatToSeconds(KGCore.instance().getCurrentProject(), beats) as Tone.Unit.Time;
   }
 
   /**
    * Convert Tone.js time format to beats
    */
   private toneTimeToBeats(toneTime: Tone.Unit.Time): number {
-    const project = KGCore.instance().getCurrentProject();
-    const bpm = project.getBpm();
-    
-    // Calculate seconds per beat - BPM is always quarter note beats per minute
-    // Time signature denominator doesn't affect BPM, only subdivision
-    const secondsPerBeat = 60 / bpm;
-    
-    // Tone.Time() can handle both numbers and strings
     const seconds = Tone.Time(toneTime).toSeconds();
-    const beats = seconds / secondsPerBeat;
-    
-    return beats;
+    return secondsToBeat(KGCore.instance().getCurrentProject(), seconds);
   }
 
   /**

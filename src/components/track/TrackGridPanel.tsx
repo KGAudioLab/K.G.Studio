@@ -18,6 +18,7 @@ import { showAlert } from '../../util/dialogUtil';
 import { parseMidiFirstTrackNotes } from '../../util/midiUtil';
 import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
+import { getAudioRegionDisplayLengthBeats } from '../../util/globalTrackUtil';
 
 interface TrackGridPanelProps {
   tracks: KGTrack[];
@@ -64,6 +65,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 }) => {
   const selectedRegionIds = useProjectStore(state => state.selectedRegionIds);
   const refreshProjectState = useProjectStore(state => state.refreshProjectState);
+  const bumpAudioWaveformRedrawVersion = useProjectStore(state => state.bumpAudioWaveformRedrawVersion);
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const [previewRegionStyles, setPreviewRegionStyles] = useState<Record<string, React.CSSProperties>>({});
@@ -356,12 +358,16 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
       const created = cmd.getCreatedRegion();
       if (created && onExternalDropComplete) {
+        const displayLengthInBars = Math.max(
+          1,
+          getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), created) / beatsPerBar
+        );
         const regionUI: RegionUI = {
           id: created.getId(),
           trackId: track.getId().toString(),
           trackIndex,
           barNumber,
-          length: lengthInBars,
+          length: displayLengthInBars,
           name: created.getName(),
         };
         onExternalDropComplete(trackIndex, regionUI);
@@ -571,6 +577,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const sourceTrack = tracks.find(t => {
       return t.getRegions().some(r => r.getId() === regionId);
     });
+    const movedRegionWasAudio = sourceTrack?.getRegions().find(r => r.getId() === regionId) instanceof KGAudioRegion;
     if (sourceTrack && sourceTrack.getType() !== targetTrack.getType()) {
       // Snap back — don't execute the move
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
@@ -592,6 +599,12 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
         KGCore.instance().executeCommand(command, { rethrow: true });
         refreshProjectState();
+        if (bulkRegionIds.some(selectedId => {
+          const candidate = tracks.flatMap(track => track.getRegions()).find(region => region.getId() === selectedId);
+          return candidate instanceof KGAudioRegion;
+        })) {
+          bumpAudioWaveformRedrawVersion();
+        }
         return;
       }
 
@@ -624,6 +637,9 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         // Verify the command worked
         const movedRegion = command.getTargetRegion();
         console.log(`Verified region: ${movedRegion ? 'found' : 'not found'}, startBeat=${movedRegion?.getStartFromBeat()}, trackId=${movedRegion?.getTrackId()}`);
+      }
+      if (movedRegionWasAudio) {
+        bumpAudioWaveformRedrawVersion();
       }
     } catch (error) {
       console.error('Error moving region:', error);
@@ -681,6 +697,12 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         );
         KGCore.instance().executeCommand(command, { rethrow: true });
         refreshProjectState();
+        if (bulkRegionIds.some(selectedId => {
+          const candidate = tracks.flatMap(track => track.getRegions()).find(region => region.getId() === selectedId);
+          return candidate instanceof KGAudioRegion;
+        })) {
+          bumpAudioWaveformRedrawVersion();
+        }
         return;
       }
 
@@ -692,6 +714,9 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         region.trackIndex
       );
       KGCore.instance().executeCommand(command, { rethrow: true });
+      if (coreRegion instanceof KGAudioRegion) {
+        bumpAudioWaveformRedrawVersion();
+      }
 
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`Fine-moved region ${regionId}: startFromBeat=${newStartFromBeat}`);
@@ -793,12 +818,16 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
         const created = cmd.getCreatedRegion();
         if (created && onExternalDropComplete) {
+          const displayLengthInBars = Math.max(
+            1,
+            getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), created as unknown as KGAudioRegion) / beatsPerBar
+          );
           const regionUI: RegionUI = {
             id: created.getId(),
             trackId: track.getId().toString(),
             trackIndex,
             barNumber,
-            length: lengthInBars,
+            length: displayLengthInBars,
             name: created.getName(),
           };
           onExternalDropComplete(trackIndex, regionUI);

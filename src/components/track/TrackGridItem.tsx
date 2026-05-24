@@ -91,6 +91,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const trackAutomationRedrawVersion = useProjectStore(state => state.trackAutomationRedrawVersion);
+  const audioWaveformRedrawVersion = useProjectStore(state => state.audioWaveformRedrawVersion);
   const recordingMode = useProjectStore(state => state.recordingMode);
   const recordingTargetTrackIndex = useProjectStore(state => state.recordingTargetTrackIndex);
   const recordingCommitStartBeatAbsolute = useProjectStore(state => state.recordingCommitStartBeatAbsolute);
@@ -796,6 +797,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             audioRegion={audioRegion}
             audioBuffer={audioBuffer}
             previewContentStyle={tempPreviewRegionContentStyles[region.id]}
+            redrawVersion={audioWaveformRedrawVersion}
           />
         );
       })}

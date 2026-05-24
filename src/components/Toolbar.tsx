@@ -18,6 +18,7 @@ import { KGProject, type KeySignature } from '../core/KGProject';
 import { GlobalTrackType } from '../core/global-track';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
+import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { plainToInstance } from 'class-transformer';
@@ -38,7 +39,7 @@ import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { mergeSelectedMidiRegions, splitSelectedRegionAtPlayhead } from '../util/regionEditUtil';
 import { showAlert, showChoice, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
-import { UpdateKeySignatureRegionCommand } from '../core/commands';
+import { UpdateKeySignatureRegionCommand, UpdateTempoRegionCommand } from '../core/commands';
 
 const Toolbar: React.FC = () => {
   const {
@@ -60,7 +61,7 @@ const Toolbar: React.FC = () => {
     selectedRegionIds, selectedTrackId,
     // Playhead and refresh
     playheadPosition, refreshProjectState,
-    requestMainContentScroll, requestPianoRollScroll
+    requestMainContentScroll, requestPianoRollScroll, bumpAudioWaveformRedrawVersion
   } = useProjectStore();
 
   // State for main content tools
@@ -74,10 +75,18 @@ const Toolbar: React.FC = () => {
   const signatureRegions = (signatureTrack?.getRegions() ?? [])
     .filter((region): region is KGKeySignatureRegion => region instanceof KGKeySignatureRegion)
     .sort((left, right) => left.getStartBar() - right.getStartBar());
+  const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
+  const tempoRegions = (tempoTrack?.getRegions() ?? [])
+    .filter((region): region is KGTempoRegion => region instanceof KGTempoRegion)
+    .sort((left, right) => left.getStartBar() - right.getStartBar());
   const playheadBar = Math.floor(playheadPosition / timeSignature.numerator);
   const activeKeySignatureRegion = signatureRegions.find(
     region => playheadBar >= region.getStartBar() && playheadBar < region.getEndBar()
   ) ?? null;
+  const activeTempoRegion = tempoRegions.find(
+    region => playheadBar >= region.getStartBar() && playheadBar < region.getEndBar()
+  ) ?? null;
+  const displayedBpm = activeTempoRegion?.getBpm() ?? bpm;
   const displayedKeySignature = activeKeySignatureRegion?.getKeySignature() ?? keySignature;
 
   // State for export dropdown
@@ -650,7 +659,7 @@ const Toolbar: React.FC = () => {
       console.log("BPM clicked, current BPM:", bpm);
     }
 
-    const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, bpm.toString());
+    const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, displayedBpm.toString());
 
     // Check if user cancelled
     if (newBpmStr === null) {
@@ -673,11 +682,17 @@ const Toolbar: React.FC = () => {
     }
 
     // Update BPM
-    setBpm(newBpm);
+    if (activeTempoRegion) {
+      KGCore.instance().executeCommand(new UpdateTempoRegionCommand(activeTempoRegion.getId(), newBpm));
+      bumpAudioWaveformRedrawVersion();
+      refreshProjectState();
+    } else {
+      setBpm(newBpm);
+    }
     setStatus(`BPM changed to ${newBpm}`);
 
     if (DEBUG_MODE.TOOLBAR) {
-      console.log(`BPM updated from ${bpm} to ${newBpm}`);
+      console.log(`BPM updated from ${displayedBpm} to ${newBpm}`);
     }
   };
 
@@ -1168,7 +1183,7 @@ const Toolbar: React.FC = () => {
               <span className='current-time' onClick={handleCurrentTimeClick} style={{ cursor: 'pointer' }}>{currentTime}</span>
             </div>
             <div className="transport-item">
-              <span className='current-bpm' onClick={handleBpmClick} style={{ cursor: 'pointer' }}>{bpm}</span>
+              <span className='current-bpm' onClick={handleBpmClick} style={{ cursor: 'pointer' }}>{displayedBpm}</span>
             </div>
             <div className="transport-item">
               <span className='current-time-signature' onClick={handleTimeSignatureClick} style={{ cursor: 'pointer' }}>{timeSignature.numerator + "/" + timeSignature.denominator}</span>
