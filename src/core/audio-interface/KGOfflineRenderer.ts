@@ -29,6 +29,7 @@ import { beatRangeToSeconds, beatToSeconds, findGlobalTrackByType, getEffectiveB
 import { GlobalTrackType } from '../global-track';
 import { ConfigManager } from '../config/ConfigManager';
 import { Mp3Encoder } from '@breezystack/lamejs';
+import { createStereoTrackPanner } from './createStereoTrackPanner';
 
 export interface RenderOptions {
   sampleRate?: number;  // default 44100
@@ -332,7 +333,7 @@ export class KGOfflineRenderer {
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
             sampler.volume.value = 0;
             const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
-            const trackPanner = new Tone.Panner(0);
+            const trackPanner = createStereoTrackPanner(0);
             sampler.connect(trackGain);
             trackGain.connect(trackPanner);
             trackPanner.connect(masterGain);
@@ -439,7 +440,7 @@ export class KGOfflineRenderer {
         if (!shouldPlay(trackInfo, hasSoloedTracks)) continue;
 
         const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
-        const trackPanner = new Tone.Panner(0);
+        const trackPanner = createStereoTrackPanner(0);
         trackGain.connect(trackPanner);
         trackPanner.connect(masterGain);
         applyOfflineTrackAutomation(

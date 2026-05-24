@@ -953,7 +953,7 @@ export class KGAudioInterface {
       const normalizedVelocity = velocity / 127; // Normalize to 0-1
       const triggerTime = time ?? Tone.now();
       this.applyTrackAutomationForCurrentBeat(trackId);
-      
+
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
