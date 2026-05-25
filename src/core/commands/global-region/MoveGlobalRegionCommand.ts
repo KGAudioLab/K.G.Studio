@@ -2,7 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGGlobalRegion } from '../../region/KGGlobalRegion';
 import { GlobalTrackType } from '../../global-track';
-import { findGlobalTrackContainingRegion, findMarkerNeighborBounds } from '../../../util/globalTrackUtil';
+import { findGlobalTrackContainingRegion, findNonOverlappingNeighborBounds } from '../../../util/globalTrackUtil';
 
 export class MoveGlobalRegionCommand extends KGCommand {
   private readonly regionId: string;
@@ -26,12 +26,17 @@ export class MoveGlobalRegionCommand extends KGCommand {
     this.targetRegion = result.region;
     this.originalStartBeat = result.region.getStartFromBeat();
 
-    if (result.track.getType() !== GlobalTrackType.Marker) {
+    if (result.track.getType() !== GlobalTrackType.Marker && result.track.getType() !== GlobalTrackType.Chord) {
       result.region.setStartFromBeat(this.desiredStartBeat);
       return;
     }
 
-    const { minStartBeat, maxEndBeat } = findMarkerNeighborBounds(project, this.regionId, this.desiredStartBeat);
+    const { minStartBeat, maxEndBeat } = findNonOverlappingNeighborBounds(
+      project,
+      result.track.getType() as GlobalTrackType.Marker | GlobalTrackType.Chord,
+      this.regionId,
+      this.desiredStartBeat
+    );
     const maxStartBeat = Math.max(minStartBeat, maxEndBeat - result.region.getLength());
     const clampedStartBeat = Math.max(minStartBeat, Math.min(this.desiredStartBeat, maxStartBeat));
     result.region.setStartFromBeat(clampedStartBeat);

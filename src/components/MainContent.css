@@ -311,6 +311,10 @@
   z-index: 1004;
 }
 
+.global-chord-lane.popup-open {
+  z-index: 1004;
+}
+
 .global-marker-lane.pencil-cursor {
   cursor: crosshair;
 }
@@ -355,6 +359,12 @@
   overflow: visible;
 }
 
+.global-chord-region {
+  background: #dc8b3f;
+  color: #2f2215;
+  overflow: visible;
+}
+
 .global-key-signature-region .floating-popup {
   min-width: 0;
   width: var(--track-grid-bar-width);
@@ -383,6 +393,38 @@
 
 .global-key-signature-popup-anchor .floating-popup-surface {
   z-index: 1009;
+}
+
+.global-chord-region .floating-popup {
+  min-width: 0;
+  width: var(--track-grid-bar-width);
+}
+
+.global-chord-popup-anchor {
+  min-width: 0;
+  width: var(--track-grid-bar-width);
+  position: absolute;
+  left: calc((var(--track-grid-bar-width) - var(--track-grid-bar-width)) / 2);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1008;
+}
+
+.global-chord-trigger {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.global-chord-popup-surface {
+  --floating-popup-bg: #2d2d2d;
+  --floating-popup-border: #555;
+  z-index: 10007;
+}
+
+.global-chord-popup-anchor .floating-popup-surface {
+  z-index: 10009;
 }
 
 .global-marker-label {

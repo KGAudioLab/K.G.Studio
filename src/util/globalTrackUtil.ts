@@ -6,6 +6,7 @@ import {
   createDefaultGlobalTracks,
 } from '../core/global-track';
 import { KGGlobalRegion } from '../core/region/KGGlobalRegion';
+import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGTempoRegion } from '../core/region/KGTempoRegion';
@@ -59,14 +60,23 @@ export function findMarkerNeighborBounds(
   regionId: string | null,
   proposedStartBeat: number
 ): { minStartBeat: number; maxEndBeat: number; nextStartBeat: number | null } {
-  const markerTrack = findGlobalTrackByType(project, GlobalTrackType.Marker);
+  return findNonOverlappingNeighborBounds(project, GlobalTrackType.Marker, regionId, proposedStartBeat);
+}
+
+export function findNonOverlappingNeighborBounds(
+  project: KGProject,
+  trackType: GlobalTrackType.Marker | GlobalTrackType.Chord,
+  regionId: string | null,
+  proposedStartBeat: number
+): { minStartBeat: number; maxEndBeat: number; nextStartBeat: number | null } {
+  const track = findGlobalTrackByType(project, trackType);
   const songEndBeat = getSongEndBeat(project);
 
-  if (!markerTrack) {
+  if (!track) {
     return { minStartBeat: 0, maxEndBeat: songEndBeat, nextStartBeat: null };
   }
 
-  const otherRegions = markerTrack.getRegions()
+  const otherRegions = track.getRegions()
     .filter(region => region.getId() !== regionId)
     .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
 
@@ -86,6 +96,17 @@ export function findMarkerNeighborBounds(
   }
 
   return { minStartBeat, maxEndBeat, nextStartBeat };
+}
+
+export function findChordRegionAtBeat(project: KGProject, beat: number): KGChordRegion | null {
+  const track = findGlobalTrackByType(project, GlobalTrackType.Chord);
+  if (!track) {
+    return null;
+  }
+
+  return track.getRegions()
+    .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
+    .find(region => beat >= region.getStartFromBeat() && beat < region.getStartFromBeat() + region.getLength()) ?? null;
 }
 
 export function getSongEndBar(project: KGProject): number {

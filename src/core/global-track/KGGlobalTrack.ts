@@ -1,5 +1,6 @@
 import { Expose, Type } from 'class-transformer';
 import { KGGlobalRegion } from '../region/KGGlobalRegion';
+import { KGChordRegion } from '../region/KGChordRegion';
 import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
 import { KGMarkerRegion } from '../region/KGMarkerRegion';
 import { KGTempoRegion } from '../region/KGTempoRegion';
@@ -36,6 +37,7 @@ export class KGGlobalTrack {
         { value: KGMarkerRegion, name: 'KGMarkerRegion' },
         { value: KGTempoRegion, name: 'KGTempoRegion' },
         { value: KGKeySignatureRegion, name: 'KGKeySignatureRegion' },
+        { value: KGChordRegion, name: 'KGChordRegion' },
       ],
     },
   })

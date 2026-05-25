@@ -1,0 +1,168 @@
+.chord-picker-popup {
+  min-width: min(92vw, 270px);
+  padding: 16px 16px 14px;
+  color: #e0e0e0;
+  font-family: inherit;
+  border-radius: 24px;
+}
+
+.chord-picker-header,
+.chord-picker-section,
+.chord-picker-footer {
+  position: relative;
+}
+
+.chord-picker-section + .chord-picker-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(68, 79, 94, 0.16);
+}
+
+.chord-picker-header {
+  margin-bottom: 14px;
+}
+
+.chord-picker-input-shell {
+  display: grid;
+  gap: 8px;
+}
+
+.chord-picker-input-label,
+.chord-picker-section-header span {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.chord-picker-input {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: #4a4a4a;
+  border: 1px solid #5a5a5a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 12px;
+  outline: none;
+  min-height: 36px;
+  line-height: 1.4;
+}
+
+.chord-picker-input.invalid {
+  border-color: #d45a5a;
+}
+
+.chord-picker-input:focus {
+  border-color: #5a9fd4;
+  background-color: #4a4a4a;
+}
+
+.chord-picker-input::placeholder {
+  color: #999;
+}
+
+.chord-picker-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.chord-picker-root-dropdown {
+  z-index: 1;
+}
+
+.chord-picker-root-button.quant-button {
+  margin-left: 0;
+  min-width: 72px;
+  height: 24px;
+  justify-content: space-between;
+  padding: 0 8px;
+}
+
+.chord-picker-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.chord-picker-button-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 52px));
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.chord-picker-button {
+  --toolbar-button-bg: transparent;
+  --toolbar-button-fg: #e0e0e0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  background-color: var(--toolbar-button-bg);
+  color: var(--toolbar-button-fg);
+  min-height: 24px;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+
+.chord-picker-button:hover {
+  --toolbar-button-bg: #3a3a3a;
+}
+
+.chord-picker-button.selected {
+  --toolbar-button-bg: #e0e0e0;
+  --toolbar-button-fg: #2d2d2d;
+}
+
+.chord-picker-button.selected:hover {
+  --toolbar-button-bg: #f0f0f0;
+}
+
+.chord-picker-button:active {
+  --toolbar-button-bg: #5a5a5a;
+  transform: scale(0.95);
+}
+
+.chord-picker-button.selected:active {
+  --toolbar-button-bg: #d6d6d6;
+}
+
+.chord-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  min-height: 24px;
+}
+
+.chord-picker-preview {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #b8b8b8;
+}
+
+.chord-picker-error {
+  font-size: 12px;
+  font-weight: 700;
+  color: #d45a5a;
+}
+
+@media (max-width: 720px) {
+  .chord-picker-popup {
+    min-width: min(94vw, 270px);
+    padding: 14px 12px 12px;
+  }
+
+  .chord-picker-button-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

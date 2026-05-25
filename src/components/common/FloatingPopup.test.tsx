@@ -26,4 +26,27 @@ describe('FloatingPopup', () => {
 
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it('stops escape from bubbling to outer window listeners', () => {
+    const onClose = vi.fn();
+    const outerEscapeHandler = vi.fn();
+    window.addEventListener('keydown', outerEscapeHandler);
+
+    render(
+      <FloatingPopup
+        isOpen={true}
+        onClose={onClose}
+        trigger={<button type="button">Toggle</button>}
+      >
+        <div>Popup body</div>
+      </FloatingPopup>
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(outerEscapeHandler).not.toHaveBeenCalled();
+
+    window.removeEventListener('keydown', outerEscapeHandler);
+  });
 });

@@ -4,6 +4,7 @@ import { KGProject } from '../KGProject';
 import { GlobalTrackType } from '../global-track';
 import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
 import { KGMarkerRegion } from '../region/KGMarkerRegion';
+import { KGChordRegion } from '../region/KGChordRegion';
 import { KGTrack } from '../track/KGTrack';
 
 // --- OPFS mock infrastructure ---
@@ -197,6 +198,24 @@ describe('KGProjectStorage', () => {
     expect(loadedSignatureTrack?.getRegions()[0]).toBeInstanceOf(KGKeySignatureRegion);
     expect((loadedSignatureTrack?.getRegions()[0] as KGKeySignatureRegion).getKeySignature()).toBe('G major');
     expect((loadedSignatureTrack?.getRegions()[0] as KGKeySignatureRegion).getStartBar()).toBe(4);
+  });
+
+  it('preserves chord regions when saving and loading', async () => {
+    const project = createTestProject('Chord Song');
+    const chordTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Chord);
+
+    expect(chordTrack).toBeDefined();
+    chordTrack?.addRegion(new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Bm7b5', 5, 3));
+
+    await storage.save('Chord Song', project);
+
+    const loaded = await storage.load('Chord Song');
+    const loadedChordTrack = loaded?.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Chord);
+
+    expect(loadedChordTrack).toBeDefined();
+    expect(loadedChordTrack?.getRegions()).toHaveLength(1);
+    expect(loadedChordTrack?.getRegions()[0]).toBeInstanceOf(KGChordRegion);
+    expect((loadedChordTrack?.getRegions()[0] as KGChordRegion).getSymbol()).toBe('Bm7b5');
   });
 
   it('creates meta.json and media/ directory on save', async () => {

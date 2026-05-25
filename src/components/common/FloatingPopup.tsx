@@ -33,6 +33,7 @@ const FloatingPopup: React.FC<FloatingPopupProps> = ({
 }) => {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLDivElement | null>(null);
+  const surfaceRef = React.useRef<HTMLDivElement | null>(null);
   const [portalStyle, setPortalStyle] = React.useState<React.CSSProperties | undefined>(undefined);
 
   React.useLayoutEffect(() => {
@@ -93,33 +94,44 @@ const FloatingPopup: React.FC<FloatingPopupProps> = ({
     }
 
     const handleMouseDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      const targetNode = event.target as Node;
+      const isInsideRoot = rootRef.current?.contains(targetNode) ?? false;
+      const isInsideSurface = surfaceRef.current?.contains(targetNode) ?? false;
+
+      if (!isInsideRoot && !isInsideSurface) {
         onClose();
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         onClose();
       }
     };
 
     document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
       document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [isOpen, onClose]);
 
   const popupSurface = isOpen ? (
     <div
+      ref={surfaceRef}
       className={`floating-popup-surface ${contentClassName}`.trim()}
       data-placement={placement}
       role="dialog"
       aria-modal="false"
       style={renderInPortal ? portalStyle : undefined}
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
     >
       <div
         className={`floating-popup-arrow ${arrowClassName}`.trim()}

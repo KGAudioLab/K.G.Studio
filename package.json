@@ -31,6 +31,7 @@
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "tonal": "^6.4.3",
     "tone": "^15.1.22",
     "vexflow": "^5.0.0",
     "zustand": "^5.0.6"

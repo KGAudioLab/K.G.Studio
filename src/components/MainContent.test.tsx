@@ -4,8 +4,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import MainContent from './MainContent';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
-import { createDefaultGlobalTracks } from '../core/global-track';
+import { createDefaultGlobalTracks, GlobalTrackType } from '../core/global-track';
 import { createMockMidiTrack } from '../test/utils/mock-data';
 
 const executeCommandMock = vi.fn();
@@ -138,9 +139,11 @@ vi.mock('./piano-roll/PianoRoll', () => ({
 
 describe('MainContent', () => {
   beforeEach(() => {
+    storeState.globalTracks = createDefaultGlobalTracks();
     storeState.selectedRegionIds = [];
     storeState.activeRegionId = null;
     storeState.showPianoRoll = false;
+    storeState.playheadPosition = 0;
     storeState.timeSignature = { numerator: 4, denominator: 4 };
     storeState.clearAllSelections.mockClear();
     storeState.setSelectedTrack.mockClear();
@@ -332,7 +335,8 @@ describe('MainContent', () => {
     expect(screen.queryByText('Chord')).not.toBeInTheDocument();
   });
 
-  it('routes the tempo global track add button through a command and keeps chord visual-only', () => {
+  it('routes the tempo and chord global track add buttons through commands', () => {
+    storeState.playheadPosition = 5;
     render(<MainContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
@@ -344,7 +348,87 @@ describe('MainContent', () => {
 
     expect(storeState.addTrack).not.toHaveBeenCalled();
     expect(storeState.addAudioTrack).not.toHaveBeenCalled();
+    expect(executeCommandMock).toHaveBeenCalledTimes(2);
+    expect((executeCommandMock.mock.calls[1][0] as { startBeat?: number }).startBeat).toBe(5);
+  });
+
+  it('uses split-insert chord command when the playhead is inside an existing chord region', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.addRegion(new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8));
+    storeState.globalTracks = globalTracks;
+    storeState.playheadPosition = 3;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Chord global track item' }));
+
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
+    expect((executeCommandMock.mock.calls[0][0] as { insertBeat?: number }).insertBeat).toBe(3);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('tabs the open chord popup to the next chord region before the next bar', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 3),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 2, 2),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.doubleClick(screen.getByText('Am'));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab' });
+
+    expect(storeState.selectedRegionIds).toEqual(['chord-2']);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('tabs the open chord popup to insert at the next exact bar when no chord starts before it', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.doubleClick(screen.getByText('Am'));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab' });
+
+    expect(executeCommandMock).toHaveBeenCalledTimes(1);
+    expect((executeCommandMock.mock.calls[0][0] as { insertBeat?: number }).insertBeat).toBe(4);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('shift-tabs the open chord popup to the previous existing chord without creating a new one', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.doubleClick(screen.getByText('G'));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab', shiftKey: true });
+
+    expect(storeState.selectedRegionIds).toEqual(['chord-1']);
+    expect(executeCommandMock).toHaveBeenCalledTimes(0);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
   });
 
   it('routes the signature global track add button through a command', () => {

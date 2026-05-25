@@ -1,7 +1,7 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { GlobalTrackType } from '../../global-track';
-import { findGlobalTrackContainingRegion, findMarkerNeighborBounds, getSongEndBeat } from '../../../util/globalTrackUtil';
+import { findGlobalTrackContainingRegion, findNonOverlappingNeighborBounds, getSongEndBeat } from '../../../util/globalTrackUtil';
 import { KGGlobalRegion } from '../../region/KGGlobalRegion';
 
 export type GlobalRegionResizeEdge = 'start' | 'end';
@@ -32,12 +32,17 @@ export class ResizeGlobalRegionCommand extends KGCommand {
     this.originalStartBeat = result.region.getStartFromBeat();
     this.originalLength = result.region.getLength();
 
-    if (result.track.getType() !== GlobalTrackType.Marker) {
+    if (result.track.getType() !== GlobalTrackType.Marker && result.track.getType() !== GlobalTrackType.Chord) {
       return;
     }
 
     const originalEndBeat = this.originalStartBeat + this.originalLength;
-    const { minStartBeat, maxEndBeat } = findMarkerNeighborBounds(project, this.regionId, this.originalStartBeat);
+    const { minStartBeat, maxEndBeat } = findNonOverlappingNeighborBounds(
+      project,
+      result.track.getType() as GlobalTrackType.Marker | GlobalTrackType.Chord,
+      this.regionId,
+      this.originalStartBeat
+    );
     const songEndBeat = getSongEndBeat(project);
     const absoluteMaxEndBeat = Math.min(maxEndBeat, songEndBeat);
 

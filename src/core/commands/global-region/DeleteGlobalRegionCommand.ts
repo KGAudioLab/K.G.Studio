@@ -49,7 +49,7 @@ export class DeleteGlobalRegionCommand extends KGCommand {
   }
 
   getDescription(): string {
-    return `Delete marker "${this.deletedRegion?.getName() ?? this.regionId}"`;
+    return `Delete global region "${this.deletedRegion?.getName() ?? this.regionId}"`;
   }
 }
 
@@ -104,6 +104,6 @@ export class DeleteMultipleGlobalRegionsCommand extends KGCommand {
   }
 
   getDescription(): string {
-    return this.regionIds.length === 1 ? 'Delete marker' : `Delete ${this.regionIds.length} markers`;
+    return this.regionIds.length === 1 ? 'Delete global region' : `Delete ${this.regionIds.length} global regions`;
   }
 }

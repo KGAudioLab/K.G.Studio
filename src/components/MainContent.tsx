@@ -8,6 +8,7 @@ import { GlobalTrackType } from '../core/global-track';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGRegion } from '../core/region/KGRegion';
 import { KGGlobalRegion } from '../core/region/KGGlobalRegion';
+import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
 import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
@@ -18,6 +19,7 @@ import TrackGridPanel from './track/TrackGridPanel';
 import GlobalKeySignatureLane from './global-track/GlobalKeySignatureLane';
 import GlobalTempoLane from './global-track/GlobalTempoLane';
 import GlobalMarkerLane from './global-track/GlobalMarkerLane';
+import GlobalChordLane from './global-track/GlobalChordLane';
 import PianoRoll from './piano-roll/PianoRoll';
 import { TrackCreateDialog } from './common';
 import type { RegionClickOptions, RegionUI } from './interfaces';
@@ -27,6 +29,7 @@ import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { KGMainContentState } from '../core/state/KGMainContentState';
 import {
   ChangeLoopSettingsCommand,
+  CreateChordRegionCommand,
   CreateGlobalMarkerRegionCommand,
   CreateKeySignatureRegionCommand,
   CreateTempoRegionCommand,
@@ -36,10 +39,12 @@ import {
   DeleteTempoRegionCommand,
   DeleteMultipleGlobalRegionsCommand,
   DeleteTrackAutomationPointsCommand,
+  InsertChordRegionAtBeatCommand,
   MoveGlobalRegionCommand,
   ResizeKeySignatureRegionCommand,
   ResizeTempoRegionCommand,
   ResizeGlobalRegionCommand,
+  UpdateChordRegionCommand,
   UpdateKeySignatureRegionCommand,
   UpdateGlobalRegionTextCommand,
   UpdateTempoRegionCommand,
@@ -130,6 +135,7 @@ const MainContent: React.FC<MainContentProps> = ({
   const [editingKeySignatureRegionId, setEditingKeySignatureRegionId] = useState<string | null>(null);
   const [editingTempoRegionId, setEditingTempoRegionId] = useState<string | null>(null);
   const [editingTempoText, setEditingTempoText] = useState('');
+  const [editingChordRegionId, setEditingChordRegionId] = useState<string | null>(null);
 
   // Use the region operations hook
   const { deleteSelectedRegions } = useRegionOperations({
@@ -186,6 +192,10 @@ const MainContent: React.FC<MainContentProps> = ({
   const signatureRegions = signatureTrack ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator) : [];
   const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
   const tempoRegions = tempoTrack ? getSortedTempoRegions(tempoTrack, timeSignature.numerator) : [];
+  const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord) ?? null;
+  const chordRegions = (chordTrack?.getRegions() ?? []).filter(
+    (region): region is KGChordRegion => region instanceof KGChordRegion
+  );
 
   const findProjectRegionById = useCallback((regionId: string): KGRegion | null => {
     for (const track of tracks) {
@@ -251,13 +261,16 @@ const MainContent: React.FC<MainContentProps> = ({
         setEditingTempoRegionId(null);
         setEditingTempoText('');
       }
+      if (editingChordRegionId && selectedGlobalRegionIds.includes(editingChordRegionId)) {
+        setEditingChordRegionId(null);
+      }
       refreshProjectState();
       return true;
     } catch (error) {
       console.error('Error deleting global marker regions:', error);
       return false;
     }
-  }, [bumpAudioWaveformRedrawVersion, editingGlobalRegionId, editingKeySignatureRegionId, editingTempoRegionId, findProjectRegionById, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
+  }, [bumpAudioWaveformRedrawVersion, editingChordRegionId, editingGlobalRegionId, editingKeySignatureRegionId, editingTempoRegionId, findProjectRegionById, isGlobalRegionId, refreshProjectState, selectedRegionIds]);
 
   // Register the delete function with the global manager
   useEffect(() => {
@@ -952,6 +965,15 @@ const MainContent: React.FC<MainContentProps> = ({
     setEditingTempoText(region.getBpm().toString());
   }, [findProjectRegionById]);
 
+  const beginEditingChordRegion = useCallback((regionId: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGChordRegion)) {
+      return;
+    }
+
+    setEditingChordRegionId(regionId);
+  }, [findProjectRegionById]);
+
   const commitGlobalRegionEdit = useCallback((regionId: string) => {
     const region = findProjectRegionById(regionId);
     if (!(region instanceof KGMarkerRegion)) {
@@ -1159,6 +1181,144 @@ const MainContent: React.FC<MainContentProps> = ({
       console.error('Error resizing tempo region:', error);
     }
   }, [bumpAudioWaveformRedrawVersion, refreshProjectState]);
+
+  const createChordAtBeat = useCallback((requestedStartBeat: number) => {
+    const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
+    const occupiedRegion = chordRegions.find(region => (
+      normalizedStartBeat >= region.getStartFromBeat()
+      && normalizedStartBeat < region.getStartFromBeat() + region.getLength()
+    ));
+    if (occupiedRegion) {
+      selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+      beginEditingChordRegion(occupiedRegion.getId());
+      return;
+    }
+
+    try {
+      const command = new CreateChordRegionCommand(normalizedStartBeat, timeSignature.numerator, 'C');
+      KGCore.instance().executeCommand(command);
+      refreshProjectState();
+
+      const createdRegion = command.getCreatedRegion();
+      if (!createdRegion) {
+        return;
+      }
+
+      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      setEditingChordRegionId(createdRegion.getId());
+    } catch (error) {
+      console.error('Error creating chord region:', error);
+    }
+  }, [beginEditingChordRegion, chordRegions, refreshProjectState, selectGlobalRegion, timeSignature.numerator]);
+
+  const createChordAtExactBeat = useCallback((requestedStartBeat: number) => {
+    const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
+    const occupiedRegion = chordRegions.find(region => (
+      normalizedStartBeat > region.getStartFromBeat()
+      && normalizedStartBeat < region.getStartFromBeat() + region.getLength()
+    ));
+
+    try {
+      const command = occupiedRegion
+        ? new InsertChordRegionAtBeatCommand(normalizedStartBeat, 'C')
+        : new CreateChordRegionCommand(normalizedStartBeat, timeSignature.numerator, 'C');
+
+      KGCore.instance().executeCommand(command);
+      refreshProjectState();
+
+      const createdRegion = command.getCreatedRegion();
+      if (!createdRegion) {
+        if (occupiedRegion) {
+          selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+          beginEditingChordRegion(occupiedRegion.getId());
+        }
+        return null;
+      }
+
+      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      setEditingChordRegionId(createdRegion.getId());
+      return createdRegion;
+    } catch (error) {
+      console.error('Error creating chord region at exact beat:', error);
+      if (occupiedRegion) {
+        selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+        beginEditingChordRegion(occupiedRegion.getId());
+      }
+      return null;
+    }
+  }, [beginEditingChordRegion, chordRegions, refreshProjectState, selectGlobalRegion, timeSignature.numerator]);
+
+  const createChordAtPlayheadBeat = useCallback(() => {
+    createChordAtExactBeat(playheadPosition);
+  }, [createChordAtExactBeat, playheadPosition]);
+
+  const navigateChordPopupByBar = useCallback((currentRegionId: string, direction: 'forward' | 'backward') => {
+    const currentRegion = chordRegions.find(region => region.getId() === currentRegionId);
+    if (!currentRegion) {
+      return;
+    }
+
+    const beatsPerBar = timeSignature.numerator;
+    const currentStartBeat = currentRegion.getStartFromBeat();
+    const currentBarBeat = Math.floor(currentStartBeat / beatsPerBar) * beatsPerBar;
+    const targetBarBeat = direction === 'forward'
+      ? currentBarBeat + beatsPerBar
+      : currentBarBeat - beatsPerBar;
+    const songEndBeat = maxBars * beatsPerBar;
+    if (targetBarBeat < 0 || targetBarBeat >= songEndBeat) {
+      return;
+    }
+
+    const sortedRegions = [...chordRegions]
+      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat())
+    const targetRegion = direction === 'forward'
+      ? sortedRegions.find(region => region.getStartFromBeat() > currentStartBeat && region.getStartFromBeat() <= targetBarBeat)
+      : [...sortedRegions]
+        .reverse()
+        .find(region => region.getStartFromBeat() < currentStartBeat);
+
+    if (targetRegion) {
+      selectGlobalRegion(targetRegion.getId(), { shiftKey: false });
+      setEditingChordRegionId(targetRegion.getId());
+      return;
+    }
+
+    if (direction === 'forward') {
+      createChordAtExactBeat(targetBarBeat);
+    }
+  }, [chordRegions, createChordAtExactBeat, maxBars, selectGlobalRegion, timeSignature.numerator]);
+
+  const moveGlobalChordRegion = useCallback((regionId: string, startBeat: number) => {
+    try {
+      KGCore.instance().executeCommand(new MoveGlobalRegionCommand(regionId, Math.round(startBeat)));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error moving chord region:', error);
+    }
+  }, [refreshProjectState]);
+
+  const resizeGlobalChordRegion = useCallback((regionId: string, edge: 'start' | 'end', beat: number) => {
+    try {
+      KGCore.instance().executeCommand(new ResizeGlobalRegionCommand(regionId, edge, Math.round(beat)));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error resizing chord region:', error);
+    }
+  }, [refreshProjectState]);
+
+  const updateChordRegion = useCallback((regionId: string, symbol: string) => {
+    const region = findProjectRegionById(regionId);
+    if (!(region instanceof KGChordRegion) || region.getSymbol() === symbol) {
+      return;
+    }
+
+    try {
+      KGCore.instance().executeCommand(new UpdateChordRegionCommand(regionId, symbol));
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error updating chord region:', error);
+    }
+  }, [findProjectRegionById, refreshProjectState]);
 
   /**
    * Add keyboard event listener for region deletion
@@ -1520,6 +1680,11 @@ const MainContent: React.FC<MainContentProps> = ({
 
                         if (track.id === 'signature') {
                           createKeySignatureAtPlayheadBar();
+                          return;
+                        }
+
+                        if (track.id === 'chord') {
+                          createChordAtPlayheadBeat();
                         }
                       }}
                     >
@@ -1589,6 +1754,24 @@ const MainContent: React.FC<MainContentProps> = ({
                       onResizeRegion={resizeKeySignatureRegion}
                       onChangeKeySignature={updateKeySignatureRegion}
                       onOpenPicker={beginEditingKeySignatureRegion}
+                    />
+                  ) : track.id === 'chord' ? (
+                    <GlobalChordLane
+                      key={track.id}
+                      chordRegions={chordRegions}
+                      maxBars={maxBars}
+                      barWidthMultiplier={barWidthMultiplier}
+                      timeSignature={timeSignature}
+                      selectedRegionIds={selectedRegionIds}
+                      popupRegionId={editingChordRegionId}
+                      onClosePopup={() => setEditingChordRegionId(null)}
+                      onSelectRegion={selectGlobalRegion}
+                      onCreateAtBeat={createChordAtBeat}
+                      onMoveRegion={moveGlobalChordRegion}
+                      onResizeRegion={resizeGlobalChordRegion}
+                      onChangeChord={updateChordRegion}
+                      onOpenPopup={beginEditingChordRegion}
+                      onTabNavigate={navigateChordPopupByBar}
                     />
                   ) : (
                     <div

@@ -36,6 +36,8 @@ export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 
 // Global region commands
 export { CreateGlobalMarkerRegionCommand } from './global-region/CreateGlobalMarkerRegionCommand';
+export { CreateChordRegionCommand } from './global-region/CreateChordRegionCommand';
+export { InsertChordRegionAtBeatCommand } from './global-region/InsertChordRegionAtBeatCommand';
 export { CreateKeySignatureRegionCommand } from './global-region/CreateKeySignatureRegionCommand';
 export { CreateTempoRegionCommand } from './global-region/CreateTempoRegionCommand';
 export { MoveGlobalRegionCommand } from './global-region/MoveGlobalRegionCommand';
@@ -44,6 +46,7 @@ export { ResizeKeySignatureRegionCommand } from './global-region/ResizeKeySignat
 export { ResizeTempoRegionCommand } from './global-region/ResizeTempoRegionCommand';
 export { DeleteGlobalRegionCommand, DeleteMultipleGlobalRegionsCommand } from './global-region/DeleteGlobalRegionCommand';
 export { UpdateGlobalRegionTextCommand } from './global-region/UpdateGlobalRegionTextCommand';
+export { UpdateChordRegionCommand } from './global-region/UpdateChordRegionCommand';
 export { DeleteKeySignatureRegionCommand, DeleteMultipleKeySignatureRegionsCommand } from './global-region/DeleteKeySignatureRegionCommand';
 export { UpdateKeySignatureRegionCommand } from './global-region/UpdateKeySignatureRegionCommand';
 export { DeleteTempoRegionCommand, DeleteMultipleTempoRegionsCommand } from './global-region/DeleteTempoRegionCommand';
