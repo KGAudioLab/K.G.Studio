@@ -311,6 +311,7 @@
 
 .piano-roll-title {
   flex: 1;
+  min-width: 0;
   text-align: center;
   font-size: 12px;
   font-weight: bold;
@@ -319,6 +320,9 @@
   cursor: text;
   padding: 5px;
   border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .piano-roll-title-input {

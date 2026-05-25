@@ -94,10 +94,12 @@
 /* Remove drag indicator since hover cursor is sufficient */
 
 .track-name {
-  display: flex;
-  align-items: center;
+  display: block;
   min-height: 24px;
+  width: 100%;
+  min-width: 0;
   font-size: 12px;
+  line-height: 24px;
   cursor: text;
   overflow: hidden;
   text-overflow: ellipsis;
