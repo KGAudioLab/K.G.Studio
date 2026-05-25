@@ -48,7 +48,7 @@ export class KGProject {
 
   @Expose()
   @WithDefault(1)
-  private barWidthMultiplier: number = 1;
+  private barWidthMultiplier: number = 2;
 
   @Expose()
   @WithDefault(1)
@@ -89,7 +89,7 @@ export class KGProject {
   private globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks();
 
   // Constructor
-  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 1, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks()) {
+  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 2, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks()) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;

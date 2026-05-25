@@ -109,10 +109,10 @@ describe('KGProjectStorage', () => {
     return new KGProject(name, 16, 0, 120);
   }
 
-  it('defaults both zoom levels to 1 on a fresh project', () => {
+  it('defaults the main-grid zoom to 2 and piano-roll zoom to 1 on a fresh project', () => {
     const project = new KGProject();
 
-    expect(project.getBarWidthMultiplier()).toBe(1);
+    expect(project.getBarWidthMultiplier()).toBe(2);
     expect(project.getPianoRollZoom()).toBe(1);
   });
 
