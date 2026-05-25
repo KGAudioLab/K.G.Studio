@@ -9,6 +9,7 @@ import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI, ResizeAct
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { useProjectStore } from '../../stores/projectStore';
+import { isModifierKeyPressed } from '../../util/osUtil';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -201,21 +202,26 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
 
   // Track tool state for cursor feedback.
   useEffect(() => {
-    const syncCursorState = () => {
+    const syncCursorState = (event?: KeyboardEvent | MouseEvent) => {
+      const isPencilMode = KGMainContentState.instance().getActiveTool() === 'pencil';
+      const hasModifierPressed = event ? isModifierKeyPressed(event) : false;
+      setIsModifierPressed(isPencilMode || hasModifierPressed);
+    };
+    const syncCursorStateFromFocus = () => {
       setIsModifierPressed(KGMainContentState.instance().getActiveTool() === 'pencil');
     };
 
     // Add global event listeners
     window.addEventListener('keydown', syncCursorState);
     window.addEventListener('keyup', syncCursorState);
-    window.addEventListener('focus', syncCursorState);
-    syncCursorState();
+    window.addEventListener('focus', syncCursorStateFromFocus);
+    syncCursorStateFromFocus();
 
     // Cleanup listeners on unmount
     return () => {
       window.removeEventListener('keydown', syncCursorState);
       window.removeEventListener('keyup', syncCursorState);
-      window.removeEventListener('focus', syncCursorState);
+      window.removeEventListener('focus', syncCursorStateFromFocus);
     };
   }, []);
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { KeySignature } from '../core/KGProject';
 import { KGCore } from '../core/KGCore';
 import { GlobalTrackType, KGGlobalTrack } from '../core/global-track';
@@ -88,37 +88,21 @@ export function useMainContentGlobalTracks({
   const [editingTempoText, setEditingTempoText] = useState('');
   const [editingChordRegionId, setEditingChordRegionId] = useState<string | null>(null);
 
-  const markerTrack = useMemo(
-    () => globalTracks.find(track => track.getType() === GlobalTrackType.Marker) ?? null,
-    [globalTracks]
+  const markerTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Marker) ?? null;
+  const markerRegions = (markerTrack?.getRegions() ?? []).filter(
+    (region): region is KGMarkerRegion => region instanceof KGMarkerRegion
   );
-  const markerRegions = useMemo(
-    () => (markerTrack?.getRegions() ?? []).filter((region): region is KGMarkerRegion => region instanceof KGMarkerRegion),
-    [markerTrack]
-  );
-  const signatureTrack = useMemo(
-    () => globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null,
-    [globalTracks]
-  );
-  const signatureRegions = useMemo(
-    () => (signatureTrack ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator) : []),
-    [signatureTrack, timeSignature.numerator]
-  );
-  const tempoTrack = useMemo(
-    () => globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null,
-    [globalTracks]
-  );
-  const tempoRegions = useMemo(
-    () => (tempoTrack ? getSortedTempoRegions(tempoTrack, timeSignature.numerator) : []),
-    [tempoTrack, timeSignature.numerator]
-  );
-  const chordTrack = useMemo(
-    () => globalTracks.find(track => track.getType() === GlobalTrackType.Chord) ?? null,
-    [globalTracks]
-  );
-  const chordRegions = useMemo(
-    () => (chordTrack?.getRegions() ?? []).filter((region): region is KGChordRegion => region instanceof KGChordRegion),
-    [chordTrack]
+  const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null;
+  const signatureRegions = signatureTrack
+    ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator)
+    : [];
+  const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
+  const tempoRegions = tempoTrack
+    ? getSortedTempoRegions(tempoTrack, timeSignature.numerator)
+    : [];
+  const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord) ?? null;
+  const chordRegions = (chordTrack?.getRegions() ?? []).filter(
+    (region): region is KGChordRegion => region instanceof KGChordRegion
   );
 
   const beginEditingGlobalRegion = useCallback((regionId: string) => {
@@ -202,7 +186,6 @@ export function useMainContentGlobalTracks({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingGlobalRegionId(createdRegion.getId());
       setEditingGlobalRegionText(createdRegion.getName());
     } catch (error) {
@@ -253,7 +236,6 @@ export function useMainContentGlobalTracks({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingKeySignatureRegionId(createdRegion.getId());
     } catch (error) {
       console.error('Error creating key signature region:', error);
@@ -339,7 +321,6 @@ export function useMainContentGlobalTracks({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingTempoRegionId(createdRegion.getId());
       setEditingTempoText(createdRegion.getBpm().toString());
     } catch (error) {
@@ -385,7 +366,6 @@ export function useMainContentGlobalTracks({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingChordRegionId(createdRegion.getId());
     } catch (error) {
       console.error('Error creating chord region:', error);
@@ -416,7 +396,6 @@ export function useMainContentGlobalTracks({
         return null;
       }
 
-      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingChordRegionId(createdRegion.getId());
       return createdRegion;
     } catch (error) {

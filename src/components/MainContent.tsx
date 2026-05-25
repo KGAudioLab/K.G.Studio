@@ -122,6 +122,9 @@ const MainContent: React.FC<MainContentProps> = ({
     editingRegionIds: mainContentGlobalTracks.editingRegionIds,
     findProjectRegionById: mainContentRegions.selection.findProjectRegionById,
   });
+  const deleteSelectedRegularRegions = mainContentRegions.deleteSelectedRegions;
+  const deleteSelectedGlobalRegions = mainContentGlobalTracks.deleteSelectedGlobalRegions;
+  const isGlobalRegionId = mainContentRegions.selection.isGlobalRegionId;
 
   const deleteSelectedTrackAutomationPoints = useCallback((): boolean => {
     if (!activeTrackAutomationTrackId || !activeTrackAutomationType || selectedTrackAutomationPointIds.length === 0) {
@@ -159,22 +162,22 @@ const MainContent: React.FC<MainContentProps> = ({
 
   useEffect(() => {
     regionDeleteManager.registerDeleteCallback(() => {
-      if (mainContentGlobalTracks.deleteSelectedGlobalRegions()) {
+      if (deleteSelectedGlobalRegions()) {
         return true;
       }
       if (deleteSelectedTrackAutomationPoints()) {
         return true;
       }
-      return mainContentRegions.deleteSelectedRegions();
+      return deleteSelectedRegularRegions();
     });
 
     return () => {
       regionDeleteManager.unregisterDeleteCallback();
     };
   }, [
+    deleteSelectedGlobalRegions,
+    deleteSelectedRegularRegions,
     deleteSelectedTrackAutomationPoints,
-    mainContentGlobalTracks,
-    mainContentRegions,
   ]);
 
   useEffect(() => {
@@ -192,12 +195,12 @@ const MainContent: React.FC<MainContentProps> = ({
 
       if (event.key === 'Backspace' || event.key === 'Delete') {
         const isInPianoRoll = document.querySelector('.piano-roll')?.contains(event.target as Node);
-        const hasSelectedGlobalRegions = selectedRegionIds.some(mainContentRegions.selection.isGlobalRegionId);
+        const hasSelectedGlobalRegions = selectedRegionIds.some(isGlobalRegionId);
 
         if (!isInPianoRoll && (!showPianoRoll || hasSelectedGlobalRegions)) {
-          const deleted = mainContentGlobalTracks.deleteSelectedGlobalRegions()
+          const deleted = deleteSelectedGlobalRegions()
             || deleteSelectedTrackAutomationPoints()
-            || mainContentRegions.deleteSelectedRegions();
+            || deleteSelectedRegularRegions();
           if (deleted) {
             event.preventDefault();
           }
@@ -208,9 +211,10 @@ const MainContent: React.FC<MainContentProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    deleteSelectedGlobalRegions,
+    deleteSelectedRegularRegions,
     deleteSelectedTrackAutomationPoints,
-    mainContentGlobalTracks,
-    mainContentRegions,
+    isGlobalRegionId,
     selectedRegionIds,
     showPianoRoll,
   ]);
