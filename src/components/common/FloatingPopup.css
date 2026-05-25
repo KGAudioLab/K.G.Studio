@@ -12,6 +12,7 @@
 .floating-popup-surface {
   --floating-popup-bg: #2d2d2d;
   --floating-popup-border: #4a4a4a;
+  --floating-popup-radius: 8px;
   --floating-popup-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
   position: absolute;
   z-index: 10000;
@@ -27,7 +28,7 @@
   position: relative;
   background: var(--floating-popup-bg);
   border: 1px solid var(--floating-popup-border);
-  border-radius: 28px;
+  border-radius: var(--floating-popup-radius);
   box-shadow: var(--floating-popup-shadow);
 }
 
