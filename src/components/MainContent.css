@@ -359,9 +359,14 @@
   overflow: visible;
 }
 
+.global-tempo-region {
+  background: #dff2ff;
+  color: #24314a;
+}
+
 .global-chord-region {
-  background: #dc8b3f;
-  color: #2f2215;
+  background: #f6dfc8;
+  color: #3d2f20;
   overflow: visible;
 }
 

@@ -98,4 +98,26 @@ describe('GlobalTempoLane', () => {
     fireEvent.change(screen.getByDisplayValue('128'), { target: { value: '12a8!' } });
     expect(onEditingTextChange).toHaveBeenCalledWith('128');
   });
+
+  it('renders tempo regions with the dedicated tempo-region class', () => {
+    const { container } = render(
+      <GlobalTempoLane
+        tempoRegions={[baseRegion]}
+        maxBars={8}
+        barWidthMultiplier={1}
+        selectedRegionIds={[]}
+        editingRegionId={null}
+        editingText=""
+        onEditingTextChange={vi.fn()}
+        onCommitEdit={vi.fn()}
+        onCancelEdit={vi.fn()}
+        onBeginEdit={vi.fn()}
+        onSelectRegion={vi.fn()}
+        onCreateAtBar={vi.fn()}
+        onResizeRegion={vi.fn()}
+      />
+    );
+
+    expect(container.querySelector('.global-marker-region.global-tempo-region')).toBeInTheDocument();
+  });
 });
