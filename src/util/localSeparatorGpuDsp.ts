@@ -10,12 +10,73 @@ function localSeparatorLog(message: string, payload?: unknown): void {
   console.log(`[localSeparator] ${message}`, payload);
 }
 
-type GPUDeviceLike = any;
-type GPUBufferLike = any;
-type GPUComputePipelineLike = any;
+interface GPUBufferLike {
+  destroy(): void;
+  mapAsync(mode: number): Promise<void>;
+  getMappedRange(): ArrayBuffer;
+  unmap(): void;
+}
 
-declare const GPUBufferUsage: any;
-declare const GPUMapMode: any;
+interface GPUComputePassEncoderLike {
+  setPipeline(pipeline: GPUComputePipelineLike): void;
+  setBindGroup(index: number, bindGroup: unknown): void;
+  dispatchWorkgroups(x: number): void;
+  end(): void;
+}
+
+interface GPUCommandEncoderLike {
+  copyBufferToBuffer(source: GPUBufferLike, sourceOffset: number, destination: GPUBufferLike, destinationOffset: number, size: number): void;
+  beginComputePass(): GPUComputePassEncoderLike;
+  finish(): unknown;
+}
+
+interface GPUComputePipelineLike {
+  getBindGroupLayout(index: number): unknown;
+}
+
+interface GPUDeviceLike {
+  queue: {
+    submit(commands: unknown[]): void;
+    writeBuffer(buffer: GPUBufferLike, bufferOffset: number, data: BufferSource): void;
+  };
+  createBuffer(descriptor: { size: number; usage: number }): GPUBufferLike;
+  createCommandEncoder(): GPUCommandEncoderLike;
+  createBindGroup(descriptor: { layout: unknown; entries: Array<{ binding: number; resource: { buffer: GPUBufferLike } }> }): unknown;
+  createComputePipeline(descriptor: {
+    layout: 'auto';
+    compute: {
+      module: unknown;
+      entryPoint: string;
+    };
+  }): GPUComputePipelineLike;
+  createShaderModule(descriptor: { code: string }): unknown;
+}
+
+interface GPUAdapterLike {
+  features?: {
+    values?(): IterableIterator<unknown>;
+  };
+  limits?: unknown;
+  info?: unknown;
+  requestDevice(): Promise<GPUDeviceLike>;
+}
+
+interface NavigatorWithGpu {
+  gpu?: {
+    requestAdapter(options: { powerPreference: string }): Promise<GPUAdapterLike | null>;
+  };
+}
+
+declare const GPUBufferUsage: {
+  COPY_DST: number;
+  MAP_READ: number;
+  STORAGE: number;
+  COPY_SRC: number;
+  UNIFORM: number;
+};
+declare const GPUMapMode: {
+  READ: number;
+};
 
 const FRAMING_SHADER = `
 struct Params {
@@ -85,7 +146,7 @@ export class LocalSeparatorGpuDsp {
     }
 
     localSeparatorLog('Requesting WebGPU adapter for GPU DSP.');
-    const adapter = await (navigator as { gpu?: { requestAdapter: (options: { powerPreference: string }) => Promise<any> } }).gpu?.requestAdapter({
+    const adapter = await (navigator as NavigatorWithGpu).gpu?.requestAdapter({
       powerPreference: 'high-performance',
     });
     if (!adapter) {

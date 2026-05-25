@@ -15,7 +15,7 @@ vi.mock('../../stores/projectStore', () => ({
   }),
 }));
 
-const { __trackAutomationTestUtils } = await import('./TrackAutomationLane');
+const __trackAutomationTestUtils = await import('./trackAutomationLaneUtils');
 
 describe('TrackAutomationLane mapping', () => {
   it('maps volume 0.0dB to the visual midpoint and back', () => {

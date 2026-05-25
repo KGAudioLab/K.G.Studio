@@ -1270,7 +1270,7 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     const sortedRegions = [...chordRegions]
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat())
+      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
     const targetRegion = direction === 'forward'
       ? sortedRegions.find(region => region.getStartFromBeat() > currentStartBeat && region.getStartFromBeat() <= targetBarBeat)
       : [...sortedRegions]

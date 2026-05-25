@@ -79,11 +79,11 @@ function formatKGOneTabLabel(tab: Tab): string {
   return 'Separator';
 }
 
-export function getDefaultKGOneTab(mode: KGOneMode): Tab {
+function getDefaultKGOneTab(mode: KGOneMode): Tab {
   return mode === 'local-separator' ? 'separator' : 'fullsong';
 }
 
-export function getKGOneMode(): KGOneMode {
+function getKGOneMode(): KGOneMode {
   const enabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
   return enabled ? 'server' : 'local-separator';
 }

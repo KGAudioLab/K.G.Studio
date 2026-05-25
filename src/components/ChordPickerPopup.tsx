@@ -65,7 +65,7 @@ function createFallbackDescriptor(value: string): ChordDescriptor {
 }
 
 function normalizeDescriptor(descriptor: ChordDescriptor): ChordDescriptor {
-  let quality = descriptor.quality;
+  const quality = descriptor.quality;
   let extensions = [...descriptor.extensions];
 
   const dedupe = (nextExtensions: ChordExtension[]) => Array.from(new Set(nextExtensions));

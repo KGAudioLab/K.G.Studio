@@ -613,7 +613,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       return;
     }
 
-    let nextSelection = lassoShiftKeyRef.current ? new Set(selectedPointIdSet) : new Set<string>();
+    const nextSelection = lassoShiftKeyRef.current ? new Set(selectedPointIdSet) : new Set<string>();
 
     renderedPointsSorted.forEach(point => {
       const isIntersecting = (

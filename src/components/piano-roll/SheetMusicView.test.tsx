@@ -74,8 +74,8 @@ vi.mock('vexflow', () => {
       return this;
     }
 
-    addKeySignature() {
-      vexflowMocks.addKeySignatureMock(...arguments);
+    addKeySignature(...args: unknown[]) {
+      vexflowMocks.addKeySignatureMock(...args);
       return this;
     }
 
