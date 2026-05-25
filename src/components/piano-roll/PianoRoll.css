@@ -316,9 +316,30 @@
   font-weight: bold;
   color: #e0e0e0;
   /* text-transform: uppercase; */
-  cursor: pointer;
+  cursor: text;
   padding: 5px;
   border-radius: 3px;
+}
+
+.piano-roll-title-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 5px 8px;
+  box-sizing: border-box;
+  border: 1px solid #5a5a5a;
+  border-radius: 6px;
+  outline: none;
+  background-color: #4a4a4a;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.piano-roll-title-input:focus {
+  border-color: #5a9fd4;
+  background-color: #4a4a4a;
 }
 
 .close-button {

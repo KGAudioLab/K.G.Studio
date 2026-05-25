@@ -94,24 +94,37 @@
 /* Remove drag indicator since hover cursor is sufficient */
 
 .track-name {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
   font-size: 12px;
-  cursor: pointer;
-  position: relative;
+  cursor: text;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.track-name:hover {
-  color: #5a9fd4;
+.track-name-input {
+  width: 100%;
+  min-height: 24px;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  border: 1px solid #5a5a5a;
+  border-radius: 6px;
+  outline: none;
+  background-color: #4a4a4a;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: inherit;
+  line-height: 1.2;
 }
 
-.track-name:hover::before {
-  content: "\270E";
-  position: absolute;
-  right: 0px;
-  font-size: 16px;
-  opacity: 1;
+.track-name-input:focus {
+  border-color: #5a9fd4;
+  background-color: #4a4a4a;
 }
 
 .track-controls {

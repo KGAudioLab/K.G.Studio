@@ -12,7 +12,7 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
-import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
+import { showAlert, showConfirm } from '../../util/dialogUtil';
 import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoint';
 
 const UNITY_POS = 750;
@@ -94,6 +94,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const [isEditingVolume, setIsEditingVolume] = useState(false);
   const [volumeInputText, setVolumeInputText] = useState('');
   const volumeInputRef = useRef<HTMLInputElement>(null);
+  const [isEditingTrackName, setIsEditingTrackName] = useState(false);
+  const [trackNameInput, setTrackNameInput] = useState(track.getName());
+  const trackNameInputRef = useRef<HTMLInputElement>(null);
   // Local flag to track slider interaction; not used for rendering
   const isAdjustingVolumeRef = useRef(false);
   const [muted, setMuted] = useState(track.getMuted());
@@ -135,21 +138,43 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     setVolume(track.getVolume());
   }, [allTracks, track]);
 
+  useEffect(() => {
+    if (!isEditingTrackName) {
+      setTrackNameInput(track.getName());
+    }
+  }, [isEditingTrackName, track, allTracks]);
+
   // Sync mute/solo UI with the track model on track/project changes
   useEffect(() => {
     setMuted(track.getMuted());
     setSolo(track.getSolo());
   }, [allTracks, track]);
   
-  // Handle track name edit within the component
-  const handleTrackNameClick = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent opening piano roll when clicking track name
+  const beginTrackNameEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTrackNameInput(track.getName());
+    setIsEditingTrackName(true);
+    window.setTimeout(() => {
+      trackNameInputRef.current?.focus();
+      trackNameInputRef.current?.select();
+    }, 0);
+  };
 
-    const newName = await showPrompt("Enter track name:", track.getName());
-    if (newName) {
-      // Call the parent handler with the new name
-      onTrackNameEdit(track, newName);
+  const cancelTrackNameEdit = () => {
+    setTrackNameInput(track.getName());
+    setIsEditingTrackName(false);
+  };
+
+  const commitTrackNameEdit = () => {
+    const trimmedName = trackNameInput.trim();
+    setIsEditingTrackName(false);
+    setTrackNameInput(track.getName());
+
+    if (!trimmedName || trimmedName === track.getName()) {
+      return;
     }
+
+    onTrackNameEdit(track, trimmedName);
   };
 
   // Prevent drag reordering when interacting with interactive controls
@@ -388,13 +413,38 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             )}
           </div>
           <div className="track-name-and-controls">
-            <div
-              className="track-name"
-              onClick={handleTrackNameClick}
-              title={track.getName()}
-            >
-              {track.getName()}
-            </div>
+            {isEditingTrackName ? (
+              <input
+                ref={trackNameInputRef}
+                className="track-name-input"
+                type="text"
+                value={trackNameInput}
+                onChange={(e) => setTrackNameInput(e.target.value.replace(/\r?\n/g, ' '))}
+                onBlur={commitTrackNameEdit}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    commitTrackNameEdit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    cancelTrackNameEdit();
+                  }
+                }}
+              />
+            ) : (
+              <div
+                className="track-name"
+                onClick={beginTrackNameEdit}
+                title={track.getName()}
+              >
+                {track.getName()}
+              </div>
+            )}
             <div className="volume-slider">
               <input
                 type="range"

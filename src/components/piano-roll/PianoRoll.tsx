@@ -17,7 +17,7 @@ import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
 import { UpdateRegionCommand } from '../../core/commands';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
-import { showAlert, showPrompt } from '../../util/dialogUtil';
+import { showAlert } from '../../util/dialogUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
@@ -103,6 +103,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [sheetMusicTrackScopeEnabled, setSheetMusicTrackScopeEnabled] = useState(false);
   const [sheetQuantization, setSheetQuantization] = useState('16,48');
   const [sheetMeasureMetrics, setSheetMeasureMetrics] = useState<SheetMeasureMetric[]>([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInputValue, setTitleInputValue] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -419,41 +422,62 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
   }, [isDragging, isResizing, dragOffset, position]);
 
-  // Handle title click to rename the region
-  const handleTitleClick = async () => {
-    // If we were just dragging, don't show the rename dialog
-    if (wasDraggingRef.current) {
-      if (DEBUG_MODE.PIANO_ROLL) {
-        console.log("Skipping rename dialog because the window was just dragged");
-      }
+  useEffect(() => {
+    if (!isEditingTitle && activeRegion) {
+      setTitleInputValue(activeRegion.getName());
+    }
+  }, [activeRegion, isEditingTitle]);
+
+  const cancelTitleEdit = () => {
+    setTitleInputValue(activeRegion?.getName() ?? '');
+    setIsEditingTitle(false);
+  };
+
+  const commitTitleEdit = async () => {
+    if (!activeRegion) {
+      setIsEditingTitle(false);
       return;
     }
 
-    if (!activeRegion) return;
+    const newName = titleInputValue.trim();
+    setIsEditingTitle(false);
+    setTitleInputValue(activeRegion.getName());
 
-    // Show a prompt to get the new name
-    const newName = await showPrompt("Enter a new name for the region:", activeRegion.getName());
+    if (!newName || newName === activeRegion.getName()) return;
 
-    // If the user clicked Cancel or entered an empty string, do nothing
-    if (!newName || newName.trim() === '' || newName === activeRegion.getName()) return;
-
-    // Use command pattern to update the region name with undo support
     try {
-      const command = new UpdateRegionCommand(activeRegion.getId(), { name: newName.trim() });
+      const command = new UpdateRegionCommand(activeRegion.getId(), { name: newName });
       KGCore.instance().executeCommand(command);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Executed UpdateRegionCommand: renamed region ${activeRegion.getId()} to "${newName}" using command pattern`);
       }
 
-      // Update the store to trigger re-render
       const updatedTracks = [...tracks];
       useProjectStore.setState({ tracks: updatedTracks });
-
     } catch (error) {
       console.error('Error renaming region:', error);
       await showAlert('Failed to rename region. Please try again.');
     }
+  };
+
+  // Handle title click to rename the region
+  const handleTitleClick = () => {
+    // If we were just dragging, don't show the rename dialog
+    if (wasDraggingRef.current) {
+      if (DEBUG_MODE.PIANO_ROLL) {
+        console.log("Skipping inline rename because the window was just dragged");
+      }
+      return;
+    }
+
+    if (!activeRegion) return;
+    setTitleInputValue(activeRegion.getName());
+    setIsEditingTitle(true);
+    window.setTimeout(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 0);
   };
 
   // Handle tool selection
@@ -1274,8 +1298,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       <PianoRollHeader
         onClose={onClose}
         title={getPianoRollTitle()}
+        isEditingTitle={isEditingTitle}
+        titleInputValue={titleInputValue}
         onTitleClick={handleTitleClick}
+        onTitleInputChange={setTitleInputValue}
+        onTitleCommit={() => { void commitTitleEdit(); }}
+        onTitleCancel={cancelTitleEdit}
         onMouseDown={(e) => handleMouseDown(e, 'drag')}
+        titleInputRef={titleInputRef}
       />
 
       <PianoRollToolbar
