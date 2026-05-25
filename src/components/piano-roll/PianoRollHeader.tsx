@@ -58,7 +58,7 @@ const PianoRollHeader: React.FC<PianoRollHeaderProps> = ({
         <div 
           className="piano-roll-title"
           onClick={onTitleClick}
-          title="Click to rename region"
+          title={title}
         >
           {title}
         </div>
