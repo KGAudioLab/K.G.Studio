@@ -1,10 +1,11 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MainContent from './MainContent';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGChordRegion } from '../core/region/KGChordRegion';
+import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { createDefaultGlobalTracks, GlobalTrackType } from '../core/global-track';
 import { createMockMidiTrack } from '../test/utils/mock-data';
@@ -71,7 +72,7 @@ const storeState = {
 // eslint-disable-next-line no-unused-vars
 type StoreSelector = (...args: [typeof storeState]) => unknown;
 // eslint-disable-next-line no-unused-vars
-type RegionClickHandler = (...args: [string, { shiftKey: boolean }]) => void;
+type RegionClickHandler = (...args: [string, { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }]) => void;
 
 const finishTrackCreateDialogClose = () => {
   const overlay = document.querySelector('.dialog-overlay');
@@ -116,14 +117,26 @@ vi.mock('./track/TrackInfoPanel', () => ({
 vi.mock('./track/TrackGridPanel', () => ({
   default: ({ onRegionClick }: { onRegionClick?: RegionClickHandler }) => (
     <>
-      <button type="button" onClick={() => onRegionClick?.('region-1', { shiftKey: false })}>
+      <button type="button" onClick={() => onRegionClick?.('region-1', { shiftKey: false, metaKey: false, ctrlKey: false })}>
         select-midi-region
       </button>
-      <button type="button" onClick={() => onRegionClick?.('region-2', { shiftKey: false })}>
+      <button type="button" onClick={() => onRegionClick?.('region-2', { shiftKey: false, metaKey: false, ctrlKey: false })}>
         select-second-midi-region
       </button>
-      <button type="button" onClick={() => onRegionClick?.('audio-1', { shiftKey: false })}>
+      <button type="button" onClick={() => onRegionClick?.('region-2', { shiftKey: true, metaKey: false, ctrlKey: false })}>
+        shift-select-second-midi-region
+      </button>
+      <button type="button" onClick={() => onRegionClick?.('region-2', { shiftKey: false, metaKey: true, ctrlKey: false })}>
+        meta-select-second-midi-region
+      </button>
+      <button type="button" onClick={() => onRegionClick?.('region-2', { shiftKey: true, metaKey: true, ctrlKey: false })}>
+        shift-meta-select-second-midi-region
+      </button>
+      <button type="button" onClick={() => onRegionClick?.('audio-1', { shiftKey: false, metaKey: false, ctrlKey: false })}>
         select-audio-region
+      </button>
+      <button type="button" onClick={() => onRegionClick?.('audio-1', { shiftKey: false, metaKey: true, ctrlKey: false })}>
+        meta-select-audio-region
       </button>
     </>
   ),
@@ -139,6 +152,9 @@ vi.mock('./piano-roll/PianoRoll', () => ({
 
 describe('MainContent', () => {
   beforeEach(() => {
+    midiTrack.setRegions([midiRegion, anotherMidiRegion]);
+    audioTrack.setRegions([audioRegion]);
+    storeState.tracks = [midiTrack, audioTrack];
     storeState.globalTracks = createDefaultGlobalTracks();
     storeState.selectedRegionIds = [];
     storeState.activeRegionId = null;
@@ -205,6 +221,77 @@ describe('MainContent', () => {
 
     expect(storeState.activeRegionId).toBe('audio-1');
     expect(storeState.openSpectrogramViewer).toHaveBeenCalledWith('audio-1');
+  });
+
+  it('cmd-click adds a second regular region without range fill', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'meta-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1', 'region-2']);
+    expect(storeState.activeRegionId).toBe('region-2');
+  });
+
+  it('cmd-click on an already selected regular region removes it', () => {
+    storeState.selectedRegionIds = ['region-1', 'region-2'];
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'meta-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1']);
+  });
+
+  it('shift-click on the same track selects the full in-between range and keeps the clicked region primary', () => {
+    const middleMidiRegion = new KGMidiRegion('region-1b', '1', 0, 'Region 1B', 4, 4);
+    midiTrack.setRegions([midiRegion, middleMidiRegion, anotherMidiRegion]);
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'shift-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1', 'region-1b', 'region-2']);
+
+    midiTrack.setRegions([midiRegion, anotherMidiRegion]);
+  });
+
+  it('shift-click with no same-track anchor falls back to single selection', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'shift-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-2']);
+  });
+
+  it('shift-click preserves already selected regions on other regular tracks', () => {
+    const middleMidiRegion = new KGMidiRegion('region-1b', '1', 0, 'Region 1B', 4, 4);
+    midiTrack.setRegions([midiRegion, middleMidiRegion, anotherMidiRegion]);
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'meta-select-audio-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'shift-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['audio-1', 'region-1', 'region-1b', 'region-2']);
+
+    midiTrack.setRegions([midiRegion, anotherMidiRegion]);
+  });
+
+  it('shift-plus-cmd-click uses additive-toggle behavior instead of range selection', () => {
+    const middleMidiRegion = new KGMidiRegion('region-1b', '1', 0, 'Region 1B', 4, 4);
+    midiTrack.setRegions([midiRegion, middleMidiRegion, anotherMidiRegion]);
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'shift-meta-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1', 'region-2']);
+
+    midiTrack.setRegions([midiRegion, anotherMidiRegion]);
   });
 
   it('explicit close still clears piano roll visibility and active region', () => {
@@ -352,6 +439,123 @@ describe('MainContent', () => {
     expect((executeCommandMock.mock.calls[1][0] as { startBeat?: number }).startBeat).toBe(5);
   });
 
+  it('selecting a global region clears regular-region selection', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByText('Am'));
+
+    expect(storeState.selectedRegionIds).toEqual(['chord-1']);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('shift-click across globals ranges only within the same global lane and keeps the clicked region primary', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', 4, 4),
+      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByText('Am'));
+    fireEvent.click(screen.getByText('G'), { shiftKey: true });
+
+    expect(storeState.selectedRegionIds).toEqual(['chord-1', 'chord-2', 'chord-3']);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('shift-clicking from the first chord region to the last chord region selects the full chord range', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', 4, 4),
+      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+
+    const firstChord = screen.getByText('Am');
+    const lastChord = screen.getByText('G');
+
+    fireEvent.mouseDown(firstChord, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.mouseUp(window, { clientX: 10, clientY: 10 });
+    fireEvent.click(firstChord);
+
+    fireEvent.mouseDown(lastChord, { clientX: 10, clientY: 10, button: 0, shiftKey: true });
+    fireEvent.mouseUp(window, { clientX: 10, clientY: 10, shiftKey: true });
+    fireEvent.click(lastChord, { shiftKey: true });
+
+    expect(storeState.selectedRegionIds).toEqual(['chord-1', 'chord-2', 'chord-3']);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('cmd-clicking a region in a different global lane clears the previous global selection', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+    ]);
+    tempoTrack?.setRegions([
+      new KGTempoRegion('tempo-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 4, 4),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByText('Am'));
+    fireEvent.click(screen.getByText('128 BPM'), { metaKey: true });
+
+    expect(storeState.selectedRegionIds).toEqual(['tempo-1']);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
+  it('shift-clicking a region in a different global lane clears the previous global selection', () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+    ]);
+    tempoTrack?.setRegions([
+      new KGTempoRegion('tempo-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 4, 4),
+      new KGTempoRegion('tempo-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 4, 4, 4),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByText('Am'));
+    fireEvent.click(screen.getByText('140 BPM'), { shiftKey: true });
+
+    expect(storeState.selectedRegionIds).toEqual(['tempo-2']);
+
+    storeState.globalTracks = createDefaultGlobalTracks();
+  });
+
   it('uses split-insert chord command when the playhead is inside an existing chord region', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
@@ -438,5 +642,47 @@ describe('MainContent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Key Signature global track item' }));
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates new marker regions with a one-bar default length', () => {
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Marker global track item' }));
+
+    expect(executeCommandMock).toHaveBeenCalledTimes(1);
+    expect((executeCommandMock.mock.calls[0][0] as { preferredLength?: number }).preferredLength).toBe(
+      storeState.timeSignature.numerator
+    );
+  });
+
+  it('keeps a double-clicked global region editor visible past the sticky left panel', async () => {
+    const globalTracks = createDefaultGlobalTracks();
+    const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
+    chordTrack?.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 40, 16),
+    ]);
+    storeState.globalTracks = globalTracks;
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    const { container } = render(<MainContent />);
+    const mainContent = container.querySelector('.main-content') as HTMLDivElement;
+    Object.defineProperty(mainContent, 'scrollWidth', { configurable: true, value: 4000 });
+    Object.defineProperty(mainContent, 'clientWidth', { configurable: true, value: 900 });
+    mainContent.scrollLeft = 500;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    fireEvent.doubleClick(screen.getByText('Am'));
+
+    await waitFor(() => {
+      expect(mainContent.scrollLeft).toBe(188);
+    });
+
+    requestAnimationFrameSpy.mockRestore();
+    storeState.globalTracks = createDefaultGlobalTracks();
   });
 });

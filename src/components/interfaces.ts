@@ -25,6 +25,8 @@ export interface RegionPreviewContentStyle {
 
 export interface RegionClickOptions {
   shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
 }
 
 // Define resize action types

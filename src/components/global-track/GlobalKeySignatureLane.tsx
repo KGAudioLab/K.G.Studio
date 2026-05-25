@@ -26,6 +26,11 @@ type ResizeEdge = 'start' | 'end' | null;
 
 const REGION_EDGE_HITBOX_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
+const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
+  shiftKey: event.shiftKey,
+  metaKey: event.metaKey,
+  ctrlKey: event.ctrlKey,
+});
 
 const GlobalKeySignatureLane: React.FC<GlobalKeySignatureLaneProps> = ({
   signatureRegions,
@@ -45,6 +50,7 @@ const GlobalKeySignatureLane: React.FC<GlobalKeySignatureLaneProps> = ({
   const [previewBars, setPreviewBars] = useState<Record<string, { startBar: number; lengthBars: number }>>({});
   const [hoverEdges, setHoverEdges] = useState<Record<string, ResizeEdge>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
+  const suppressClickSelectionRef = useRef(false);
   const interactionRef = useRef<{
     mode: 'resize' | null;
     regionId: string;
@@ -223,7 +229,8 @@ const GlobalKeySignatureLane: React.FC<GlobalKeySignatureLaneProps> = ({
       setPreviewBars({});
 
       if (!shouldResize) {
-        onSelectRegion(interaction.regionId, { shiftKey: event.shiftKey });
+        suppressClickSelectionRef.current = true;
+        onSelectRegion(interaction.regionId, getRegionClickOptions(event));
         return;
       }
 
@@ -326,7 +333,11 @@ const GlobalKeySignatureLane: React.FC<GlobalKeySignatureLaneProps> = ({
               }}
               onClick={(event) => {
                 event.stopPropagation();
-                onSelectRegion(region.getId(), { shiftKey: event.shiftKey });
+                if (suppressClickSelectionRef.current) {
+                  suppressClickSelectionRef.current = false;
+                  return;
+                }
+                onSelectRegion(region.getId(), getRegionClickOptions(event));
               }}
               onDoubleClick={(event) => {
                 event.preventDefault();

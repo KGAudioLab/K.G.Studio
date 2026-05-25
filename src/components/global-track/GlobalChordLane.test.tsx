@@ -29,6 +29,7 @@ describe('GlobalChordLane', () => {
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
         onOpenPopup={onOpenPopup}
+        onTabNavigate={vi.fn()}
       />
     );
 
@@ -54,6 +55,7 @@ describe('GlobalChordLane', () => {
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
         onOpenPopup={vi.fn()}
+        onTabNavigate={vi.fn()}
       />
     );
 
@@ -95,6 +97,7 @@ describe('GlobalChordLane', () => {
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
         onOpenPopup={vi.fn()}
+        onTabNavigate={vi.fn()}
       />
     );
 
@@ -116,5 +119,32 @@ describe('GlobalChordLane', () => {
     fireEvent.mouseUp(window, { clientX: 32, clientY: 10 });
 
     expect(onMoveRegion).toHaveBeenCalledWith('chord-1', 2);
+  });
+
+  it('passes modifier state through region selection clicks', () => {
+    const onSelectRegion = vi.fn();
+
+    render(
+      <GlobalChordLane
+        chordRegions={[baseRegion]}
+        maxBars={8}
+        barWidthMultiplier={1}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        selectedRegionIds={[]}
+        popupRegionId={null}
+        onClosePopup={vi.fn()}
+        onSelectRegion={onSelectRegion}
+        onCreateAtBeat={vi.fn()}
+        onMoveRegion={vi.fn()}
+        onResizeRegion={vi.fn()}
+        onChangeChord={vi.fn()}
+        onOpenPopup={vi.fn()}
+        onTabNavigate={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Cmaj7'), { metaKey: true, shiftKey: true });
+
+    expect(onSelectRegion).toHaveBeenCalledWith('chord-1', { shiftKey: true, metaKey: true, ctrlKey: false });
   });
 });

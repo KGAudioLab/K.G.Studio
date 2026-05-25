@@ -26,6 +26,11 @@ type ResizeEdge = 'start' | 'end' | null;
 
 const REGION_EDGE_HITBOX_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
+const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
+  shiftKey: event.shiftKey,
+  metaKey: event.metaKey,
+  ctrlKey: event.ctrlKey,
+});
 
 const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
   markerRegions,
@@ -186,7 +191,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
 
       if (!interaction.moved) {
         setPreviewBeats({});
-        onSelectRegion(interaction.regionId, { shiftKey: event.shiftKey });
+        onSelectRegion(interaction.regionId, getRegionClickOptions(event));
         return;
       }
 
@@ -263,7 +268,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
             }}
             onDoubleClick={(event) => {
               event.stopPropagation();
-              onSelectRegion(region.getId(), { shiftKey: false });
+              onSelectRegion(region.getId(), { shiftKey: false, metaKey: false, ctrlKey: false });
               onBeginEdit(region.getId());
             }}
             onMouseMove={(event) => {

@@ -24,6 +24,11 @@ type ResizeEdge = 'start' | 'end' | null;
 
 const REGION_EDGE_HITBOX_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
+const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
+  shiftKey: event.shiftKey,
+  metaKey: event.metaKey,
+  ctrlKey: event.ctrlKey,
+});
 
 const GlobalTempoLane: React.FC<GlobalTempoLaneProps> = ({
   tempoRegions,
@@ -44,6 +49,7 @@ const GlobalTempoLane: React.FC<GlobalTempoLaneProps> = ({
   const [previewBars, setPreviewBars] = useState<Record<string, { startBar: number; lengthBars: number }>>({});
   const [hoverEdges, setHoverEdges] = useState<Record<string, ResizeEdge>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
+  const suppressClickSelectionRef = useRef(false);
   const interactionRef = useRef<{
     mode: 'resize' | null;
     regionId: string;
@@ -222,7 +228,8 @@ const GlobalTempoLane: React.FC<GlobalTempoLaneProps> = ({
       setPreviewBars({});
 
       if (!shouldResize) {
-        onSelectRegion(interaction.regionId, { shiftKey: event.shiftKey });
+        suppressClickSelectionRef.current = true;
+        onSelectRegion(interaction.regionId, getRegionClickOptions(event));
         return;
       }
 
@@ -328,12 +335,16 @@ const GlobalTempoLane: React.FC<GlobalTempoLaneProps> = ({
             }}
             onClick={(event) => {
               event.stopPropagation();
-              onSelectRegion(region.getId(), { shiftKey: event.shiftKey });
+              if (suppressClickSelectionRef.current) {
+                suppressClickSelectionRef.current = false;
+                return;
+              }
+              onSelectRegion(region.getId(), getRegionClickOptions(event));
             }}
             onDoubleClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              onSelectRegion(region.getId(), { shiftKey: false });
+              onSelectRegion(region.getId(), { shiftKey: false, metaKey: false, ctrlKey: false });
               onBeginEdit(region.getId());
             }}
           >

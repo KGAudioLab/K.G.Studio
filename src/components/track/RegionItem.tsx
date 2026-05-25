@@ -14,6 +14,11 @@ import { KGCore } from '../../core/KGCore';
 import { beatRangeToSeconds } from '../../util/globalTrackUtil';
 
 const DRAG_START_THRESHOLD_PX = 4;
+const getRegionClickOptions = (event: Pick<React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
+  shiftKey: event.shiftKey,
+  metaKey: event.metaKey,
+  ctrlKey: event.ctrlKey,
+});
 
 interface RegionItemProps {
   id: string;
@@ -481,7 +486,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         if (DEBUG_MODE.REGION_ITEM) {
           console.log(`REGION CLICKED (pencil mode): regionId=${id}`);
         }
-        onClick(id, { shiftKey: e.shiftKey });
+        onClick(id, getRegionClickOptions(e));
       }
       return;
     }
@@ -608,7 +613,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (DEBUG_MODE.REGION_ITEM) {
         console.log(`REGION CLICKED: regionId=${id}`);
       }
-      onClick(id, { shiftKey: e.shiftKey });
+      onClick(id, getRegionClickOptions(e));
     }
 
     isPendingDragRef.current = false;
@@ -708,7 +713,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
                 if (onOpenPianoRoll) {
                   onOpenPianoRoll(id);
                 } else if (onClick) {
-                  onClick(id, { shiftKey: e.shiftKey });
+                  onClick(id, getRegionClickOptions(e));
                 }
               }}
               aria-label="Open piano roll"

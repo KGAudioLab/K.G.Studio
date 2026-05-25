@@ -20,6 +20,12 @@ import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
 import { getAudioRegionDisplayLengthBeats } from '../../util/globalTrackUtil';
 
+const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
+  shiftKey: event.shiftKey,
+  metaKey: event.metaKey,
+  ctrlKey: event.ctrlKey,
+});
+
 interface TrackGridPanelProps {
   tracks: KGTrack[];
   regions: RegionUI[];
@@ -130,7 +136,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
     if (isClick) {
       if (!isLassoShiftPressedRef.current) {
-        onRegionLassoSelection?.([], { shiftKey: false });
+        onRegionLassoSelection?.([], getRegionClickOptions({ shiftKey: false, metaKey: false, ctrlKey: false }));
       }
     } else {
       const containerWidth = gridContainerRef.current.clientWidth;
@@ -194,7 +200,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         intersectedRegionIds.push(primaryRegionId);
       }
 
-      onRegionLassoSelection?.(intersectedRegionIds, { shiftKey: isLassoShiftPressedRef.current });
+      onRegionLassoSelection?.(intersectedRegionIds, {
+        shiftKey: isLassoShiftPressedRef.current,
+        metaKey: false,
+        ctrlKey: false,
+      });
       onRegionLassoCommit?.();
     }
 
@@ -390,12 +400,23 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     createRegionAtPosition(e, trackIndex);
   };
 
-  // Handle single click on track grid for pencil mode or modifier+click
+  // Handle single click on track grid for pencil mode or modifier-click on empty space.
   const handleTrackGridClick = (e: React.MouseEvent<HTMLDivElement>, trackIndex: number) => {
-    // Create region on single click in pencil mode OR when modifier key is pressed
-    if (KGMainContentState.instance().getActiveTool() === 'pencil' || isModifierKeyPressed(e)) {
-      createRegionAtPosition(e, trackIndex);
+    if (!(e.target instanceof HTMLElement)) {
+      return;
     }
+
+    const clickedInsideRegion = e.target.closest('.track-region');
+    if (clickedInsideRegion) {
+      return;
+    }
+
+    const isPencilMode = KGMainContentState.instance().getActiveTool() === 'pencil';
+    if (!isPencilMode && !isModifierKeyPressed(e)) {
+      return;
+    }
+
+    createRegionAtPosition(e, trackIndex);
   };
 
   // Handle region resize during drag

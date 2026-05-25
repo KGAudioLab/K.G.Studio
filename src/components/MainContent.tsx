@@ -70,6 +70,12 @@ const GLOBAL_TRACKS: GlobalTrackDefinition[] = [
   { id: 'chord', label: 'Chord' },
 ];
 
+const DEFAULT_REGION_CLICK_OPTIONS: RegionClickOptions = {
+  shiftKey: false,
+  metaKey: false,
+  ctrlKey: false,
+};
+
 const MainContent: React.FC<MainContentProps> = ({
   onTrackClick = () => { } // Default to empty function if not provided
 }) => {
@@ -417,6 +423,57 @@ const MainContent: React.FC<MainContentProps> = ({
     useProjectStore.setState({ mainContentScrollRequest: null });
   }, [mainContentScrollRequest, timeSignature]);
 
+  useEffect(() => {
+    const editingRegionId = editingGlobalRegionId
+      ?? editingTempoRegionId
+      ?? editingKeySignatureRegionId
+      ?? editingChordRegionId;
+    if (!editingRegionId) {
+      return;
+    }
+
+    const container = mainContentRef.current;
+    if (!container) {
+      return;
+    }
+
+    const editingRegion = findProjectRegionById(editingRegionId);
+    if (!(editingRegion instanceof KGGlobalRegion)) {
+      return;
+    }
+
+    const barWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
+    const leftInset = (parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width'),
+      10
+    ) || 200) + 12;
+    const regionStartBeat = editingRegion instanceof KGTempoRegion || editingRegion instanceof KGKeySignatureRegion
+      ? editingRegion.getStartBar() * timeSignature.numerator
+      : editingRegion.getStartFromBeat();
+    const regionStartPixel = (regionStartBeat / timeSignature.numerator) * barWidth;
+    const minimumVisiblePixel = container.scrollLeft + leftInset;
+
+    if (regionStartPixel >= minimumVisiblePixel) {
+      return;
+    }
+
+    const targetScrollLeft = Math.max(0, regionStartPixel - leftInset);
+    requestAnimationFrame(() => {
+      if (!mainContentRef.current) {
+        return;
+      }
+      mainContentRef.current.scrollLeft = targetScrollLeft;
+    });
+  }, [
+    barWidthMultiplier,
+    editingChordRegionId,
+    editingGlobalRegionId,
+    editingKeySignatureRegionId,
+    editingTempoRegionId,
+    findProjectRegionById,
+    timeSignature.numerator,
+  ]);
+
   // Effect to verify track updates
   useEffect(() => {
     // Check for pending updates
@@ -514,7 +571,7 @@ const MainContent: React.FC<MainContentProps> = ({
     if (!regionExists) return;
 
     pendingAutoSelectionRegionIdRef.current = null;
-    selectRegion(pendingRegionId, { shiftKey: false }, regions);
+    selectRegion(pendingRegionId, DEFAULT_REGION_CLICK_OPTIONS, regions);
   }, [regions]);
 
   // Handle track name edit
@@ -783,9 +840,137 @@ const MainContent: React.FC<MainContentProps> = ({
     }
   };
 
+  const isAdditiveSelection = (options: RegionClickOptions) => options.metaKey || options.ctrlKey;
+
+  const getOrderedTrackRegionIds = useCallback((trackId: string) => (
+    regions
+      .filter(region => region.trackId === trackId)
+      .sort((left, right) => {
+        if (left.barNumber !== right.barNumber) {
+          return left.barNumber - right.barNumber;
+        }
+
+        if (left.length !== right.length) {
+          return left.length - right.length;
+        }
+
+        return left.id.localeCompare(right.id);
+      })
+      .map(region => region.id)
+  ), [regions]);
+
+  const getOrderedGlobalRegionIds = useCallback((regionType: GlobalTrackDefinition['id']) => (
+    globalTracks
+      .flatMap(globalTrack => globalTrack.getRegions())
+      .filter((region): region is KGGlobalRegion => {
+        if (regionType === 'tempo') {
+          return region instanceof KGTempoRegion;
+        }
+
+        if (regionType === 'signature') {
+          return region instanceof KGKeySignatureRegion;
+        }
+
+        if (regionType === 'chord') {
+          return region instanceof KGChordRegion;
+        }
+
+        return region instanceof KGMarkerRegion;
+      })
+      .sort((left, right) => {
+        const leftStart = left instanceof KGTempoRegion || left instanceof KGKeySignatureRegion
+          ? left.getStartBar()
+          : Math.round(left.getStartFromBeat() / timeSignature.numerator);
+        const rightStart = right instanceof KGTempoRegion || right instanceof KGKeySignatureRegion
+          ? right.getStartBar()
+          : Math.round(right.getStartFromBeat() / timeSignature.numerator);
+
+        if (leftStart !== rightStart) {
+          return leftStart - rightStart;
+        }
+
+        const leftLength = left instanceof KGTempoRegion || left instanceof KGKeySignatureRegion
+          ? left.getLengthBars()
+          : left.getLength();
+        const rightLength = right instanceof KGTempoRegion || right instanceof KGKeySignatureRegion
+          ? right.getLengthBars()
+          : right.getLength();
+
+        if (leftLength !== rightLength) {
+          return leftLength - rightLength;
+        }
+
+        return left.getId().localeCompare(right.getId());
+      })
+      .map(region => region.getId())
+  ), [globalTracks, timeSignature.numerator]);
+
+  const appendPrimarySelection = (orderedIds: string[], primaryRegionId: string) => {
+    const deduped = orderedIds.filter(id => id !== primaryRegionId);
+    return [...deduped, primaryRegionId];
+  };
+
+  const buildSameTrackRangeSelection = (
+    existingRegularSelectionIds: string[],
+    anchorRegionId: string,
+    targetRegionId: string,
+    orderedTrackRegionIds: string[]
+  ) => {
+    const anchorIndex = orderedTrackRegionIds.indexOf(anchorRegionId);
+    const targetIndex = orderedTrackRegionIds.indexOf(targetRegionId);
+    if (anchorIndex === -1 || targetIndex === -1) {
+      return [targetRegionId];
+    }
+
+    const [startIndex, endIndex] = anchorIndex <= targetIndex
+      ? [anchorIndex, targetIndex]
+      : [targetIndex, anchorIndex];
+    const rangeIds = orderedTrackRegionIds.slice(startIndex, endIndex + 1);
+    const rangeIdSet = new Set(rangeIds);
+    const preservedOtherTrackIds = existingRegularSelectionIds.filter(selectedId => !rangeIdSet.has(selectedId));
+    return appendPrimarySelection([...preservedOtherTrackIds, ...rangeIds], targetRegionId);
+  };
+
+  const buildSameLaneRangeSelection = (
+    existingGlobalSelectionIds: string[],
+    anchorRegionId: string,
+    targetRegionId: string,
+    orderedLaneRegionIds: string[]
+  ) => {
+    const anchorIndex = orderedLaneRegionIds.indexOf(anchorRegionId);
+    const targetIndex = orderedLaneRegionIds.indexOf(targetRegionId);
+    if (anchorIndex === -1 || targetIndex === -1) {
+      return [targetRegionId];
+    }
+
+    const [startIndex, endIndex] = anchorIndex <= targetIndex
+      ? [anchorIndex, targetIndex]
+      : [targetIndex, anchorIndex];
+    const rangeIds = orderedLaneRegionIds.slice(startIndex, endIndex + 1);
+    const laneIdSet = new Set(orderedLaneRegionIds);
+    const preservedOtherLaneIds = existingGlobalSelectionIds.filter(selectedId => !laneIdSet.has(selectedId));
+    return appendPrimarySelection([...preservedOtherLaneIds, ...rangeIds], targetRegionId);
+  };
+
+  const getGlobalRegionLaneType = (region: KGGlobalRegion): GlobalTrackDefinition['id'] => {
+    if (region instanceof KGTempoRegion) {
+      return 'tempo';
+    }
+
+    if (region instanceof KGKeySignatureRegion) {
+      return 'signature';
+    }
+
+    if (region instanceof KGChordRegion) {
+      return 'chord';
+    }
+
+    return 'marker';
+  };
+
   const selectRegion = (
     regionId: string,
-    options: RegionClickOptions = { shiftKey: false },
+    options: RegionClickOptions = DEFAULT_REGION_CLICK_OPTIONS,
     regionsToSearch?: RegionUI[]
   ) => {
     const regionsToUse = regionsToSearch || regions;
@@ -814,35 +999,91 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     const regularSelectedRegionIds = selectedRegionIds.filter(selectedId => !isGlobalRegionId(selectedId));
-    const orderedSelection = options.shiftKey
-      ? (selectedRegionIds.includes(regionId)
+    const additiveSelection = isAdditiveSelection(options);
+    let orderedSelection: string[];
+
+    if (additiveSelection) {
+      orderedSelection = regularSelectedRegionIds.includes(regionId)
         ? regularSelectedRegionIds.filter(id => id !== regionId)
-        : [...regularSelectedRegionIds, regionId])
-      : [regionId];
+        : appendPrimarySelection([...regularSelectedRegionIds, regionId], regionId);
+    } else if (options.shiftKey) {
+      const sameTrackSelectedIds = regularSelectedRegionIds.filter(selectedId => {
+        const selectedRegion = regionsToUse.find(candidate => candidate.id === selectedId);
+        return selectedRegion?.trackId === region.trackId;
+      });
+      const anchorRegionId = [...sameTrackSelectedIds].reverse().find(selectedId => selectedId !== regionId) ?? null;
+
+      if (!anchorRegionId) {
+        orderedSelection = [regionId];
+      } else {
+        orderedSelection = buildSameTrackRangeSelection(
+          regularSelectedRegionIds,
+          anchorRegionId,
+          regionId,
+          getOrderedTrackRegionIds(region.trackId)
+        );
+      }
+    } else {
+      orderedSelection = [regionId];
+    }
 
     applyRegionSelection(orderedSelection);
   };
 
-  const selectGlobalRegion = (regionId: string, options: RegionClickOptions = { shiftKey: false }) => {
+  const selectGlobalRegion = (regionId: string, options: RegionClickOptions = DEFAULT_REGION_CLICK_OPTIONS) => {
     const globalSelectedRegionIds = selectedRegionIds.filter(selectedId => isGlobalRegionId(selectedId));
-    const orderedSelection = options.shiftKey
-      ? (globalSelectedRegionIds.includes(regionId)
-        ? globalSelectedRegionIds.filter(id => id !== regionId)
-        : [...globalSelectedRegionIds, regionId])
-      : [regionId];
+    const globalRegion = findProjectRegionById(regionId);
+    if (!(globalRegion instanceof KGGlobalRegion)) {
+      return;
+    }
+
+    const targetLaneType = getGlobalRegionLaneType(globalRegion);
+    const sameLaneSelectedRegionIds = globalSelectedRegionIds.filter(selectedId => {
+      const selectedRegion = findProjectRegionById(selectedId);
+      return selectedRegion instanceof KGGlobalRegion && getGlobalRegionLaneType(selectedRegion) === targetLaneType;
+    });
+
+    const additiveSelection = isAdditiveSelection(options);
+    let orderedSelection: string[];
+
+    if (additiveSelection) {
+      orderedSelection = sameLaneSelectedRegionIds.includes(regionId)
+        ? sameLaneSelectedRegionIds.filter(id => id !== regionId)
+        : appendPrimarySelection([...sameLaneSelectedRegionIds, regionId], regionId);
+    } else if (options.shiftKey) {
+      const orderedLaneRegionIds = getOrderedGlobalRegionIds(targetLaneType);
+
+      const laneRegionIdSet = new Set(orderedLaneRegionIds);
+      const sameLaneSelectedIds = sameLaneSelectedRegionIds.filter(selectedId => laneRegionIdSet.has(selectedId));
+      const anchorRegionId = [...sameLaneSelectedIds].reverse().find(selectedId => selectedId !== regionId) ?? null;
+
+      if (!anchorRegionId) {
+        orderedSelection = [regionId];
+      } else {
+        orderedSelection = buildSameLaneRangeSelection(
+          sameLaneSelectedRegionIds,
+          anchorRegionId,
+          regionId,
+          orderedLaneRegionIds
+        );
+      }
+    } else {
+      orderedSelection = [regionId];
+    }
 
     applyRegionSelection(orderedSelection);
   };
 
-  const handleRegionLassoSelection = (regionIds: string[], options: RegionClickOptions = { shiftKey: false }) => {
+  const handleRegionLassoSelection = (regionIds: string[], options: RegionClickOptions = DEFAULT_REGION_CLICK_OPTIONS) => {
     const orderedRegionIds = regionIds.filter(regionId => regions.some(region => region.id === regionId));
     const regularSelectedRegionIds = selectedRegionIds.filter(selectedId => !isGlobalRegionId(selectedId));
-    const orderedSelection = options.shiftKey
+    const additiveSelection = isAdditiveSelection(options);
+    const orderedSelection = additiveSelection
       ? orderedRegionIds.reduce<string[]>((nextSelection, regionId) => {
           if (nextSelection.includes(regionId)) {
             return nextSelection.filter(id => id !== regionId);
           }
-          return [...nextSelection, regionId];
+          return appendPrimarySelection([...nextSelection, regionId], regionId);
         }, [...regularSelectedRegionIds])
       : orderedRegionIds;
 
@@ -859,7 +1100,7 @@ const MainContent: React.FC<MainContentProps> = ({
       return;
     }
 
-    handleRegionLassoSelection([], { shiftKey: false });
+    handleRegionLassoSelection([], DEFAULT_REGION_CLICK_OPTIONS);
   };
 
   const handleRegionLassoCommit = () => {
@@ -867,7 +1108,7 @@ const MainContent: React.FC<MainContentProps> = ({
   };
 
   // Handle region single click: selection only (no piano roll opening)
-  const handleRegionClick = (regionId: string, options: RegionClickOptions = { shiftKey: false }) => {
+  const handleRegionClick = (regionId: string, options: RegionClickOptions = DEFAULT_REGION_CLICK_OPTIONS) => {
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Region clicked in MainContent (selection only): ${regionId}`);
     }
@@ -900,7 +1141,7 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     // Reuse selection logic
-    handleRegionClick(regionId, { shiftKey: false });
+    handleRegionClick(regionId, DEFAULT_REGION_CLICK_OPTIONS);
 
     // Activate and show piano roll in midi-edit mode
     openMidiPianoRoll(regionId);
@@ -908,7 +1149,7 @@ const MainContent: React.FC<MainContentProps> = ({
 
   // Handle spectrogram viewer open
   const handleOpenSpectrogram = (regionId: string) => {
-    handleRegionClick(regionId, { shiftKey: false });
+    handleRegionClick(regionId, DEFAULT_REGION_CLICK_OPTIONS);
     openSpectrogramViewer(regionId);
   };
 
@@ -1002,7 +1243,7 @@ const MainContent: React.FC<MainContentProps> = ({
     const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
     const occupiedRegion = markerRegions.find(region => region.getStartFromBeat() === normalizedStartBeat);
     if (occupiedRegion) {
-      selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(occupiedRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       beginEditingGlobalRegion(occupiedRegion.getId());
       return;
     }
@@ -1010,7 +1251,7 @@ const MainContent: React.FC<MainContentProps> = ({
     try {
       const command = new CreateGlobalMarkerRegionCommand(
         normalizedStartBeat,
-        8 * timeSignature.numerator,
+        timeSignature.numerator,
         DEFAULT_MARKER_REGION_NAME
       );
       KGCore.instance().executeCommand(command);
@@ -1021,7 +1262,7 @@ const MainContent: React.FC<MainContentProps> = ({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingGlobalRegionId(createdRegion.getId());
       setEditingGlobalRegionText(createdRegion.getName());
     } catch (error) {
@@ -1057,7 +1298,7 @@ const MainContent: React.FC<MainContentProps> = ({
     const normalizedStartBar = Math.max(0, Math.min(requestedStartBar, maxBars - 1));
     const existingRegionAtStart = signatureRegions.find(region => region.getStartBar() === normalizedStartBar);
     if (existingRegionAtStart) {
-      selectGlobalRegion(existingRegionAtStart.getId(), { shiftKey: false });
+      selectGlobalRegion(existingRegionAtStart.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       beginEditingKeySignatureRegion(existingRegionAtStart.getId());
       return;
     }
@@ -1072,7 +1313,7 @@ const MainContent: React.FC<MainContentProps> = ({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingKeySignatureRegionId(createdRegion.getId());
     } catch (error) {
       console.error('Error creating key signature region:', error);
@@ -1142,7 +1383,7 @@ const MainContent: React.FC<MainContentProps> = ({
     const normalizedStartBar = Math.max(0, Math.min(requestedStartBar, maxBars - 1));
     const existingRegionAtStart = tempoRegions.find(region => region.getStartBar() === normalizedStartBar);
     if (existingRegionAtStart) {
-      selectGlobalRegion(existingRegionAtStart.getId(), { shiftKey: false });
+      selectGlobalRegion(existingRegionAtStart.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       beginEditingTempoRegion(existingRegionAtStart.getId());
       return;
     }
@@ -1158,7 +1399,7 @@ const MainContent: React.FC<MainContentProps> = ({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingTempoRegionId(createdRegion.getId());
       setEditingTempoText(createdRegion.getBpm().toString());
     } catch (error) {
@@ -1189,7 +1430,7 @@ const MainContent: React.FC<MainContentProps> = ({
       && normalizedStartBeat < region.getStartFromBeat() + region.getLength()
     ));
     if (occupiedRegion) {
-      selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(occupiedRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       beginEditingChordRegion(occupiedRegion.getId());
       return;
     }
@@ -1204,7 +1445,7 @@ const MainContent: React.FC<MainContentProps> = ({
         return;
       }
 
-      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingChordRegionId(createdRegion.getId());
     } catch (error) {
       console.error('Error creating chord region:', error);
@@ -1229,19 +1470,19 @@ const MainContent: React.FC<MainContentProps> = ({
       const createdRegion = command.getCreatedRegion();
       if (!createdRegion) {
         if (occupiedRegion) {
-          selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+          selectGlobalRegion(occupiedRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
           beginEditingChordRegion(occupiedRegion.getId());
         }
         return null;
       }
 
-      selectGlobalRegion(createdRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(createdRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingChordRegionId(createdRegion.getId());
       return createdRegion;
     } catch (error) {
       console.error('Error creating chord region at exact beat:', error);
       if (occupiedRegion) {
-        selectGlobalRegion(occupiedRegion.getId(), { shiftKey: false });
+        selectGlobalRegion(occupiedRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
         beginEditingChordRegion(occupiedRegion.getId());
       }
       return null;
@@ -1278,7 +1519,7 @@ const MainContent: React.FC<MainContentProps> = ({
         .find(region => region.getStartFromBeat() < currentStartBeat);
 
     if (targetRegion) {
-      selectGlobalRegion(targetRegion.getId(), { shiftKey: false });
+      selectGlobalRegion(targetRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       setEditingChordRegionId(targetRegion.getId());
       return;
     }

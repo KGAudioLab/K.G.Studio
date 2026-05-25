@@ -4,6 +4,9 @@ import { fireEvent, render } from '@testing-library/react';
 import TrackGridPanel from './TrackGridPanel';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 
+const executeCommandMock = vi.fn();
+const getCreatedRegionMock = vi.fn();
+
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector?: (state: {
     selectedRegionIds: string[],
@@ -25,6 +28,36 @@ vi.mock('../common', () => ({
   Playhead: () => null,
   FileImportModal: () => null,
 }));
+
+vi.mock('../../core/KGCore', () => ({
+  KGCore: {
+    instance: () => ({
+      executeCommand: executeCommandMock,
+    }),
+  },
+}));
+
+vi.mock('../../util/miscUtil', () => ({
+  generateNewRegionName: () => 'New Region',
+}));
+
+vi.mock('../../core/commands', async () => {
+  const actual = await vi.importActual<typeof import('../../core/commands')>('../../core/commands');
+  return {
+    ...actual,
+    CreateRegionCommand: {
+      fromBarCoordinates: vi.fn((trackId: string, trackIndex: number, barNumber: number) => ({
+        getCreatedRegion: () => getCreatedRegionMock() ?? createMockMidiRegion({
+          id: 'created-region',
+          trackId,
+          trackIndex,
+          startFromBeat: (barNumber - 1) * 4,
+          length: 4,
+        }),
+      })),
+    },
+  };
+});
 
 describe('TrackGridPanel lasso selection', () => {
   beforeAll(() => {
@@ -57,6 +90,7 @@ describe('TrackGridPanel lasso selection', () => {
     trackB.setTrackIndex(1);
 
     const onRegionLassoSelection = vi.fn();
+    const onRegionCreated = vi.fn();
 
     const view = render(
       <TrackGridPanel
@@ -71,7 +105,7 @@ describe('TrackGridPanel lasso selection', () => {
         dragOverTrackIndex={null}
         selectedRegionId={null}
         projectName="Test"
-        onRegionCreated={vi.fn()}
+        onRegionCreated={onRegionCreated}
         onRegionLassoSelection={onRegionLassoSelection}
       />
     );
@@ -90,11 +124,13 @@ describe('TrackGridPanel lasso selection', () => {
       toJSON: () => ({}),
     });
 
-    return { ...view, onRegionLassoSelection };
+    return { ...view, onRegionLassoSelection, onRegionCreated };
   };
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    executeCommandMock.mockReset();
+    getCreatedRegionMock.mockReset();
   });
 
   it('selects intersecting regions across multiple track rows', () => {
@@ -105,7 +141,7 @@ describe('TrackGridPanel lasso selection', () => {
     fireEvent.mouseMove(document, { clientX: 130, clientY: 200 });
     fireEvent.mouseUp(document, { clientX: 130, clientY: 200 });
 
-    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-a', 'region-b'], { shiftKey: false });
+    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-a', 'region-b'], { shiftKey: false, metaKey: false, ctrlKey: false });
   });
 
   it('moves the release-point region to the end of the lasso selection order', () => {
@@ -116,7 +152,7 @@ describe('TrackGridPanel lasso selection', () => {
     fireEvent.mouseMove(document, { clientX: 20, clientY: 20 });
     fireEvent.mouseUp(document, { clientX: 20, clientY: 20 });
 
-    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-b', 'region-a'], { shiftKey: false });
+    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-b', 'region-a'], { shiftKey: false, metaKey: false, ctrlKey: false });
   });
 
   it('uses the closest intersected region as primary when release is outside all regions', () => {
@@ -127,7 +163,7 @@ describe('TrackGridPanel lasso selection', () => {
     fireEvent.mouseMove(document, { clientX: 150, clientY: 170 });
     fireEvent.mouseUp(document, { clientX: 150, clientY: 170 });
 
-    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-a', 'region-b'], { shiftKey: false });
+    expect(onRegionLassoSelection).toHaveBeenCalledWith(['region-a', 'region-b'], { shiftKey: false, metaKey: false, ctrlKey: false });
   });
 
   it('clears selection on a plain empty-space click', () => {
@@ -137,6 +173,36 @@ describe('TrackGridPanel lasso selection', () => {
     fireEvent.mouseDown(firstTrackGrid, { clientX: 10, clientY: 10, button: 0 });
     fireEvent.mouseUp(document, { clientX: 11, clientY: 11 });
 
-    expect(onRegionLassoSelection).toHaveBeenCalledWith([], { shiftKey: false });
+    expect(onRegionLassoSelection).toHaveBeenCalledWith([], { shiftKey: false, metaKey: false, ctrlKey: false });
+  });
+
+  it('does not create a region when ctrl-clicking an existing region', () => {
+    const { container, onRegionCreated } = renderPanel();
+    const region = container.querySelector('[data-region-id="region-a"]') as HTMLDivElement;
+
+    fireEvent.mouseDown(region, { clientX: 20, clientY: 20, button: 0, ctrlKey: true });
+    fireEvent.mouseUp(document, { clientX: 20, clientY: 20, ctrlKey: true });
+    fireEvent.click(region, { ctrlKey: true });
+
+    expect(onRegionCreated).not.toHaveBeenCalled();
+  });
+
+  it('creates a region when ctrl-clicking empty track space', async () => {
+    const { container, onRegionCreated } = renderPanel();
+    const firstTrackGrid = container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    getCreatedRegionMock.mockReturnValue(createMockMidiRegion({
+      id: 'created-region',
+      trackId: '1',
+      trackIndex: 0,
+      startFromBeat: 12,
+      length: 4,
+      name: 'New Region',
+    }));
+
+    fireEvent.click(firstTrackGrid, { clientX: 140, clientY: 20, ctrlKey: true });
+
+    await vi.waitFor(() => {
+      expect(onRegionCreated).toHaveBeenCalledTimes(1);
+    });
   });
 });

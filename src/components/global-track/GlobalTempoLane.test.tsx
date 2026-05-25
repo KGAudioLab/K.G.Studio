@@ -120,4 +120,30 @@ describe('GlobalTempoLane', () => {
 
     expect(container.querySelector('.global-marker-region.global-tempo-region')).toBeInTheDocument();
   });
+
+  it('passes modifier state through region selection clicks', () => {
+    const onSelectRegion = vi.fn();
+
+    render(
+      <GlobalTempoLane
+        tempoRegions={[baseRegion]}
+        maxBars={8}
+        barWidthMultiplier={1}
+        selectedRegionIds={[]}
+        editingRegionId={null}
+        editingText=""
+        onEditingTextChange={vi.fn()}
+        onCommitEdit={vi.fn()}
+        onCancelEdit={vi.fn()}
+        onBeginEdit={vi.fn()}
+        onSelectRegion={onSelectRegion}
+        onCreateAtBar={vi.fn()}
+        onResizeRegion={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText('128 BPM'), { ctrlKey: true });
+
+    expect(onSelectRegion).toHaveBeenCalledWith('tempo-1', { shiftKey: false, metaKey: false, ctrlKey: true });
+  });
 });

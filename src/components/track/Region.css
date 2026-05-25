@@ -15,10 +15,6 @@
   will-change: transform;
 }
 
-.track-region:hover {
-  box-shadow: 0 0 0 1px #7a9bba;
-}
-
 .track-region.selected {
   /* box-shadow: 0 0 0 2px #ffffff, 0 0 8px rgba(255, 255, 255, 0.3); */ /* let's only apply a border */
   border-color: #ffffff;
@@ -97,10 +93,6 @@
 .track-region.audio-region {
   background-color: #3a6b4a;
   border-color: #4a8b5a;
-}
-
-.track-region.audio-region:hover {
-  box-shadow: 0 0 0 1px #6aab7a;
 }
 
 .track-region.audio-region.selected {

@@ -340,10 +340,6 @@
   transition: box-shadow 0.1s ease, border-color 0.1s ease;
 }
 
-.global-marker-region:hover {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45);
-}
-
 .global-marker-region.selected {
   border-color: #ffffff;
   box-shadow: none;

@@ -8,7 +8,6 @@ import TrackAutomationLane from './TrackAutomationLane';
 import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
-import { isModifierKeyPressed } from '../../util/osUtil';
 import { useProjectStore } from '../../stores/projectStore';
 
 interface RegionResizePreviewBaseline {
@@ -200,28 +199,23 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     };
   }, [gridContainerRef]);
 
-  // Track modifier key state for cursor feedback
+  // Track tool state for cursor feedback.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isModifierKeyPressed(e)) {
-        setIsModifierPressed(true);
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!isModifierKeyPressed(e)) {
-        setIsModifierPressed(false);
-      }
+    const syncCursorState = () => {
+      setIsModifierPressed(KGMainContentState.instance().getActiveTool() === 'pencil');
     };
 
     // Add global event listeners
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', syncCursorState);
+    window.addEventListener('keyup', syncCursorState);
+    window.addEventListener('focus', syncCursorState);
+    syncCursorState();
 
     // Cleanup listeners on unmount
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', syncCursorState);
+      window.removeEventListener('keyup', syncCursorState);
+      window.removeEventListener('focus', syncCursorState);
     };
   }, []);
 
@@ -785,7 +779,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onOpenPianoRoll(regionId);
               } else if (onRegionClick) {
                 // Fallback to legacy behavior
-                onRegionClick(regionId, { shiftKey: false });
+                onRegionClick(regionId, { shiftKey: false, metaKey: false, ctrlKey: false });
               }
             }}
             onOpenSpectrogram={audioRegion ? (regionId) => {
