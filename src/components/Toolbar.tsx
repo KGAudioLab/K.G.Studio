@@ -1042,6 +1042,7 @@ const Toolbar: React.FC = () => {
           <div
             className="project-name"
             onClick={handleProjectNameClick}
+            title={projectName}
           >
             {projectName}
           </div>
