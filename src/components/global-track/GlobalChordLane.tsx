@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { FaPlus } from 'react-icons/fa';
+import { FaBan } from 'react-icons/fa6';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
 import type { RegionClickOptions } from '../interfaces';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { TOOLBAR_CONSTANTS } from '../../constants';
 import FloatingPopup from '../common/FloatingPopup';
 import ChordPickerPopup from '../ChordPickerPopup';
+import { TrackType } from '../../core/track/KGTrack';
 
 interface GlobalChordLaneProps {
   chordRegions: KGChordRegion[];
@@ -21,9 +25,11 @@ interface GlobalChordLaneProps {
   onChangeChord: (regionId: string, symbol: string) => void;
   onOpenPopup: (regionId: string) => void;
   onTabNavigate: (regionId: string, direction: 'forward' | 'backward') => void;
+  onDropChordRegionsToTrack?: (draggedRegionId: string, trackIndex: number) => void;
 }
 
 type ResizeEdge = 'start' | 'end' | null;
+type DragFeedbackMode = 'move' | 'import' | 'blocked';
 
 const REGION_EDGE_HITBOX_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
@@ -48,16 +54,19 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
   onChangeChord,
   onOpenPopup,
   onTabNavigate,
+  onDropChordRegionsToTrack,
 }) => {
   const laneRef = useRef<HTMLDivElement | null>(null);
   const [previewBeats, setPreviewBeats] = useState<Record<string, { startBeat: number; length: number }>>({});
   const [hoverEdges, setHoverEdges] = useState<Record<string, ResizeEdge>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
+  const [dragFeedback, setDragFeedback] = useState<{ x: number; y: number; mode: DragFeedbackMode } | null>(null);
   const suppressClickSelectionRef = useRef(false);
   const interactionRef = useRef<{
     mode: 'drag' | 'resize' | null;
     regionId: string;
     initialMouseX: number;
+    initialMouseY: number;
     initialStartBeat: number;
     initialLength: number;
     resizeEdge: ResizeEdge;
@@ -116,6 +125,32 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
     return null;
   };
 
+  const getTrackDropTarget = (clientX: number, clientY: number): { trackIndex: number; trackType: string | null } | null => {
+    if (typeof document.elementFromPoint !== 'function') {
+      return null;
+    }
+
+    const dropTarget = document.elementFromPoint(clientX, clientY)?.closest('.track-grid');
+    if (!(dropTarget instanceof HTMLElement)) {
+      return null;
+    }
+
+    const rawTrackIndex = dropTarget.dataset.trackIndex;
+    if (!rawTrackIndex) {
+      return null;
+    }
+
+    const trackIndex = Number(rawTrackIndex);
+    if (!Number.isInteger(trackIndex)) {
+      return null;
+    }
+
+    return {
+      trackIndex,
+      trackType: dropTarget.dataset.trackType ?? null,
+    };
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isModifierKeyPressed(event)) {
@@ -146,7 +181,8 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
 
       const interaction = interactionRef.current;
       const deltaX = event.clientX - interaction.initialMouseX;
-      if (Math.abs(deltaX) >= DRAG_THRESHOLD_PX) {
+      const deltaY = event.clientY - interaction.initialMouseY;
+      if (Math.abs(deltaX) >= DRAG_THRESHOLD_PX || Math.abs(deltaY) >= DRAG_THRESHOLD_PX) {
         interaction.moved = true;
       }
 
@@ -159,6 +195,28 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
             length: interaction.initialLength,
           },
         });
+
+        if (!interaction.moved) {
+          setDragFeedback(null);
+          document.body.style.cursor = '';
+          return;
+        }
+
+        const dropTarget = getTrackDropTarget(event.clientX, event.clientY);
+        if (dropTarget?.trackType === TrackType.MIDI) {
+          setDragFeedback({ x: event.clientX, y: event.clientY, mode: 'import' });
+          document.body.style.cursor = 'copy';
+          return;
+        }
+
+        if (dropTarget) {
+          setDragFeedback({ x: event.clientX, y: event.clientY, mode: 'blocked' });
+          document.body.style.cursor = 'not-allowed';
+          return;
+        }
+
+        setDragFeedback({ x: event.clientX, y: event.clientY, mode: 'move' });
+        document.body.style.cursor = 'grabbing';
         return;
       }
 
@@ -196,6 +254,8 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
 
       const interaction = interactionRef.current;
       interactionRef.current = null;
+      setDragFeedback(null);
+      document.body.style.cursor = '';
 
       if (!interaction.moved) {
         setPreviewBeats({});
@@ -212,6 +272,12 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
       }
 
       if (interaction.mode === 'drag') {
+        const dropTarget = getTrackDropTarget(event.clientX, event.clientY);
+        if (dropTarget !== null) {
+          onDropChordRegionsToTrack?.(interaction.regionId, dropTarget.trackIndex);
+          return;
+        }
+
         onMoveRegion(interaction.regionId, preview.startBeat);
         return;
       }
@@ -229,8 +295,10 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      setDragFeedback(null);
+      document.body.style.cursor = '';
     };
-  }, [beatWidth, onMoveRegion, onResizeRegion, onSelectRegion, previewBeats]);
+  }, [beatWidth, onDropChordRegionsToTrack, onMoveRegion, onResizeRegion, onSelectRegion, previewBeats]);
 
   const handleLaneMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -265,13 +333,14 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
   };
 
   return (
-    <div
-      ref={laneRef}
-      className={`global-marker-lane global-chord-lane${popupRegionId ? ' popup-open' : ''}${isModifierPressed ? ' pencil-cursor' : ''}`}
-      onMouseDown={handleLaneMouseDown}
-      onDoubleClick={handleLaneDoubleClick}
-    >
-      {chordRegions.map(region => {
+    <>
+      <div
+        ref={laneRef}
+        className={`global-marker-lane global-chord-lane${popupRegionId ? ' popup-open' : ''}${isModifierPressed ? ' pencil-cursor' : ''}`}
+        onMouseDown={handleLaneMouseDown}
+        onDoubleClick={handleLaneDoubleClick}
+      >
+        {chordRegions.map(region => {
         const { startBeat, length } = getRenderedBeatState(region);
         const isSelected = selectedRegionIds.includes(region.getId());
         const left = startBeat * beatWidth;
@@ -324,6 +393,9 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
               if (event.button !== 0) {
                 return;
               }
+              if ((event.target as HTMLElement).closest('.global-chord-drag-handle')) {
+                return;
+              }
 
               event.preventDefault();
               event.stopPropagation();
@@ -333,6 +405,7 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
                 mode: resizeEdge ? 'resize' : 'drag',
                 regionId: region.getId(),
                 initialMouseX: event.clientX,
+                initialMouseY: event.clientY,
                 initialStartBeat: region.getStartFromBeat(),
                 initialLength: region.getLength(),
                 resizeEdge,
@@ -368,8 +441,27 @@ const GlobalChordLane: React.FC<GlobalChordLaneProps> = ({
             </FloatingPopup>
           </div>
         );
-      })}
-    </div>
+        })}
+      </div>
+      {dragFeedback && createPortal(
+        <div
+          className={`global-chord-drag-feedback global-chord-drag-feedback-${dragFeedback.mode}`}
+          style={{ left: `${dragFeedback.x + 14}px`, top: `${dragFeedback.y + 14}px` }}
+        >
+          <span className="global-chord-drag-feedback-icon">
+            {dragFeedback.mode === 'blocked' ? <FaBan /> : <FaPlus />}
+          </span>
+          <span className="global-chord-drag-feedback-label">
+            {dragFeedback.mode === 'import'
+              ? 'Convert to MIDI'
+              : dragFeedback.mode === 'blocked'
+                ? 'Audio tracks not supported'
+                : 'Move chord'}
+          </span>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 

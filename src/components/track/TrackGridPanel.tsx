@@ -8,7 +8,7 @@ import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI } from '..
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
-import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand, ImportAudioCommand, ImportMidiClipCommand } from '../../core/commands';
+import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand, ImportAudioCommand, ImportMidiClipCommand, ImportChordRegionsCommand } from '../../core/commands';
 import { KGCore } from '../../core/KGCore';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
@@ -19,6 +19,13 @@ import { parseMidiFirstTrackNotes } from '../../util/midiUtil';
 import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
 import { getAudioRegionDisplayLengthBeats } from '../../util/globalTrackUtil';
+import { KGChordRegion } from '../../core/region/KGChordRegion';
+import {
+  buildChordRegionImportPlan,
+  CHORD_REGION_IMPORT_MIME_TYPE,
+  CHORD_REGION_IMPORT_REGION_NAME,
+  type ChordRegionImportPayload,
+} from '../../util/chordRegionImportUtil';
 
 const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
   shiftKey: event.shiftKey,
@@ -927,6 +934,84 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
   };
 
+  const handleChordRegionDrop = async (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => {
+    const raw = e.dataTransfer.getData(CHORD_REGION_IMPORT_MIME_TYPE);
+    if (!raw) {
+      await showAlert('Unable to import the chord progression from this drag operation. Please try again.');
+      return;
+    }
+
+    let payload: ChordRegionImportPayload;
+    try {
+      payload = JSON.parse(raw) as ChordRegionImportPayload;
+    } catch {
+      await showAlert('Unable to read the dragged chord progression. Please try again.');
+      return;
+    }
+
+    const track = tracks[trackIndex];
+    if (!track) {
+      await showAlert('Unable to find the destination track for this import.');
+      return;
+    }
+
+    if (track.getType() !== TrackType.MIDI) {
+      await showAlert('Chord regions can only be converted into MIDI tracks. Please drop them onto a MIDI track.');
+      return;
+    }
+
+    const chordRegionIds = Array.from(new Set(payload.selectedRegionIds ?? []));
+    const chordRegions = chordRegionIds.map(regionId => {
+      const region = KGCore.instance().getCurrentProject().getGlobalTracks()
+        .flatMap(globalTrack => globalTrack.getRegions())
+        .find(candidate => candidate.getId() === regionId);
+      return region instanceof KGChordRegion ? region : null;
+    }).filter((region): region is KGChordRegion => region !== null);
+
+    if (chordRegions.length === 0) {
+      await showAlert('No chord regions were available to import. Please select a chord region and try again.');
+      return;
+    }
+
+    const planResult = buildChordRegionImportPlan(chordRegions);
+    if (!planResult.ok) {
+      await showAlert(planResult.error.message);
+      return;
+    }
+
+    try {
+      const command = new ImportChordRegionsCommand(
+        track.getId().toString(),
+        trackIndex,
+        planResult.plan.startBeat,
+        planResult.plan.lengthInBeats,
+        planResult.plan.notes,
+        CHORD_REGION_IMPORT_REGION_NAME,
+      );
+      KGCore.instance().executeCommand(command, { rethrow: true });
+
+      const created = command.getCreatedRegion();
+      if (!created || !onExternalDropComplete) {
+        refreshProjectState();
+        return;
+      }
+
+      const beatsPerBar = timeSignature.numerator;
+      const regionUI: RegionUI = {
+        id: created.getId(),
+        trackId: track.getId().toString(),
+        trackIndex,
+        barNumber: (created.getStartFromBeat() / beatsPerBar) + 1,
+        length: created.getLength() / beatsPerBar,
+        name: created.getName(),
+      };
+      onExternalDropComplete(trackIndex, regionUI);
+    } catch (error) {
+      console.error('[ChordImport] Drop import failed:', error);
+      await showAlert('Unable to import the selected chord regions into a MIDI region. Please try again.');
+    }
+  };
+
   return (
     <div className="grid-container" ref={gridContainerRef} onMouseDownCapture={startLassoSelection}>
       {/* Playhead */}
@@ -959,6 +1044,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onOpenHybrid={onOpenHybrid}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}
+          onChordRegionDrop={handleChordRegionDrop}
           previewRegionStyles={previewRegionStyles}
           setPreviewRegionStyles={setPreviewRegionStyles}
           previewRegionContentStyles={previewRegionContentStyles}

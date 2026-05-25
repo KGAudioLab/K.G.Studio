@@ -29,6 +29,7 @@ export { PasteRegionsCommand } from './region/PasteRegionsCommand';
 export { UpdateRegionCommand, type RegionUpdateProperties } from './region/UpdateRegionCommand';
 export { ImportAudioCommand } from './region/ImportAudioCommand';
 export { ImportMidiClipCommand } from './region/ImportMidiClipCommand';
+export { ImportChordRegionsCommand } from './region/ImportChordRegionsCommand';
 export { ImportStemsCommand } from './region/ImportStemsCommand';
 export type { StemImportEntry } from './region/ImportStemsCommand';
 export { SplitRegionCommand } from './region/SplitRegionCommand';

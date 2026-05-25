@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildChordSymbol, formatChordSymbolForDisplay, getChordMidiPitches, getChordPitchClasses, parseChordSymbol } from './chordUtil';
+import { buildChordRegionImportPlan, convertChordSymbolToMidiPitches } from './chordRegionImportUtil';
+import { KGChordRegion } from '../core/region/KGChordRegion';
 
 describe('chordUtil', () => {
   it('parses half-diminished chords into the popup descriptor shape', () => {
@@ -40,5 +42,93 @@ describe('chordUtil', () => {
   it('formats the preview using standard chord display conventions', () => {
     expect(formatChordSymbolForDisplay('Bm7b5')).toBe('Bm7(♭5)');
     expect(formatChordSymbolForDisplay('Bbmaj7#11')).toBe('B♭maj7(♯11)');
+  });
+
+  it('maps C-root chords into the C4-C5 range', () => {
+    expect(convertChordSymbolToMidiPitches('C')).toEqual([48, 60, 64, 67]);
+  });
+
+  it('maps F-root chords down to the lower octave range', () => {
+    expect(convertChordSymbolToMidiPitches('F')).toEqual([41, 53, 57, 60]);
+  });
+
+  it('maps common progression chords into the expected octave ranges', () => {
+    expect(convertChordSymbolToMidiPitches('Am')).toEqual([45, 57, 60, 64]);
+    expect(convertChordSymbolToMidiPitches('Dm')).toEqual([50, 62, 65, 69]);
+    expect(convertChordSymbolToMidiPitches('E7')).toEqual([52, 64, 68, 71, 74]);
+    expect(convertChordSymbolToMidiPitches('Bm7b5')).toEqual([47, 59, 62, 65, 69]);
+  });
+
+  it('builds a multi-region import plan using timeline-relative note placement', () => {
+    const chordA = new KGChordRegion('chord-1', 'global-chord', 3, 'C', 8, 4);
+    const chordB = new KGChordRegion('chord-2', 'global-chord', 3, 'F', 12, 2);
+    const result = buildChordRegionImportPlan([chordB, chordA]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.plan.startBeat).toBe(8);
+    expect(result.plan.lengthInBeats).toBe(6);
+    expect(result.plan.sourceRegionIds).toEqual(['chord-1', 'chord-2']);
+    expect(result.plan.notes).toEqual([
+      { startBeat: 0, endBeat: 4, pitch: 48, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 67, velocity: 127 },
+      { startBeat: 4, endBeat: 6, pitch: 41, velocity: 127 },
+      { startBeat: 4, endBeat: 6, pitch: 53, velocity: 127 },
+      { startBeat: 4, endBeat: 6, pitch: 57, velocity: 127 },
+      { startBeat: 4, endBeat: 6, pitch: 60, velocity: 127 },
+    ]);
+  });
+
+  it('builds an import plan for a more complex chord progression', () => {
+    const chordA = new KGChordRegion('chord-1', 'global-chord', 3, 'Am', 0, 4);
+    const chordB = new KGChordRegion('chord-2', 'global-chord', 3, 'Dm', 4, 4);
+    const chordC = new KGChordRegion('chord-3', 'global-chord', 3, 'E7', 8, 4);
+    const chordD = new KGChordRegion('chord-4', 'global-chord', 3, 'Bm7b5', 12, 4);
+    const result = buildChordRegionImportPlan([chordD, chordB, chordA, chordC]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.plan.startBeat).toBe(0);
+    expect(result.plan.lengthInBeats).toBe(16);
+    expect(result.plan.sourceRegionIds).toEqual(['chord-1', 'chord-2', 'chord-3', 'chord-4']);
+    expect(result.plan.notes).toEqual([
+      { startBeat: 0, endBeat: 4, pitch: 45, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 57, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
+      { startBeat: 4, endBeat: 8, pitch: 50, velocity: 127 },
+      { startBeat: 4, endBeat: 8, pitch: 62, velocity: 127 },
+      { startBeat: 4, endBeat: 8, pitch: 65, velocity: 127 },
+      { startBeat: 4, endBeat: 8, pitch: 69, velocity: 127 },
+      { startBeat: 8, endBeat: 12, pitch: 52, velocity: 127 },
+      { startBeat: 8, endBeat: 12, pitch: 64, velocity: 127 },
+      { startBeat: 8, endBeat: 12, pitch: 68, velocity: 127 },
+      { startBeat: 8, endBeat: 12, pitch: 71, velocity: 127 },
+      { startBeat: 8, endBeat: 12, pitch: 74, velocity: 127 },
+      { startBeat: 12, endBeat: 16, pitch: 47, velocity: 127 },
+      { startBeat: 12, endBeat: 16, pitch: 59, velocity: 127 },
+      { startBeat: 12, endBeat: 16, pitch: 62, velocity: 127 },
+      { startBeat: 12, endBeat: 16, pitch: 65, velocity: 127 },
+      { startBeat: 12, endBeat: 16, pitch: 69, velocity: 127 },
+    ]);
+  });
+
+  it('returns structured failure metadata for unsupported symbols', () => {
+    const badChord = new KGChordRegion('chord-1', 'global-chord', 3, 'not-a-chord', 0, 4);
+    const result = buildChordRegionImportPlan([badChord]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.message).toContain('Unable to import chord');
   });
 });

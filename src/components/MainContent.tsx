@@ -17,6 +17,15 @@ import { useMainContentRegions } from '../hooks/useMainContentRegions';
 import { useMainContentGlobalTracks } from '../hooks/useMainContentGlobalTracks';
 import { useMainContentViewport } from '../hooks/useMainContentViewport';
 import MainContentGlobalTracksSection from './global-track/MainContentGlobalTracksSection';
+import { ImportChordRegionsCommand } from '../core/commands';
+import { TrackType } from '../core/track/KGTrack';
+import { KGChordRegion } from '../core/region/KGChordRegion';
+import { showAlert } from '../util/dialogUtil';
+import {
+  buildChordRegionImportPlan,
+  CHORD_REGION_IMPORT_REGION_NAME,
+  resolveChordRegionImportSelection,
+} from '../util/chordRegionImportUtil';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -244,6 +253,73 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowGlobalTracksMock(previous => !previous);
   }, []);
 
+  const handleGlobalChordDropToTrack = useCallback(async (draggedRegionId: string, trackIndex: number) => {
+    const targetTrack = tracks[trackIndex];
+    if (!targetTrack) {
+      await showAlert('Unable to find the destination track for this import.');
+      return;
+    }
+
+    if (targetTrack.getType() !== TrackType.MIDI) {
+      await showAlert('Chord regions can only be converted into MIDI tracks. Please drop them onto a MIDI track.');
+      return;
+    }
+
+    const chordRegionIdSet = new Set(
+      globalTracks.flatMap(track => track.getRegions())
+        .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
+        .map(region => region.getId())
+    );
+    const selectedChordRegionIds = resolveChordRegionImportSelection(
+      draggedRegionId,
+      selectedRegionIds.filter(regionId => chordRegionIdSet.has(regionId)),
+    );
+    const chordRegions = selectedChordRegionIds.map(regionId => (
+      globalTracks.flatMap(track => track.getRegions()).find(candidate => candidate.getId() === regionId)
+    )).filter((region): region is KGChordRegion => region instanceof KGChordRegion);
+
+    if (chordRegions.length === 0) {
+      await showAlert('No chord regions were available to import. Please select a chord region and try again.');
+      return;
+    }
+
+    const planResult = buildChordRegionImportPlan(chordRegions);
+    if (!planResult.ok) {
+      await showAlert(planResult.error.message);
+      return;
+    }
+
+    try {
+      const command = new ImportChordRegionsCommand(
+        targetTrack.getId().toString(),
+        trackIndex,
+        planResult.plan.startBeat,
+        planResult.plan.lengthInBeats,
+        planResult.plan.notes,
+        CHORD_REGION_IMPORT_REGION_NAME,
+      );
+      KGCore.instance().executeCommand(command, { rethrow: true });
+
+      const createdRegion = command.getCreatedRegion();
+      if (!createdRegion) {
+        refreshProjectState();
+        return;
+      }
+
+      mainContentRegions.handleExternalDropComplete(trackIndex, {
+        id: createdRegion.getId(),
+        trackId: targetTrack.getId().toString(),
+        trackIndex,
+        barNumber: (createdRegion.getStartFromBeat() / timeSignature.numerator) + 1,
+        length: createdRegion.getLength() / timeSignature.numerator,
+        name: createdRegion.getName(),
+      });
+    } catch (error) {
+      console.error('[ChordImport] Gesture import failed:', error);
+      await showAlert('Unable to import the selected chord regions into a MIDI region. Please try again.');
+    }
+  }, [globalTracks, mainContentRegions, refreshProjectState, selectedRegionIds, timeSignature.numerator, tracks]);
+
   const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
   const showHybridButtonForMidi = showPianoRoll && pianoRollMode === 'spectrogram';
   const beatTicksPerBar = Math.max(0, timeSignature.numerator - 1);
@@ -307,6 +383,10 @@ const MainContent: React.FC<MainContentProps> = ({
         <MainContentGlobalTracksSection
           visible={showGlobalTracksMock}
           {...mainContentGlobalTracks.sectionProps}
+          chordLaneProps={{
+            ...mainContentGlobalTracks.sectionProps.chordLaneProps,
+            onDropChordRegionsToTrack: handleGlobalChordDropToTrack,
+          }}
         />
 
         <div className="main-content-body" onClick={mainContentRegions.handleEmptyMainContentClick}>

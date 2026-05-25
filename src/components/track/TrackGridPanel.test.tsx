@@ -3,9 +3,19 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 import TrackGridPanel from './TrackGridPanel';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
+import { KGAudioTrack } from '../../core/track/KGAudioTrack';
+import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
+import { KGChordRegion } from '../../core/region/KGChordRegion';
+import { KGMidiNote } from '../../core/midi/KGMidiNote';
 
 const executeCommandMock = vi.fn();
 const getCreatedRegionMock = vi.fn();
+const showAlertMock = vi.fn();
+const globalChordRegions = [
+  new KGChordRegion('chord-1', 'global-chord', 3, 'C', 0, 4),
+  new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4, 4),
+];
+let currentTracks: Array<ReturnType<typeof createMockMidiTrack> | KGAudioTrack> = [];
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector?: (state: {
@@ -32,14 +42,31 @@ vi.mock('../common', () => ({
 vi.mock('../../core/KGCore', () => ({
   KGCore: {
     instance: () => ({
-      executeCommand: executeCommandMock,
+      executeCommand: (command: { execute?: () => void }) => {
+        command.execute?.();
+        executeCommandMock(command);
+      },
+      getCurrentProject: () => ({
+        getTracks: () => currentTracks,
+        getGlobalTracks: () => [{
+          getRegions: () => globalChordRegions,
+        }],
+      }),
     }),
   },
 }));
 
-vi.mock('../../util/miscUtil', () => ({
-  generateNewRegionName: () => 'New Region',
+vi.mock('../../util/dialogUtil', () => ({
+  showAlert: (...args: unknown[]) => showAlertMock(...args),
 }));
+
+vi.mock('../../util/miscUtil', async () => {
+  const actual = await vi.importActual<typeof import('../../util/miscUtil')>('../../util/miscUtil');
+  return {
+    ...actual,
+    generateNewRegionName: () => 'New Region',
+  };
+});
 
 vi.mock('../../core/commands', async () => {
   const actual = await vi.importActual<typeof import('../../core/commands')>('../../core/commands');
@@ -88,6 +115,7 @@ describe('TrackGridPanel lasso selection', () => {
     const trackB = createMockMidiTrack({ id: 2, regions: [regionB] });
     trackA.setTrackIndex(0);
     trackB.setTrackIndex(1);
+    currentTracks = [trackA, trackB];
 
     const onRegionLassoSelection = vi.fn();
     const onRegionCreated = vi.fn();
@@ -131,6 +159,9 @@ describe('TrackGridPanel lasso selection', () => {
     vi.restoreAllMocks();
     executeCommandMock.mockReset();
     getCreatedRegionMock.mockReset();
+    showAlertMock.mockReset();
+    globalChordRegions[0].setSymbol('C');
+    currentTracks = [];
   });
 
   it('selects intersecting regions across multiple track rows', () => {
@@ -203,6 +234,113 @@ describe('TrackGridPanel lasso selection', () => {
 
     await vi.waitFor(() => {
       expect(onRegionCreated).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('imports chord regions into a MIDI track on drop', async () => {
+    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 4 });
+    const trackA = createMockMidiTrack({ id: 1, regions: [regionA] });
+    trackA.setTrackIndex(0);
+    currentTracks = [trackA];
+    const onExternalDropComplete = vi.fn();
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[trackA]}
+        regions={[{ id: 'region-a', trackId: '1', trackIndex: 0, barNumber: 1, length: 1, name: 'Region A' }]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+        onExternalDropComplete={onExternalDropComplete}
+      />
+    );
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    fireEvent.drop(targetGrid, {
+      dataTransfer: {
+        types: [CHORD_REGION_IMPORT_MIME_TYPE],
+        getData: () => JSON.stringify({ draggedRegionId: 'chord-1', selectedRegionIds: ['chord-1', 'chord-2'] }),
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(onExternalDropComplete).toHaveBeenCalledTimes(1);
+    });
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    expect(command.getDescription()).toContain('Import chord progression');
+    const createdRegion = command.getCreatedRegion();
+    expect(createdRegion?.getStartFromBeat()).toBe(0);
+    expect(createdRegion?.getLength()).toBe(8);
+    expect(createdRegion?.getNotes().map((note: KGMidiNote) => note.getPitch())).toEqual([48, 60, 64, 67, 41, 53, 57, 60]);
+  });
+
+  it('shows a polite dialog when dropping chord regions onto an audio track', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    fireEvent.drop(targetGrid, {
+      dataTransfer: {
+        types: [CHORD_REGION_IMPORT_MIME_TYPE],
+        getData: () => JSON.stringify({ draggedRegionId: 'chord-1', selectedRegionIds: ['chord-1'] }),
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(showAlertMock).toHaveBeenCalledWith('Chord regions can only be converted into MIDI tracks. Please drop them onto a MIDI track.');
+    });
+  });
+
+  it('shows a polite dialog when chord parsing fails', async () => {
+    const trackA = createMockMidiTrack({ id: 1, regions: [] });
+    trackA.setTrackIndex(0);
+    currentTracks = [trackA];
+    globalChordRegions[0].setSymbol('not-a-chord');
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[trackA]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    fireEvent.drop(targetGrid, {
+      dataTransfer: {
+        types: [CHORD_REGION_IMPORT_MIME_TYPE],
+        getData: () => JSON.stringify({ draggedRegionId: 'chord-1', selectedRegionIds: ['chord-1'] }),
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(showAlertMock).toHaveBeenCalledWith('Unable to import chord "not-a-chord". Please update the chord symbol and try again.');
     });
   });
 });

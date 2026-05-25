@@ -366,6 +366,50 @@
   overflow: visible;
 }
 
+.global-chord-drag-feedback {
+  position: fixed;
+  z-index: 10020;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #1f1f1f;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(8px);
+}
+
+.global-chord-drag-feedback-import {
+  background: rgba(196, 255, 207, 0.96);
+}
+
+.global-chord-drag-feedback-move {
+  background: rgba(255, 241, 214, 0.96);
+}
+
+.global-chord-drag-feedback-blocked {
+  background: rgba(255, 214, 214, 0.97);
+}
+
+.global-chord-drag-feedback-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  flex: 0 0 auto;
+}
+
+.global-chord-drag-feedback-label {
+  white-space: nowrap;
+}
+
 .global-key-signature-region .floating-popup {
   min-width: 0;
   width: var(--track-grid-bar-width);

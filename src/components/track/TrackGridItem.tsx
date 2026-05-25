@@ -10,6 +10,7 @@ import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { useProjectStore } from '../../stores/projectStore';
 import { isModifierKeyPressed } from '../../util/osUtil';
+import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -52,6 +53,7 @@ interface TrackGridItemProps {
   onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
+  onChordRegionDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   previewRegionStyles?: Record<string, React.CSSProperties>;
   setPreviewRegionStyles?: React.Dispatch<React.SetStateAction<Record<string, React.CSSProperties>>>;
   previewRegionContentStyles?: Record<string, RegionPreviewContentStyle>;
@@ -82,6 +84,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
+  onChordRegionDrop,
   previewRegionStyles,
   setPreviewRegionStyles,
   previewRegionContentStyles,
@@ -721,6 +724,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     <div
       className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''} ${isAutomationActive ? 'automation-active' : ''}`}
       data-test-id={`track-grid-${track.getId()}`}
+      data-track-index={index}
+      data-track-type={track.getType()}
       onDoubleClick={(e) => {
         if (!isAutomationActive) {
           onDoubleClick(e, index);
@@ -733,7 +738,10 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       }}
       ref={trackElementRef}
       onDragOver={(e) => {
-        if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
+        if (
+          Array.from(e.dataTransfer.types).includes('application/kgone-clip')
+          || Array.from(e.dataTransfer.types).includes(CHORD_REGION_IMPORT_MIME_TYPE)
+        ) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'copy';
         }
@@ -742,6 +750,12 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
         if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
           e.preventDefault();
           onKGOneClipDrop?.(e, index);
+          return;
+        }
+
+        if (Array.from(e.dataTransfer.types).includes(CHORD_REGION_IMPORT_MIME_TYPE)) {
+          e.preventDefault();
+          onChordRegionDrop?.(e, index);
         }
       }}
     >
