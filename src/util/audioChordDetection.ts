@@ -3,8 +3,10 @@ import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { beatRangeToSeconds, getAudioRegionDisplayLengthBeats } from './globalTrackUtil';
 
 export {
+  DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
   detectChordsFromAudio,
   type AudioChordDetectionRequest,
+  type AudioChordDetectionOptions,
   type AudioChordWindow,
   type DetectedAudioChord,
 } from './audioChordDetectionCore';

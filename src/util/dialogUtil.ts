@@ -14,6 +14,13 @@ export interface TimeSigResult {
   denominator: number;
 }
 
+export interface ChordDetectionOptionsResult {
+  sensitivity: number;
+  stability: number;
+  noChordThreshold: number;
+  enableSevenths: boolean;
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -24,6 +31,7 @@ let _showConfirmFn: ((message: string, options?: ConfirmOptions) => Promise<bool
 let _showPromptFn: ((message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>) | null = null;
 let _showTimeSigFn: ((message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>) | null = null;
 let _showChoiceFn: ((message: string, choices: ChoiceOption[]) => Promise<string | null>) | null = null;
+let _showChordDetectionOptionsFn: ((message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -31,12 +39,14 @@ export function registerDialogFns(
   promptFn: (message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>,
   timeSigFn: (message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>,
   choiceFn?: (message: string, choices: ChoiceOption[]) => Promise<string | null>,
+  chordDetectionOptionsFn?: (message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
   _showPromptFn = promptFn;
   _showTimeSigFn = timeSigFn;
   if (choiceFn) _showChoiceFn = choiceFn;
+  if (chordDetectionOptionsFn) _showChordDetectionOptionsFn = chordDetectionOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -77,4 +87,19 @@ export function showTimeSigPrompt(message: string, defaultValue?: TimeSigResult)
     return Promise.resolve({ numerator: n, denominator: d });
   }
   return _showTimeSigFn(message, defaultValue);
+}
+
+export function showChordDetectionOptions(
+  message: string,
+  defaultValue?: ChordDetectionOptionsResult,
+): Promise<ChordDetectionOptionsResult | null> {
+  if (!_showChordDetectionOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      sensitivity: 50,
+      stability: 50,
+      noChordThreshold: 0,
+      enableSevenths: false,
+    });
+  }
+  return _showChordDetectionOptionsFn(message, defaultValue);
 }

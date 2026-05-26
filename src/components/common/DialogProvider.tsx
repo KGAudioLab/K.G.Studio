@@ -2,15 +2,22 @@ import React, { useState, useCallback, useRef } from 'react';
 import './DialogProvider.css';
 import { FaTimes } from 'react-icons/fa';
 import { registerDialogFns } from '../../util/dialogUtil';
-import type { ChoiceOption, ConfirmOptions, PromptOptions, TimeSigResult } from '../../util/dialogUtil';
+import type {
+  ChoiceOption,
+  ChordDetectionOptionsResult,
+  ConfirmOptions,
+  PromptOptions,
+  TimeSigResult,
+} from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
   defaultTimeSig?: TimeSigResult;
   choices?: ChoiceOption[];
+  defaultChordDetectionOptions?: ChordDetectionOptionsResult;
 }
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -19,6 +26,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [inputValue, setInputValue] = useState('');
   const [timeSigNumerator, setTimeSigNumerator] = useState('');
   const [timeSigDenominator, setTimeSigDenominator] = useState('');
+  const [chordDetectionOptions, setChordDetectionOptions] = useState<ChordDetectionOptionsResult>({
+    sensitivity: 50,
+    stability: 50,
+    noChordThreshold: 0,
+    enableSevenths: false,
+  });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
   const pendingValueRef = useRef<unknown>(undefined);
@@ -61,6 +74,22 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const openChordDetectionOptions = useCallback((
+    message: string,
+    defaultValue?: ChordDetectionOptionsResult,
+  ): Promise<ChordDetectionOptionsResult | null> => {
+    return new Promise<ChordDetectionOptionsResult | null>((resolve) => {
+      resolveRef.current = resolve;
+      setChordDetectionOptions(defaultValue ?? {
+        sensitivity: 50,
+        stability: 50,
+        noChordThreshold: 0,
+        enableSevenths: false,
+      });
+      setDialog({ type: 'chord-detection', message, defaultChordDetectionOptions: defaultValue });
+    });
+  }, []);
+
   const close = useCallback((value: unknown) => {
     pendingValueRef.current = value;
     setIsClosing(true);
@@ -74,6 +103,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setInputValue('');
     setTimeSigNumerator('');
     setTimeSigDenominator('');
+    setChordDetectionOptions({
+      sensitivity: 50,
+      stability: 50,
+      noChordThreshold: 0,
+      enableSevenths: false,
+    });
     if (resolveRef.current) {
       resolveRef.current(pendingValueRef.current);
       resolveRef.current = null;
@@ -85,7 +120,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const registered = useRef(false);
   if (!registered.current) {
     registered.current = true;
-    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig, openChoice);
+    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig, openChoice, openChordDetectionOptions);
   }
 
   if (!dialog) {
@@ -96,9 +131,18 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isPrompt = dialog.type === 'prompt';
   const isTimeSig = dialog.type === 'timesig';
   const isChoice = dialog.type === 'choice';
+  const isChordDetection = dialog.type === 'chord-detection';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
 
-  const title = isAlert ? 'Notice' : isTimeSig ? 'Time Signature' : isPrompt ? 'Input' : 'Confirm';
+  const title = isAlert
+    ? 'Notice'
+    : isTimeSig
+      ? 'Time Signature'
+      : isChordDetection
+        ? 'Chord Detection'
+        : isPrompt
+          ? 'Input'
+          : 'Confirm';
 
   const handleOverlayMouseDown = (e: React.MouseEvent) => {
     mouseDownOnOverlay.current = e.target === e.currentTarget;
@@ -106,11 +150,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice) ? null : false);
+      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice) ? null : false);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection) ? null : false);
 
   const handleConfirm = () => {
     if (isAlert) { close(undefined); return; }
@@ -119,7 +163,18 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       close({ numerator: Number(timeSigNumerator), denominator: Number(timeSigDenominator) });
       return;
     }
+    if (isChordDetection) {
+      close(chordDetectionOptions);
+      return;
+    }
     close(true);
+  };
+
+  const updateChordDetectionOption = <K extends keyof ChordDetectionOptionsResult>(
+    key: K,
+    value: ChordDetectionOptionsResult[K],
+  ) => {
+    setChordDetectionOptions(current => ({ ...current, [key]: value }));
   };
 
   return (
@@ -181,6 +236,68 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 />
               </div>
             )}
+            {isChordDetection && (
+              <div className="dialog-chord-detection-form">
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-chord-sensitivity">Sensitivity</label>
+                    <span className="dialog-slider-value">{chordDetectionOptions.sensitivity}</span>
+                  </div>
+                  <input
+                    id="dialog-chord-sensitivity"
+                    className="dialog-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={chordDetectionOptions.sensitivity}
+                    onChange={(e) => updateChordDetectionOption('sensitivity', Number(e.target.value))}
+                    autoFocus
+                  />
+                </div>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-chord-stability">Stability</label>
+                    <span className="dialog-slider-value">{chordDetectionOptions.stability}</span>
+                  </div>
+                  <input
+                    id="dialog-chord-stability"
+                    className="dialog-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={chordDetectionOptions.stability}
+                    onChange={(e) => updateChordDetectionOption('stability', Number(e.target.value))}
+                  />
+                </div>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-chord-no-chord-threshold">No-Chord Threshold</label>
+                    <span className="dialog-slider-value">{chordDetectionOptions.noChordThreshold}</span>
+                  </div>
+                  <input
+                    id="dialog-chord-no-chord-threshold"
+                    className="dialog-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={chordDetectionOptions.noChordThreshold}
+                    onChange={(e) => updateChordDetectionOption('noChordThreshold', Number(e.target.value))}
+                  />
+                </div>
+                <label className="dialog-checkbox-row" htmlFor="dialog-enable-sevenths">
+                  <input
+                    id="dialog-enable-sevenths"
+                    type="checkbox"
+                    checked={chordDetectionOptions.enableSevenths}
+                    onChange={(e) => updateChordDetectionOption('enableSevenths', e.target.checked)}
+                  />
+                  <span>Chord Detail: Enable sevenths</span>
+                </label>
+              </div>
+            )}
           </div>
           <div className="dialog-footer">
             {!isAlert && (
@@ -206,9 +323,9 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={handleConfirm}
-                autoFocus={!isPrompt && !isTimeSig}
+                autoFocus={!isPrompt && !isTimeSig && !isChordDetection}
               >
-                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : 'Yes'))}
+                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : isChordDetection ? 'Detect' : 'Yes'))}
               </button>
             )}
           </div>

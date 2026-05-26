@@ -1,7 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { detectChordsFromAudio } from '../../util/audioChordDetectionCore';
+import {
+  DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+  detectChordsFromAudio,
+} from '../../util/audioChordDetectionCore';
 
 const FIXTURE_PATH = path.resolve(process.cwd(), 'public/test-data/chord-progression-01.mp3');
 const BAR_DURATION_SECONDS = 2;
@@ -48,7 +51,7 @@ function decodeMp3ToMonoPcm(path: string): { sampleRate: number; pcm: Float32Arr
 }
 
 describe('audio chord detection fixture', () => {
-  runIfFfmpeg('detects the expected bar-locked progression from the mp3 fixture', () => {
+  runIfFfmpeg('detects the expected bar-locked progression from the mp3 fixture with triads only', () => {
     const { sampleRate, pcm } = decodeMp3ToMonoPcm(FIXTURE_PATH);
     const windows = Array.from({ length: 9 }, (_, barIndex) => ({
       barIndex,
@@ -63,6 +66,7 @@ describe('audio chord detection fixture', () => {
       sampleRate,
       clipStartOffsetSeconds: 0,
       windows,
+      options: DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
     });
 
     expect(results.map(result => result.symbol)).toEqual([
@@ -74,6 +78,40 @@ describe('audio chord detection fixture', () => {
       'C',
       'Dm',
       'E',
+      'N',
+    ]);
+  });
+
+  runIfFfmpeg('detects the expected bar-locked progression from the mp3 fixture with sevenths enabled', () => {
+    const { sampleRate, pcm } = decodeMp3ToMonoPcm(FIXTURE_PATH);
+    const windows = Array.from({ length: 9 }, (_, barIndex) => ({
+      barIndex,
+      startBeat: barIndex * 4,
+      endBeat: (barIndex + 1) * 4,
+      startSeconds: barIndex * BAR_DURATION_SECONDS,
+      endSeconds: (barIndex + 1) * BAR_DURATION_SECONDS,
+    }));
+
+    const results = detectChordsFromAudio({
+      pcm,
+      sampleRate,
+      clipStartOffsetSeconds: 0,
+      windows,
+      options: {
+        ...DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+        enableSevenths: true,
+      },
+    });
+
+    expect(results.map(result => result.symbol)).toEqual([
+      'Am',
+      'F',
+      'Dm',
+      'E7',
+      'Am',
+      'C',
+      'Dm',
+      'E7',
       'N',
     ]);
   });

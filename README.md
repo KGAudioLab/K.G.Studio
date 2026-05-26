@@ -391,4 +391,4 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - No patent applications using this software or assets
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
-Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, and MediaPipe) are included in `LICENSE`.
+Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, and Meyda) are included in `LICENSE`.

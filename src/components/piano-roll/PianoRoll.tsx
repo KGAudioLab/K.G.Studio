@@ -20,14 +20,16 @@ import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../co
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
-import { showAlert } from '../../util/dialogUtil';
+import { showAlert, showChordDetectionOptions } from '../../util/dialogUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
 } from '../../util/spectrogramUtil';
 import {
+  DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
   buildAudioChordWindowsForRegion,
   type AudioChordDetectionRequest,
+  type AudioChordDetectionOptions,
   type DetectedAudioChord,
 } from '../../util/audioChordDetection';
 import type { AudioChordDetectionWorkerMessage } from '../../workers/audioChordDetectionWorker';
@@ -460,6 +462,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return;
     }
 
+    const detectionOptions = await showChordDetectionOptions(
+      'Tune chord detection settings before processing.',
+      DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+    );
+    if (!detectionOptions) {
+      return;
+    }
+
     setIsDetectingChords(true);
     setDetectChordProgressPercent(0);
     let worker: Worker | null = null;
@@ -485,6 +495,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         sampleRate: audioBuffer.sampleRate,
         clipStartOffsetSeconds: audioRegion.getClipStartOffsetSeconds(),
         windows,
+        options: detectionOptions as AudioChordDetectionOptions,
       };
 
       const detectedChords = await new Promise<DetectedAudioChord[]>((resolve, reject) => {

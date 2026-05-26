@@ -22,6 +22,7 @@ export interface AudioChordDetectionRequest {
   sampleRate: number;
   clipStartOffsetSeconds: number;
   windows: AudioChordWindow[];
+  options: AudioChordDetectionOptions;
 }
 
 export interface DetectedAudioChord {
@@ -39,10 +40,29 @@ export interface AudioChordDetectionProgress {
   percent: number;
 }
 
+export interface AudioChordDetectionOptions {
+  sensitivity: number;
+  stability: number;
+  noChordThreshold: number;
+  enableSevenths: boolean;
+}
+
 interface ScoredChord {
   symbol: string;
   score: number;
 }
+
+interface TriadCandidate extends ScoredChord {
+  root: number;
+  quality: 'major' | 'minor';
+}
+
+export const DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS: AudioChordDetectionOptions = {
+  sensitivity: 50,
+  stability: 50,
+  noChordThreshold: 0,
+  enableSevenths: false,
+};
 
 const HANN_WINDOW = (() => {
   const window = new Float32Array(FFT_SIZE);
@@ -56,13 +76,50 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function parseChordSymbol(symbol: string): { rootIndex: number; quality: 'major' | 'minor' | 'other' } | null {
+  if (!symbol || symbol === 'N') {
+    return null;
+  }
+
+  const rootName = symbol.startsWith('C#') || symbol.startsWith('D#') || symbol.startsWith('F#') || symbol.startsWith('G#') || symbol.startsWith('A#')
+    ? symbol.slice(0, 2)
+    : symbol.slice(0, 1);
+  const rootIndex = ROOT_NAMES.indexOf(rootName as typeof ROOT_NAMES[number]);
+  if (rootIndex < 0) {
+    return null;
+  }
+
+  if (symbol === `${rootName}m`) {
+    return { rootIndex, quality: 'minor' };
+  }
+
+  if (symbol === rootName) {
+    return { rootIndex, quality: 'major' };
+  }
+
+  return { rootIndex, quality: 'other' };
+}
+
 function cloneWindow(window: AudioChordWindow): AudioChordWindow {
   return { ...window };
 }
 
-function buildTriadCandidates(chroma: Float64Array): { best: ScoredChord; second: ScoredChord } {
-  let best: ScoredChord = { symbol: 'N', score: Number.NEGATIVE_INFINITY };
-  let second: ScoredChord = { symbol: 'N', score: Number.NEGATIVE_INFINITY };
+function buildChordCandidates(
+  chroma: Float64Array,
+  options: AudioChordDetectionOptions,
+): { best: ScoredChord; second: ScoredChord } {
+  let bestTriad: TriadCandidate = {
+    symbol: 'N',
+    score: Number.NEGATIVE_INFINITY,
+    root: 0,
+    quality: 'major',
+  };
+  let secondTriad: TriadCandidate = {
+    symbol: 'N',
+    score: Number.NEGATIVE_INFINITY,
+    root: 0,
+    quality: 'major',
+  };
 
   for (let root = 0; root < ROOT_NAMES.length; root++) {
     const rootEnergy = chroma[root];
@@ -74,18 +131,66 @@ function buildTriadCandidates(chroma: Float64Array): { best: ScoredChord; second
     const majorScore = (rootEnergy * 1.2) + (majorThird * 1.0) + (fifth * 0.8) - (outsideEnergy * 0.35) - (minorThird * 0.5);
     const minorScore = (rootEnergy * 1.2) + (minorThird * 1.0) + (fifth * 0.8) - (outsideEnergy * 0.35) - (majorThird * 0.5);
 
-    const candidates: ScoredChord[] = [
-      { symbol: ROOT_NAMES[root], score: majorScore },
-      { symbol: `${ROOT_NAMES[root]}m`, score: minorScore },
+    const triadCandidates: TriadCandidate[] = [
+      { symbol: ROOT_NAMES[root], score: majorScore, root, quality: 'major' },
+      { symbol: `${ROOT_NAMES[root]}m`, score: minorScore, root, quality: 'minor' },
     ];
 
-    for (const candidate of candidates) {
-      if (candidate.score > best.score) {
-        second = best;
-        best = candidate;
-      } else if (candidate.score > second.score) {
-        second = candidate;
+    for (const candidate of triadCandidates) {
+      if (candidate.score > bestTriad.score) {
+        secondTriad = bestTriad;
+        bestTriad = candidate;
+      } else if (candidate.score > secondTriad.score) {
+        secondTriad = candidate;
       }
+    }
+  }
+
+  let best: ScoredChord = { symbol: bestTriad.symbol, score: bestTriad.score };
+  let second: ScoredChord = { symbol: secondTriad.symbol, score: secondTriad.score };
+
+  if (!options.enableSevenths || bestTriad.symbol === 'N') {
+    return { best, second };
+  }
+
+  const rootEnergy = chroma[bestTriad.root];
+  const minorSeventh = chroma[(bestTriad.root + 10) % 12];
+  const majorSeventh = chroma[(bestTriad.root + 11) % 12];
+  const seventhCandidates: ScoredChord[] = [];
+
+  if (bestTriad.quality === 'major') {
+    const dominantSeventhBonus = Math.max(0, minorSeventh - 0.06) * 2.5;
+    const majorSeventhBonus = Math.max(0, majorSeventh - 0.2) * 1.65;
+
+    if (dominantSeventhBonus > 0 && minorSeventh >= rootEnergy * 0.2) {
+      seventhCandidates.push({
+        symbol: `${ROOT_NAMES[bestTriad.root]}7`,
+        score: bestTriad.score + dominantSeventhBonus - (majorSeventh * 0.18) - 0.02,
+      });
+    }
+
+    if (majorSeventhBonus > 0 && majorSeventh >= rootEnergy * 0.42) {
+      seventhCandidates.push({
+        symbol: `${ROOT_NAMES[bestTriad.root]}maj7`,
+        score: bestTriad.score + majorSeventhBonus - (minorSeventh * 0.2) - 0.04,
+      });
+    }
+  } else {
+    const minorSeventhBonus = Math.max(0, minorSeventh - 0.2) * 1.65;
+    if (minorSeventhBonus > 0 && minorSeventh >= rootEnergy * 0.42) {
+      seventhCandidates.push({
+        symbol: `${ROOT_NAMES[bestTriad.root]}m7`,
+        score: bestTriad.score + minorSeventhBonus - (majorSeventh * 0.14) - 0.04,
+      });
+    }
+  }
+
+  for (const candidate of seventhCandidates) {
+    if (candidate.score > best.score) {
+      second = best;
+      best = candidate;
+    } else if (candidate.score > second.score) {
+      second = candidate;
     }
   }
 
@@ -97,6 +202,7 @@ function analyzeChordWindow(
   sampleRate: number,
   startSeconds: number,
   endSeconds: number,
+  options: AudioChordDetectionOptions,
 ): { symbol: string; confidence: number; rms: number } {
   const startSample = Math.max(0, Math.floor(startSeconds * sampleRate));
   const endSample = Math.min(pcm.length, Math.ceil(endSeconds * sampleRate));
@@ -171,7 +277,7 @@ function analyzeChordWindow(
     chroma[i] /= chromaTotal;
   }
 
-  const { best, second } = buildTriadCandidates(chroma);
+  const { best, second } = buildChordCandidates(chroma, options);
   return {
     symbol: best.symbol,
     confidence: clamp(best.score - second.score + (best.score * 0.2), 0, 1),
@@ -179,12 +285,18 @@ function analyzeChordWindow(
   };
 }
 
-function smoothDetectedChords(results: DetectedAudioChord[]): DetectedAudioChord[] {
+function smoothDetectedChords(
+  results: DetectedAudioChord[],
+  options: AudioChordDetectionOptions,
+): DetectedAudioChord[] {
   if (results.length < 3) {
     return results.map(result => ({ ...result }));
   }
 
   const smoothed = results.map(result => ({ ...result }));
+  const stability = clamp(options.stability, 0, 100);
+  const smoothingThreshold = 0.6 + (0.7 * (stability / 100));
+  const inheritedConfidenceFloor = 0.45 + (0.6 * (stability / 100));
   for (let i = 1; i < smoothed.length - 1; i++) {
     const previous = smoothed[i - 1];
     const current = smoothed[i];
@@ -194,14 +306,53 @@ function smoothDetectedChords(results: DetectedAudioChord[]): DetectedAudioChord
     }
     if (previous.symbol === next.symbol && previous.symbol !== 'N' && current.symbol !== previous.symbol) {
       const surroundingConfidence = Math.max(previous.confidence, next.confidence);
-      if (current.confidence < surroundingConfidence * 0.85) {
+      if (current.confidence < surroundingConfidence * smoothingThreshold) {
         current.symbol = previous.symbol;
-        current.confidence = Math.max(current.confidence, surroundingConfidence * 0.75);
+        current.confidence = Math.max(current.confidence, surroundingConfidence * inheritedConfidenceFloor);
       }
     }
   }
 
   return smoothed;
+}
+
+function applySeventhContextPromotion(results: DetectedAudioChord[], options: AudioChordDetectionOptions): DetectedAudioChord[] {
+  if (!options.enableSevenths || results.length < 2) {
+    return results.map(result => ({ ...result }));
+  }
+
+  const promoted = results.map(result => ({ ...result }));
+  for (let i = 0; i < promoted.length - 1; i++) {
+    const current = promoted[i];
+    const next = promoted[i + 1];
+    const previous = i > 0 ? promoted[i - 1] : null;
+    const currentChord = parseChordSymbol(current.symbol);
+    const nextChord = parseChordSymbol(next.symbol);
+    const previousChord = previous ? parseChordSymbol(previous.symbol) : null;
+
+    if (!currentChord) {
+      continue;
+    }
+
+    const resolvesToMinorTonic = nextChord
+      && currentChord.quality === 'major'
+      && nextChord.quality === 'minor'
+      && current.confidence >= 0.3
+      && ((nextChord.rootIndex - currentChord.rootIndex + 12) % 12) === 5;
+
+    const endsAfterMinorPredominant = next.symbol === 'N'
+      && previousChord
+      && currentChord.quality === 'major'
+      && previousChord.quality === 'minor'
+      && current.confidence >= 0.3
+      && ((currentChord.rootIndex - previousChord.rootIndex + 12) % 12) === 2;
+
+    if (resolvesToMinorTonic || endsAfterMinorPredominant) {
+      current.symbol = `${ROOT_NAMES[currentChord.rootIndex]}7`;
+    }
+  }
+
+  return promoted;
 }
 
 export function detectChordsFromAudio(
@@ -212,6 +363,10 @@ export function detectChordsFromAudio(
   if (windows.length === 0) {
     return [];
   }
+  const options: AudioChordDetectionOptions = {
+    ...DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+    ...request.options,
+  };
 
   onProgress?.({
     completedWindows: 0,
@@ -226,6 +381,7 @@ export function detectChordsFromAudio(
       request.sampleRate,
       request.clipStartOffsetSeconds + (window.startSeconds - request.clipStartOffsetSeconds),
       request.clipStartOffsetSeconds + (window.endSeconds - request.clipStartOffsetSeconds),
+      options,
     );
 
     rawResults.push({
@@ -245,12 +401,18 @@ export function detectChordsFromAudio(
   });
 
   const maxRms = rawResults.reduce((max, result) => Math.max(max, result.rms), 0);
-  const silenceThreshold = Math.max(ABSOLUTE_SILENCE_RMS, maxRms * RELATIVE_SILENCE_RATIO);
+  const sensitivityRatio = clamp((options.sensitivity - 50) / 50, -1, 1);
+  const sensitivityFactor = Math.pow(2, -sensitivityRatio);
+  const silenceThreshold = Math.max(
+    ABSOLUTE_SILENCE_RMS * sensitivityFactor,
+    maxRms * RELATIVE_SILENCE_RATIO * sensitivityFactor,
+  );
+  const noChordThreshold = clamp(options.noChordThreshold, 0, 100) / 100;
   const filtered = rawResults.map(result => (
-    result.rms < silenceThreshold
+    result.rms < silenceThreshold || result.confidence < noChordThreshold
       ? { ...result, symbol: 'N', confidence: 0 }
       : result
   ));
 
-  return smoothDetectedChords(filtered);
+  return applySeventhContextPromotion(smoothDetectedChords(filtered, options), options);
 }
