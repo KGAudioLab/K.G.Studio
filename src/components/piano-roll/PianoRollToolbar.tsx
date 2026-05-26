@@ -48,6 +48,8 @@ interface PianoRollToolbarProps {
   automationType?: PianoRollAutomationType;
   onAutomationToggle?: () => void;
   onAutomationTypeChange?: (value: PianoRollAutomationType) => void;
+  onDetectChords?: () => void | Promise<void>;
+  detectingChords?: boolean;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -82,6 +84,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   automationType = 'pitch-bend',
   onAutomationToggle,
   onAutomationTypeChange,
+  onDetectChords,
+  detectingChords = false,
 }) => {
   const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
@@ -99,6 +103,20 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showZoomSlider]);
+
+  const [showSpecMenu, setShowSpecMenu] = React.useState(false);
+  const specMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!showSpecMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (specMenuRef.current && !specMenuRef.current.contains(e.target as Node)) {
+        setShowSpecMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSpecMenu]);
 
   return (
     <div className="piano-roll-toolbar">
@@ -276,6 +294,35 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                   onChange={(e) => onZoomChange(parseInt(e.target.value))}
                 />
                 <span className="piano-roll-zoom-value">{zoom}x</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {showSpecControls && (
+          <div className="quant-dropdown-container" ref={specMenuRef}>
+            <button
+              className="quant-button"
+              onClick={() => setShowSpecMenu(!showSpecMenu)}
+              title="More options"
+            >
+              ...
+            </button>
+            {showSpecMenu && (
+              <div className="quant-dropdown" style={{ right: 0, left: 'auto', width: 'auto', whiteSpace: 'nowrap' }}>
+                <div
+                  className={`quant-option${(!onDetectChords || detectingChords) ? ' disabled' : ''}`}
+                  onClick={() => {
+                    if (!onDetectChords || detectingChords) {
+                      return;
+                    }
+                    setShowSpecMenu(false);
+                    void onDetectChords();
+                  }}
+                  aria-disabled={!onDetectChords || detectingChords}
+                >
+                  {detectingChords ? 'Detecting chords...' : 'Detect chords...'}
+                </div>
               </div>
             )}
           </div>

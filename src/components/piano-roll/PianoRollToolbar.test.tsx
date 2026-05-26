@@ -60,6 +60,7 @@ describe('PianoRollToolbar', () => {
     onChordGuideChange: vi.fn(),
     zoom: 1,
     onZoomChange: vi.fn(),
+    onDetectChords: vi.fn(),
   };
 
   it('shows automation controls in midi mode and toggles the lane', () => {
@@ -116,6 +117,44 @@ describe('PianoRollToolbar', () => {
 
     expect(screen.queryByRole('button', { name: 'Toggle automation lane' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the detect chords action in spectrogram mode and triggers it', () => {
+    const onDetectChords = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onDetectChords={onDetectChords}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Detect chords...'));
+
+    expect(onDetectChords).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the detect chords action while detection is running', () => {
+    const onDetectChords = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        detectingChords={true}
+        onDetectChords={onDetectChords}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    const detectItem = screen.getByText('Detecting chords...');
+    expect(detectItem).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(detectItem);
+    expect(onDetectChords).not.toHaveBeenCalled();
   });
 
   it('shows only the sheet controls when sheet mode is enabled', () => {

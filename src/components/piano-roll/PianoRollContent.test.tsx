@@ -120,6 +120,20 @@ describe('PianoRollContent', () => {
     expect(screen.queryByTestId('automation-lane')).not.toBeInTheDocument();
   });
 
+  it('shows an overlay message when one is supplied by the parent panel', () => {
+    render(
+      <PianoRollContent
+        {...baseProps}
+        mode="spectrogram"
+        overlayMessage="Detecting chords…"
+        overlayProgressPercent={42}
+      />
+    );
+
+    expect(screen.getByText('Detecting chords…')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42');
+  });
+
   it('renders sheet mode without piano keys or automation lane', () => {
     render(
       <PianoRollContent

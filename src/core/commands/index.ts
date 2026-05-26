@@ -39,6 +39,10 @@ export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 export { CreateGlobalMarkerRegionCommand } from './global-region/CreateGlobalMarkerRegionCommand';
 export { CreateChordRegionCommand } from './global-region/CreateChordRegionCommand';
 export { InsertChordRegionAtBeatCommand } from './global-region/InsertChordRegionAtBeatCommand';
+export {
+  ReplaceChordRegionsInRangeCommand,
+  type ChordRegionReplacementData,
+} from './global-region/ReplaceChordRegionsInRangeCommand';
 export { CreateKeySignatureRegionCommand } from './global-region/CreateKeySignatureRegionCommand';
 export { CreateTempoRegionCommand } from './global-region/CreateTempoRegionCommand';
 export { MoveGlobalRegionCommand } from './global-region/MoveGlobalRegionCommand';

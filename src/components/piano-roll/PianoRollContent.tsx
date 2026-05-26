@@ -55,6 +55,8 @@ interface PianoRollContentProps {
   sheetKeySignature?: KeySignature;
   sheetInstrument?: InstrumentType;
   onSheetMeasureMetricsChange?: (metrics: SheetMeasureMetric[]) => void;
+  overlayMessage?: string | null;
+  overlayProgressPercent?: number | null;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
@@ -89,6 +91,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   sheetKeySignature = 'C major',
   sheetInstrument = 'acoustic_grand_piano',
   onSheetMeasureMetricsChange,
+  overlayMessage = null,
+  overlayProgressPercent = null,
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const showAutomationLane = automationEnabled && !isSpectrogram && !sheetMusicViewEnabled;
@@ -321,6 +325,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     container.scrollTop = 0;
   }, [noteScrollRef, sheetMusicViewEnabled]);
 
+  const effectiveOverlayMessage = overlayMessage ?? (spectrogramLoading ? 'Computing spectrogram…' : null);
+
   return (
     <div className="piano-roll-content-outer">
       <div
@@ -397,10 +403,26 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           </div>
         )}
       </div>
-      {spectrogramLoading && (
+      {effectiveOverlayMessage && (
         <div className="spectrogram-loading-overlay">
           <div className="spectrogram-loading-label">
-            Computing spectrogram…
+            {effectiveOverlayMessage}
+            {overlayProgressPercent !== null && (
+              <div className="piano-roll-progress-block">
+                <div
+                  className="piano-roll-progress-track"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.max(0, Math.min(100, overlayProgressPercent))}
+                >
+                  <div
+                    className="piano-roll-progress-fill"
+                    style={{ width: `${Math.max(0, Math.min(100, overlayProgressPercent))}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
