@@ -7,7 +7,7 @@ export const DB_CONSTANTS = {
 };
 
 export const TIME_CONSTANTS = {
-  DEFAULT_BPM: 125,
+  DEFAULT_BPM: 120,
   DEFAULT_TIME_SIGNATURE: {
     numerator: 4,
     denominator: 4,
