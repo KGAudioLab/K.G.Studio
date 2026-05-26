@@ -13,11 +13,13 @@ You may obtain a copy of the License at:
 1. **No Patent Applications**  
    You may not use this software or any included assets, in whole or in part, to file or assist in filing any patent application, whether directly or indirectly, in any jurisdiction.
 
-2. **Attribution Requirement**  
-   If you use this project in any public or commercial product, you must provide the following credit in a prominent location (such as an "About" screen or documentation):
+2. **Attribution Requirement**
+   If you incorporate this software, or any portion of its source code or compiled output, into another software product (including applications, libraries, plugins, or services), you must provide the following credit in a prominent location (such as an "About" screen or documentation):
 
-   > Powered by **K.G.Studio**  
+   > Powered by **K.G.Studio**
    > © 2025-2026 Xiaohan Tian
+
+   This requirement applies to software incorporation and redistribution only. It does not apply to content produced using this software, including but not limited to music, audio recordings, or other media.
 
 ## Standard Terms
 
