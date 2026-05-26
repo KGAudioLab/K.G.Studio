@@ -21,6 +21,12 @@ export interface ChordDetectionOptionsResult {
   enableSevenths: boolean;
 }
 
+export interface MidiChordDetectionOptionsResult {
+  enableSevenths: boolean;
+  shortNoteSuppression: 'low' | 'medium' | 'high';
+  harmonicFocus: 'balanced' | 'favor-sustained-notes';
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -32,6 +38,7 @@ let _showPromptFn: ((message: string, defaultValue?: string, options?: PromptOpt
 let _showTimeSigFn: ((message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>) | null = null;
 let _showChoiceFn: ((message: string, choices: ChoiceOption[]) => Promise<string | null>) | null = null;
 let _showChordDetectionOptionsFn: ((message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>) | null = null;
+let _showMidiChordDetectionOptionsFn: ((message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -40,6 +47,7 @@ export function registerDialogFns(
   timeSigFn: (message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>,
   choiceFn?: (message: string, choices: ChoiceOption[]) => Promise<string | null>,
   chordDetectionOptionsFn?: (message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>,
+  midiChordDetectionOptionsFn?: (message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -47,6 +55,7 @@ export function registerDialogFns(
   _showTimeSigFn = timeSigFn;
   if (choiceFn) _showChoiceFn = choiceFn;
   if (chordDetectionOptionsFn) _showChordDetectionOptionsFn = chordDetectionOptionsFn;
+  if (midiChordDetectionOptionsFn) _showMidiChordDetectionOptionsFn = midiChordDetectionOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -102,4 +111,18 @@ export function showChordDetectionOptions(
     });
   }
   return _showChordDetectionOptionsFn(message, defaultValue);
+}
+
+export function showMidiChordDetectionOptions(
+  message: string,
+  defaultValue?: MidiChordDetectionOptionsResult,
+): Promise<MidiChordDetectionOptionsResult | null> {
+  if (!_showMidiChordDetectionOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      enableSevenths: false,
+      shortNoteSuppression: 'medium',
+      harmonicFocus: 'favor-sustained-notes',
+    });
+  }
+  return _showMidiChordDetectionOptionsFn(message, defaultValue);
 }

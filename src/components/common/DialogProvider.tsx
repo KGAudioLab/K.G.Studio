@@ -6,19 +6,34 @@ import type {
   ChoiceOption,
   ChordDetectionOptionsResult,
   ConfirmOptions,
+  MidiChordDetectionOptionsResult,
   PromptOptions,
   TimeSigResult,
 } from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
   defaultTimeSig?: TimeSigResult;
   choices?: ChoiceOption[];
   defaultChordDetectionOptions?: ChordDetectionOptionsResult;
+  defaultMidiChordDetectionOptions?: MidiChordDetectionOptionsResult;
 }
+
+const DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS: ChordDetectionOptionsResult = {
+  sensitivity: 50,
+  stability: 50,
+  noChordThreshold: 0,
+  enableSevenths: false,
+};
+
+const DEFAULT_MIDI_CHORD_DETECTION_OPTIONS: MidiChordDetectionOptionsResult = {
+  enableSevenths: false,
+  shortNoteSuppression: 'medium',
+  harmonicFocus: 'favor-sustained-notes',
+};
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
@@ -26,12 +41,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [inputValue, setInputValue] = useState('');
   const [timeSigNumerator, setTimeSigNumerator] = useState('');
   const [timeSigDenominator, setTimeSigDenominator] = useState('');
-  const [chordDetectionOptions, setChordDetectionOptions] = useState<ChordDetectionOptionsResult>({
-    sensitivity: 50,
-    stability: 50,
-    noChordThreshold: 0,
-    enableSevenths: false,
-  });
+  const [chordDetectionOptions, setChordDetectionOptions] = useState<ChordDetectionOptionsResult>(DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
+  const [midiChordDetectionOptions, setMidiChordDetectionOptions] = useState<MidiChordDetectionOptionsResult>(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
   const pendingValueRef = useRef<unknown>(undefined);
@@ -80,13 +91,19 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   ): Promise<ChordDetectionOptionsResult | null> => {
     return new Promise<ChordDetectionOptionsResult | null>((resolve) => {
       resolveRef.current = resolve;
-      setChordDetectionOptions(defaultValue ?? {
-        sensitivity: 50,
-        stability: 50,
-        noChordThreshold: 0,
-        enableSevenths: false,
-      });
+      setChordDetectionOptions(defaultValue ?? DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
       setDialog({ type: 'chord-detection', message, defaultChordDetectionOptions: defaultValue });
+    });
+  }, []);
+
+  const openMidiChordDetectionOptions = useCallback((
+    message: string,
+    defaultValue?: MidiChordDetectionOptionsResult,
+  ): Promise<MidiChordDetectionOptionsResult | null> => {
+    return new Promise<MidiChordDetectionOptionsResult | null>((resolve) => {
+      resolveRef.current = resolve;
+      setMidiChordDetectionOptions(defaultValue ?? DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
+      setDialog({ type: 'midi-chord-detection', message, defaultMidiChordDetectionOptions: defaultValue });
     });
   }, []);
 
@@ -103,12 +120,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setInputValue('');
     setTimeSigNumerator('');
     setTimeSigDenominator('');
-    setChordDetectionOptions({
-      sensitivity: 50,
-      stability: 50,
-      noChordThreshold: 0,
-      enableSevenths: false,
-    });
+    setChordDetectionOptions(DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
+    setMidiChordDetectionOptions(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
     if (resolveRef.current) {
       resolveRef.current(pendingValueRef.current);
       resolveRef.current = null;
@@ -120,7 +133,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const registered = useRef(false);
   if (!registered.current) {
     registered.current = true;
-    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig, openChoice, openChordDetectionOptions);
+    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig, openChoice, openChordDetectionOptions, openMidiChordDetectionOptions);
   }
 
   if (!dialog) {
@@ -132,13 +145,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isTimeSig = dialog.type === 'timesig';
   const isChoice = dialog.type === 'choice';
   const isChordDetection = dialog.type === 'chord-detection';
+  const isMidiChordDetection = dialog.type === 'midi-chord-detection';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
 
   const title = isAlert
     ? 'Notice'
     : isTimeSig
       ? 'Time Signature'
-      : isChordDetection
+      : (isChordDetection || isMidiChordDetection)
         ? 'Chord Detection'
         : isPrompt
           ? 'Input'
@@ -167,6 +181,10 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       close(chordDetectionOptions);
       return;
     }
+    if (isMidiChordDetection) {
+      close(midiChordDetectionOptions);
+      return;
+    }
     close(true);
   };
 
@@ -175,6 +193,13 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     value: ChordDetectionOptionsResult[K],
   ) => {
     setChordDetectionOptions(current => ({ ...current, [key]: value }));
+  };
+
+  const updateMidiChordDetectionOption = <K extends keyof MidiChordDetectionOptionsResult>(
+    key: K,
+    value: MidiChordDetectionOptionsResult[K],
+  ) => {
+    setMidiChordDetectionOptions(current => ({ ...current, [key]: value }));
   };
 
   return (
@@ -298,6 +323,49 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 </label>
               </div>
             )}
+            {isMidiChordDetection && (
+              <div className="dialog-chord-detection-form">
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-midi-short-note-suppression">Short Notes</label>
+                  </div>
+                  <select
+                    id="dialog-midi-short-note-suppression"
+                    className="dialog-input"
+                    value={midiChordDetectionOptions.shortNoteSuppression}
+                    onChange={(e) => updateMidiChordDetectionOption('shortNoteSuppression', e.target.value as MidiChordDetectionOptionsResult['shortNoteSuppression'])}
+                    autoFocus
+                  >
+                    <option value="low">Low suppression</option>
+                    <option value="medium">Medium suppression</option>
+                    <option value="high">High suppression</option>
+                  </select>
+                </div>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-midi-harmonic-focus">Harmonic Focus</label>
+                  </div>
+                  <select
+                    id="dialog-midi-harmonic-focus"
+                    className="dialog-input"
+                    value={midiChordDetectionOptions.harmonicFocus}
+                    onChange={(e) => updateMidiChordDetectionOption('harmonicFocus', e.target.value as MidiChordDetectionOptionsResult['harmonicFocus'])}
+                  >
+                    <option value="balanced">Balanced</option>
+                    <option value="favor-sustained-notes">Favor sustained notes</option>
+                  </select>
+                </div>
+                <label className="dialog-checkbox-row" htmlFor="dialog-midi-enable-sevenths">
+                  <input
+                    id="dialog-midi-enable-sevenths"
+                    type="checkbox"
+                    checked={midiChordDetectionOptions.enableSevenths}
+                    onChange={(e) => updateMidiChordDetectionOption('enableSevenths', e.target.checked)}
+                  />
+                  <span>Chord Detail: Enable sevenths</span>
+                </label>
+              </div>
+            )}
           </div>
           <div className="dialog-footer">
             {!isAlert && (
@@ -323,9 +391,9 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={handleConfirm}
-                autoFocus={!isPrompt && !isTimeSig && !isChordDetection}
+                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection}
               >
-                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : isChordDetection ? 'Detect' : 'Yes'))}
+                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : (isChordDetection || isMidiChordDetection) ? 'Detect' : 'Yes'))}
               </button>
             )}
           </div>

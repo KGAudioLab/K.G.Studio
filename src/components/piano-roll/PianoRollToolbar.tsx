@@ -89,6 +89,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
 }) => {
   const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
+  const showDetectChordMenu = !sheetMusicViewEnabled && !!onDetectChords;
 
   const [showZoomSlider, setShowZoomSlider] = React.useState(false);
   const zoomSliderRef = React.useRef<HTMLDivElement>(null);
@@ -299,7 +300,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           </div>
         )}
 
-        {showSpecControls && (
+        {showDetectChordMenu && (
           <div className="quant-dropdown-container" ref={specMenuRef}>
             <button
               className="quant-button"

@@ -20,7 +20,7 @@ import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../co
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
-import { showAlert, showChordDetectionOptions } from '../../util/dialogUtil';
+import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions } from '../../util/dialogUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
@@ -32,6 +32,13 @@ import {
   type AudioChordDetectionOptions,
   type DetectedAudioChord,
 } from '../../util/audioChordDetection';
+import {
+  DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+  buildMidiChordWindowsForRegion,
+  detectChordsFromMidi,
+  type DetectedMidiChord,
+  type MidiChordDetectionOptions,
+} from '../../util/midiChordDetection';
 import type { AudioChordDetectionWorkerMessage } from '../../workers/audioChordDetectionWorker';
 import type { PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
@@ -450,22 +457,32 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   };
 
   const handleDetectChords = useCallback(async () => {
-    if (!audioRegion || !projectName || !trackId) {
-      await showAlert('Open an audio region in spectrogram mode before detecting chords.');
+    if (!audioRegion && !activeRegion) {
+      await showAlert('Open a MIDI or audio region before detecting chords.');
       return;
     }
 
     const project = KGCore.instance().getCurrentProject();
-    const windows = buildAudioChordWindowsForRegion(project, audioRegion);
-    if (windows.length === 0) {
-      await showAlert('The selected audio region has no audible span to analyze.');
+    const audioWindows = audioRegion ? buildAudioChordWindowsForRegion(project, audioRegion) : null;
+    const midiWindows = !audioRegion && activeRegion ? buildMidiChordWindowsForRegion(project, activeRegion) : null;
+    const chordWindows = audioWindows ?? midiWindows ?? [];
+    if (chordWindows.length === 0) {
+      await showAlert(audioRegion
+        ? 'The selected audio region has no audible span to analyze.'
+        : 'The selected MIDI region has no bars to analyze.'
+      );
       return;
     }
 
-    const detectionOptions = await showChordDetectionOptions(
-      'Tune chord detection settings before processing.',
-      DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
-    );
+    const detectionOptions = audioRegion
+      ? await showChordDetectionOptions(
+        'Tune audio chord detection settings before processing.',
+        DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+      )
+      : await showMidiChordDetectionOptions(
+        'Tune MIDI chord detection settings before processing.',
+        DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+      );
     if (!detectionOptions) {
       return;
     }
@@ -475,48 +492,64 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     let worker: Worker | null = null;
 
     try {
-      let audioBuffer = KGAudioInterface.instance().getAudioBuffer(trackId, audioRegion.getAudioFileId());
-      if (!audioBuffer) {
-        const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioRegion.getAudioFileId());
-        const actx = Tone.getContext().rawContext as AudioContext;
-        audioBuffer = await actx.decodeAudioData(rawBuffer);
-      }
-
-      const monoPcm = new Float32Array(audioBuffer.length);
-      for (let channelIndex = 0; channelIndex < audioBuffer.numberOfChannels; channelIndex++) {
-        const channelData = audioBuffer.getChannelData(channelIndex);
-        for (let sampleIndex = 0; sampleIndex < audioBuffer.length; sampleIndex++) {
-          monoPcm[sampleIndex] += channelData[sampleIndex] / audioBuffer.numberOfChannels;
+      let detectedChords: DetectedAudioChord[] | DetectedMidiChord[];
+      if (audioRegion) {
+        if (!projectName || !trackId) {
+          await showAlert('Open an audio region in spectrogram mode before detecting chords.');
+          return;
         }
-      }
 
-      const request: AudioChordDetectionRequest = {
-        pcm: monoPcm,
-        sampleRate: audioBuffer.sampleRate,
-        clipStartOffsetSeconds: audioRegion.getClipStartOffsetSeconds(),
-        windows,
-        options: detectionOptions as AudioChordDetectionOptions,
-      };
+        let audioBuffer = KGAudioInterface.instance().getAudioBuffer(trackId, audioRegion.getAudioFileId());
+        if (!audioBuffer) {
+          const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioRegion.getAudioFileId());
+          const actx = Tone.getContext().rawContext as AudioContext;
+          audioBuffer = await actx.decodeAudioData(rawBuffer);
+        }
 
-      const detectedChords = await new Promise<DetectedAudioChord[]>((resolve, reject) => {
-        worker = new Worker(
-          new URL('../../workers/audioChordDetectionWorker.ts', import.meta.url),
-          { type: 'module' },
-        );
-
-        worker.onmessage = (event: MessageEvent<AudioChordDetectionWorkerMessage>) => {
-          if (event.data.type === 'progress') {
-            setDetectChordProgressPercent(event.data.progress.percent);
-            return;
+        const monoPcm = new Float32Array(audioBuffer.length);
+        for (let channelIndex = 0; channelIndex < audioBuffer.numberOfChannels; channelIndex++) {
+          const channelData = audioBuffer.getChannelData(channelIndex);
+          for (let sampleIndex = 0; sampleIndex < audioBuffer.length; sampleIndex++) {
+            monoPcm[sampleIndex] += channelData[sampleIndex] / audioBuffer.numberOfChannels;
           }
+        }
 
-          resolve(event.data.results);
+        const request: AudioChordDetectionRequest = {
+          pcm: monoPcm,
+          sampleRate: audioBuffer.sampleRate,
+          clipStartOffsetSeconds: audioRegion.getClipStartOffsetSeconds(),
+          windows: audioWindows ?? [],
+          options: detectionOptions as AudioChordDetectionOptions,
         };
-        worker.onerror = () => {
-          reject(new Error('Chord detection worker failed.'));
-        };
-        worker.postMessage(request, [request.pcm.buffer]);
-      });
+
+        detectedChords = await new Promise<DetectedAudioChord[]>((resolve, reject) => {
+          worker = new Worker(
+            new URL('../../workers/audioChordDetectionWorker.ts', import.meta.url),
+            { type: 'module' },
+          );
+
+          worker.onmessage = (event: MessageEvent<AudioChordDetectionWorkerMessage>) => {
+            if (event.data.type === 'progress') {
+              setDetectChordProgressPercent(event.data.progress.percent);
+              return;
+            }
+
+            resolve(event.data.results);
+          };
+          worker.onerror = () => {
+            reject(new Error('Chord detection worker failed.'));
+          };
+          worker.postMessage(request, [request.pcm.buffer]);
+        });
+      } else {
+        setDetectChordProgressPercent(100);
+        detectedChords = detectChordsFromMidi({
+          project,
+          region: activeRegion as KGMidiRegion,
+          windows: midiWindows ?? [],
+          options: detectionOptions as MidiChordDetectionOptions,
+        });
+      }
 
       const replacements = detectedChords
         .filter(result => result.symbol !== 'N' && result.endBeat > result.startBeat)
@@ -526,15 +559,18 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           symbol: result.symbol,
         }));
 
-      const spanStartBeat = windows[0].startBeat;
-      const spanEndBeat = windows[windows.length - 1].endBeat;
+      const spanStartBeat = chordWindows[0].startBeat;
+      const spanEndBeat = chordWindows[chordWindows.length - 1].endBeat;
       KGCore.instance().executeCommand(
         new ReplaceChordRegionsInRangeCommand(spanStartBeat, spanEndBeat, replacements),
       );
       refreshProjectState();
     } catch (error) {
       console.error('Error detecting chords:', error);
-      await showAlert('Failed to detect chords from this audio region.');
+      await showAlert(audioRegion
+        ? 'Failed to detect chords from this audio region.'
+        : 'Failed to detect chords from this MIDI region.'
+      );
     } finally {
       if (worker) {
         worker.terminate();
@@ -542,7 +578,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       setIsDetectingChords(false);
       setDetectChordProgressPercent(0);
     }
-  }, [audioRegion, projectName, refreshProjectState, trackId]);
+  }, [activeRegion, audioRegion, projectName, refreshProjectState, trackId]);
 
   // Handle title click to rename the region
   const handleTitleClick = () => {

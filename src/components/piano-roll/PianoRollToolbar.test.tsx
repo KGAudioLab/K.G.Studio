@@ -137,6 +137,24 @@ describe('PianoRollToolbar', () => {
     expect(onDetectChords).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the detect chords action in midi mode and triggers it', () => {
+    const onDetectChords = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+        onDetectChords={onDetectChords}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Detect chords...'));
+
+    expect(onDetectChords).toHaveBeenCalledTimes(1);
+  });
+
   it('disables the detect chords action while detection is running', () => {
     const onDetectChords = vi.fn();
 
