@@ -119,6 +119,37 @@ describe('PianoRollToolbar', () => {
     expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
   });
 
+  it('shows the spectrogram toggle for pure audio waveform mode and toggles it', () => {
+    const onAudioSpectrogramToggle = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="audio-waveform"
+        showAudioSpectrogramToggle={true}
+        audioSpectrogramEnabled={false}
+        onAudioSpectrogramToggle={onAudioSpectrogramToggle}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Spectrogram View' }));
+
+    expect(onAudioSpectrogramToggle).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Spectrogram View' }).className).not.toContain('active');
+  });
+
+  it('hides the spectrogram toggle in hybrid mode', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="hybrid"
+        showAudioSpectrogramToggle={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Spectrogram View' })).not.toBeInTheDocument();
+  });
+
   it('shows the detect chords action in spectrogram mode and triggers it', () => {
     const onDetectChords = vi.fn();
 

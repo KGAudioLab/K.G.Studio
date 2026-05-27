@@ -58,6 +58,7 @@ const MainContent: React.FC<MainContentProps> = ({
     requestedSheetMusicViewEnabled,
     pianoRollViewRequestVersion,
     openMidiPianoRoll,
+    openAudioWaveformViewer,
     openSpectrogramViewer,
     openHybridMode,
     hybridAudioRegionId,
@@ -95,6 +96,7 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowPianoRoll,
     setActiveRegionId,
     openMidiPianoRoll,
+    openAudioWaveformViewer,
     openSpectrogramViewer,
     openHybridMode,
     pianoRollMode,
@@ -321,7 +323,7 @@ const MainContent: React.FC<MainContentProps> = ({
   }, [globalTracks, mainContentRegions, refreshProjectState, selectedRegionIds, timeSignature.numerator, tracks]);
 
   const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
-  const showHybridButtonForMidi = showPianoRoll && pianoRollMode === 'spectrogram';
+  const showHybridButtonForMidi = showPianoRoll && (pianoRollMode === 'audio-waveform' || pianoRollMode === 'spectrogram');
   const beatTicksPerBar = Math.max(0, timeSignature.numerator - 1);
 
   return (
@@ -412,6 +414,7 @@ const MainContent: React.FC<MainContentProps> = ({
             onRegionLassoSelection={mainContentRegions.handleRegionLassoSelection}
             onRegionLassoCommit={mainContentRegions.handleRegionLassoCommit}
             onOpenPianoRoll={mainContentRegions.handleOpenPianoRoll}
+            onOpenWaveform={mainContentRegions.handleOpenWaveform}
             onOpenSpectrogram={mainContentRegions.handleOpenSpectrogram}
             showHybridButtonForAudio={showHybridButtonForAudio}
             showHybridButtonForMidi={showHybridButtonForMidi}
@@ -441,7 +444,7 @@ const MainContent: React.FC<MainContentProps> = ({
           requestedSheetMusicViewEnabled={requestedSheetMusicViewEnabled}
           pianoRollViewRequestVersion={pianoRollViewRequestVersion}
           audioRegion={(() => {
-            const audioId = pianoRollMode === 'spectrogram'
+            const audioId = pianoRollMode === 'audio-waveform' || pianoRollMode === 'spectrogram'
               ? activeRegionId
               : pianoRollMode === 'hybrid'
                 ? hybridAudioRegionId
@@ -459,7 +462,7 @@ const MainContent: React.FC<MainContentProps> = ({
             return undefined;
           })()}
           trackId={(() => {
-            const audioId = pianoRollMode === 'spectrogram'
+            const audioId = pianoRollMode === 'audio-waveform' || pianoRollMode === 'spectrogram'
               ? activeRegionId
               : pianoRollMode === 'hybrid'
                 ? hybridAudioRegionId

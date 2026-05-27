@@ -17,7 +17,7 @@ import { showAlert } from '../util/dialogUtil';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRollWithSheetMusicView, openSpectrogramViewer, playheadPosition, refreshProjectState } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRollWithSheetMusicView, openAudioWaveformViewer, openSpectrogramViewer, playheadPosition, refreshProjectState } = useProjectStore();
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   useEffect(() => {
@@ -232,7 +232,7 @@ export const useGlobalKeyboardHandler = () => {
         return;
       }
 
-      // Check for edit/view shortcut (E) — open piano roll for MIDI, spectrogram for audio
+      // Check for edit/view shortcut (E) — open piano roll for MIDI, waveform for audio
       if (event.key.toLowerCase() === 'e' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
         event.preventDefault();
         if (showPianoRoll) {
@@ -258,7 +258,7 @@ export const useGlobalKeyboardHandler = () => {
         if (foundMidi) {
           openMidiPianoRollWithSheetMusicView(candidateId, false);
         } else if (foundAudio) {
-          openSpectrogramViewer(candidateId);
+          openAudioWaveformViewer(candidateId);
         }
         return;
       }
@@ -335,6 +335,7 @@ export const useGlobalKeyboardHandler = () => {
     setShowPianoRoll,
     showPianoRoll,
     openMidiPianoRollWithSheetMusicView,
+    openAudioWaveformViewer,
     openSpectrogramViewer,
     playheadPosition,
     refreshProjectState,

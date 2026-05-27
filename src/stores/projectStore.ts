@@ -109,7 +109,7 @@ interface ProjectState {
   // Piano roll state
   showPianoRoll: boolean;
   activeRegionId: string | null;
-  pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
+  pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
   requestedSheetMusicViewEnabled: boolean;
   pianoRollViewRequestVersion: number;
@@ -211,6 +211,7 @@ interface ProjectState {
   setActiveRegionId: (regionId: string | null) => void;
   openMidiPianoRoll: (regionId: string) => void;
   openMidiPianoRollWithSheetMusicView: (regionId: string, sheetMusicViewEnabled: boolean) => void;
+  openAudioWaveformViewer: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
   bumpAutomationRedrawVersion: () => void;
@@ -1623,6 +1624,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         requestedSheetMusicViewEnabled: sheetMusicViewEnabled,
         pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
       }));
+    },
+
+    openAudioWaveformViewer: (regionId: string) => {
+      set({
+        showPianoRoll: true,
+        activeRegionId: regionId,
+        pianoRollMode: 'audio-waveform',
+        hybridAudioRegionId: null,
+        requestedSheetMusicViewEnabled: false,
+      });
     },
 
     openSpectrogramViewer: (regionId: string) => {

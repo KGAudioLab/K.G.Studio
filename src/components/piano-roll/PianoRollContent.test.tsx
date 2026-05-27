@@ -46,7 +46,13 @@ vi.mock('../../hooks/useNoteSelection', () => ({
 
 vi.mock('./PianoGridHeader', () => ({ default: () => <div data-testid="piano-grid-header" /> }));
 vi.mock('./PianoKeys', () => ({ default: () => <div data-testid="piano-keys" /> }));
-vi.mock('./PianoGrid', () => ({ default: ({ children }: { children?: React.ReactNode }) => <div data-testid="piano-grid">{children}</div> }));
+const pianoGridSpy = vi.fn();
+vi.mock('./PianoGrid', () => ({
+  default: (props: { children?: React.ReactNode; mode?: string }) => {
+    pianoGridSpy(props);
+    return <div data-testid="piano-grid">{props.children}</div>;
+  },
+}));
 vi.mock('./PianoNote', () => ({ default: () => <div data-testid="piano-note" /> }));
 vi.mock('./PianoRollAutomationLane', () => ({ default: () => <div data-testid="automation-lane" /> }));
 const sheetMusicViewSpy = vi.fn();
@@ -76,6 +82,7 @@ describe('PianoRollContent', () => {
 
   beforeEach(() => {
     sheetMusicViewSpy.mockClear();
+    pianoGridSpy.mockClear();
   });
 
   it('keeps the single-pane layout when automation is disabled', () => {
@@ -118,6 +125,21 @@ describe('PianoRollContent', () => {
 
     expect(screen.getByTestId('piano-roll-content-single')).toBeInTheDocument();
     expect(screen.queryByTestId('automation-lane')).not.toBeInTheDocument();
+  });
+
+  it('suppresses the automation lane in waveform mode and forwards the explicit mode', () => {
+    render(
+      <PianoRollContent
+        {...baseProps}
+        mode="audio-waveform"
+        automationEnabled={true}
+        automationType="cc-7"
+      />
+    );
+
+    expect(screen.getByTestId('piano-roll-content-single')).toBeInTheDocument();
+    expect(screen.queryByTestId('automation-lane')).not.toBeInTheDocument();
+    expect(pianoGridSpy).toHaveBeenCalledWith(expect.objectContaining({ mode: 'audio-waveform' }));
   });
 
   it('shows an overlay message when one is supplied by the parent panel', () => {

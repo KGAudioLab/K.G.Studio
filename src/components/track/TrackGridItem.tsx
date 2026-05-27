@@ -47,6 +47,7 @@ interface TrackGridItemProps {
   onRegionFineMoveEnd?: (regionId: string, deltaInBars: number) => void;
   onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenWaveform?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
   showHybridButtonForMidi?: boolean;
@@ -78,6 +79,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onRegionFineMoveEnd,
   onRegionClick,
   onOpenPianoRoll,
+  onOpenWaveform,
   onOpenSpectrogram,
   showHybridButtonForAudio,
   showHybridButtonForMidi,
@@ -802,6 +804,9 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onRegionClick(regionId, { shiftKey: false, metaKey: false, ctrlKey: false });
               }
             }}
+            onOpenWaveform={audioRegion ? (regionId) => {
+              onOpenWaveform?.(regionId);
+            } : undefined}
             onOpenSpectrogram={audioRegion ? (regionId) => {
               onOpenSpectrogram?.(regionId);
             } : undefined}

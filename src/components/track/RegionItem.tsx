@@ -39,6 +39,7 @@ interface RegionItemProps {
   onClick?: (regionId: string, options: RegionClickOptions) => void;
   // Explicit open piano roll action from header pencil icon
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenWaveform?: (regionId: string) => void;
   // Open spectrogram viewer for audio regions
   onOpenSpectrogram?: (regionId: string) => void;
   // Enter hybrid mode (show + when piano roll is open with the opposite region type selected)
@@ -73,6 +74,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onDragEnd,
   onClick,
   onOpenPianoRoll,
+  onOpenWaveform,
   onOpenSpectrogram,
   showHybridButton,
   onOpenHybrid,
@@ -732,6 +734,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                onOpenWaveform?.(id);
               }}
               aria-label="View waveform"
             >

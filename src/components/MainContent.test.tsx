@@ -50,6 +50,7 @@ const storeState = {
   requestedSheetMusicViewEnabled: false,
   pianoRollViewRequestVersion: 0,
   openMidiPianoRoll: vi.fn(),
+  openAudioWaveformViewer: vi.fn(),
   openSpectrogramViewer: vi.fn(),
   openHybridMode: vi.fn(),
   hybridAudioRegionId: null as string | null,
@@ -166,6 +167,7 @@ describe('MainContent', () => {
     storeState.setShowPianoRoll.mockClear();
     storeState.setActiveRegionId.mockClear();
     storeState.openMidiPianoRoll.mockClear();
+    storeState.openAudioWaveformViewer.mockClear();
     storeState.openSpectrogramViewer.mockClear();
     storeState.addTrack.mockClear();
     storeState.addAudioTrack.mockClear();
@@ -220,7 +222,8 @@ describe('MainContent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'select-audio-region' }));
 
     expect(storeState.activeRegionId).toBe('audio-1');
-    expect(storeState.openSpectrogramViewer).toHaveBeenCalledWith('audio-1');
+    expect(storeState.openAudioWaveformViewer).toHaveBeenCalledWith('audio-1');
+    expect(storeState.openSpectrogramViewer).not.toHaveBeenCalled();
   });
 
   it('cmd-click adds a second regular region without range fill', () => {

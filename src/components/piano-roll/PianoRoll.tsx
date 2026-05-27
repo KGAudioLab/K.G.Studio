@@ -67,7 +67,7 @@ interface PianoRollProps {
   regionId: string | null;
   initialPosition?: { x: number; y: number };
   initialSize?: { width: number; height: number };
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   requestedSheetMusicViewEnabled?: boolean;
   pianoRollViewRequestVersion?: number;
   audioRegion?: KGAudioRegion;
@@ -87,8 +87,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   trackId,
   projectName,
 }) => {
-  const isSpectrogram = mode === 'spectrogram';
-  const isHybrid = mode === 'hybrid';
+  const [currentMode, setCurrentMode] = useState<'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid'>(mode);
+  const isSpectrogram = currentMode === 'spectrogram';
+  const isAudioWaveform = currentMode === 'audio-waveform';
+  const isAudioOnly = isAudioWaveform || isSpectrogram;
+  const isHybrid = currentMode === 'hybrid';
   const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
 
   // Tool state for piano roll
@@ -135,6 +138,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
+
+  useEffect(() => {
+    setCurrentMode(mode);
+  }, [mode]);
 
   const selectedNotes = useMemo(
     () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
@@ -285,7 +292,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, []); // Empty dependency array means this runs once on mount
 
   useEffect(() => {
-    if (isSpectrogram) {
+    if (isAudioOnly) {
       return;
     }
 
@@ -312,7 +319,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     KGPianoRollState.instance().setSheetMusicViewEnabled(requestedSheetMusicViewEnabled);
   }, [
     activeRegion,
-    isSpectrogram,
+    isAudioOnly,
     pianoRollViewRequestVersion,
     playheadPosition,
     requestedSheetMusicViewEnabled,
@@ -508,7 +515,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       let detectedChords: DetectedAudioChord[] | DetectedMidiChord[];
       if (audioRegion) {
         if (!projectName || !trackId) {
-          await showAlert('Open an audio region in spectrogram mode before detecting chords.');
+      await showAlert('Open an audio region in spectrogram mode before detecting chords.');
           return;
         }
 
@@ -1081,6 +1088,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     });
   }, [activeRegion, playheadPosition, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
 
+  const handleAudioSpectrogramToggle = useCallback(() => {
+    if (isHybrid || !audioRegion) {
+      return;
+    }
+
+    setCurrentMode(current => current === 'spectrogram' ? 'audio-waveform' : 'spectrogram');
+  }, [audioRegion, isHybrid]);
+
   const handleSheetMeasureMetricsChange = useCallback((metrics: SheetMeasureMetric[]) => {
     setSheetMeasureMetrics((current) => {
       if (
@@ -1106,6 +1121,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return;
     }
 
+    if (isAudioWaveform) {
+      container.scrollTop = 0;
+      return;
+    }
+
     const keyHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     const c4Position = 4 * 12 * keyHeight;
     const totalHeight = 8 * 12 * keyHeight;
@@ -1113,7 +1133,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     const scrollPosition = (totalHeight - c4Position) - (viewportHeight / 2);
 
     container.scrollTop = Math.max(0, scrollPosition);
-  }, []);
+  }, [isAudioWaveform]);
 
   // Calculate C4 position and scroll to it when piano roll opens
   useEffect(() => {
@@ -1470,7 +1490,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Get the title for the piano roll based on the active region
   const getPianoRollTitle = () => {
-    if (isSpectrogram) return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
+    if (currentMode === 'spectrogram') return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
+    if (currentMode === 'audio-waveform') return audioRegion ? `WAVEFORM — ${audioRegion.getName()}` : 'WAVEFORM';
     if (isHybrid) {
       const midiName = activeRegion?.getName() ?? 'MIDI';
       const audioName = audioRegion?.getName() ?? 'Audio';
@@ -1523,6 +1544,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         sheetQuantization={sheetQuantization}
         onSheetQuantizationChange={handleSheetQuantizationChange}
         sheetQuantizationOptions={getSheetQuantizationOptions()}
+        showAudioSpectrogramToggle={!!audioRegion && !isHybrid}
+        audioSpectrogramEnabled={currentMode === 'spectrogram'}
+        onAudioSpectrogramToggle={handleAudioSpectrogramToggle}
+        sheetMusicToggleDisabled={!activeRegion}
         activeTool={activeTool}
         onToolSelect={handleToolSelect}
         quantPosition={quantPosition}
@@ -1535,14 +1560,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         chordGuide={chordGuide}
         onChordGuideChange={handleChordGuideSelect}
         blinkButton={blinkButton}
-        mode={mode}
+        mode={currentMode}
         thresholdDb={spectrogramThresholdDb}
         onThresholdChange={setSpectrogramThresholdDb}
         power={spectrogramPower}
         onPowerChange={setSpectrogramPower}
         zoom={pianoRollZoom}
         onZoomChange={handleZoomChange}
-        showAutomationControls={!isSpectrogram}
+        showAutomationControls={!isAudioOnly}
         automationEnabled={automationEnabled}
         automationType={automationType}
         onAutomationToggle={handleAutomationToggle}
@@ -1553,7 +1578,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         detectingTempo={isDetectingTempo}
       />
 
-      <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isSpectrogram} activeRegion={activeRegion} />
+      <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />
 
       <PianoRollContent
         contentRef={pianoRollContentRef}
@@ -1569,7 +1594,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         selectedMode={selectedMode}
         keySignature={keySignature}
         chordGuide={chordGuide}
-        mode={mode}
+        mode={currentMode}
         audioRegion={audioRegion}
         trackId={trackId}
         projectName={projectName}

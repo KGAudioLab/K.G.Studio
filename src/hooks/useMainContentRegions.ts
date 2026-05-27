@@ -34,9 +34,10 @@ interface UseMainContentRegionsParams {
   setShowPianoRoll: (show: boolean) => void;
   setActiveRegionId: (regionId: string | null) => void;
   openMidiPianoRoll: (regionId: string) => void;
+  openAudioWaveformViewer: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
-  pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
+  pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   updateTrack: (track: KGTrack) => void;
   maxBars: number;
 }
@@ -64,6 +65,7 @@ export interface UseMainContentRegionsResult {
   handleRegionLassoCommit: () => void;
   handleEmptyMainContentClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   handleOpenPianoRoll: (regionId: string) => void;
+  handleOpenWaveform: (regionId: string) => void;
   handleOpenSpectrogram: (regionId: string) => void;
   handleOpenHybrid: (regionId: string) => void;
 }
@@ -80,6 +82,7 @@ export function useMainContentRegions({
   setShowPianoRoll,
   setActiveRegionId,
   openMidiPianoRoll,
+  openAudioWaveformViewer,
   openSpectrogramViewer,
   openHybridMode,
   pianoRollMode,
@@ -238,15 +241,15 @@ export function useMainContentRegions({
     }
 
     if (lastSelectedRegion instanceof KGAudioRegion) {
-      openSpectrogramViewer(lastSelectedRegionId);
+      openAudioWaveformViewer(lastSelectedRegionId);
     } else if (lastSelectedRegion instanceof KGMidiRegion) {
       openMidiPianoRoll(lastSelectedRegionId);
     }
   }, [
     clearAllSelections,
     globalTracks,
+    openAudioWaveformViewer,
     openMidiPianoRoll,
-    openSpectrogramViewer,
     setActiveRegionId,
     showPianoRoll,
     tracks,
@@ -729,6 +732,11 @@ export function useMainContentRegions({
     openMidiPianoRoll(regionId);
   }, [handleRegionClick, openMidiPianoRoll]);
 
+  const handleOpenWaveform = useCallback((regionId: string) => {
+    handleRegionClick(regionId, DEFAULT_REGION_CLICK_OPTIONS);
+    openAudioWaveformViewer(regionId);
+  }, [handleRegionClick, openAudioWaveformViewer]);
+
   const handleOpenSpectrogram = useCallback((regionId: string) => {
     handleRegionClick(regionId, DEFAULT_REGION_CLICK_OPTIONS);
     openSpectrogramViewer(regionId);
@@ -737,7 +745,7 @@ export function useMainContentRegions({
   const handleOpenHybrid = useCallback((regionId: string) => {
     if (pianoRollMode === 'midi-edit' && activeRegionId) {
       openHybridMode(activeRegionId, regionId);
-    } else if (pianoRollMode === 'spectrogram' && activeRegionId) {
+    } else if ((pianoRollMode === 'audio-waveform' || pianoRollMode === 'spectrogram') && activeRegionId) {
       openHybridMode(regionId, activeRegionId);
     }
   }, [activeRegionId, openHybridMode, pianoRollMode]);
@@ -759,6 +767,7 @@ export function useMainContentRegions({
     handleRegionLassoCommit,
     handleEmptyMainContentClick,
     handleOpenPianoRoll,
+    handleOpenWaveform,
     handleOpenSpectrogram,
     handleOpenHybrid,
   };

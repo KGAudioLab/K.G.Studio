@@ -7,6 +7,7 @@ import { generatePianoGridBackground, getMatchingChordsForPitch } from '../../ut
 import type { KeySignature } from '../../core/KGProject';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import SpectrogramCanvas from './SpectrogramCanvas';
+import AudioWaveformCanvas from './AudioWaveformCanvas';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 
@@ -35,7 +36,7 @@ interface PianoGridProps {
   spectrogramPower?: number;
   spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   onSpectrogramLoadingChange?: (loading: boolean) => void;
 }
 
@@ -66,6 +67,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   spectrogramPower = 0.5,
   spectrogramHeightResolution = 3,
   pianoRollZoom = 1,
+  mode = 'midi-edit',
   onSpectrogramLoadingChange,
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
@@ -239,7 +241,16 @@ const PianoGrid: React.FC<PianoGridProps> = ({
         onMouseLeave={handleMouseLeave}
       >
         {/* Spectrogram layer — rendered at z-index 0, behind all highlights and notes */}
-        {audioRegion && trackId && projectName && (
+        {audioRegion && mode === 'audio-waveform' && trackId && projectName && (
+          <AudioWaveformCanvas
+            audioRegion={audioRegion}
+            trackId={trackId}
+            projectName={projectName}
+            zoom={pianoRollZoom}
+          />
+        )}
+
+        {audioRegion && (mode === 'spectrogram' || mode === 'hybrid') && trackId && projectName && (
           <SpectrogramCanvas
             audioRegion={audioRegion}
             trackId={trackId}

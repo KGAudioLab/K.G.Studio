@@ -48,6 +48,7 @@ interface TrackGridPanelProps {
   onRegionLassoSelection?: (regionIds: string[], options: RegionClickOptions) => void;
   onRegionLassoCommit?: () => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenWaveform?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
   showHybridButtonForMidi?: boolean;
@@ -70,6 +71,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onRegionLassoSelection,
   onRegionLassoCommit,
   onOpenPianoRoll,
+  onOpenWaveform,
   onOpenSpectrogram,
   showHybridButtonForAudio,
   showHybridButtonForMidi,
@@ -1038,6 +1040,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onRegionFineMoveEnd={handleRegionFineMoveEnd}
           onRegionClick={handleRegionClick}
           onOpenPianoRoll={onOpenPianoRoll}
+          onOpenWaveform={onOpenWaveform}
           onOpenSpectrogram={onOpenSpectrogram}
           showHybridButtonForAudio={showHybridButtonForAudio}
           showHybridButtonForMidi={showHybridButtonForMidi}

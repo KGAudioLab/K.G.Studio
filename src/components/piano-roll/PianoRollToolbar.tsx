@@ -17,6 +17,10 @@ const POWER_OPTIONS = [
 ];
 
 interface PianoRollToolbarProps {
+  showAudioSpectrogramToggle?: boolean;
+  audioSpectrogramEnabled?: boolean;
+  onAudioSpectrogramToggle?: () => void;
+  sheetMusicToggleDisabled?: boolean;
   sheetMusicViewEnabled?: boolean;
   onSheetMusicViewToggle?: () => void;
   sheetMusicTrackScopeEnabled?: boolean;
@@ -36,7 +40,7 @@ interface PianoRollToolbarProps {
   chordGuide: string;
   onChordGuideChange: (value: string) => void;
   blinkButton?: string | null;
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   thresholdDb?: number;
   onThresholdChange?: (db: number) => void;
   power?: number;
@@ -55,6 +59,10 @@ interface PianoRollToolbarProps {
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
+  showAudioSpectrogramToggle = false,
+  audioSpectrogramEnabled = false,
+  onAudioSpectrogramToggle,
+  sheetMusicToggleDisabled = false,
   sheetMusicViewEnabled = false,
   onSheetMusicViewToggle,
   sheetMusicTrackScopeEnabled = false,
@@ -91,7 +99,9 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onDetectTempo,
   detectingTempo = false,
 }) => {
-  const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
+  const showMidiControls = mode !== 'spectrogram' && mode !== 'audio-waveform' && !sheetMusicViewEnabled;
+  const showAudioOnlyControls = mode === 'audio-waveform' && !sheetMusicViewEnabled;
+  const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo);
 
@@ -123,18 +133,39 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMoreMenu]);
 
+  const spectrogramToggleButton = showAudioSpectrogramToggle ? (
+    <button
+      className={`tool-button icon-only sheet-mode-toggle ${audioSpectrogramEnabled ? 'active' : ''}`}
+      onClick={() => onAudioSpectrogramToggle?.()}
+      title="Spectrogram View"
+      aria-label="Spectrogram View"
+    >
+      <svg className="spectrogram-view-icon" width="12" height="12" viewBox="0 0 10 10" fill="currentColor">
+        <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4" />
+        <rect x="1.5" y="3.75" width="6.5" height="2.5" rx="0.4" />
+        <rect x="0" y="7" width="6.5" height="2.5" rx="0.4" />
+      </svg>
+    </button>
+  ) : null;
+
+  const sheetMusicToggleButton = (
+    <button
+      className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
+      onClick={() => onSheetMusicViewToggle?.()}
+      title="Sheet Music View"
+      aria-label="Sheet Music View"
+      disabled={sheetMusicToggleDisabled}
+    >
+      ♬
+    </button>
+  );
+
   return (
     <div className="piano-roll-toolbar">
       {showMidiControls && (
         <div className="toolbar-left">
-          <button
-            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
-            onClick={() => onSheetMusicViewToggle?.()}
-            title="Sheet Music View"
-            aria-label="Sheet Music View"
-          >
-            ♬
-          </button>
+          {spectrogramToggleButton}
+          {sheetMusicToggleButton}
           <button
             className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
             onClick={() => onToolSelect('pointer')}
@@ -193,16 +224,22 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
         </div>
       )}
 
+      {showAudioOnlyControls && (
+        <div className="toolbar-left">
+          {spectrogramToggleButton}
+        </div>
+      )}
+
+      {showSpectrogramOnlyControls && (
+        <div className="toolbar-left">
+          {spectrogramToggleButton}
+        </div>
+      )}
+
       {sheetMusicViewEnabled && (
         <div className="toolbar-left">
-          <button
-            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
-            onClick={() => onSheetMusicViewToggle?.()}
-            title="Sheet Music View"
-            aria-label="Sheet Music View"
-          >
-            ♬
-          </button>
+          {spectrogramToggleButton}
+          {sheetMusicToggleButton}
           {mode !== 'spectrogram' && (
             <button
               className={`tool-button icon-only sheet-track-scope-toggle ${sheetMusicTrackScopeEnabled ? 'active' : ''}`}
