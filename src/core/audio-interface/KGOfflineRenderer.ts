@@ -96,7 +96,6 @@ export class KGOfflineRenderer {
 
     // Calculate render duration in seconds
     const bpm = getEffectiveBpmAtBeat(project, 0);
-    const secondsPerBeat = 60 / bpm;
     const timeSignature = project.getTimeSignature();
     const beatsPerBar = timeSignature.numerator;
 
@@ -304,7 +303,7 @@ export class KGOfflineRenderer {
 
         context.transport.schedule((time) => {
           context.transport.bpm.setValueAtTime(region.getBpm(), time);
-        }, beatToSeconds(project, regionStartBeat) - beatToSeconds(project, renderStartBeat));
+        }, beatsToOfflineTransportTime(regionStartBeat, renderStartBeat));
       });
 
       // ---- Create MIDI track samplers ----
@@ -343,9 +342,9 @@ export class KGOfflineRenderer {
               trackInfo.volumeAutomation,
               trackInfo.panAutomation,
               trackInfo.volume,
+              project,
               renderStartBeat,
               renderEndBeat,
-              secondsPerBeat,
               interpolationIntervalMs,
               bpm
             );
@@ -381,7 +380,6 @@ export class KGOfflineRenderer {
                 // Skip notes outside render range
                 if (note.startBeat >= renderEndBeat || note.endBeat <= renderStartBeat) continue;
 
-                const noteStartTime = beatToSeconds(project, note.startBeat) - beatToSeconds(project, renderStartBeat);
                 const sustainedEndBeat = resolveSustainExtendedEndBeat(
                   trackInfo.controllerEventsByType[64],
                   note.endBeat,
@@ -412,19 +410,19 @@ export class KGOfflineRenderer {
                   source,
                   basePlaybackRate,
                   bakedTrackPitchBends.filter(point => point.beat > note.startBeat && point.beat < sustainedEndBeat),
+                  project,
                   renderStartBeat,
-                  secondsPerBeat
                 );
                 applyOfflineExpressionAutomation(
                   gainNode,
                   bakedExpressionEvents.filter(point => point.beat > note.startBeat && point.beat < sustainedEndBeat),
+                  project,
                   renderStartBeat,
-                  secondsPerBeat
                 );
 
                 context.transport.schedule((time) => {
                   source.start(time, 0, noteDuration, velocity);
-                }, noteStartTime);
+                }, beatsToOfflineTransportTime(note.startBeat, renderStartBeat));
               }
             }
           } catch (error) {
@@ -449,9 +447,9 @@ export class KGOfflineRenderer {
           trackInfo.volumeAutomation,
           trackInfo.panAutomation,
           trackInfo.volume,
+          project,
           renderStartBeat,
           renderEndBeat,
-          secondsPerBeat,
           interpolationIntervalMs,
           bpm
         );
@@ -470,7 +468,7 @@ export class KGOfflineRenderer {
 
           if (effectiveDurationSeconds <= 0) continue;
 
-          const regionStartTime = Math.max(0, beatToSeconds(project, regionStartBeat) - beatToSeconds(project, renderStartBeat));
+          const regionStartTime = beatsToOfflineTransportTime(regionStartBeat, renderStartBeat);
 
           // Create buffer source NOW while the offline context is still active.
           // Schedule callbacks fire during rendering after Tone.js restores the
@@ -660,11 +658,11 @@ export function applyOfflinePitchBendAutomation(
   source: Tone.ToneBufferSource,
   basePlaybackRate: number,
   bakedPitchBends: BakedMidiAutomationPoint[],
+  project: KGProject,
   renderStartBeat: number,
-  secondsPerBeat: number
 ): void {
   bakedPitchBends.forEach(point => {
-    const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+    const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
     setOfflinePlaybackRate(
       source,
       KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, midiPitchBendToNormalized(point.value)),
@@ -676,11 +674,11 @@ export function applyOfflinePitchBendAutomation(
 export function applyOfflineExpressionAutomation(
   gainNode: Tone.Gain,
   bakedExpressionEvents: BakedMidiAutomationPoint[],
+  project: KGProject,
   renderStartBeat: number,
-  secondsPerBeat: number
 ): void {
   bakedExpressionEvents.forEach(point => {
-    const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+    const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
     setOfflineGainValue(gainNode, clampMidiControllerValue(point.value) / 127, automationTime);
   });
 }
@@ -691,9 +689,9 @@ function applyOfflineTrackAutomation(
   volumeAutomation: MidiAutomationPoint[],
   panAutomation: MidiAutomationPoint[],
   baseVolume: number,
+  project: KGProject,
   renderStartBeat: number,
   renderEndBeat: number,
-  secondsPerBeat: number,
   interpolationIntervalMs: number,
   bpm: number
 ): void {
@@ -717,7 +715,7 @@ function applyOfflineTrackAutomation(
         return;
       }
 
-      const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+      const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
       setOfflineGainValue(gainNode, getOfflineTrackGain(point.value, false), automationTime);
     });
   } else {
@@ -744,12 +742,18 @@ function applyOfflineTrackAutomation(
         return;
       }
 
-      const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+      const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
       setOfflinePanValue(pannerNode, point.value, automationTime);
     });
   } else {
     setOfflinePanValue(pannerNode, 0, 0);
   }
+}
+
+function beatsToOfflineTransportTime(beat: number, renderStartBeat: number): Tone.Unit.Time {
+  const transportBeats = Math.max(0, beat - renderStartBeat);
+  const transportTicks = Math.round(transportBeats * Tone.Transport.PPQ);
+  return transportTicks === 0 ? 0 : `${transportTicks}i` as Tone.Unit.Time;
 }
 
 export function getOfflineTrackVolumeDb(volumeDb: number, muted: boolean): number {
