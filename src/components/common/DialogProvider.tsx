@@ -8,11 +8,13 @@ import type {
   ConfirmOptions,
   MidiChordDetectionOptionsResult,
   PromptOptions,
+  TempoApplyResult,
+  TempoDetectionOptionsResult,
   TimeSigResult,
 } from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
@@ -20,6 +22,7 @@ interface DialogInfo {
   choices?: ChoiceOption[];
   defaultChordDetectionOptions?: ChordDetectionOptionsResult;
   defaultMidiChordDetectionOptions?: MidiChordDetectionOptionsResult;
+  defaultTempoDetectionOptions?: TempoDetectionOptionsResult;
 }
 
 const DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS: ChordDetectionOptionsResult = {
@@ -35,6 +38,11 @@ const DEFAULT_MIDI_CHORD_DETECTION_OPTIONS: MidiChordDetectionOptionsResult = {
   harmonicFocus: 'favor-sustained-notes',
 };
 
+const DEFAULT_TEMPO_DETECTION_OPTIONS: TempoDetectionOptionsResult = {
+  minTempo: 80,
+  maxTempo: 180,
+};
+
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -43,6 +51,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [timeSigDenominator, setTimeSigDenominator] = useState('');
   const [chordDetectionOptions, setChordDetectionOptions] = useState<ChordDetectionOptionsResult>(DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
   const [midiChordDetectionOptions, setMidiChordDetectionOptions] = useState<MidiChordDetectionOptionsResult>(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
+  const [tempoDetectionOptions, setTempoDetectionOptions] = useState<TempoDetectionOptionsResult>(DEFAULT_TEMPO_DETECTION_OPTIONS);
+  const [autoAlignRegionToBeat, setAutoAlignRegionToBeat] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
   const pendingValueRef = useRef<unknown>(undefined);
@@ -107,6 +117,28 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const openTempoDetectionOptions = useCallback((
+    message: string,
+    defaultValue?: TempoDetectionOptionsResult,
+  ): Promise<TempoDetectionOptionsResult | null> => {
+    return new Promise<TempoDetectionOptionsResult | null>((resolve) => {
+      resolveRef.current = resolve;
+      setTempoDetectionOptions(defaultValue ?? DEFAULT_TEMPO_DETECTION_OPTIONS);
+      setDialog({ type: 'tempo-detection', message, defaultTempoDetectionOptions: defaultValue });
+    });
+  }, []);
+
+  const openTempoApply = useCallback((
+    message: string,
+    choices: ChoiceOption[],
+  ): Promise<TempoApplyResult | null> => {
+    return new Promise<TempoApplyResult | null>((resolve) => {
+      resolveRef.current = resolve;
+      setAutoAlignRegionToBeat(false);
+      setDialog({ type: 'tempo-apply', message, choices });
+    });
+  }, []);
+
   const close = useCallback((value: unknown) => {
     pendingValueRef.current = value;
     setIsClosing(true);
@@ -122,6 +154,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setTimeSigDenominator('');
     setChordDetectionOptions(DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
     setMidiChordDetectionOptions(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
+    setTempoDetectionOptions(DEFAULT_TEMPO_DETECTION_OPTIONS);
+    setAutoAlignRegionToBeat(false);
     if (resolveRef.current) {
       resolveRef.current(pendingValueRef.current);
       resolveRef.current = null;
@@ -133,7 +167,17 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const registered = useRef(false);
   if (!registered.current) {
     registered.current = true;
-    registerDialogFns(openAlert, openConfirm, openPrompt, openTimeSig, openChoice, openChordDetectionOptions, openMidiChordDetectionOptions);
+    registerDialogFns(
+      openAlert,
+      openConfirm,
+      openPrompt,
+      openTimeSig,
+      openChoice,
+      openChordDetectionOptions,
+      openMidiChordDetectionOptions,
+      openTempoDetectionOptions,
+      openTempoApply,
+    );
   }
 
   if (!dialog) {
@@ -146,13 +190,19 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isChoice = dialog.type === 'choice';
   const isChordDetection = dialog.type === 'chord-detection';
   const isMidiChordDetection = dialog.type === 'midi-chord-detection';
+  const isTempoDetection = dialog.type === 'tempo-detection';
+  const isTempoApply = dialog.type === 'tempo-apply';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
 
   const title = isAlert
     ? 'Notice'
     : isTimeSig
       ? 'Time Signature'
-      : (isChordDetection || isMidiChordDetection)
+      : isTempoDetection
+        ? 'Tempo Detection'
+        : isTempoApply
+          ? 'Apply Tempo'
+        : (isChordDetection || isMidiChordDetection)
         ? 'Chord Detection'
         : isPrompt
           ? 'Input'
@@ -164,11 +214,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection) ? null : false);
+      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isTempoDetection || isTempoApply) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection) ? null : false);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isTempoDetection || isTempoApply) ? null : false);
 
   const handleConfirm = () => {
     if (isAlert) { close(undefined); return; }
@@ -183,6 +233,17 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     }
     if (isMidiChordDetection) {
       close(midiChordDetectionOptions);
+      return;
+    }
+    if (isTempoDetection) {
+      close(tempoDetectionOptions);
+      return;
+    }
+    if (isTempoApply) {
+      close({
+        action: dialog.choices?.[dialog.choices.length - 1]?.value ?? '',
+        autoAlignRegionToBeat,
+      } satisfies TempoApplyResult);
       return;
     }
     close(true);
@@ -200,6 +261,13 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     value: MidiChordDetectionOptionsResult[K],
   ) => {
     setMidiChordDetectionOptions(current => ({ ...current, [key]: value }));
+  };
+
+  const updateTempoDetectionOption = <K extends keyof TempoDetectionOptionsResult>(
+    key: K,
+    value: TempoDetectionOptionsResult[K],
+  ) => {
+    setTempoDetectionOptions(current => ({ ...current, [key]: value }));
   };
 
   return (
@@ -366,6 +434,55 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 </label>
               </div>
             )}
+            {isTempoDetection && (
+              <div className="dialog-chord-detection-form">
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-tempo-min-tempo">Minimum BPM</label>
+                  </div>
+                  <input
+                    id="dialog-tempo-min-tempo"
+                    className="dialog-input"
+                    type="number"
+                    min={40}
+                    max={240}
+                    step={1}
+                    value={tempoDetectionOptions.minTempo}
+                    onChange={(e) => updateTempoDetectionOption('minTempo', Number(e.target.value))}
+                    autoFocus
+                  />
+                </div>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-tempo-max-tempo">Maximum BPM</label>
+                  </div>
+                  <input
+                    id="dialog-tempo-max-tempo"
+                    className="dialog-input"
+                    type="number"
+                    min={40}
+                    max={240}
+                    step={1}
+                    value={tempoDetectionOptions.maxTempo}
+                    onChange={(e) => updateTempoDetectionOption('maxTempo', Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            )}
+            {isTempoApply && (
+              <div className="dialog-chord-detection-form">
+                <label className="dialog-checkbox-row" htmlFor="dialog-tempo-auto-align">
+                  <input
+                    id="dialog-tempo-auto-align"
+                    type="checkbox"
+                    checked={autoAlignRegionToBeat}
+                    onChange={(e) => setAutoAlignRegionToBeat(e.target.checked)}
+                    autoFocus
+                  />
+                  <span>Auto-align region to beat</span>
+                </label>
+              </div>
+            )}
           </div>
           <div className="dialog-footer">
             {!isAlert && (
@@ -387,13 +504,24 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                   {choice.label}
                 </button>
               ))
+            ) : isTempoApply ? (
+              dialog.choices?.map((choice, i) => (
+                <button
+                  key={choice.value}
+                  className={`dialog-btn ${i === (dialog.choices!.length - 1) ? 'dialog-btn-primary' : 'dialog-btn-secondary'}`}
+                  onClick={() => close({ action: choice.value, autoAlignRegionToBeat } satisfies TempoApplyResult)}
+                  autoFocus={i === dialog.choices!.length - 1}
+                >
+                  {choice.label}
+                </button>
+              ))
             ) : (
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={handleConfirm}
-                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection}
+                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply}
               >
-                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : (isChordDetection || isMidiChordDetection) ? 'Detect' : 'Yes'))}
+                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : (isChordDetection || isMidiChordDetection || isTempoDetection) ? 'Detect' : 'Yes'))}
               </button>
             )}
           </div>

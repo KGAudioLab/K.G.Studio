@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import DialogProvider from './DialogProvider';
-import { showChordDetectionOptions } from '../../util/dialogUtil';
+import { showChoice, showChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
 
 function finishDialogCloseAnimation() {
   const overlay = document.querySelector('.dialog-overlay');
@@ -81,6 +81,178 @@ describe('DialogProvider chord detection dialog', () => {
       stability: 81,
       noChordThreshold: 24,
       enableSevenths: true,
+    }));
+  });
+});
+
+describe('DialogProvider tempo detection dialog', () => {
+  it('opens the tempo detection modal with the expected defaults and resolves cancel to null', async () => {
+    let resolved: unknown = 'pending';
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showTempoDetectionOptions('Tune audio tempo detection settings before processing.', {
+              minTempo: 80,
+              maxTempo: 180,
+            });
+          }}
+        >
+          Open tempo
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open tempo' }));
+
+    expect(screen.getByText('Tempo Detection')).toBeInTheDocument();
+    expect(screen.getByLabelText('Minimum BPM')).toHaveValue(80);
+    expect(screen.getByLabelText('Maximum BPM')).toHaveValue(180);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toBeNull());
+  });
+
+  it('returns the adjusted tempo detection options when confirmed', async () => {
+    let resolved: unknown = null;
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showTempoDetectionOptions('Tune audio tempo detection settings before processing.', {
+              minTempo: 80,
+              maxTempo: 180,
+            });
+          }}
+        >
+          Open tempo
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open tempo' }));
+    fireEvent.change(screen.getByLabelText('Minimum BPM'), { target: { value: '96' } });
+    fireEvent.change(screen.getByLabelText('Maximum BPM'), { target: { value: '154' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Detect' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toEqual({
+      minTempo: 96,
+      maxTempo: 154,
+    }));
+  });
+});
+
+describe('DialogProvider choice dialog', () => {
+  it('renders the supplied choice labels and resolves the selected action', async () => {
+    let resolved: unknown = null;
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showChoice(
+              'Detected tempo: 128 BPM. Choose how to apply it.',
+              [
+                { label: 'Update Current Tempo', value: 'update-current-tempo' },
+                { label: 'Insert Tempo Change', value: 'insert-tempo-change' },
+              ],
+            );
+          }}
+        >
+          Open choice
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open choice' }));
+
+    expect(screen.getByText('Detected tempo: 128 BPM. Choose how to apply it.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update Current Tempo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Tempo Change' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert Tempo Change' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toBe('insert-tempo-change'));
+  });
+});
+
+describe('DialogProvider tempo apply dialog', () => {
+  it('renders actions and resolves cancel to null', async () => {
+    let resolved: unknown = 'pending';
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showTempoApply(
+              'Detected tempo: 128 BPM. Choose how to apply it.',
+              [
+                { label: 'Update Current Tempo', value: 'update-current-tempo' },
+                { label: 'Insert Tempo Change', value: 'insert-tempo-change' },
+              ],
+            );
+          }}
+        >
+          Open apply
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open apply' }));
+
+    expect(screen.getByText('Apply Tempo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update Current Tempo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Insert Tempo Change' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Auto-align region to beat')).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toBeNull());
+  });
+
+  it('returns selected action plus auto-align checkbox state', async () => {
+    let resolved: unknown = null;
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showTempoApply(
+              'Detected tempo: 128 BPM. Choose how to apply it.',
+              [
+                { label: 'Update Current Tempo', value: 'update-current-tempo' },
+                { label: 'Insert Tempo Change', value: 'insert-tempo-change' },
+              ],
+            );
+          }}
+        >
+          Open apply
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open apply' }));
+    fireEvent.click(screen.getByLabelText('Auto-align region to beat'));
+    fireEvent.click(screen.getByRole('button', { name: 'Insert Tempo Change' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toEqual({
+      action: 'insert-tempo-change',
+      autoAlignRegionToBeat: true,
     }));
   });
 });

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tempo Detection Test</title>
+  </head>
+  <body>
+    <main>
+      <h1>Tempo Detection Test</h1>
+      <p id="status">Ready</p>
+    </main>
+    <script type="module">
+      window.__tempoHarnessLoaded = false;
+      window.__tempoHarnessError = null;
+
+      import('/src/test/browser/audioTempoDetectionHarness.ts')
+        .then(() => {
+          window.__tempoHarnessLoaded = true;
+        })
+        .catch((error) => {
+          window.__tempoHarnessError = error instanceof Error ? error.message : String(error);
+        });
+    </script>
+  </body>
+</html>

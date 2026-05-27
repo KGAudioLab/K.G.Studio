@@ -9,6 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
+    "test:browser": "playwright test",
+    "test:browser:install": "playwright install chromium",
+    "test:browser:tempo": "playwright test src/test/browser/audio-tempo-detection.spec.ts",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run"
@@ -34,10 +37,12 @@
     "tonal": "^6.4.3",
     "tone": "^15.1.22",
     "vexflow": "^5.0.0",
+    "web-audio-beat-detector": "^8.2.36",
     "zustand": "^5.0.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
+    "@playwright/test": "^1.60.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@testing-library/jest-dom": "^6.8.0",

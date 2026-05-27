@@ -27,6 +27,16 @@ export interface MidiChordDetectionOptionsResult {
   harmonicFocus: 'balanced' | 'favor-sustained-notes';
 }
 
+export interface TempoDetectionOptionsResult {
+  minTempo: number;
+  maxTempo: number;
+}
+
+export interface TempoApplyResult {
+  action: string;
+  autoAlignRegionToBeat: boolean;
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -39,6 +49,8 @@ let _showTimeSigFn: ((message: string, defaultValue?: TimeSigResult) => Promise<
 let _showChoiceFn: ((message: string, choices: ChoiceOption[]) => Promise<string | null>) | null = null;
 let _showChordDetectionOptionsFn: ((message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>) | null = null;
 let _showMidiChordDetectionOptionsFn: ((message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>) | null = null;
+let _showTempoDetectionOptionsFn: ((message: string, defaultValue?: TempoDetectionOptionsResult) => Promise<TempoDetectionOptionsResult | null>) | null = null;
+let _showTempoApplyFn: ((message: string, choices: ChoiceOption[]) => Promise<TempoApplyResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -48,6 +60,8 @@ export function registerDialogFns(
   choiceFn?: (message: string, choices: ChoiceOption[]) => Promise<string | null>,
   chordDetectionOptionsFn?: (message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>,
   midiChordDetectionOptionsFn?: (message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>,
+  tempoDetectionOptionsFn?: (message: string, defaultValue?: TempoDetectionOptionsResult) => Promise<TempoDetectionOptionsResult | null>,
+  tempoApplyFn?: (message: string, choices: ChoiceOption[]) => Promise<TempoApplyResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -56,6 +70,8 @@ export function registerDialogFns(
   if (choiceFn) _showChoiceFn = choiceFn;
   if (chordDetectionOptionsFn) _showChordDetectionOptionsFn = chordDetectionOptionsFn;
   if (midiChordDetectionOptionsFn) _showMidiChordDetectionOptionsFn = midiChordDetectionOptionsFn;
+  if (tempoDetectionOptionsFn) _showTempoDetectionOptionsFn = tempoDetectionOptionsFn;
+  if (tempoApplyFn) _showTempoApplyFn = tempoApplyFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -125,4 +141,28 @@ export function showMidiChordDetectionOptions(
     });
   }
   return _showMidiChordDetectionOptionsFn(message, defaultValue);
+}
+
+export function showTempoDetectionOptions(
+  message: string,
+  defaultValue?: TempoDetectionOptionsResult,
+): Promise<TempoDetectionOptionsResult | null> {
+  if (!_showTempoDetectionOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      minTempo: 80,
+      maxTempo: 180,
+    });
+  }
+  return _showTempoDetectionOptionsFn(message, defaultValue);
+}
+
+export function showTempoApply(message: string, choices: ChoiceOption[]): Promise<TempoApplyResult | null> {
+  if (!_showTempoApplyFn) {
+    return Promise.resolve(
+      window.confirm(message)
+        ? { action: choices[0]?.value ?? '', autoAlignRegionToBeat: false }
+        : null,
+    );
+  }
+  return _showTempoApplyFn(message, choices);
 }

@@ -137,6 +137,24 @@ describe('PianoRollToolbar', () => {
     expect(onDetectChords).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the detect tempo action when the audio callback is provided and triggers it', () => {
+    const onDetectTempo = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onDetectTempo={onDetectTempo}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Detect tempo...'));
+
+    expect(onDetectTempo).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the detect chords action in midi mode and triggers it', () => {
     const onDetectChords = vi.fn();
 
@@ -173,6 +191,40 @@ describe('PianoRollToolbar', () => {
     expect(detectItem).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(detectItem);
     expect(onDetectChords).not.toHaveBeenCalled();
+  });
+
+  it('disables the detect tempo action while detection is running', () => {
+    const onDetectTempo = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onDetectChords={undefined}
+        detectingTempo={true}
+        onDetectTempo={onDetectTempo}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    const detectItem = screen.getByText('Detecting tempo...');
+    expect(detectItem).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(detectItem);
+    expect(onDetectTempo).not.toHaveBeenCalled();
+  });
+
+  it('does not show the detect tempo action without the audio callback', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    expect(screen.queryByText('Detect tempo...')).not.toBeInTheDocument();
   });
 
   it('shows only the sheet controls when sheet mode is enabled', () => {

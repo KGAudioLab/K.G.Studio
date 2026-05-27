@@ -50,6 +50,8 @@ interface PianoRollToolbarProps {
   onAutomationTypeChange?: (value: PianoRollAutomationType) => void;
   onDetectChords?: () => void | Promise<void>;
   detectingChords?: boolean;
+  onDetectTempo?: () => void | Promise<void>;
+  detectingTempo?: boolean;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -86,10 +88,12 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onAutomationTypeChange,
   onDetectChords,
   detectingChords = false,
+  onDetectTempo,
+  detectingTempo = false,
 }) => {
   const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
-  const showDetectChordMenu = !sheetMusicViewEnabled && !!onDetectChords;
+  const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo);
 
   const [showZoomSlider, setShowZoomSlider] = React.useState(false);
   const zoomSliderRef = React.useRef<HTMLDivElement>(null);
@@ -105,19 +109,19 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showZoomSlider]);
 
-  const [showSpecMenu, setShowSpecMenu] = React.useState(false);
+  const [showMoreMenu, setShowMoreMenu] = React.useState(false);
   const specMenuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (!showSpecMenu) return;
+    if (!showMoreMenu) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (specMenuRef.current && !specMenuRef.current.contains(e.target as Node)) {
-        setShowSpecMenu(false);
+        setShowMoreMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showSpecMenu]);
+  }, [showMoreMenu]);
 
   return (
     <div className="piano-roll-toolbar">
@@ -300,30 +304,47 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           </div>
         )}
 
-        {showDetectChordMenu && (
+        {showSpecMenu && (
           <div className="quant-dropdown-container" ref={specMenuRef}>
             <button
               className="quant-button"
-              onClick={() => setShowSpecMenu(!showSpecMenu)}
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
               title="More options"
             >
               ...
             </button>
-            {showSpecMenu && (
+            {showMoreMenu && (
               <div className="quant-dropdown" style={{ right: 0, left: 'auto', width: 'auto', whiteSpace: 'nowrap' }}>
-                <div
-                  className={`quant-option${(!onDetectChords || detectingChords) ? ' disabled' : ''}`}
-                  onClick={() => {
-                    if (!onDetectChords || detectingChords) {
-                      return;
-                    }
-                    setShowSpecMenu(false);
-                    void onDetectChords();
-                  }}
-                  aria-disabled={!onDetectChords || detectingChords}
-                >
-                  {detectingChords ? 'Detecting chords...' : 'Detect chords...'}
-                </div>
+                {onDetectChords && (
+                  <div
+                    className={`quant-option${detectingChords ? ' disabled' : ''}`}
+                    onClick={() => {
+                      if (detectingChords) {
+                        return;
+                      }
+                      setShowMoreMenu(false);
+                      void onDetectChords();
+                    }}
+                    aria-disabled={detectingChords}
+                  >
+                    {detectingChords ? 'Detecting chords...' : 'Detect chords...'}
+                  </div>
+                )}
+                {onDetectTempo && (
+                  <div
+                    className={`quant-option${detectingTempo ? ' disabled' : ''}`}
+                    onClick={() => {
+                      if (detectingTempo) {
+                        return;
+                      }
+                      setShowMoreMenu(false);
+                      void onDetectTempo();
+                    }}
+                    aria-disabled={detectingTempo}
+                  >
+                    {detectingTempo ? 'Detecting tempo...' : 'Detect tempo...'}
+                  </div>
+                )}
               </div>
             )}
           </div>

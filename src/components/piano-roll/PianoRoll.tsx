@@ -20,7 +20,7 @@ import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../co
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
-import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions } from '../../util/dialogUtil';
+import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
@@ -32,6 +32,18 @@ import {
   type AudioChordDetectionOptions,
   type DetectedAudioChord,
 } from '../../util/audioChordDetection';
+import {
+  buildAudioTempoAnalysisSpanForRegion,
+  DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
+  detectTempoFromAudio,
+  type AudioTempoDetectionOptions,
+} from '../../util/audioTempoDetection';
+import {
+  applyDetectedTempoAction,
+  buildDetectedTempoChoiceMessage,
+  DETECTED_TEMPO_ACTION_INSERT_REGION,
+  DETECTED_TEMPO_ACTION_UPDATE_CURRENT,
+} from '../../util/audioTempoDetectionActions';
 import {
   DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
   buildMidiChordWindowsForRegion,
@@ -77,7 +89,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 }) => {
   const isSpectrogram = mode === 'spectrogram';
   const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState } = useProjectStore();
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
 
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -89,6 +101,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     useState<SpectrogramHeightResolution>(3);
   const [isDetectingChords, setIsDetectingChords] = useState(false);
   const [detectChordProgressPercent, setDetectChordProgressPercent] = useState(0);
+  const [isDetectingTempo, setIsDetectingTempo] = useState(false);
 
   // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(() => KGPianoRollState.instance().getPianoRollZoom());
@@ -579,6 +592,81 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       setDetectChordProgressPercent(0);
     }
   }, [activeRegion, audioRegion, projectName, refreshProjectState, trackId]);
+
+  const handleDetectTempo = useCallback(async () => {
+    if (!audioRegion) {
+      await showAlert('Open an audio region before detecting tempo.');
+      return;
+    }
+
+    const project = KGCore.instance().getCurrentProject();
+    const analysisSpan = buildAudioTempoAnalysisSpanForRegion(project, audioRegion);
+    if (!analysisSpan) {
+      await showAlert('The selected audio region has no audible span to analyze.');
+      return;
+    }
+
+    const detectionOptions = await showTempoDetectionOptions(
+      'Tune audio tempo detection settings before processing.',
+      DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
+    );
+    if (!detectionOptions) {
+      return;
+    }
+
+    if (!projectName || !trackId) {
+      await showAlert('Open an audio region in spectrogram mode before detecting tempo.');
+      return;
+    }
+
+    setIsDetectingTempo(true);
+
+    try {
+      let audioBuffer = KGAudioInterface.instance().getAudioBuffer(trackId, audioRegion.getAudioFileId());
+      if (!audioBuffer) {
+        const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioRegion.getAudioFileId());
+        const actx = Tone.getContext().rawContext as AudioContext;
+        audioBuffer = await actx.decodeAudioData(rawBuffer);
+      }
+
+      const result = await detectTempoFromAudio(
+        audioBuffer,
+        analysisSpan,
+        detectionOptions as AudioTempoDetectionOptions,
+      );
+
+      const applyResult = await showTempoApply(
+        buildDetectedTempoChoiceMessage(result.bpm),
+        [
+          { label: 'Update Current Tempo', value: DETECTED_TEMPO_ACTION_UPDATE_CURRENT },
+          { label: 'Insert Tempo Change', value: DETECTED_TEMPO_ACTION_INSERT_REGION },
+        ],
+      );
+      if (!applyResult) {
+        return;
+      }
+
+      applyDetectedTempoAction({
+        action: applyResult.action as typeof DETECTED_TEMPO_ACTION_UPDATE_CURRENT | typeof DETECTED_TEMPO_ACTION_INSERT_REGION,
+        detectedBpm: result.bpm,
+        detectedTempo: result.tempo,
+        detectedOffsetSeconds: result.offsetSeconds,
+        autoAlignRegionToBeat: applyResult.autoAlignRegionToBeat,
+        project,
+        regionId: audioRegion.getId(),
+        regionStartBeat: audioRegion.getStartFromBeat(),
+        regionTrackId: audioRegion.getTrackId(),
+        regionTrackIndex: audioRegion.getTrackIndex(),
+        refreshProjectState,
+        setBpm,
+      });
+    } catch (error) {
+      console.error('Error detecting tempo:', error);
+      await showAlert('Failed to detect tempo from this audio region.');
+    } finally {
+      setIsDetectingTempo(false);
+    }
+  }, [audioRegion, projectName, refreshProjectState, setBpm, trackId]);
 
   // Handle title click to rename the region
   const handleTitleClick = () => {
@@ -1461,6 +1549,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onAutomationTypeChange={handleAutomationTypeChange}
         onDetectChords={handleDetectChords}
         detectingChords={isDetectingChords}
+        onDetectTempo={audioRegion ? handleDetectTempo : undefined}
+        detectingTempo={isDetectingTempo}
       />
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isSpectrogram} activeRegion={activeRegion} />
