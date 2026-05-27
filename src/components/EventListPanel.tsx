@@ -6,15 +6,25 @@ import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import RegionEventListTab from './event-list-panel/RegionEventListTab';
 import TrackEventListTab from './event-list-panel/TrackEventListTab';
+import GlobalEventListTab from './event-list-panel/GlobalEventListTab';
 
 interface EventListPanelProps {
   isVisible: boolean;
 }
 
-type ScopeTab = 'region' | 'track';
+type ScopeTab = 'region' | 'track' | 'global';
 
 const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
-  const { tracks, activeRegionId, selectedRegionIds, selectedTrackId } = useProjectStore();
+  const {
+    tracks,
+    globalTracks,
+    activeRegionId,
+    selectedRegionIds,
+    selectedTrackId,
+    timeSignature,
+    playheadPosition,
+    refreshProjectState,
+  } = useProjectStore();
   const [scopeTab, setScopeTab] = useState<ScopeTab>('region');
 
   const resolvedRegionId = selectedRegionIds.length > 1
@@ -63,13 +73,28 @@ const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
         >
           Track
         </button>
+        <button
+          className={`event-list-scope-tab${scopeTab === 'global' ? ' active' : ''}`}
+          type="button"
+          onClick={() => setScopeTab('global')}
+        >
+          Global
+        </button>
       </div>
 
       <div className="event-list-panel-body">
         {scopeTab === 'region' ? (
           <RegionEventListTab activeMidiRegion={activeMidiRegion} parentTrack={parentTrack} />
-        ) : (
+        ) : scopeTab === 'track' ? (
           <TrackEventListTab selectedTrack={selectedTrack} />
+        ) : (
+          <GlobalEventListTab
+            globalTracks={globalTracks}
+            selectedRegionIds={selectedRegionIds}
+            timeSignature={timeSignature}
+            playheadPosition={playheadPosition}
+            refreshProjectState={refreshProjectState}
+          />
         )}
       </div>
     </div>
