@@ -1,4 +1,4 @@
-import type { LocalSeparatorModelConfig } from './types';
+import type { LocalSeparatorMdxModelConfig } from './types';
 import { LocalSeparatorCpuDsp } from './cpuDsp';
 import { reflectPad } from './shared';
 
@@ -140,7 +140,7 @@ export class LocalSeparatorGpuDsp {
   private paramBuffer: GPUBufferLike | null = null;
   private readonly pipeline: GPUComputePipelineLike;
 
-  public static async create(config: LocalSeparatorModelConfig): Promise<LocalSeparatorGpuDsp> {
+  public static async create(config: LocalSeparatorMdxModelConfig): Promise<LocalSeparatorGpuDsp> {
     if (!('gpu' in navigator)) {
       throw new Error('WebGPU is not available for GPU DSP.');
     }
@@ -164,7 +164,7 @@ export class LocalSeparatorGpuDsp {
     return new LocalSeparatorGpuDsp(config, device);
   }
 
-  private constructor(config: LocalSeparatorModelConfig, device: GPUDeviceLike) {
+  private constructor(config: LocalSeparatorMdxModelConfig, device: GPUDeviceLike) {
     this.device = device;
     this.cpuDsp = new LocalSeparatorCpuDsp(config);
     this.nFft = config.metadata.mdx_n_fft_scale_set;

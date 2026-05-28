@@ -1,4 +1,4 @@
-import type { LocalSeparatorModelConfig, StereoChannels } from './types';
+import type { LocalSeparatorMdxModelConfig, StereoChannels } from './types';
 import { FFT, createWindowCache, getHannPeriodic, index4d, reflectPad } from './shared';
 
 interface SpectrogramPayload {
@@ -18,7 +18,7 @@ export class LocalSeparatorCpuDsp {
   private readonly numFreqBins: number;
   private readonly inverseFft: FFT;
 
-  constructor(config: LocalSeparatorModelConfig) {
+  constructor(config: LocalSeparatorMdxModelConfig) {
     this.nFft = config.metadata.mdx_n_fft_scale_set;
     this.hopLength = config.defaults.hopLength;
     this.dimF = config.metadata.mdx_dim_f_set;

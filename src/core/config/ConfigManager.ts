@@ -14,6 +14,7 @@ interface AppConfig {
     };
     uvr5_web_runtime: {
       mdx_net_model_url: string;
+      htdemucs_4s_model_url: string;
     };
     openai: {
       api_key: string;
@@ -224,7 +225,8 @@ export class ConfigManager {
             model_url: 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'
           },
           uvr5_web_runtime: {
-            mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx'
+            mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx',
+            htdemucs_4s_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx',
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'

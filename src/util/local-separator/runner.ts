@@ -1,10 +1,13 @@
 import * as ort from 'onnxruntime-web/webgpu';
+import { DemucsProcessor } from 'demucs-web';
 import { LocalSeparatorCpuDsp } from './cpuDsp';
 import { LocalSeparatorGpuDsp } from './gpuDsp';
 import { LocalSeparatorTimingCollector } from './timing';
 import type {
   LocalRuntimeProvider,
+  LocalSeparatorDemucsModelConfig,
   LocalSeparatorModelConfig,
+  LocalSeparatorMdxModelConfig,
   LocalSeparatorProgress,
   StereoChannels,
 } from './types';
@@ -76,8 +79,8 @@ function unpackBatchOutput(outputData: Float32Array, batchInfo: { dims: number[]
 class BrowserMdxSeparator {
   private readonly session: ort.InferenceSession;
   private readonly runtimeProvider: LocalRuntimeProvider;
-  private readonly defaults: LocalSeparatorModelConfig['defaults'];
-  private readonly metadata: LocalSeparatorModelConfig['metadata'];
+  private readonly defaults: LocalSeparatorMdxModelConfig['defaults'];
+  private readonly metadata: LocalSeparatorMdxModelConfig['metadata'];
   public onProgress: (progress: LocalSeparatorProgress) => void;
   private overlap: number;
   private runtimeBatchSize: number;
@@ -97,7 +100,7 @@ class BrowserMdxSeparator {
   public static async create(
     session: ort.InferenceSession,
     runtimeProvider: LocalRuntimeProvider,
-    config: LocalSeparatorModelConfig,
+    config: LocalSeparatorMdxModelConfig,
     options: BrowserMdxSeparatorOptions = {},
   ): Promise<BrowserMdxSeparator> {
     const timing = options.timing ?? new LocalSeparatorTimingCollector('mdx-separation');
@@ -139,7 +142,7 @@ class BrowserMdxSeparator {
   private constructor(
     session: ort.InferenceSession,
     runtimeProvider: LocalRuntimeProvider,
-    config: LocalSeparatorModelConfig,
+    config: LocalSeparatorMdxModelConfig,
     options: BrowserMdxSeparatorOptions & {
       dsp: LocalSeparatorCpuDsp | LocalSeparatorGpuDsp;
       dspMode: 'cpu' | 'gpu-hybrid';
@@ -470,10 +473,24 @@ function concatChannelPairs(chunks: StereoChannels[]): StereoChannels {
   return [concatFloat32(chunks.map(chunk => chunk[0])), concatFloat32(chunks.map(chunk => chunk[1]))];
 }
 
-export async function runLocalSeparator(options: {
+function getProviderLabel(runtimeProvider: LocalRuntimeProvider): string {
+  return runtimeProvider === 'webgpu' ? 'GPU/WebGPU' : 'CPU/wasm';
+}
+
+function getChunkDurationSeconds(
+  requestedChunkDurationSeconds: number | null,
+  modelConfig: LocalSeparatorModelConfig,
+): number | null {
+  if (requestedChunkDurationSeconds != null) {
+    return requestedChunkDurationSeconds;
+  }
+  return modelConfig.defaultChunkDurationSeconds;
+}
+
+async function runMdxLocalSeparator(options: {
   session: ort.InferenceSession;
   runtimeProvider: LocalRuntimeProvider;
-  modelConfig: LocalSeparatorModelConfig;
+  modelConfig: LocalSeparatorMdxModelConfig;
   audioBuffer: ArrayBuffer;
   chunkDurationSeconds: number | null;
   overlap: number;
@@ -486,7 +503,7 @@ export async function runLocalSeparator(options: {
 }> {
   const timing = new LocalSeparatorTimingCollector('local-separation');
   const decoded = await timing.measureAsync('decode', () => decodeAudioToStereo(options.audioBuffer));
-  log(`Running browser MDX separation on ${options.runtimeProvider === 'webgpu' ? 'GPU/WebGPU' : 'CPU/wasm'}...`);
+  log(`Running browser MDX separation on ${getProviderLabel(options.runtimeProvider)}...`);
 
   const separator = await BrowserMdxSeparator.create(
     options.session,
@@ -502,11 +519,11 @@ export async function runLocalSeparator(options: {
   );
 
   try {
-    const outputs = await separateWithOptionalChunking(
+    const outputs = await separateMdxWithOptionalChunking(
       separator,
       decoded,
       timing,
-      options.chunkDurationSeconds,
+      getChunkDurationSeconds(options.chunkDurationSeconds, options.modelConfig),
       options.modelConfig,
       options.onProgress,
     );
@@ -518,7 +535,7 @@ export async function runLocalSeparator(options: {
         { name: outputs.primaryStem, blob: primaryBlob },
         { name: outputs.secondaryStem, blob: secondaryBlob },
       ],
-      providerLabel: options.runtimeProvider === 'webgpu' ? 'GPU/WebGPU' : 'CPU/wasm',
+      providerLabel: getProviderLabel(options.runtimeProvider),
       debugSummary: separator.getDebugSummary({ model: options.modelConfig.filename }),
     };
   } finally {
@@ -527,12 +544,12 @@ export async function runLocalSeparator(options: {
   }
 }
 
-async function separateWithOptionalChunking(
+async function separateMdxWithOptionalChunking(
   separator: BrowserMdxSeparator,
   decoded: StereoChannels,
   timing: LocalSeparatorTimingCollector,
   chunkDurationSeconds: number | null,
-  modelConfig: LocalSeparatorModelConfig,
+  modelConfig: LocalSeparatorMdxModelConfig,
   onProgress: (progress: LocalSeparatorProgress) => void,
 ): Promise<{
   stems: Record<string, StereoChannels>;
@@ -593,4 +610,172 @@ async function separateWithOptionalChunking(
     primaryStem,
     secondaryStem,
   };
+}
+
+type DemucsStemName = 'Vocals' | 'Drums' | 'Bass' | 'Others';
+
+function toDemucsStemMap(result: Awaited<ReturnType<DemucsProcessor['separate']>>): Record<DemucsStemName, StereoChannels> {
+  return {
+    Vocals: [result.vocals.left, result.vocals.right],
+    Drums: [result.drums.left, result.drums.right],
+    Bass: [result.bass.left, result.bass.right],
+    Others: [result.other.left, result.other.right],
+  };
+}
+
+async function runDemucsLocalSeparator(options: {
+  session: ort.InferenceSession;
+  runtimeProvider: LocalRuntimeProvider;
+  modelConfig: LocalSeparatorDemucsModelConfig;
+  audioBuffer: ArrayBuffer;
+  chunkDurationSeconds: number | null;
+  onProgress: (progress: LocalSeparatorProgress) => void;
+}): Promise<{
+  stems: Array<{ name: string; blob: Blob }>;
+  providerLabel: string;
+  debugSummary: Record<string, unknown>;
+}> {
+  const timing = new LocalSeparatorTimingCollector('local-demucs-separation');
+  const decoded = await timing.measureAsync('decode', () => decodeAudioToStereo(options.audioBuffer));
+  log(`Running browser Demucs separation on ${getProviderLabel(options.runtimeProvider)}...`);
+
+  const processor = new DemucsProcessor({
+    ort,
+    onProgress: ({ progress, currentSegment, totalSegments }) => {
+      options.onProgress({
+        stage: 'main',
+        passLabel: 'Demucs pass',
+        percent: progress * 100,
+        processedChunks: currentSegment,
+        totalChunks: totalSegments,
+      });
+    },
+    onLog: (phase, message) => log(`demucs:${phase}`, message),
+  });
+  processor.session = options.session;
+
+  const outputMap = await separateDemucsWithOptionalChunking(
+    processor,
+    decoded,
+    timing,
+    getChunkDurationSeconds(options.chunkDurationSeconds, options.modelConfig),
+    options.modelConfig,
+    options.onProgress,
+  );
+
+  const stems = options.modelConfig.outputStemNames.map(name => ({
+    name,
+    blob: timing.measureSync(`wavEncode:${name}`, () => channelsToWavBlob(outputMap[name as DemucsStemName])),
+  }));
+
+  return {
+    stems,
+    providerLabel: getProviderLabel(options.runtimeProvider),
+    debugSummary: timing.getSummary({
+      model: options.modelConfig.filename,
+      runtimeProvider: options.runtimeProvider,
+      stemCount: stems.length,
+    }),
+  };
+}
+
+async function separateDemucsWithOptionalChunking(
+  processor: DemucsProcessor,
+  decoded: StereoChannels,
+  timing: LocalSeparatorTimingCollector,
+  chunkDurationSeconds: number | null,
+  modelConfig: LocalSeparatorDemucsModelConfig,
+  onProgress: (progress: LocalSeparatorProgress) => void,
+): Promise<Record<DemucsStemName, StereoChannels>> {
+  if (!chunkDurationSeconds) {
+    return timing.measureAsync('demucsSeparate', async () => toDemucsStemMap(await processor.separate(decoded[0], decoded[1])));
+  }
+
+  const chunkSamples = Math.max(1, Math.floor(chunkDurationSeconds * SAMPLE_RATE));
+  if (decoded[0].length <= chunkSamples) {
+    return timing.measureAsync('demucsSeparate', async () => toDemucsStemMap(await processor.separate(decoded[0], decoded[1])));
+  }
+
+  const totalChunks = Math.ceil(decoded[0].length / chunkSamples);
+  const chunkedOutputs: Record<DemucsStemName, StereoChannels[]> = {
+    Vocals: [],
+    Drums: [],
+    Bass: [],
+    Others: [],
+  };
+
+  for (let index = 0; index < totalChunks; index += 1) {
+    const start = index * chunkSamples;
+    const end = Math.min(start + chunkSamples, decoded[0].length);
+    const chunk = sliceChannels(decoded, start, end);
+
+    onProgress({
+      stage: 'chunk-prep',
+      passLabel: `Audio chunk ${index + 1}/${totalChunks}: preparing ${Math.round((end - start) / SAMPLE_RATE)}s chunk...`,
+      percent: (index / totalChunks) * 100,
+      processedChunks: index,
+      totalChunks,
+    });
+
+    const chunkResult = await timing.measureAsync(
+      'demucsChunkedSeparate',
+      async () => toDemucsStemMap(await processor.separate(chunk[0], chunk[1])),
+    );
+
+    (Object.keys(chunkedOutputs) as DemucsStemName[]).forEach(stemName => {
+      chunkedOutputs[stemName].push(chunkResult[stemName]);
+    });
+
+    onProgress({
+      stage: 'chunk-complete',
+      passLabel: `Audio chunk ${index + 1}/${totalChunks}: Demucs pass`,
+      percent: ((index + 1) / totalChunks) * 100,
+      processedChunks: index + 1,
+      totalChunks,
+    });
+  }
+
+  return {
+    Vocals: concatChannelPairs(chunkedOutputs.Vocals),
+    Drums: concatChannelPairs(chunkedOutputs.Drums),
+    Bass: concatChannelPairs(chunkedOutputs.Bass),
+    Others: concatChannelPairs(chunkedOutputs.Others),
+  };
+}
+
+export async function runLocalSeparator(options: {
+  session: ort.InferenceSession;
+  runtimeProvider: LocalRuntimeProvider;
+  modelConfig: LocalSeparatorModelConfig;
+  audioBuffer: ArrayBuffer;
+  chunkDurationSeconds: number | null;
+  overlap: number;
+  onProgress: (progress: LocalSeparatorProgress) => void;
+  onProviderChange?: (provider: string) => void;
+}): Promise<{
+  stems: Array<{ name: string; blob: Blob }>;
+  providerLabel: string;
+  debugSummary: Record<string, unknown>;
+}> {
+  if (options.modelConfig.kind === 'demucs') {
+    return runDemucsLocalSeparator({
+      session: options.session,
+      runtimeProvider: options.runtimeProvider,
+      modelConfig: options.modelConfig,
+      audioBuffer: options.audioBuffer,
+      chunkDurationSeconds: options.chunkDurationSeconds,
+      onProgress: options.onProgress,
+    });
+  }
+
+  return runMdxLocalSeparator({
+    session: options.session,
+    runtimeProvider: options.runtimeProvider,
+    modelConfig: options.modelConfig,
+    audioBuffer: options.audioBuffer,
+    chunkDurationSeconds: options.chunkDurationSeconds,
+    overlap: options.overlap,
+    onProgress: options.onProgress,
+    onProviderChange: options.onProviderChange,
+  });
 }
