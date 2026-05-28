@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LocalSeparatorModelCache } from '../../util/localSeparatorModelCache';
+import { LocalSeparatorModelCache } from '../../util/local-separator/modelCache';
 import {
   LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES,
   LOCAL_SEPARATOR_MODEL_FILENAME,
-} from '../../util/localSeparatorConfig';
+} from '../../util/local-separator/config';
 
 class MockWritableFileStream {
   private readonly handle: MockFileSystemFileHandle;

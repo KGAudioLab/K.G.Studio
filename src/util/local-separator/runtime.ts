@@ -1,8 +1,8 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import ortWasmAsyncifyUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
-import type { LocalRuntimeState, LocalRuntimeSupport, LocalSeparatorModelConfig } from './localSeparatorTypes';
+import type { LocalRuntimeState, LocalRuntimeSupport, LocalSeparatorModelConfig } from './types';
 
-function localSeparatorLog(message: string, payload?: unknown): void {
+function log(message: string, payload?: unknown): void {
   if (payload === undefined) {
     console.log(`[localSeparator] ${message}`);
     return;
@@ -15,9 +15,9 @@ export function detectLocalRuntimeSupport(): LocalRuntimeSupport {
     webgpuExposed: typeof navigator !== 'undefined' && 'gpu' in navigator,
   };
   if (support.webgpuExposed) {
-    localSeparatorLog('WebGPU API is exposed by this browser.');
+    log('WebGPU API is exposed by this browser.');
   } else {
-    localSeparatorLog('WebGPU API is not exposed by this browser. CPU/wasm will be used.');
+    log('WebGPU API is not exposed by this browser. CPU/wasm will be used.');
   }
   return support;
 }
@@ -46,16 +46,16 @@ export class LocalOrtRuntimeManager {
       ort.env.wasm.wasmPaths = {
         wasm: ortWasmAsyncifyUrl,
       };
-      localSeparatorLog('Configured ONNX Runtime wasm paths.', ort.env.wasm.wasmPaths);
+      log('Configured ONNX Runtime wasm paths.', ort.env.wasm.wasmPaths);
       LocalOrtRuntimeManager.wasmPathsConfigured = true;
     }
 
     const providersToTry: Array<'webgpu' | 'wasm'> = [];
     if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
       providersToTry.push('webgpu');
-      localSeparatorLog('navigator.gpu is available, trying WebGPU first.');
+      log('navigator.gpu is available, trying WebGPU first.');
     } else {
-      localSeparatorLog('navigator.gpu is not available. Falling back to CPU/wasm.');
+      log('navigator.gpu is not available. Falling back to CPU/wasm.');
     }
     providersToTry.push('wasm');
 
@@ -64,7 +64,7 @@ export class LocalOrtRuntimeManager {
       try {
         if (provider === 'webgpu' && ort.env?.webgpu) {
           ort.env.webgpu.powerPreference = 'high-performance';
-          localSeparatorLog('Using WebGPU power preference high-performance.');
+          log('Using WebGPU power preference high-performance.');
         }
 
         const session = await ort.InferenceSession.create(modelData, {
@@ -75,15 +75,15 @@ export class LocalOrtRuntimeManager {
         this.runtime = { provider, session };
         this.currentModel = modelConfig.filename;
         this.onProviderChange(provider === 'wasm' ? 'cpu/wasm' : provider);
-        localSeparatorLog(`Using provider: ${provider}`);
+        log(`Using provider: ${provider}`);
         return this.runtime;
       } catch (error) {
         lastError = error;
         if (provider === 'webgpu') {
-          localSeparatorLog('WebGPU session creation failed. Falling back to CPU/wasm.', error);
+          log('WebGPU session creation failed. Falling back to CPU/wasm.', error);
           this.onProviderChange('cpu/wasm fallback');
         } else {
-          localSeparatorLog(`Provider failed: ${provider}`, error);
+          log(`Provider failed: ${provider}`, error);
         }
       }
     }

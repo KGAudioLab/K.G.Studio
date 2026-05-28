@@ -19,10 +19,10 @@ import {
   LOCAL_SEPARATOR_MODEL_CONFIG,
   LOCAL_SEPARATOR_MODEL_FILENAME,
   LOCAL_SEPARATOR_DEFAULT_MODEL_URL,
-} from '../util/localSeparatorConfig';
-import { LocalSeparatorModelCache } from '../util/localSeparatorModelCache';
-import { runLocalSeparator } from '../util/localSeparatorRunner';
-import { LocalOrtRuntimeManager, detectLocalRuntimeSupport } from '../util/localSeparatorRuntime';
+} from '../util/local-separator/config';
+import { LocalSeparatorModelCache } from '../util/local-separator/modelCache';
+import { runLocalSeparator } from '../util/local-separator/runner';
+import { LocalOrtRuntimeManager, detectLocalRuntimeSupport } from '../util/local-separator/runtime';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

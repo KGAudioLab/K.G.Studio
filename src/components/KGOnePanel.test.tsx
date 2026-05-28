@@ -81,7 +81,7 @@ vi.mock('../util/audioUtil', () => ({
   sliceAudioToWav: vi.fn(async (_buffer: ArrayBuffer) => _buffer),
 }));
 
-vi.mock('../util/localSeparatorModelCache', () => ({
+vi.mock('../util/local-separator/modelCache', () => ({
   LocalSeparatorModelCache: {
     exists: vi.fn(async () => localModelCached),
     download: vi.fn(async (url: string, filename: string, onProgress: (progress: unknown) => void) => {
@@ -95,7 +95,7 @@ vi.mock('../util/localSeparatorModelCache', () => ({
   },
 }));
 
-vi.mock('../util/localSeparatorRuntime', () => ({
+vi.mock('../util/local-separator/runtime', () => ({
   detectLocalRuntimeSupport: () => ({ webgpuExposed: false }),
   LocalOrtRuntimeManager: class {
     constructor(private readonly options?: { onProviderChange?: (provider: string) => void }) {}
@@ -109,7 +109,7 @@ vi.mock('../util/localSeparatorRuntime', () => ({
   },
 }));
 
-vi.mock('../util/localSeparatorRunner', () => ({
+vi.mock('../util/local-separator/runner', () => ({
   runLocalSeparator: vi.fn(async ({ onProgress, onProviderChange }) => {
     onProviderChange?.('cpu/wasm');
     onProgress({ stage: 'main', passLabel: 'Main pass', percent: 100, processedChunks: 1, totalChunks: 1 });

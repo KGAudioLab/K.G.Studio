@@ -80,7 +80,7 @@ vi.mock('../../../util/localLLMModelManager', () => ({
   },
 }));
 
-vi.mock('../../../util/localSeparatorModelCache', () => ({
+vi.mock('../../../util/local-separator/modelCache', () => ({
   LocalSeparatorModelCache: localSeparatorModelCacheMock,
 }));
 

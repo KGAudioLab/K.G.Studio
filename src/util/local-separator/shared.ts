@@ -1,4 +1,4 @@
-import type { StereoChannels } from './localSeparatorTypes';
+import type { StereoChannels } from './types';
 
 export function index4d(dims: number[], i0: number, i1: number, i2: number, i3: number): number {
   return (((i0 * dims[1] + i1) * dims[2] + i2) * dims[3]) + i3;

@@ -1,13 +1,13 @@
 import * as ort from 'onnxruntime-web/webgpu';
-import { LocalSeparatorCpuDsp } from './localSeparatorCpuDsp';
-import { LocalSeparatorGpuDsp } from './localSeparatorGpuDsp';
-import { LocalSeparatorTimingCollector } from './localSeparatorTiming';
+import { LocalSeparatorCpuDsp } from './cpuDsp';
+import { LocalSeparatorGpuDsp } from './gpuDsp';
+import { LocalSeparatorTimingCollector } from './timing';
 import type {
   LocalRuntimeProvider,
   LocalSeparatorModelConfig,
   LocalSeparatorProgress,
   StereoChannels,
-} from './localSeparatorTypes';
+} from './types';
 import {
   concatFloat32,
   createWindowCache,
@@ -16,11 +16,11 @@ import {
   normalizeChannels,
   scaleChannels,
   sliceChannels,
-} from './localSeparatorShared';
+} from './shared';
 
 const SAMPLE_RATE = 44100;
 
-function localSeparatorLog(message: string, payload?: unknown): void {
+function log(message: string, payload?: unknown): void {
   if (payload === undefined) {
     console.log(`[localSeparator] ${message}`);
     return;
@@ -108,11 +108,11 @@ class BrowserMdxSeparator {
       try {
         dsp = await timing.measureAsync('dspInit', () => LocalSeparatorGpuDsp.create(config));
         dspMode = 'gpu-hybrid';
-        localSeparatorLog('GPU DSP initialized successfully.');
+        log('GPU DSP initialized successfully.');
       } catch (error) {
         console.warn('[localSeparator] GPU DSP initialization failed, using CPU DSP.', error);
         options.onProviderChange?.('webgpu + cpu dsp fallback');
-        localSeparatorLog(
+        log(
           'GPU DSP initialization failed. Inference session may still use WebGPU, but DSP will fall back to CPU.',
           error,
         );
@@ -122,9 +122,9 @@ class BrowserMdxSeparator {
     if (!dsp) {
       dsp = new LocalSeparatorCpuDsp(config);
       if (runtimeProvider === 'webgpu') {
-        localSeparatorLog('Using CPU DSP while keeping the WebGPU inference provider.');
+        log('Using CPU DSP while keeping the WebGPU inference provider.');
       } else {
-        localSeparatorLog('Using CPU DSP because the active inference provider is CPU/wasm.');
+        log('Using CPU DSP because the active inference provider is CPU/wasm.');
       }
     }
 
@@ -376,7 +376,7 @@ class BrowserMdxSeparator {
       } catch (error) {
         if (payloads.length > 1 && this.runtimeBatchSize > 1) {
         console.warn('[localSeparator] Batched inference failed, falling back to batch size 1.', error);
-        localSeparatorLog('Batched inference failed. Falling back to batch size 1.', error);
+        log('Batched inference failed. Falling back to batch size 1.', error);
         this.runtimeBatchSize = 1;
         const singleResults: SpectrogramPayload[] = [];
         for (const payload of payloads) {
@@ -486,7 +486,7 @@ export async function runLocalSeparator(options: {
 }> {
   const timing = new LocalSeparatorTimingCollector('local-separation');
   const decoded = await timing.measureAsync('decode', () => decodeAudioToStereo(options.audioBuffer));
-  localSeparatorLog(`Running browser MDX separation on ${options.runtimeProvider === 'webgpu' ? 'GPU/WebGPU' : 'CPU/wasm'}...`);
+  log(`Running browser MDX separation on ${options.runtimeProvider === 'webgpu' ? 'GPU/WebGPU' : 'CPU/wasm'}...`);
 
   const separator = await BrowserMdxSeparator.create(
     options.session,
@@ -522,7 +522,7 @@ export async function runLocalSeparator(options: {
       debugSummary: separator.getDebugSummary({ model: options.modelConfig.filename }),
     };
   } finally {
-    localSeparatorLog('Separation timing summary', separator.getDebugSummary({ model: options.modelConfig.filename }));
+    log('Separation timing summary', separator.getDebugSummary({ model: options.modelConfig.filename }));
     separator.dispose();
   }
 }

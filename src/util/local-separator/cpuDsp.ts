@@ -1,5 +1,5 @@
-import type { LocalSeparatorModelConfig, StereoChannels } from './localSeparatorTypes';
-import { FFT, createWindowCache, getHannPeriodic, index4d, reflectPad } from './localSeparatorShared';
+import type { LocalSeparatorModelConfig, StereoChannels } from './types';
+import { FFT, createWindowCache, getHannPeriodic, index4d, reflectPad } from './shared';
 
 interface SpectrogramPayload {
   data: Float32Array;

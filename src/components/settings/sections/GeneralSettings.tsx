@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
-import { LocalSeparatorModelCache } from '../../../util/localSeparatorModelCache';
+import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
 import {
   formatLocalLLMContextLength,
   LOCAL_LLM_CONTEXT_LENGTH_OPTIONS,
@@ -12,7 +12,7 @@ import {
   normalizeLocalLLMContextLength,
   type LocalLLMContextLength,
 } from '../../../util/localLLMConfig';
-import { LOCAL_SEPARATOR_DEFAULT_MODEL_URL } from '../../../util/localSeparatorConfig';
+import { LOCAL_SEPARATOR_DEFAULT_MODEL_URL } from '../../../util/local-separator/config';
 
 const GeneralSettings: React.FC = () => {
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);

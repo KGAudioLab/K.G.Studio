@@ -1,4 +1,4 @@
-import type { LocalSeparatorModelConfig } from './localSeparatorTypes';
+import type { LocalSeparatorModelConfig } from './types';
 
 export const LOCAL_SEPARATOR_DEFAULT_MODEL_URL =
   'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx';

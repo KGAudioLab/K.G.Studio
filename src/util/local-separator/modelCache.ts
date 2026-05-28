@@ -1,8 +1,8 @@
 import {
   LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES,
   LOCAL_SEPARATOR_MODEL_FILENAME,
-} from './localSeparatorConfig';
-import { OpfsModelCache, type ModelDownloadProgress } from './opfsModelCache';
+} from './config';
+import { OpfsModelCache, type ModelDownloadProgress } from '../opfsModelCache';
 
 const cache = new OpfsModelCache({ directoryName: 'models' });
 
