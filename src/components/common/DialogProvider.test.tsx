@@ -1,8 +1,30 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mockKgoneEnabled } = vi.hoisted(() => ({
+  mockKgoneEnabled: { value: false },
+}));
+
+vi.mock('../../core/config/ConfigManager', () => ({
+  ConfigManager: {
+    instance: () => ({
+      get: (key: string) => {
+        if (key === 'general.kgone.enabled') return mockKgoneEnabled.value;
+        return undefined;
+      },
+    }),
+  },
+}));
+
 import DialogProvider from './DialogProvider';
-import { showChoice, showChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
+import {
+  showChoice,
+  showChordDetectionOptions,
+  showMidiChordDetectionOptions,
+  showTempoApply,
+  showTempoDetectionOptions,
+} from '../../util/dialogUtil';
 
 function finishDialogCloseAnimation() {
   const overlay = document.querySelector('.dialog-overlay');
@@ -10,6 +32,10 @@ function finishDialogCloseAnimation() {
     fireEvent.animationEnd(overlay);
   }
 }
+
+beforeEach(() => {
+  mockKgoneEnabled.value = false;
+});
 
 describe('DialogProvider chord detection dialog', () => {
   it('opens the chord detection modal with the expected defaults and resolves cancel to null', async () => {
@@ -36,6 +62,10 @@ describe('DialogProvider chord detection dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
 
     expect(screen.getByText('Chord Detection')).toBeInTheDocument();
+    expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
+    expect(screen.getByText(/Chord analysis is still experimental\./)).toBeInTheDocument();
+    expect(screen.getByText('Recommended Source Material')).toBeInTheDocument();
+    expect(screen.getByText(/Vocal, Drums, Bass, and Others/)).toBeInTheDocument();
     expect(screen.getByLabelText('Sensitivity')).toHaveValue('50');
     expect(screen.getByLabelText('Stability')).toHaveValue('50');
     expect(screen.getByLabelText('No-Chord Threshold')).toHaveValue('0');
@@ -83,6 +113,61 @@ describe('DialogProvider chord detection dialog', () => {
       enableSevenths: true,
     }));
   });
+
+  it('shows K.G.One separator guidance when server integration is enabled', async () => {
+    mockKgoneEnabled.value = true;
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            await showChordDetectionOptions('Tune chord detection settings before processing.', {
+              sensitivity: 50,
+              stability: 50,
+              noChordThreshold: 0,
+              enableSevenths: false,
+            });
+          }}
+        >
+          Open
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+
+    expect(screen.getByText(/Vocal, Drums, Bass, Guitar, Piano, and Others/)).toBeInTheDocument();
+    expect(screen.getByText(/Piano or Others stem/)).toBeInTheDocument();
+  });
+});
+
+describe('DialogProvider MIDI chord detection dialog', () => {
+  it('shows the experimental hint without audio stem guidance', async () => {
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            await showMidiChordDetectionOptions('Tune MIDI chord detection settings before processing.', {
+              enableSevenths: false,
+              shortNoteSuppression: 'medium',
+              harmonicFocus: 'favor-sustained-notes',
+            });
+          }}
+        >
+          Open MIDI
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open MIDI' }));
+
+    expect(screen.getByText('Chord Detection')).toBeInTheDocument();
+    expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
+    expect(screen.getByText(/Voicing density, overlaps, and ornamental notes/)).toBeInTheDocument();
+    expect(screen.queryByText('Recommended Source Material')).not.toBeInTheDocument();
+  });
 });
 
 describe('DialogProvider tempo detection dialog', () => {
@@ -108,8 +193,10 @@ describe('DialogProvider tempo detection dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open tempo' }));
 
     expect(screen.getByText('Tempo Detection')).toBeInTheDocument();
-    expect(screen.getByLabelText('Minimum BPM')).toHaveValue(80);
-    expect(screen.getByLabelText('Maximum BPM')).toHaveValue(180);
+    expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
+    expect(screen.getByText(/Tempo analysis is still experimental\./)).toBeInTheDocument();
+    expect(screen.getByLabelText('Minimum BPM')).toHaveValue('80');
+    expect(screen.getByLabelText('Maximum BPM')).toHaveValue('180');
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     finishDialogCloseAnimation();
@@ -139,6 +226,8 @@ describe('DialogProvider tempo detection dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open tempo' }));
     fireEvent.change(screen.getByLabelText('Minimum BPM'), { target: { value: '96' } });
     fireEvent.change(screen.getByLabelText('Maximum BPM'), { target: { value: '154' } });
+    expect(screen.getByText('96')).toBeInTheDocument();
+    expect(screen.getByText('154')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Detect' }));
     finishDialogCloseAnimation();
 

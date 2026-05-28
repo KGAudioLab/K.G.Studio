@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import './DialogProvider.css';
 import { FaTimes } from 'react-icons/fa';
+import { ConfigManager } from '../../core/config/ConfigManager';
 import { registerDialogFns } from '../../util/dialogUtil';
 import type {
   ChoiceOption,
@@ -42,6 +43,14 @@ const DEFAULT_TEMPO_DETECTION_OPTIONS: TempoDetectionOptionsResult = {
   minTempo: 80,
   maxTempo: 180,
 };
+
+const DETECTION_HINT_TITLE = 'Experimental Feature';
+const CHORD_DETECTION_HINT_TEXT = 'Chord analysis is still experimental. Harmonic content, arrangement density, and transient-heavy material can affect accuracy. For more reliable results, start with the default settings, then refine sensitivity and stability until the detected harmony best matches the musical phrasing.';
+const MIDI_CHORD_DETECTION_HINT_TEXT = 'Chord analysis is still experimental. Voicing density, overlaps, and ornamental notes can influence the result. For more reliable chord labels, begin with the default settings, then adjust note suppression and harmonic focus to match the musical role of the passage.';
+const TEMPO_DETECTION_HINT_TEXT = 'Tempo analysis is still experimental. Rubato phrasing, sparse transients, and layered percussion can reduce accuracy. Start with the default BPM range, then narrow the analysis window to the most plausible tempo span for the material if the first pass is not musically convincing.';
+const AUDIO_CHORD_SOURCE_HINT_TITLE = 'Recommended Source Material';
+const AUDIO_CHORD_SOURCE_HINT_KGONE_TEXT = 'For the most dependable chord labels, analyze a stem with vocals and percussion reduced or removed. If K.G.One Music Studio server integration is available, run Separator with the "Vocal, Drums, Bass, Guitar, Piano, and Others" model and use the Piano or Others stem for analysis.';
+const AUDIO_CHORD_SOURCE_HINT_LOCAL_TEXT = 'For the most dependable chord labels, analyze a stem with vocals and percussion reduced or removed. If you are using the local separator, choose the "Vocal, Drums, Bass, and Others" model and use the Others stem for analysis.';
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
@@ -193,6 +202,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isTempoDetection = dialog.type === 'tempo-detection';
   const isTempoApply = dialog.type === 'tempo-apply';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
+  const isKGOneEnabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
 
   const title = isAlert
     ? 'Notice'
@@ -270,6 +280,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setTempoDetectionOptions(current => ({ ...current, [key]: value }));
   };
 
+  const detectionHintText = isChordDetection
+    ? CHORD_DETECTION_HINT_TEXT
+    : isMidiChordDetection
+      ? MIDI_CHORD_DETECTION_HINT_TEXT
+      : isTempoDetection
+        ? TEMPO_DETECTION_HINT_TEXT
+        : null;
+
   return (
     <>
       {children}
@@ -287,6 +305,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
           </div>
           <div className="dialog-body">
             <p className="dialog-message">{dialog.message}</p>
+            {detectionHintText && (
+              <div className="dialog-hint-card">
+                <div className="dialog-hint-card-title">{DETECTION_HINT_TITLE}</div>
+                <div className="dialog-hint-card-text">{detectionHintText}</div>
+              </div>
+            )}
             {isPrompt && (
               <input
                 className="dialog-input"
@@ -331,6 +355,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
             )}
             {isChordDetection && (
               <div className="dialog-chord-detection-form">
+                <div className="dialog-hint-card">
+                  <div className="dialog-hint-card-title">{AUDIO_CHORD_SOURCE_HINT_TITLE}</div>
+                  <div className="dialog-hint-card-text">
+                    {isKGOneEnabled ? AUDIO_CHORD_SOURCE_HINT_KGONE_TEXT : AUDIO_CHORD_SOURCE_HINT_LOCAL_TEXT}
+                  </div>
+                </div>
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
                     <label className="dialog-slider-label" htmlFor="dialog-chord-sensitivity">Sensitivity</label>
@@ -439,13 +469,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
                     <label className="dialog-slider-label" htmlFor="dialog-tempo-min-tempo">Minimum BPM</label>
+                    <span className="dialog-slider-value">{tempoDetectionOptions.minTempo}</span>
                   </div>
                   <input
                     id="dialog-tempo-min-tempo"
-                    className="dialog-input"
-                    type="number"
-                    min={40}
-                    max={240}
+                    className="dialog-slider"
+                    type="range"
+                    min={60}
+                    max={200}
                     step={1}
                     value={tempoDetectionOptions.minTempo}
                     onChange={(e) => updateTempoDetectionOption('minTempo', Number(e.target.value))}
@@ -455,13 +486,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
                     <label className="dialog-slider-label" htmlFor="dialog-tempo-max-tempo">Maximum BPM</label>
+                    <span className="dialog-slider-value">{tempoDetectionOptions.maxTempo}</span>
                   </div>
                   <input
                     id="dialog-tempo-max-tempo"
-                    className="dialog-input"
-                    type="number"
-                    min={40}
-                    max={240}
+                    className="dialog-slider"
+                    type="range"
+                    min={60}
+                    max={200}
                     step={1}
                     value={tempoDetectionOptions.maxTempo}
                     onChange={(e) => updateTempoDetectionOption('maxTempo', Number(e.target.value))}
