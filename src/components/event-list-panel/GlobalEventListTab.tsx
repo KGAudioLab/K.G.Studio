@@ -186,48 +186,48 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
   const markerRows = useMemo<MarkerRowData[]>(() => (
     showMarkers && markerTrack
       ? markerTrack.getRegions().filter((region): region is KGMarkerRegion => region instanceof KGMarkerRegion).map(region => ({
-          id: region.getId(),
-          type: 'marker',
-          region,
-          absoluteStartBeat: region.getStartFromBeat(),
-          durationBeats: region.getLength(),
-        }))
+        id: region.getId(),
+        type: 'marker',
+        region,
+        absoluteStartBeat: region.getStartFromBeat(),
+        durationBeats: region.getLength(),
+      }))
       : []
   ), [globalTracks, markerTrack, showMarkers]);
 
   const tempoRows = useMemo<TempoRowData[]>(() => (
     showTempo && tempoTrack
       ? getSortedTempoRegions(tempoTrack, timeSignature.numerator).map(region => ({
-          id: region.getId(),
-          type: 'tempo',
-          region,
-          absoluteStartBeat: region.getStartFromBeat(),
-          durationBeats: region.getLength(),
-        }))
+        id: region.getId(),
+        type: 'tempo',
+        region,
+        absoluteStartBeat: region.getStartFromBeat(),
+        durationBeats: region.getLength(),
+      }))
       : []
   ), [globalTracks, showTempo, tempoTrack, timeSignature.numerator]);
 
   const keySignatureRows = useMemo<KeySignatureRowData[]>(() => (
     showKeySignature && signatureTrack
       ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator).map(region => ({
-          id: region.getId(),
-          type: 'key-signature',
-          region,
-          absoluteStartBeat: region.getStartFromBeat(),
-          durationBeats: region.getLength(),
-        }))
+        id: region.getId(),
+        type: 'key-signature',
+        region,
+        absoluteStartBeat: region.getStartFromBeat(),
+        durationBeats: region.getLength(),
+      }))
       : []
   ), [globalTracks, showKeySignature, signatureTrack, timeSignature.numerator]);
 
   const chordRows = useMemo<ChordRowData[]>(() => (
     showChords && chordTrack
       ? chordTrack.getRegions().filter((region): region is KGChordRegion => region instanceof KGChordRegion).map(region => ({
-          id: region.getId(),
-          type: 'chord',
-          region,
-          absoluteStartBeat: region.getStartFromBeat(),
-          durationBeats: region.getLength(),
-        }))
+        id: region.getId(),
+        type: 'chord',
+        region,
+        absoluteStartBeat: region.getStartFromBeat(),
+        durationBeats: region.getLength(),
+      }))
       : []
   ), [chordTrack, globalTracks, showChords]);
 
@@ -755,7 +755,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
       <div className="event-list-tabs" role="tablist" aria-label="Global event filters">
         <button className={`event-list-tab${showMarkers ? ' active' : ''}`} aria-pressed={showMarkers} type="button" onClick={() => setShowMarkers(value => !value)}>Marker</button>
         <button className={`event-list-tab${showTempo ? ' active' : ''}`} aria-pressed={showTempo} type="button" onClick={() => setShowTempo(value => !value)}>Tempo</button>
-        <button className={`event-list-tab${showKeySignature ? ' active' : ''}`} aria-pressed={showKeySignature} type="button" onClick={() => setShowKeySignature(value => !value)}>Key Signature</button>
+        <button className={`event-list-tab${showKeySignature ? ' active' : ''}`} aria-pressed={showKeySignature} type="button" onClick={() => setShowKeySignature(value => !value)}>Key Sig.</button>
         <button className={`event-list-tab${showChords ? ' active' : ''}`} aria-pressed={showChords} type="button" onClick={() => setShowChords(value => !value)}>Chord</button>
       </div>
 
