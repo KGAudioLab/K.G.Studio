@@ -14,6 +14,7 @@ import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { showAlert, showConfirm } from '../../util/dialogUtil';
 import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoint';
+import { AUDIO_IMPORT_ACCEPTED_TYPES } from '../../util/audioImportUtil';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -554,7 +555,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           isVisible={showAudioImportModal}
           onClose={() => setShowAudioImportModal(false)}
           onFileImport={handleAudioFileImport}
-          acceptedTypes={['.wav', '.mp3', '.ogg', '.flac', '.aac']}
+          acceptedTypes={[...AUDIO_IMPORT_ACCEPTED_TYPES]}
           title="Import Audio"
           description="Drag and drop your audio file here"
         />

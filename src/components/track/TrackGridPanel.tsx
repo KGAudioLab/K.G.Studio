@@ -26,6 +26,11 @@ import {
   CHORD_REGION_IMPORT_REGION_NAME,
   type ChordRegionImportPayload,
 } from '../../util/chordRegionImportUtil';
+import {
+  AUDIO_IMPORT_ACCEPTED_TYPES,
+  getAudioImportDecodeFailureMessage,
+  isAcceptedAudioImportFile,
+} from '../../util/audioImportUtil';
 
 const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
   shiftKey: event.shiftKey,
@@ -96,6 +101,92 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       ? selectedRegionIds
       : [primaryRegionId]
   );
+
+  const getBarNumberFromGridClientX = (clientX: number) => {
+    if (!gridContainerRef.current) {
+      return null;
+    }
+
+    const gridRect = gridContainerRef.current.getBoundingClientRect();
+    const relativeX = clientX - gridRect.left;
+    const barWidth = gridContainerRef.current.clientWidth / maxBars;
+    const rawBar = relativeX / barWidth + 1;
+    const snap = KGMainContentState.instance().isSnappingEnabled();
+
+    return Math.max(1, snap ? Math.round(rawBar) : rawBar);
+  };
+
+  const importAudioFileToTrackAtBar = async (
+    file: File,
+    track: KGTrack,
+    trackIndex: number,
+    barNumber: number
+  ) => {
+    const beatsPerBar = timeSignature.numerator;
+    const fileId = KGAudioFileStorage.generateAudioFileId(file.name);
+    const arrayBuffer = await file.arrayBuffer();
+    const toneBuffer = new Tone.ToneAudioBuffer();
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const audioContext = Tone.getContext().rawContext as AudioContext;
+        audioContext.decodeAudioData(
+          arrayBuffer.slice(0),
+          (decoded) => { toneBuffer.set(decoded); resolve(); },
+          (err) => reject(err)
+        );
+      });
+    } catch {
+      throw new Error(getAudioImportDecodeFailureMessage(file.name));
+    }
+
+    const audioDurationSeconds = toneBuffer.duration;
+    await KGAudioFileStorage.storeAudioFile(projectName, fileId, file);
+    KGAudioInterface.instance().loadAudioBufferForTrack(
+      track.getId().toString(),
+      fileId,
+      toneBuffer
+    );
+
+    const bpm = KGCore.instance().getCurrentProject().getBpm();
+    const durationInBeats = audioDurationSeconds * (bpm / 60);
+    const insertBeat = (barNumber - 1) * beatsPerBar;
+    const lengthInBars = Math.max(1, Math.ceil(durationInBeats / beatsPerBar));
+    const prevMaxBars = maxBars;
+    const newMaxBars = Math.max(maxBars, barNumber + lengthInBars - 1);
+
+    const cmd = new ImportAudioCommand(
+      track.getId() as unknown as number,
+      trackIndex,
+      fileId,
+      file.name,
+      audioDurationSeconds,
+      insertBeat,
+      durationInBeats,
+      prevMaxBars,
+      newMaxBars
+    );
+    KGCore.instance().executeCommand(cmd);
+
+    const created = cmd.getCreatedRegion();
+    if (created && onExternalDropComplete) {
+      const displayLengthInBars = Math.max(
+        1,
+        getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), created) / beatsPerBar
+      );
+      const regionUI: RegionUI = {
+        id: created.getId(),
+        trackId: track.getId().toString(),
+        trackIndex,
+        barNumber: (created.getStartFromBeat() / beatsPerBar) + 1,
+        length: displayLengthInBars,
+        name: created.getName(),
+      };
+      onExternalDropComplete(trackIndex, regionUI);
+    }
+
+    return { audioDurationSeconds };
+  };
 
   const startLassoSelection = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -332,71 +423,53 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const track = tracks[trackIndex];
     if (!track) return;
 
-    const beatsPerBar = timeSignature.numerator;
-    const fileId = KGAudioFileStorage.generateAudioFileId(file.name);
-
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const toneBuffer = new Tone.ToneAudioBuffer();
-      await new Promise<void>((resolve, reject) => {
-        const audioContext = Tone.getContext().rawContext as AudioContext;
-        audioContext.decodeAudioData(
-          arrayBuffer.slice(0),
-          (decoded) => { toneBuffer.set(decoded); resolve(); },
-          (err) => reject(err)
-        );
-      });
-
-      const audioDurationSeconds = toneBuffer.duration;
-      await KGAudioFileStorage.storeAudioFile(projectName, fileId, file);
-      KGAudioInterface.instance().loadAudioBufferForTrack(
-        track.getId().toString(),
-        fileId,
-        toneBuffer
-      );
-
-      const bpm = KGCore.instance().getCurrentProject().getBpm();
-      const durationInBeats = audioDurationSeconds * (bpm / 60);
-      const insertBeat = (barNumber - 1) * beatsPerBar;
-      const lengthInBars = Math.max(1, Math.ceil(durationInBeats / beatsPerBar));
-      const prevMaxBars = maxBars;
-      const newMaxBars = Math.max(maxBars, barNumber + lengthInBars - 1);
-
-      const cmd = new ImportAudioCommand(
-        track.getId() as unknown as number,
-        trackIndex,
-        fileId,
-        file.name,
-        audioDurationSeconds,
-        insertBeat,
-        durationInBeats,
-        prevMaxBars,
-        newMaxBars
-      );
-      KGCore.instance().executeCommand(cmd);
-
-      const created = cmd.getCreatedRegion();
-      if (created && onExternalDropComplete) {
-        const displayLengthInBars = Math.max(
-          1,
-          getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), created) / beatsPerBar
-        );
-        const regionUI: RegionUI = {
-          id: created.getId(),
-          trackId: track.getId().toString(),
-          trackIndex,
-          barNumber,
-          length: displayLengthInBars,
-          name: created.getName(),
-        };
-        onExternalDropComplete(trackIndex, regionUI);
-      }
+      const { audioDurationSeconds } = await importAudioFileToTrackAtBar(file, track, trackIndex, barNumber);
 
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
         console.log(`[TrackGrid] Imported audio "${file.name}" to track ${trackIndex}, bar ${barNumber}, ${audioDurationSeconds.toFixed(2)}s`);
       }
     } catch (err) {
       console.error('[TrackGrid] Audio import from click failed:', err);
+      await showAlert(err instanceof Error ? err.message : `Failed to import "${file.name}".`);
+    }
+  };
+
+  const handleLocalAudioFileDrop = async (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => {
+    const file = e.dataTransfer.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const track = tracks[trackIndex];
+    if (!track) {
+      return;
+    }
+
+    if (track.getType() !== TrackType.Wave) {
+      await showAlert('Audio files can only be imported into audio tracks. Please drop them onto an audio track.');
+      return;
+    }
+
+    if (!isAcceptedAudioImportFile(file)) {
+      await showAlert(`Invalid file type. Please select a file with one of these extensions: ${AUDIO_IMPORT_ACCEPTED_TYPES.join(', ')}`);
+      return;
+    }
+
+    const barNumber = getBarNumberFromGridClientX(e.clientX);
+    if (barNumber === null) {
+      return;
+    }
+
+    try {
+      const { audioDurationSeconds } = await importAudioFileToTrackAtBar(file, track, trackIndex, barNumber);
+
+      if (DEBUG_MODE.TRACK_GRID_PANEL) {
+        console.log(`[TrackGrid] Imported dropped audio "${file.name}" to track ${trackIndex}, bar ${barNumber}, ${audioDurationSeconds.toFixed(2)}s`);
+      }
+    } catch (err) {
+      console.error('[TrackGrid] Audio import from file drop failed:', err);
+      await showAlert(err instanceof Error ? err.message : `Failed to import "${file.name}".`);
     }
   };
 
@@ -805,14 +878,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       return;
     }
 
-    // Calculate drop bar position
-    if (!gridContainerRef.current) return;
-    const gridRect = gridContainerRef.current.getBoundingClientRect();
-    const relativeX = e.clientX - gridRect.left;
-    const barWidth = gridContainerRef.current.clientWidth / maxBars;
-    const rawBar = relativeX / barWidth + 1;
-    const snap = KGMainContentState.instance().isSnappingEnabled();
-    const barNumber = Math.max(1, snap ? Math.round(rawBar) : Math.floor(rawBar));
+    const barNumber = getBarNumberFromGridClientX(e.clientX);
+    if (barNumber === null) return;
 
     const track = tracks[trackIndex];
     if (!track) return;
@@ -871,61 +938,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         // ── Audio track: save blob to OPFS and create a KGAudioRegion ──────
         const blob = await fetch(dropData.audioUrl).then(r => r.blob());
         const audioFile = new File([blob], dropData.audioFileName, { type: 'audio/wav' });
-        const fileId = `kgone_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
-        // Decode audio to get accurate duration and load into player bus
-        const arrayBuffer = await audioFile.arrayBuffer();
-        const toneBuffer = new Tone.ToneAudioBuffer();
-        await new Promise<void>((resolve, reject) => {
-          const audioContext = Tone.getContext().rawContext as AudioContext;
-          audioContext.decodeAudioData(
-            arrayBuffer.slice(0),
-            (decoded) => { toneBuffer.set(decoded); resolve(); },
-            (err) => reject(err)
-          );
-        });
-
-        const audioDurationSeconds = toneBuffer.duration;
-
-        await KGAudioFileStorage.storeAudioFile(projectName, fileId, audioFile);
-        KGAudioInterface.instance().loadAudioBufferForTrack(
-          track.getId().toString(),
-          fileId,
-          toneBuffer
-        );
-
-        const bpm = KGCore.instance().getCurrentProject().getBpm();
-        const durationInBeats = audioDurationSeconds * (bpm / 60);
-        const insertBeat = (barNumber - 1) * beatsPerBar;
-        const lengthInBars = Math.max(1, Math.ceil(durationInBeats / beatsPerBar));
-        const prevMaxBars = maxBars;
-        const newMaxBars = Math.max(maxBars, barNumber + lengthInBars - 1);
-
-        const cmd = new ImportAudioCommand(
-          track.getId() as unknown as number,
-          trackIndex,
-          fileId,
-          dropData.audioFileName,
-          audioDurationSeconds,
-          insertBeat,
-          durationInBeats,
-          prevMaxBars,
-          newMaxBars
-        );
-        KGCore.instance().executeCommand(cmd);
-
-        const created = cmd.getCreatedRegion();
-        if (created && onExternalDropComplete) {
-          const regionUI: RegionUI = {
-            id: created.getId(),
-            trackId: track.getId().toString(),
-            trackIndex,
-            barNumber,
-            length: lengthInBars,
-            name: created.getName(),
-          };
-          onExternalDropComplete(trackIndex, regionUI);
-        }
+        const { audioDurationSeconds } = await importAudioFileToTrackAtBar(audioFile, track, trackIndex, barNumber);
 
         if (DEBUG_MODE.TRACK_GRID_PANEL) {
           console.log(`[KGOne] Imported audio clip to track ${trackIndex}, bar ${barNumber}, ${audioDurationSeconds.toFixed(2)}s`);
@@ -1047,6 +1060,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onOpenHybrid={onOpenHybrid}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}
+          onAudioFileDrop={handleLocalAudioFileDrop}
           onChordRegionDrop={handleChordRegionDrop}
           previewRegionStyles={previewRegionStyles}
           setPreviewRegionStyles={setPreviewRegionStyles}
@@ -1059,7 +1073,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         isVisible={showAudioImportModal}
         onClose={() => setShowAudioImportModal(false)}
         onFileImport={handleAudioFileImport}
-        acceptedTypes={['.wav', '.mp3', '.ogg', '.flac', '.aac']}
+        acceptedTypes={[...AUDIO_IMPORT_ACCEPTED_TYPES]}
         title="Import Audio"
         description="Drag and drop your audio file here"
       />

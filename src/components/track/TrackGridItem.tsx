@@ -11,6 +11,7 @@ import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { useProjectStore } from '../../stores/projectStore';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
+import { TrackType } from '../../core/track/KGTrack';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -54,6 +55,7 @@ interface TrackGridItemProps {
   onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
+  onAudioFileDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   onChordRegionDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   previewRegionStyles?: Record<string, React.CSSProperties>;
   setPreviewRegionStyles?: React.Dispatch<React.SetStateAction<Record<string, React.CSSProperties>>>;
@@ -86,6 +88,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
+  onAudioFileDrop,
   onChordRegionDrop,
   previewRegionStyles,
   setPreviewRegionStyles,
@@ -740,24 +743,39 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       }}
       ref={trackElementRef}
       onDragOver={(e) => {
-        if (
-          Array.from(e.dataTransfer.types).includes('application/kgone-clip')
-          || Array.from(e.dataTransfer.types).includes(CHORD_REGION_IMPORT_MIME_TYPE)
-        ) {
+        const dataTypes = Array.from(e.dataTransfer.types);
+        const hasLocalFiles = (e.dataTransfer.files?.length ?? 0) > 0 || dataTypes.includes('Files');
+
+        if (dataTypes.includes('application/kgone-clip') || dataTypes.includes(CHORD_REGION_IMPORT_MIME_TYPE)) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'copy';
+          return;
+        }
+
+        if (hasLocalFiles) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = track.getType() === TrackType.Wave ? 'copy' : 'none';
         }
       }}
       onDrop={(e) => {
-        if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
+        const dataTypes = Array.from(e.dataTransfer.types);
+        const hasLocalFiles = (e.dataTransfer.files?.length ?? 0) > 0 || dataTypes.includes('Files');
+
+        if (dataTypes.includes('application/kgone-clip')) {
           e.preventDefault();
           onKGOneClipDrop?.(e, index);
           return;
         }
 
-        if (Array.from(e.dataTransfer.types).includes(CHORD_REGION_IMPORT_MIME_TYPE)) {
+        if (dataTypes.includes(CHORD_REGION_IMPORT_MIME_TYPE)) {
           e.preventDefault();
           onChordRegionDrop?.(e, index);
+          return;
+        }
+
+        if (hasLocalFiles) {
+          e.preventDefault();
+          onAudioFileDrop?.(e, index);
         }
       }}
     >

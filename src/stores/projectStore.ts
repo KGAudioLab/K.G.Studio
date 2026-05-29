@@ -27,6 +27,7 @@ import { CreateMidiEventsCommand, type NoteCreationData, type PitchBendCreationD
 import { MIDI_PITCH_BEND_CENTER } from '../util/midiUtil';
 import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/KGTrackAutomationPoint';
 import type { AudioRecordingPeak } from '../core/audio-interface/KGAudioRecorder';
+import { getAudioImportDecodeFailureMessage } from '../util/audioImportUtil';
 import { beatToSeconds } from '../util/globalTrackUtil';
 
 /**
@@ -587,19 +588,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Decode the audio file to get duration
         const arrayBuffer = await file.arrayBuffer();
         const toneBuffer = new Tone.ToneAudioBuffer();
-        await new Promise<void>((resolve, reject) => {
-          toneBuffer.onload = () => resolve();
-          // Set buffer from array buffer
-          const audioContext = Tone.getContext().rawContext as AudioContext;
-          audioContext.decodeAudioData(
-            arrayBuffer.slice(0),  // slice to avoid detached buffer
-            (decoded) => {
-              toneBuffer.set(decoded);
-              resolve();
-            },
-            (err) => reject(err)
-          );
-        });
+        try {
+          await new Promise<void>((resolve, reject) => {
+            toneBuffer.onload = () => resolve();
+            // Set buffer from array buffer
+            const audioContext = Tone.getContext().rawContext as AudioContext;
+            audioContext.decodeAudioData(
+              arrayBuffer.slice(0),  // slice to avoid detached buffer
+              (decoded) => {
+                toneBuffer.set(decoded);
+                resolve();
+              },
+              (err) => reject(err)
+            );
+          });
+        } catch {
+          throw new Error(getAudioImportDecodeFailureMessage(file.name));
+        }
 
         const audioDurationSeconds = toneBuffer.duration;
         const { bpm, timeSignature, playheadPosition, maxBars } = get();
@@ -657,7 +662,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         console.log(`Imported audio "${file.name}" to track ${trackId}`);
       } catch (error) {
         console.error('Error importing audio:', error);
-        get().setStatus(`Failed to import audio: ${error}`);
+        get().setStatus(error instanceof Error ? error.message : `Failed to import "${file.name}".`);
       }
     },
 

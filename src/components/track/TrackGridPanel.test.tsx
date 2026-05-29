@@ -1,16 +1,21 @@
 import React from 'react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render } from '@testing-library/react';
+import { createEvent, fireEvent, render } from '@testing-library/react';
 import TrackGridPanel from './TrackGridPanel';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
 import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { KGMainContentState } from '../../core/state/KGMainContentState';
 
 const executeCommandMock = vi.fn();
 const getCreatedRegionMock = vi.fn();
 const showAlertMock = vi.fn();
+let fileImportModalProps: Record<string, unknown> | null = null;
+const storeAudioFileMock = vi.fn<(projectName: string, fileId: string, file: File) => Promise<void>>(async () => undefined);
+const loadAudioBufferForTrackMock = vi.fn<(trackId: string, fileId: string, toneBuffer: unknown) => void>();
+const decodeAudioDataMock = vi.fn<(arrayBuffer: ArrayBuffer, onSuccess: (decoded: { duration?: number }) => void, onError: (error: unknown) => void) => void>();
 const globalChordRegions = [
   new KGChordRegion('chord-1', 'global-chord', 3, 'C', 0, 4),
   new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4, 4),
@@ -36,7 +41,10 @@ vi.mock('../../stores/projectStore', () => ({
 
 vi.mock('../common', () => ({
   Playhead: () => null,
-  FileImportModal: () => null,
+  FileImportModal: (props: Record<string, unknown>) => {
+    fileImportModalProps = props;
+    return null;
+  },
 }));
 
 vi.mock('../../core/KGCore', () => ({
@@ -51,9 +59,44 @@ vi.mock('../../core/KGCore', () => ({
         getGlobalTracks: () => [{
           getRegions: () => globalChordRegions,
         }],
+        getBpm: () => 120,
       }),
     }),
   },
+}));
+
+vi.mock('../../core/io/KGAudioFileStorage', () => ({
+  KGAudioFileStorage: {
+    generateAudioFileId: vi.fn((fileName: string) => `audio-file-id-${fileName}`),
+    storeAudioFile: (projectName: string, fileId: string, file: File) => storeAudioFileMock(projectName, fileId, file),
+  },
+}));
+
+vi.mock('../../core/audio-interface/KGAudioInterface', () => ({
+  KGAudioInterface: {
+    instance: () => ({
+      loadAudioBufferForTrack: (trackId: string, fileId: string, toneBuffer: unknown) => loadAudioBufferForTrackMock(trackId, fileId, toneBuffer),
+    }),
+  },
+}));
+
+vi.mock('tone', () => ({
+  ToneAudioBuffer: class {
+    duration = 0;
+
+    set(decoded: { duration?: number }) {
+      this.duration = decoded.duration ?? 0;
+    }
+  },
+  getContext: () => ({
+    rawContext: {
+      decodeAudioData: (
+        arrayBuffer: ArrayBuffer,
+        onSuccess: (decoded: { duration?: number }) => void,
+        onError: (error: unknown) => void
+      ) => decodeAudioDataMock(arrayBuffer, onSuccess, onError),
+    },
+  }),
 }));
 
 vi.mock('../../util/dialogUtil', () => ({
@@ -138,7 +181,42 @@ describe('TrackGridPanel lasso selection', () => {
       />
     );
 
-    const gridContainer = view.container.querySelector('.grid-container') as HTMLDivElement;
+    configureGridContainer(view.container);
+
+    return { ...view, onRegionLassoSelection, onRegionCreated };
+  };
+
+  const mockDroppedFileList = (files: File[]) => {
+    const fileList = {
+      length: files.length,
+      item: (index: number) => files[index] ?? null,
+      [Symbol.iterator]: function* iterator() {
+        yield* files;
+      },
+    } as FileList & Iterable<File>;
+
+    files.forEach((file, index) => {
+      Object.defineProperty(fileList, index, {
+        configurable: true,
+        enumerable: true,
+        value: file,
+      });
+    });
+
+    return fileList;
+  };
+
+  const createAudioFile = (name: string) => {
+    const file = new File([new Uint8Array([1, 2, 3])], name, { type: name.endsWith('.m4a') ? 'audio/mp4' : 'audio/wav' });
+    Object.defineProperty(file, 'arrayBuffer', {
+      configurable: true,
+      value: vi.fn(async () => new Uint8Array([1, 2, 3]).buffer),
+    });
+    return file;
+  };
+
+  const configureGridContainer = (container: HTMLElement) => {
+    const gridContainer = container.querySelector('.grid-container') as HTMLDivElement;
     Object.defineProperty(gridContainer, 'clientWidth', { configurable: true, value: 320 });
     vi.spyOn(gridContainer, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -151,8 +229,18 @@ describe('TrackGridPanel lasso selection', () => {
       height: 240,
       toJSON: () => ({}),
     });
+  };
 
-    return { ...view, onRegionLassoSelection, onRegionCreated };
+  const dispatchFileDrop = (target: HTMLElement, files: File[], clientX: number) => {
+    const dropEvent = createEvent.drop(target);
+    Object.defineProperty(dropEvent, 'clientX', { configurable: true, value: clientX });
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: {
+        files: mockDroppedFileList(files),
+        types: ['Files'],
+      },
+    });
+    fireEvent(target, dropEvent);
   };
 
   beforeEach(() => {
@@ -160,8 +248,16 @@ describe('TrackGridPanel lasso selection', () => {
     executeCommandMock.mockReset();
     getCreatedRegionMock.mockReset();
     showAlertMock.mockReset();
+    fileImportModalProps = null;
+    storeAudioFileMock.mockReset();
+    loadAudioBufferForTrackMock.mockReset();
+    decodeAudioDataMock.mockReset();
+    decodeAudioDataMock.mockImplementation((_arrayBuffer, onSuccess) => {
+      onSuccess({ duration: 2 });
+    });
     globalChordRegions[0].setSymbol('C');
     currentTracks = [];
+    KGMainContentState.instance().setSnapping(true);
   });
 
   it('selects intersecting regions across multiple track rows', () => {
@@ -342,5 +438,302 @@ describe('TrackGridPanel lasso selection', () => {
     await vi.waitFor(() => {
       expect(showAlertMock).toHaveBeenCalledWith('Unable to import chord "not-a-chord". Please update the chord symbol and try again.');
     });
+  });
+
+  it('imports a dropped audio file into an audio track and notifies completion', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+    const onExternalDropComplete = vi.fn();
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+        onExternalDropComplete={onExternalDropComplete}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    const audioFile = createAudioFile('dropped.wav');
+
+    dispatchFileDrop(targetGrid, [audioFile], 80);
+
+    await vi.waitFor(() => {
+      expect(onExternalDropComplete).toHaveBeenCalledTimes(1);
+    });
+
+    expect(storeAudioFileMock).toHaveBeenCalledWith('Test', 'audio-file-id-dropped.wav', audioFile);
+    expect(loadAudioBufferForTrackMock).toHaveBeenCalled();
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    const createdRegion = command.getCreatedRegion();
+    expect(createdRegion?.getName()).toBe('dropped.wav');
+    expect(createdRegion?.getStartFromBeat()).toBe(8);
+    expect(createdRegion?.getLength()).toBeCloseTo(4);
+    expect(onExternalDropComplete).toHaveBeenCalledWith(0, expect.objectContaining({
+      name: 'dropped.wav',
+      barNumber: 3,
+    }));
+  });
+
+  it('advertises m4a support in the timeline audio import modal', () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    expect(fileImportModalProps?.acceptedTypes).toEqual(['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a']);
+  });
+
+  it('accepts dropped m4a files on audio tracks', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('clip.m4a')], 80);
+
+    await vi.waitFor(() => {
+      expect(executeCommandMock).toHaveBeenCalled();
+    });
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    expect(command.getCreatedRegion()?.getName()).toBe('clip.m4a');
+  });
+
+  it('shows a polite dialog when dropping an audio file onto a MIDI track', async () => {
+    const midiTrack = createMockMidiTrack({ id: 1, regions: [] });
+    midiTrack.setTrackIndex(0);
+    currentTracks = [midiTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[midiTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('dropped.wav')], 80);
+
+    await vi.waitFor(() => {
+      expect(showAlertMock).toHaveBeenCalledWith('Audio files can only be imported into audio tracks. Please drop them onto an audio track.');
+    });
+    expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('shows a validation dialog when dropping an unsupported local file', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [new File(['{}'], 'notes.txt', { type: 'text/plain' })], 80);
+
+    await vi.waitFor(() => {
+      expect(showAlertMock).toHaveBeenCalledWith('Invalid file type. Please select a file with one of these extensions: .wav, .mp3, .ogg, .flac, .aac, .m4a');
+    });
+    expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('shows a clear decode failure dialog for m4a imports when the browser rejects the codec', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+    decodeAudioDataMock.mockImplementationOnce((_arrayBuffer, _onSuccess, onError) => {
+      onError(new Error('decode failed'));
+    });
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('unsupported.m4a')], 80);
+
+    await vi.waitFor(() => {
+      expect(showAlertMock).toHaveBeenCalledWith('Unable to import "unsupported.m4a". This browser could not decode the file\'s audio codec. M4A import depends on browser support.');
+    });
+    expect(storeAudioFileMock).not.toHaveBeenCalled();
+    expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the same snapped bar placement for dropped audio files as click import', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+    KGMainContentState.instance().setSnapping(true);
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('snapped.wav')], 100);
+
+    await vi.waitFor(() => {
+      expect(executeCommandMock).toHaveBeenCalled();
+    });
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(12);
+  });
+
+  it('preserves fractional bar placement when snapping is disabled for dropped audio files', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+    KGMainContentState.instance().setSnapping(false);
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('unsnapped.wav')], 100);
+
+    await vi.waitFor(() => {
+      expect(executeCommandMock).toHaveBeenCalled();
+    });
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    expect(command.getCreatedRegion()?.getStartFromBeat()).toBeCloseTo(10);
+  });
+
+  it('advertises local file drops only on audio rows during drag over', () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    const midiTrack = createMockMidiTrack({ id: 1, regions: [] });
+    midiTrack.setTrackIndex(1);
+    currentTracks = [audioTrack, midiTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack, midiTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const audioGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    const midiGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+
+    const audioEvent = createEvent.dragOver(audioGrid);
+    Object.defineProperty(audioEvent, 'dataTransfer', {
+      value: { files: mockDroppedFileList([createAudioFile('drag.wav')]), types: ['Files'], dropEffect: 'move' },
+    });
+    fireEvent(audioGrid, audioEvent);
+
+    const midiEvent = createEvent.dragOver(midiGrid);
+    Object.defineProperty(midiEvent, 'dataTransfer', {
+      value: { files: mockDroppedFileList([createAudioFile('drag.wav')]), types: ['Files'], dropEffect: 'move' },
+    });
+    fireEvent(midiGrid, midiEvent);
+
+    expect(audioEvent.defaultPrevented).toBe(true);
+    expect((audioEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('copy');
+    expect(midiEvent.defaultPrevented).toBe(true);
+    expect((midiEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('none');
   });
 });
