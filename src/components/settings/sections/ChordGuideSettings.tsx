@@ -113,7 +113,10 @@ const ChordGuideSettings: React.FC = () => {
 
       <div className="settings-section-content">
         <div className="settings-group">
-          <h4>Chord Definition</h4>
+          <h4>Legacy Chord Definition</h4>
+          <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
+            This editor is kept for legacy mode and highlighting behavior. It no longer affects chord-guide suggestions in the piano roll.
+          </div>
           <div className="settings-help-links">
             <button
               className="settings-help"
@@ -132,7 +135,7 @@ const ChordGuideSettings: React.FC = () => {
           <div className="settings-item">
             <textarea
               className="settings-textarea"
-              placeholder="Please input your chord definitions"
+              placeholder="Please input your legacy chord definitions"
               rows={8}
               value={chordDefinition}
               onChange={(e) => handleChordDefinitionChange(e.target.value)}

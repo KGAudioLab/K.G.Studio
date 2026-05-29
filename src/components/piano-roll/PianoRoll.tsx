@@ -19,9 +19,9 @@ import { beatsToBar } from '../../util/midiUtil';
 import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
-import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
 import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
 import { matchesKeyboardShortcut } from '../../util/osUtil';
+import { resolveChordGuideItems } from '../../util/chordGuideDataUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
@@ -739,7 +739,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     if (chordGuide === 'N') {
       // Disabled - clear chord data
-      pianoRollState.setCurrentSuitableChords({});
+      pianoRollState.setCurrentSuitableChords([]);
       pianoRollState.setCurrentSuitableChordsPitchClasses({});
 
       if (DEBUG_MODE.PIANO_ROLL) {
@@ -748,28 +748,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     } else {
       // Get suitable chords for the selected function (T/S/D)
       const functionType = chordGuide as 'T' | 'S' | 'D';
-      const suitableChords = getSuitableChords(effectiveChordGuideKeySignature, chordGuideMode, functionType);
-
-      // Convert note names to pitch classes (ensuring ascending order)
-      const chordsPitchClasses: Record<string, number[]> = {};
-      for (const [chordSymbol, noteNames] of Object.entries(suitableChords)) {
-        const pitchClasses: number[] = [];
-        let previousPitch = -1;
-
-        for (const noteName of noteNames) {
-          let pitchClass = noteNameToPitchClass(noteName);
-
-          // If this pitch is lower than the previous one, add an octave
-          if (previousPitch >= 0 && pitchClass <= previousPitch) {
-            pitchClass += 12;
-          }
-
-          pitchClasses.push(pitchClass);
-          previousPitch = pitchClass;
-        }
-
-        chordsPitchClasses[chordSymbol] = pitchClasses;
-      }
+      const suitableChords = resolveChordGuideItems(effectiveChordGuideKeySignature, chordGuideMode, functionType);
+      const chordsPitchClasses = Object.fromEntries(
+        suitableChords.map((item) => [item.name, item.pitchClasses])
+      );
 
       // Update piano roll state
       pianoRollState.setCurrentSuitableChords(suitableChords);

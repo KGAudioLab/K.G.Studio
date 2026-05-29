@@ -86,17 +86,21 @@ function App() {
 
       // Load all mode and chord data files in parallel
       try {
-        const [functionalChordsResponse] = await Promise.all([
-          fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`)
+        const [functionalChordsResponse, chordGuideResponse] = await Promise.all([
+          fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`),
+          fetch(`${import.meta.env.BASE_URL}resources/modes/chord_guide.json`)
         ]);
 
-        const [functionalChordsData] = await Promise.all([
-          functionalChordsResponse.json()
+        const [functionalChordsData, chordGuideData] = await Promise.all([
+          functionalChordsResponse.json(),
+          chordGuideResponse.json(),
         ]);
 
         // Store original functional chords data
         KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA = functionalChordsData;
         console.log(`Loaded original functional chords for ${Object.keys(functionalChordsData).length} modes`);
+        KGCore.CHORD_GUIDE_DATA = chordGuideData;
+        console.log(`Loaded chord guide data for ${Object.keys(chordGuideData).length} modes`);
 
         // Check if custom chord definition exists and is valid
         const configManager = ConfigManager.instance();
@@ -130,6 +134,10 @@ function App() {
         };
         KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA = fallbackData;
         KGCore.FUNCTIONAL_CHORDS_DATA = fallbackData;
+        KGCore.CHORD_GUIDE_DATA = {
+          ionian: { T: [], S: [], D: [] },
+          aeolian: { T: [], S: [], D: [] },
+        };
       }
 
       // Log maxBars after initialization completes

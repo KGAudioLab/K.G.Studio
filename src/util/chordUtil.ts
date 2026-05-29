@@ -6,6 +6,7 @@ export type ChordExtension =
   | '#5'
   | '6'
   | '7'
+  | 'dim7'
   | 'maj7'
   | 'b9'
   | '9'
@@ -23,12 +24,13 @@ export interface ChordDescriptor {
 }
 
 const ROOT_PATTERN = /^[A-G](?:#|b)?$/;
-const EXTENSION_ORDER: ChordExtension[] = ['b5', '#5', '6', '7', 'maj7', 'b9', '9', '#9', '11', '#11', 'b13', '13'];
+const EXTENSION_ORDER: ChordExtension[] = ['b5', '#5', '6', '7', 'dim7', 'maj7', 'b9', '9', '#9', '11', '#11', 'b13', '13'];
 const REMAINING_EXTENSION_ORDER: ChordExtension[] = ['b5', '#5', 'b9', '9', '#9', '11', '#11', 'b13', '13'];
 const ADD_EXTENSION_ORDER: ChordExtension[] = ['b9', '9', '#9', '11', '#11', 'b13', '13'];
 const CUSTOM_TOKENS = [
   'maj7#5',
   'm7b5',
+  'dim7',
   'sus2',
   'sus4',
   'aug',
@@ -120,6 +122,9 @@ function getDescriptorIntervals(descriptor: Pick<ChordDescriptor, 'quality' | 'e
       case '7':
         intervals.push('7m');
         break;
+      case 'dim7':
+        intervals.push('7d');
+        break;
       case 'maj7':
         intervals.push('7M');
         break;
@@ -174,7 +179,7 @@ function parseIntervalsToDescriptor(root: string, intervals: string[]): ChordDes
     return null;
   }
 
-  if (intervalSet.has('7d') || intervalSet.has('3A') || intervalSet.has('4d')) {
+  if (intervalSet.has('3A') || intervalSet.has('4d')) {
     return null;
   }
 
@@ -190,6 +195,9 @@ function parseIntervalsToDescriptor(root: string, intervals: string[]): ChordDes
   }
   if (intervalSet.has('7m')) {
     extensions.add('7');
+  }
+  if (intervalSet.has('7d')) {
+    extensions.add('dim7');
   }
   if (intervalSet.has('7M')) {
     extensions.add('maj7');
@@ -254,6 +262,11 @@ function parseCustomChordSymbol(symbol: string): ChordDescriptor | null {
     quality = 'dim';
     extensions.add('b5');
     extensions.add('7');
+    remainder = remainder.slice(4);
+  } else if (remainder.startsWith('dim7')) {
+    quality = 'dim';
+    extensions.add('b5');
+    extensions.add('dim7');
     remainder = remainder.slice(4);
   } else if (remainder.startsWith('maj7#5')) {
     quality = 'aug';
@@ -382,12 +395,16 @@ export function buildChordSymbol(descriptor: Pick<ChordDescriptor, 'root' | 'qua
 
   const extensions = sortExtensions(descriptor.extensions);
   const has = (extension: ChordExtension) => extensions.includes(extension);
-  const hasSeventh = has('7') || has('maj7');
+  const hasSeventh = has('7') || has('dim7') || has('maj7');
   const remainingExtensions = new Set(extensions);
 
   let symbol = root;
 
-  if (descriptor.quality === 'dim' && has('7')) {
+  if (descriptor.quality === 'dim' && has('dim7')) {
+    symbol += 'dim7';
+    remainingExtensions.delete('dim7');
+    remainingExtensions.delete('b5');
+  } else if (descriptor.quality === 'dim' && has('7')) {
     symbol += 'm7b5';
     remainingExtensions.delete('7');
     remainingExtensions.delete('b5');
@@ -425,7 +442,10 @@ export function buildChordSymbol(descriptor: Pick<ChordDescriptor, 'root' | 'qua
         break;
     }
 
-    if (has('maj7')) {
+    if (has('dim7')) {
+      symbol += 'dim7';
+      remainingExtensions.delete('dim7');
+    } else if (has('maj7')) {
       symbol += 'maj7';
       remainingExtensions.delete('maj7');
     } else if (has('7')) {
@@ -507,6 +527,9 @@ export function formatChordSymbolForDisplay(symbol: string): string {
 
   const { root, quality, extensions } = descriptor;
   const accidentalDisplay = (value: string) => value.replace(/b/g, '♭').replace(/#/g, '♯');
+  if (quality === 'dim' && extensions.includes('dim7')) {
+    return `${accidentalDisplay(root)}dim7`;
+  }
   const baseQuality = (() => {
     switch (quality) {
       case 'maj':
@@ -522,7 +545,7 @@ export function formatChordSymbolForDisplay(symbol: string): string {
       case 'aug':
         return 'aug';
       case 'dim':
-        return 'm';
+        return extensions.includes('dim7') || !extensions.includes('7') ? 'dim' : 'm';
     }
   })();
 
@@ -530,7 +553,11 @@ export function formatChordSymbolForDisplay(symbol: string): string {
   const parentheticalExtensions: string[] = [];
 
   for (const extension of extensions) {
-    if (extension === '7' || extension === 'maj7' || extension === '6') {
+    if (quality === 'dim' && extension === 'b5' && !extensions.includes('7')) {
+      continue;
+    }
+
+    if (extension === '7' || extension === 'dim7' || extension === 'maj7' || extension === '6') {
       inlineExtensions.push(extension);
       continue;
     }

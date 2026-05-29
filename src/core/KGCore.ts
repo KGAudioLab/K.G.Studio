@@ -12,6 +12,7 @@ import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
 import { getEffectiveBpmAtBeat } from '../util/globalTrackUtil';
+import type { ChordGuideData } from './ChordGuideTypes';
 
 interface PlaybackStartOptions {
   preserveLoopPreroll?: boolean;
@@ -28,6 +29,10 @@ export class KGCore {
   // Global music data resources
   public static ORIGINAL_FUNCTIONAL_CHORDS_DATA: Record<string, { name: string; steps: number[]; T: string[]; S: string[]; D: string[]; chords: Record<string, string[]> }> = {}; // Original functional chords loaded from functional_chords.json
   public static FUNCTIONAL_CHORDS_DATA: Record<string, { name: string; steps: number[]; T: string[]; S: string[]; D: string[]; chords: Record<string, string[]> }> = {}; // Active functional chords (either original or custom from user settings)
+  public static CHORD_GUIDE_DATA: ChordGuideData = {
+    ionian: { T: [], S: [], D: [] },
+    aeolian: { T: [], S: [], D: [] },
+  };
 
   private currentProject: KGProject = new KGProject();
 

@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import { Playhead } from '../common';
 import SelectionBox from './SelectionBox';
 import { isModifierKeyPressed } from '../../util/osUtil';
-import { generatePianoGridBackground, getMatchingChordsForPitch } from '../../util/scaleUtil';
+import { generatePianoGridBackground } from '../../util/scaleUtil';
 import type { KeySignature } from '../../core/KGProject';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import SpectrogramCanvas from './SpectrogramCanvas';
@@ -11,6 +11,7 @@ import AudioWaveformCanvas from './AudioWaveformCanvas';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 import { getNextChordCandidateIndex } from './chordGuideUtil';
+import { getMatchingChordGuideChordsForPitch } from '../../util/chordGuideDataUtil';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -167,7 +168,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
 
     // Use the utility function to get matching chords
     const functionType = chordGuide as 'T' | 'S' | 'D';
-    return getMatchingChordsForPitch(cursorPosition.pitch, chordGuideKeySignature, chordGuideMode, functionType);
+    return getMatchingChordGuideChordsForPitch(cursorPosition.pitch, chordGuideKeySignature, chordGuideMode, functionType);
   }, [cursorPosition, chordGuide, chordGuideKeySignature, chordGuideMode]);
 
   // Calculate chord highlights based on selected chord index

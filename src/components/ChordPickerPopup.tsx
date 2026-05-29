@@ -34,6 +34,7 @@ const EXTENSION_LABELS: Record<ChordExtension, string> = {
   '#5': '#5',
   '6': '6',
   '7': '7',
+  dim7: 'dim7',
   maj7: 'maj7',
   b9: 'b9',
   '9': '9',
@@ -51,8 +52,9 @@ const QUALITY_ROWS: ChordQuality[][] = [
 
 const EXTENSION_ROWS: ChordExtension[][] = [
   ['b5', '#5', '6', '7'],
-  ['maj7', 'b9', '9', '#9'],
-  ['11', '#11', 'b13', '13'],
+  ['dim7', 'maj7', 'b9', '9'],
+  ['#9', '11', '#11', 'b13'],
+  ['13'],
 ];
 
 function createFallbackDescriptor(value: string): ChordDescriptor {
@@ -86,13 +88,16 @@ function normalizeDescriptor(descriptor: ChordDescriptor): ChordDescriptor {
     removeExtensions(['#5']);
   }
   if (extensions.includes('7')) {
-    removeExtensions(['maj7', '6']);
+    removeExtensions(['dim7', 'maj7', '6']);
+  }
+  if (extensions.includes('dim7')) {
+    removeExtensions(['7', 'maj7', '6']);
   }
   if (extensions.includes('maj7')) {
-    removeExtensions(['7', '6']);
+    removeExtensions(['7', 'dim7', '6']);
   }
   if (extensions.includes('6')) {
-    removeExtensions(['7', 'maj7', '13', 'b13']);
+    removeExtensions(['7', 'dim7', 'maj7', '13', 'b13']);
   }
   if (extensions.includes('13') || extensions.includes('b13')) {
     removeExtensions(['6']);

@@ -1,3 +1,5 @@
+import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
+
 /**
  * KGPianoRollState - State management for the piano roll
  * Implements the singleton pattern for global access
@@ -21,8 +23,8 @@ export class KGPianoRollState {
   private sheetQuantization: string = '16,48';
 
   // Chord guide state
-  private currentSuitableChords: Record<string, string[]> = {}; // Map of chord symbols to note names (e.g., {"I": ["C", "E", "G"]})
-  private currentSuitableChordsPitchClasses: Record<string, number[]> = {}; // Map of chord symbols to pitch classes (e.g., {"I": [0, 4, 7]})
+  private currentSuitableChords: ResolvedChordGuideItem[] = [];
+  private currentSuitableChordsPitchClasses: Record<string, number[]> = {};
   private currentMatchingChords: number[][] = [];
   private currentSelectedChordIndex: number = 0;
   private currentChordCursorPitch: number | null = null;
@@ -119,11 +121,11 @@ export class KGPianoRollState {
     this.sheetQuantization = value;
   }
 
-  public getCurrentSuitableChords(): Record<string, string[]> {
+  public getCurrentSuitableChords(): ResolvedChordGuideItem[] {
     return this.currentSuitableChords;
   }
 
-  public setCurrentSuitableChords(chords: Record<string, string[]>): void {
+  public setCurrentSuitableChords(chords: ResolvedChordGuideItem[]): void {
     this.currentSuitableChords = chords;
   }
 

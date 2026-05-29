@@ -118,6 +118,17 @@ vi.mock('./PianoRollToolbar', () => ({
   },
 }));
 
+vi.mock('./chordGuideUtil', async () => {
+  const actual = await vi.importActual<typeof import('./chordGuideUtil')>('./chordGuideUtil');
+  return {
+    ...actual,
+    resolveChordGuideContext: vi.fn(() => ({
+      keySignature: 'C major',
+      mode: 'ionian',
+    })),
+  };
+});
+
 describe('PianoRoll zoom persistence', () => {
   beforeEach(() => {
     latestToolbarProps = null;

@@ -1,0 +1,340 @@
+{
+  "ionian": {
+    "T": [
+      {
+        "name": "C",
+        "roman": "I",
+        "notes": ["C", "E", "G"],
+        "source": "Diatonic",
+        "note": "Most stable tonic triad."
+      },
+      {
+        "name": "Cmaj7",
+        "roman": "Imaj7",
+        "notes": ["C", "E", "G", "B"],
+        "source": "Diatonic",
+        "note": "Soft modern tonic color."
+      },
+      {
+        "name": "Am",
+        "roman": "vi",
+        "notes": ["A", "C", "E"],
+        "source": "Diatonic",
+        "note": "Common tonic substitute."
+      },
+      {
+        "name": "Am7",
+        "roman": "vi7",
+        "notes": ["A", "C", "E", "G"],
+        "source": "Diatonic",
+        "note": "Frequent pop tonic substitute."
+      },
+      {
+        "name": "Em",
+        "roman": "iii",
+        "notes": ["E", "G", "B"],
+        "source": "Diatonic",
+        "note": "Weak tonic-function option."
+      },
+      {
+        "name": "Em7",
+        "roman": "iii7",
+        "notes": ["E", "G", "B", "D"],
+        "source": "Diatonic",
+        "note": "Floating tonic color."
+      },
+      {
+        "name": "C6",
+        "roman": "I6",
+        "notes": ["C", "E", "G", "A"],
+        "source": "Diatonic",
+        "note": "Common pop and jazz tonic sonority."
+      },
+      {
+        "name": "Cadd9",
+        "roman": "Iadd9",
+        "notes": ["C", "E", "G", "D"],
+        "source": "Diatonic",
+        "note": "Bright modern tonic color used often in acoustic pop and J-pop."
+      }
+    ],
+    "S": [
+      {
+        "name": "F",
+        "roman": "IV",
+        "notes": ["F", "A", "C"],
+        "source": "Diatonic",
+        "note": "Standard subdominant triad."
+      },
+      {
+        "name": "Fmaj7",
+        "roman": "IVmaj7",
+        "notes": ["F", "A", "C", "E"],
+        "source": "Diatonic",
+        "note": "Lyrical subdominant color common in Japanese pop."
+      },
+      {
+        "name": "Dm",
+        "roman": "ii",
+        "notes": ["D", "F", "A"],
+        "source": "Diatonic",
+        "note": "Strong predominant chord."
+      },
+      {
+        "name": "Dm7",
+        "roman": "ii7",
+        "notes": ["D", "F", "A", "C"],
+        "source": "Diatonic",
+        "note": "Core ii-V-I predominant sonority."
+      },
+      {
+        "name": "Bb",
+        "roman": "bVII",
+        "notes": ["Bb", "D", "F"],
+        "source": "Borrowed from Mixolydian",
+        "note": "Adds a direct rock-inflected predominant color."
+      },
+      {
+        "name": "Bbmaj7",
+        "roman": "bVIImaj7",
+        "notes": ["Bb", "D", "F", "A"],
+        "source": "Borrowed from Mixolydian",
+        "note": "A lush borrowed color often heard in city pop."
+      },
+      {
+        "name": "F6",
+        "roman": "IV6",
+        "notes": ["F", "A", "C", "D"],
+        "source": "Diatonic",
+        "note": "Gentle subdominant expansion."
+      },
+      {
+        "name": "D7",
+        "roman": "V/V",
+        "notes": ["D", "F#", "A", "C"],
+        "source": "Secondary dominant",
+        "note": "Targets G with clear forward pull."
+      }
+    ],
+    "D": [
+      {
+        "name": "G",
+        "roman": "V",
+        "notes": ["G", "B", "D"],
+        "source": "Diatonic",
+        "note": "Standard dominant triad."
+      },
+      {
+        "name": "G7",
+        "roman": "V7",
+        "notes": ["G", "B", "D", "F"],
+        "source": "Diatonic",
+        "note": "Classic dominant seventh."
+      },
+      {
+        "name": "Bdim",
+        "roman": "vii°",
+        "notes": ["B", "D", "F"],
+        "source": "Diatonic",
+        "note": "Leading-tone diminished triad."
+      },
+      {
+        "name": "Bm7b5",
+        "roman": "viiø7",
+        "notes": ["B", "D", "F", "A"],
+        "source": "Diatonic",
+        "note": "Leading-tone half-diminished seventh."
+      },
+      {
+        "name": "Ddim7",
+        "roman": "#ii°7",
+        "notes": ["D", "F", "Ab", "B"],
+        "source": "Passing diminished",
+        "note": "Creates strong chromatic tension as a passing diminished sonority."
+      },
+      {
+        "name": "E7",
+        "roman": "V/vi",
+        "notes": ["E", "G#", "B", "D"],
+        "source": "Secondary dominant",
+        "note": "Targets Am directly."
+      },
+      {
+        "name": "A7",
+        "roman": "V/ii",
+        "notes": ["A", "C#", "E", "G"],
+        "source": "Secondary dominant",
+        "note": "Targets Dm directly."
+      }
+    ]
+  },
+  "aeolian": {
+    "T": [
+      {
+        "name": "Am",
+        "roman": "i",
+        "notes": ["A", "C", "E"],
+        "source": "Diatonic",
+        "note": "Primary tonic triad."
+      },
+      {
+        "name": "Am7",
+        "roman": "i7",
+        "notes": ["A", "C", "E", "G"],
+        "source": "Diatonic",
+        "note": "Common tonic minor sonority."
+      },
+      {
+        "name": "C",
+        "roman": "III",
+        "notes": ["C", "E", "G"],
+        "source": "Diatonic",
+        "note": "A stable tonic-function substitute."
+      },
+      {
+        "name": "Cmaj7",
+        "roman": "IIImaj7",
+        "notes": ["C", "E", "G", "B"],
+        "source": "Diatonic",
+        "note": "A lyrical tonic substitute common in Japanese pop writing."
+      },
+      {
+        "name": "Em",
+        "roman": "v",
+        "notes": ["E", "G", "B"],
+        "source": "Natural minor",
+        "note": "A weak dominant with tonic-leaning color."
+      },
+      {
+        "name": "Em7",
+        "roman": "v7",
+        "notes": ["E", "G", "B", "D"],
+        "source": "Natural minor",
+        "note": "A floating modal dominant color."
+      },
+      {
+        "name": "Amadd9",
+        "roman": "iadd9",
+        "notes": ["A", "C", "E", "B"],
+        "source": "Diatonic",
+        "note": "A bright modern tonic extension."
+      },
+      {
+        "name": "Am6",
+        "roman": "i6",
+        "notes": ["A", "C", "E", "F#"],
+        "source": "Borrowed from Dorian",
+        "note": "An airy tonic color with modal brightness."
+      }
+    ],
+    "S": [
+      {
+        "name": "Dm",
+        "roman": "iv",
+        "notes": ["D", "F", "A"],
+        "source": "Diatonic",
+        "note": "Standard subdominant in minor."
+      },
+      {
+        "name": "Dm7",
+        "roman": "iv7",
+        "notes": ["D", "F", "A", "C"],
+        "source": "Diatonic",
+        "note": "Common minor predominant sonority."
+      },
+      {
+        "name": "F",
+        "roman": "VI",
+        "notes": ["F", "A", "C"],
+        "source": "Diatonic",
+        "note": "A broadening minor-mode subdominant color."
+      },
+      {
+        "name": "Fmaj7",
+        "roman": "VImaj7",
+        "notes": ["F", "A", "C", "E"],
+        "source": "Diatonic",
+        "note": "Dreamy subdominant expansion."
+      },
+      {
+        "name": "D",
+        "roman": "IV",
+        "notes": ["D", "F#", "A"],
+        "source": "Borrowed from Dorian",
+        "note": "Adds a bright modal predominant color."
+      },
+      {
+        "name": "D7",
+        "roman": "IV7",
+        "notes": ["D", "F#", "A", "C"],
+        "source": "Borrowed from Dorian and jazz practice",
+        "note": "A brighter predominant with modal-jazz pull."
+      },
+      {
+        "name": "Bb",
+        "roman": "bII",
+        "notes": ["Bb", "D", "F"],
+        "source": "Borrowed from Phrygian",
+        "note": "A heavy, dramatic borrowed predominant."
+      }
+    ],
+    "D": [
+      {
+        "name": "E",
+        "roman": "V",
+        "notes": ["E", "G#", "B"],
+        "source": "Harmonic minor",
+        "note": "Primary strong dominant in minor."
+      },
+      {
+        "name": "E7",
+        "roman": "V7",
+        "notes": ["E", "G#", "B", "D"],
+        "source": "Harmonic minor",
+        "note": "Classic minor-key dominant seventh."
+      },
+      {
+        "name": "G#dim",
+        "roman": "vii°",
+        "notes": ["G#", "B", "D"],
+        "source": "Harmonic minor",
+        "note": "Leading-tone diminished triad."
+      },
+      {
+        "name": "G#dim7",
+        "roman": "vii°7",
+        "notes": ["G#", "B", "D", "F"],
+        "source": "Harmonic minor",
+        "note": "Classical leading-tone diminished seventh with strong cadential force."
+      },
+      {
+        "name": "Bdim",
+        "roman": "ii°",
+        "notes": ["B", "D", "F"],
+        "source": "Diatonic",
+        "note": "A weak dominant-leaning diminished chord."
+      },
+      {
+        "name": "Bm7b5",
+        "roman": "iiø7",
+        "notes": ["B", "D", "F", "A"],
+        "source": "Diatonic",
+        "note": "Half-diminished predominant or weak dominant option."
+      },
+      {
+        "name": "G",
+        "roman": "VII",
+        "notes": ["G", "B", "D"],
+        "source": "Natural minor",
+        "note": "A modal dominant color with weaker cadential pull."
+      },
+      {
+        "name": "Eaug",
+        "roman": "V+",
+        "notes": ["E", "G#", "B#"],
+        "source": "Harmonic minor variant",
+        "note": "A dramatic altered dominant color."
+      }
+    ]
+  }
+}

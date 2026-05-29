@@ -15,6 +15,16 @@ describe('chordUtil', () => {
     expect(parsed?.symbol).toBe('Bm7b5');
   });
 
+  it('parses diminished seventh chords as a distinct canonical shape', () => {
+    const parsed = parseChordSymbol('G#dim7');
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.root).toBe('G#');
+    expect(parsed?.quality).toBe('dim');
+    expect(parsed?.extensions).toContain('dim7');
+    expect(parsed?.symbol).toBe('G#dim7');
+  });
+
   it('preserves enharmonic root spelling in the canonical symbol', () => {
     expect(buildChordSymbol({
       root: 'Bb',
@@ -37,11 +47,13 @@ describe('chordUtil', () => {
   it('derives stable pitch classes and midi pitches from the stored symbol', () => {
     expect(getChordPitchClasses('Bm7b5')).toEqual([11, 2, 5, 9]);
     expect(getChordMidiPitches('Bm7b5', 59)).toEqual([59, 62, 65, 69]);
+    expect(getChordMidiPitches('Ddim7', 50)).toEqual([50, 53, 56, 59]);
   });
 
   it('formats the preview using standard chord display conventions', () => {
     expect(formatChordSymbolForDisplay('Bm7b5')).toBe('Bm7(♭5)');
     expect(formatChordSymbolForDisplay('Bbmaj7#11')).toBe('B♭maj7(♯11)');
+    expect(formatChordSymbolForDisplay('G#dim7')).toBe('G♯dim7');
   });
 
   it('maps C-root chords into the C4-C5 range', () => {

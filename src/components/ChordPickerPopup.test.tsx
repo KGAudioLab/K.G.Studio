@@ -32,6 +32,32 @@ describe('ChordPickerPopup', () => {
     expect(screen.getByText('Unable to parse chord')).toBeInTheDocument();
   });
 
+  it('supports selecting dim7 from the popup controls', () => {
+    const onChange = vi.fn();
+
+    render(<ChordPickerPopup value="Gdim" onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'dim7' }));
+
+    expect(onChange).toHaveBeenCalledWith('Gdim7');
+    expect(screen.getByRole('button', { name: 'Dim' }).className).toContain('selected');
+    expect(screen.getByRole('button', { name: 'dim7' }).className).toContain('selected');
+  });
+
+  it('syncs the dim7 button when parsing text input', () => {
+    const onChange = vi.fn();
+
+    render(<ChordPickerPopup value="C" onChange={onChange} />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'G#dim7' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onChange).toHaveBeenCalledWith('G#dim7');
+    expect(screen.getByRole('button', { name: 'Dim' }).className).toContain('selected');
+    expect(screen.getByRole('button', { name: 'dim7' }).className).toContain('selected');
+  });
+
   it('intercepts tab and delegates popup bar navigation', () => {
     const onTabNavigate = vi.fn();
 
