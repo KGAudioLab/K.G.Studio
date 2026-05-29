@@ -15,7 +15,7 @@
 
 ## What is K.G.Studio?
 
-K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with **K.G.Studio Musician Assistant** at its core. It features realistic instrument playback via Tone.js samplers, a piano‑roll editor, track and region management with full undo/redo, project persistence to IndexedDB, a configurable settings panel, and an integrated AI assistant with tool execution.
+K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with **K.G.Studio Musician Assistant** at its core. It features realistic instrument playback via Tone.js samplers, a piano‑roll editor, track and region management with full undo/redo, project persistence to OPFS (Origin Private File System), a configurable settings panel, and an integrated AI assistant with tool execution.
 
 **K.G.Studio Musician Assistant** is an AI assistance agent for harmony, arrangement, and note editing — but not full auto‑composition.
 
@@ -26,6 +26,12 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 > Note: Full-Song Generation Feature and Audio Clip Generation Feature requires [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration.
 
 ## Latest Updates
+
+- **2026.05.27**: 
+  - Added **Global Track System** — introduce four global tracks: **Marker**, **Tempo**, **Key Signature**, and **Chord** (chord-symbol span regions). 
+  - Added **Audio Chord Detection** feature — open piano roll window for an audio or a MIDI region and click "..." -> **Detect Chords** to automatically analyse the recording and populate the Chord Track using a zero-dependency FFT pipeline with configurable sensitivity, stability, and seventh-chord detection. 
+  - Added **Tempo Detection with Auto-Align Beats** feature — open piano roll window for an audio region and click "..." -> **Detect Tempo** in the toolbar to analyse the audio for BPM and optionally realign the project's Tempo Track regions to match. 
+  - Added **Demucs 4S** as a second local browser-embedded stem-separation model — the existing two-stem UVR-MDX-NET model is now joined by the four-stem `htdemucs_4s` model (~172 MB, vocals / drums / bass / others), both running entirely in-browser via ONNX Runtime WebGPU.
 
 - **2026.05.15**: Added **browser-embedded AI models** — two AI models now run entirely in the browser with no external service, no API key, and no K.G.One server required. The **K.G.Studio Musician Assistant** gains a new **Local LLM (Browser)** provider powered by **Gemma 4 E4B** via LiteRT-LM with WebGPU acceleration; the model is downloaded once and cached in OPFS for instant subsequent launches, with configurable context length (32 k / 64 k / 128 k tokens) and live inference performance statistics. **Stem separation** now also runs locally through a browser-embedded **UVR-MDX-NET-Inst_HQ_3** ONNX model with WebGPU acceleration — open the **Music Generator** panel (✦ button), download the model once, and separate vocals from instruments entirely on-device. Both features require a WebGPU-capable browser (Chrome 113+ or Edge 113+) and a secure context (HTTPS or localhost). Recommended hardware: a GPU with at least 8 GB VRAM or a system with at least 16 GB unified RAM.
 
@@ -83,6 +89,25 @@ This project investigates how AI-human collaboration can enhance creative music-
 ## Quick Start
 
 ### Setting up K.G.Studio Musician Assistant
+
+There are two ways to use K.G.Studio Musician Assistant: **Local LLM (Browser)** — runs entirely in your browser with no API key, no cost, and no data leaving your device — or an **external LLM provider** for higher-quality responses.
+
+#### Option A: Local LLM (Browser) — No API Key Required ✦
+
+K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acceleration. No API calls are made, no cost is incurred, and your data never leaves your machine.
+
+  - Click here to start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
+  - In **Settings ⚙️ → General → LLM Provider**, select **Local LLM (Browser)** (this is the default).
+  - The model (~2.8 GB) downloads automatically the first time you open the chat and is cached in your browser's OPFS (Origin Private File System) for instant subsequent launches.
+  - Optionally, configure the **Context Length** (32k / 64k / 128k tokens) — larger values require more VRAM.
+  - Start chatting! No key, no account, no network traffic after the initial model download.
+
+**Requirements for Local LLM:** A WebGPU-capable browser (Chrome 113+ or Edge 113+) running in a secure context (HTTPS or localhost). Recommended hardware: a GPU with at least 8 GB VRAM, or a system with at least 16 GB unified RAM.
+
+> **Note:** The local model's quality cannot be compared to commercial models like GPT or Claude series. For complex music editing tasks, an external provider will generally produce better results.
+
+#### Option B: External LLM Provider (Higher Quality)
+
   - Click here to start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
   - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
   - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
@@ -114,16 +139,19 @@ This project investigates how AI-human collaboration can enhance creative music-
 You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 
 ### Highlights
-- **K.G.Studio Musician Assistant**: Chat with the LLM‑powered K.G.Studio Musician Assistant AI Agent; it can automatically execute tools to make music edits.
-- **Intelligent Chord Assistant**: Real-time chord suggestions based on functional harmony (Tonic/Subdominant/Dominant) with visual preview and one-click chord creation.
-- **Multiple LLM providers**: OpenAI, Claude (via OpenRouter), Gemini (via OpenRouter), or OpenAI‑compatible (e.g., Ollama, OpenRouter).
-- **Track & Region editing**: Add/reorder tracks, create/move/resize regions, copy/paste regions, and more.
-- **Piano roll**: Create and edit notes with snapping/quantization support.
-- **Real instruments**: Tone.js‑based Sampler with high‑quality FluidR3 soundfonts.
-- **Undo/Redo everywhere**: Command pattern for tracks, regions, notes, and project properties
-- **Persistence with privacy**: Save/load projects and configuration in your browser's IndexedDB (on your device).
-- **Export/Import**: Export your project as a MIDI file, or import a MIDI file into your project.
-- **Settings**: LLM provider, AI agent custom instructions, app behavior, and more.
+- **K.G.Studio Musician Assistant**: Chat with the LLM‑powered AI agent; it automatically executes tools to make music edits scoped to your selected region.
+- **Browser-embedded LLM — no API key required**: Run **Gemma 4 E4B** entirely in your browser via WebGPU (LiteRT-LM). No API calls, no cost, no data leaving your device. Model is downloaded once and cached locally.
+- **Browser-embedded stem separation — no server required**: Split any audio region into stems using **UVR-MDX-NET-Inst_HQ_3** (2-stem: Vocals / Instrumental) or **Demucs htdemucs_4s** (4-stem: Vocals / Drums / Bass / Others) — both run entirely in-browser via ONNX Runtime WebGPU, no K.G.One server needed.
+- **Audio chord detection**: Open the piano roll on an audio region and run **Detect Chords** to automatically analyse the recording and populate the global Chord Track using a zero-dependency FFT pipeline, with configurable sensitivity, stability, and seventh-chord detection.
+- **Tempo detection with auto-align beats**: Run **Detect Tempo** in the piano roll toolbar to analyse an audio region for BPM and optionally realign the project's Tempo Track to match.
+- **Global Track System**: Four persistent global tracks — **Marker**, **Tempo**, **Key Signature**, and **Chord** — provide project-wide structure that all features (playback timing, chord detection, sheet notation) reference.
+- **K.G.One Music Studio integration**: When connected to a local [K.G.One](https://github.com/KGAudioLab/K.G.One) server, unlock GPU-accelerated **Full Song Generation** (ACE-Step 1.5), **Clip & MIDI Loop Generation** (Foundation-1), and additional **Stem Separation** models.
+- **Multiple LLM providers**: OpenAI, Claude / Gemini (via OpenRouter), OpenAI-compatible (Ollama, vLLM, etc.), or the built-in Local Browser LLM — no key required.
+- **Track & Region editing**: Add/reorder tracks, create/move/resize regions, multi-select with lasso, bulk move/resize, merge & split regions, and full undo/redo.
+- **Piano roll**: Notes, pitch bend, and MIDI CC automation lanes; staff notation (sheet music) view via VexFlow; spectrogram overlay for audio-to-MIDI reference.
+- **Real instruments**: Tone.js‑based sampler with high-quality FluidR3 soundfonts. Record audio directly from your microphone into an audio track.
+- **Intelligent Chord Assistant**: Real-time chord suggestions based on functional harmony (T/S/D) with visual preview and one-click chord creation.
+- **Persistence with privacy**: Projects and configuration saved entirely in your browser (OPFS / IndexedDB). No first-party servers.
 
 For a deeper technical overview, see [overview.md](./docs/technical/overview.md).
 
@@ -161,7 +189,7 @@ K.G.Studio loads defaults from `./public/config.json` (with an internal fallback
 ### Connectivity & Privacy
 
 - K.G.Studio is fully client‑side. No first‑party servers are required to run the app.
-- All projects, configuration, and UI state are stored in your browser’s IndexedDB (on your device).
+- Projects and audio files are stored in your browser’s OPFS (Origin Private File System); configuration is stored in IndexedDB. All data stays on your device.
 - Network access is only used for:
   - Downloading instrument sound samples from the configured soundfont CDN
   - Communicating with the LLM provider you select (e.g., OpenAI or OpenAI‑compatible services)
@@ -187,6 +215,9 @@ You can find the detailed user guide [here](./docs/USER_GUIDE.md).
   - Create notes: double‑click or Ctrl/Cmd+click (Select); single‑click (Pencil).
   - Select notes: click; Shift+click for multi‑select; drag to box‑select.
   - Move/resize: drag note body to move selected notes; drag edges to resize.
+  - **Sheet music view**: toggle between Piano Roll and Staff Notation views from the piano roll toolbar. Supports automatic clef selection, key signature rendering, beam grouping, ties, and configurable quantization. Enable **Track Scope** to render all regions on the track as a continuous score.
+  - **Automation lanes**: draw and edit pitch bend and MIDI CC curves (Modulation, Breath, Volume, Expression, Sustain) in the editable lane below the piano grid.
+  - **Spectrogram mode**: view an audio region's spectrogram inside the piano roll as a reference layer while editing MIDI notes.
   - Close the piano roll with X or ESC.
 
 - Intelligent Chord Assistant (Added 2025-12-15)
@@ -265,8 +296,6 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 
 ### About the agent and LLM providers
 
-Currently, based on our evaluation, OpenAI’s open‑source models (`gpt‑oss‑20b` and `gpt‑oss‑120b`) are not yet compatible with the current agent implementation; support is planned.
-
 For security, when using K.G.Studio from a non‑local host, API keys are not persisted in IndexedDB by default; you will need to input your API key each time you start K.G.Studio. To opt‑in to persistence on non‑local hosts, enable "Persist API Keys on Non-Localhost" in Settings (not recommended for shared/production environments).
 
 K.G.Studio does not provide or host any of the models listed above, nor is it affiliated with any model provider. All data is stored locally on your device; K.G.Studio does not collect or transmit your data. You are solely responsible for any data you provide to third‑party model providers.
@@ -305,14 +334,33 @@ Generate short instrument clips and MIDI loops from text descriptions. Powered b
 
 ### Stem Separation
 
-Split an existing audio region into individual stems (e.g. vocals, instruments, drums). Powered by [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator).
+Split an existing audio region into individual stems (e.g. vocals, instruments, drums).
+
+K.G.Studio supports **two modes** for stem separation:
+
+#### Local Browser Mode — No Server Required ✦
+
+Two ONNX models run entirely in your browser with no API calls, no cost, and no data leaving your device. The models are downloaded once and cached locally.
+
+- **Vocal and Instrument (Medium Accuracy)** (`UVR-MDX-NET-Inst_HQ_3`, ~64 MB) — two-stem split (Vocals / Instrumental). Powered by [UVR-MDX-NET](https://github.com/nomadkaraoke/python-audio-separator).
+- **Vocal, Drums, Bass, and Others** (`htdemucs_4s`, ~172 MB) — four-stem split (Vocals / Drums / Bass / Others). Powered by [Demucs](https://github.com/facebookresearch/demucs).
+
+Open the **Music Generator** panel (✦ button in the toolbar), select a model, click **Download Selected Model** once, then click **Separate Stems** — everything runs locally in your browser.
+
+**Requirements:** A WebGPU-capable browser (Chrome 113+ or Edge 113+) in a secure context (HTTPS or localhost). WebGPU acceleration is used when available; falls back to CPU (may reduce page responsiveness during processing). Recommended hardware: a GPU with at least 8 GB VRAM, or a system with at least 16 GB unified RAM.
+
+#### K.G.One Server Mode
+
+When connected to a [K.G.One Music Studio](https://github.com/KGAudioLab/K.G.One) server, three additional GPU-accelerated models are available. Powered by [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator).
+
+- **Vocal and Instrument (Medium Accuracy)** (`UVR-MDX-NET-Inst_HQ_3`) — fast two-stem split (vocal / instrumental).
+- **Vocal and Instrument (High Accuracy)** (`MDX23C-8KFFT-InstVoc_HQ`) — higher-quality two-stem split, slower.
+- **Vocal, Drums, Bass, Guitar, Piano, and Others** (`htdemucs_6s`) — full six-stem separation.
+
+#### Usage (both modes)
 
 - **Select an audio region** on the timeline before opening this tab. The selected region and its track name are shown at the top of the **Separator** tab. Only audio regions are supported — MIDI regions cannot be separated.
-- Choose a **Separation Model**:
-  - **Vocal and Instrument (Medium Accuracy)** (`UVR-MDX-NET-Inst_HQ_3`) — fast two-stem split (vocal / instrumental).
-  - **Vocal and Instrument (High Accuracy)** (`MDX23C-8KFFT-InstVoc_HQ`) — higher-quality two-stem split, slower.
-  - **Vocal, Drums, Bass, Guitar, Piano, and Others** (`htdemucs_6s`) — full six-stem separation.
-- Click **Separate Stems**. If the selected region has a clip start offset or is trimmed, the audio is automatically sliced to match the region range before uploading.
+- Click **Separate Stems**. If the selected region has a clip start offset or is trimmed, the audio is automatically sliced to match the region range before processing.
 - Once complete, each stem appears as a labelled preview player with a drag handle. You can preview each stem individually before importing.
 - **To import stems**:
   - Drag each stem player individually onto an **audio track** to place it where you want.
@@ -333,16 +381,23 @@ Feature priorities might change.
 - [X] Recording
 - [X] Event List
 - [X] Add support for OpenAI's open source models (`gpt-oss-20b` and `gpt-oss-120b`)
-- [X] Stuff notation
+- [X] Staff notation
 - [X] K.G.One Music Studio integration
-- [X] Browser-embedded AI models (on-device LLM via Gemma 4 E4B; on-device stem separation via UVR-MDX-NET-Inst_HQ_3)
+- [X] Browser-embedded AI models (on-device LLM via Gemma 4 E4B; on-device stem separation via UVR-MDX-NET-Inst_HQ_3 and htdemucs_4s)
+- [X] Global Track System (Marker, Tempo, Key Signature, Chord)
+- [X] Audio Chord Detection (zero-dependency FFT, populates Chord Track)
+- [X] Tempo Detection with Auto-Align Beats
+- [X] Spectrogram visualization and Piano Roll hybrid mode
 
 ### Post 1.0
 
-- [ ] EQ
-- [ ] Filters and effects
+- [ ] Expanded AI agent tools — manipulate regions, tracks, and global tracks (chord progressions, tempo, key) directly from chat
+- [ ] Mixer view — dedicated panel with per-track faders, sends, return buses, and master channel
+- [ ] EQ and channel strip — per-track parametric EQ and compressor
+- [ ] Filters and effects — reverb, delay, and other WebAudio-native insert effects
+- [ ] Audio time-stretch / warp — stretch audio regions to match project tempo
+- [ ] MIDI effects — arpeggiator, scale quantizer, chord memory
 - [ ] Virtual MIDI device output
-- [ ] Enhanced AI Music Assistant Agent
 
 ## Help Needed
 
@@ -391,4 +446,4 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - No patent applications using this software or assets
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
-Third‑party notices (e.g., FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, and MediaPipe) are included in `LICENSE`.
+Third‑party notices (FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, and demucs-web) are included in `LICENSE`.

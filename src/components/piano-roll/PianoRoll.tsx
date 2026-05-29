@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import './PianoRoll.css';
+import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
 import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
@@ -15,54 +16,60 @@ import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
-import { UpdateRegionCommand } from '../../core/commands';
-import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
-import { showAlert, showPrompt } from '../../util/dialogUtil';
+import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
+import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
+import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
+import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
+import { matchesKeyboardShortcut } from '../../util/osUtil';
+import { resolveChordGuideItems } from '../../util/chordGuideDataUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
 } from '../../util/spectrogramUtil';
+import {
+  DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+  buildAudioChordWindowsForRegion,
+  type AudioChordDetectionRequest,
+  type AudioChordDetectionOptions,
+  type DetectedAudioChord,
+} from '../../util/audioChordDetection';
+import {
+  buildAudioTempoAnalysisSpanForRegion,
+  DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
+  detectTempoFromAudio,
+  type AudioTempoDetectionOptions,
+} from '../../util/audioTempoDetection';
+import {
+  applyDetectedTempoAction,
+  buildDetectedTempoChoiceMessage,
+  DETECTED_TEMPO_ACTION_INSERT_REGION,
+  DETECTED_TEMPO_ACTION_UPDATE_CURRENT,
+} from '../../util/audioTempoDetectionActions';
+import {
+  DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+  buildMidiChordWindowsForRegion,
+  detectChordsFromMidi,
+  type DetectedMidiChord,
+  type MidiChordDetectionOptions,
+} from '../../util/midiChordDetection';
+import type { AudioChordDetectionWorkerMessage } from '../../workers/audioChordDetectionWorker';
 import type { PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { getSheetPlayheadPixel, getSheetQuantizationOptions, parseSheetQuantization } from './sheetNotation';
-
-type RegionPlayheadRelation = 'before' | 'inside' | 'after';
-type ViewportSwitchAlignment = 'center' | 'region-start' | 'region-end';
-type ViewportClampScope = 'region' | 'track';
-
-interface PendingModeSwitchRequest {
-  sourceSheetMusicViewEnabled: boolean;
-  destinationSheetMusicViewEnabled: boolean;
-  destinationSheetMusicTrackScopeEnabled: boolean;
-  alignment: ViewportSwitchAlignment;
-  anchorBeat: number;
-  clampScope: ViewportClampScope;
-}
-
-interface ModeSwitchRequestOptions {
-  playheadBeat: number;
-  regionStartBeat: number;
-  regionEndBeat: number;
-  sourceSheetMusicViewEnabled: boolean;
-  destinationSheetMusicViewEnabled: boolean;
-  destinationSheetMusicTrackScopeEnabled: boolean;
-}
-
-interface ScrollLeftForViewportRequestOptions {
-  request: PendingModeSwitchRequest;
-  container: HTMLDivElement;
-  sheetMeasureMetrics: SheetMeasureMetric[];
-  activeRegionStartBeat: number;
-  activeRegionEndBeat: number;
-  songEndBeat: number;
-}
+import {
+  createPendingModeSwitchRequest,
+  getRegionStartScrollLeft,
+  getScrollLeftForViewportRequest,
+  type PendingModeSwitchRequest,
+} from './pianoRollViewport';
+import { getNextChordGuideSelection, resolveChordGuideContext, type ChordGuideFunction } from './chordGuideUtil';
 
 interface PianoRollProps {
   onClose: () => void;
   regionId: string | null;
   initialPosition?: { x: number; y: number };
   initialSize?: { width: number; height: number };
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   requestedSheetMusicViewEnabled?: boolean;
   pianoRollViewRequestVersion?: number;
   audioRegion?: KGAudioRegion;
@@ -82,9 +89,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   trackId,
   projectName,
 }) => {
-  const isSpectrogram = mode === 'spectrogram';
-  const isHybrid = mode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion } = useProjectStore();
+  const [currentMode, setCurrentMode] = useState<'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid'>(mode);
+  const isSpectrogram = currentMode === 'spectrogram';
+  const isAudioWaveform = currentMode === 'audio-waveform';
+  const isAudioOnly = isAudioWaveform || isSpectrogram;
+  const isHybrid = currentMode === 'hybrid';
+  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
 
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -94,6 +104,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [spectrogramPower, setSpectrogramPower] = useState<number>(0.5);
   const [spectrogramHeightResolution, setSpectrogramHeightResolution] =
     useState<SpectrogramHeightResolution>(3);
+  const [isDetectingChords, setIsDetectingChords] = useState(false);
+  const [detectChordProgressPercent, setDetectChordProgressPercent] = useState(0);
+  const [isDetectingTempo, setIsDetectingTempo] = useState(false);
 
   // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(() => KGPianoRollState.instance().getPianoRollZoom());
@@ -103,6 +116,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [sheetMusicTrackScopeEnabled, setSheetMusicTrackScopeEnabled] = useState(false);
   const [sheetQuantization, setSheetQuantization] = useState('16,48');
   const [sheetMeasureMetrics, setSheetMeasureMetrics] = useState<SheetMeasureMetric[]>([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleInputValue, setTitleInputValue] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<string>('1/8');
@@ -112,7 +128,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [snapping, setSnapping] = useState<string>('NO SNAP');
 
   // Chord guide state
-  const [chordGuide, setChordGuide] = useState<string>('N');
+  const [chordGuide, setChordGuide] = useState<ChordGuideFunction>('N');
 
   // Piano roll state with temporary initial values
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
@@ -124,6 +140,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
+
+  useEffect(() => {
+    setCurrentMode(mode);
+  }, [mode]);
 
   const selectedNotes = useMemo(
     () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
@@ -143,6 +163,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     () => parseSheetQuantization(sheetQuantization),
     [sheetQuantization]
   );
+  const chordGuideContext = useMemo(() => {
+    const project = KGCore.instance().getCurrentProject();
+    return resolveChordGuideContext(project, playheadPosition);
+  }, [playheadPosition]);
+  const effectiveChordGuideKeySignature = chordGuideContext.keySignature;
+  const chordGuideMode = chordGuideContext.mode;
 
   const pianoRollRef = useRef<HTMLDivElement>(null);
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
@@ -274,7 +300,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, []); // Empty dependency array means this runs once on mount
 
   useEffect(() => {
-    if (isSpectrogram) {
+    if (isAudioOnly) {
       return;
     }
 
@@ -301,7 +327,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     KGPianoRollState.instance().setSheetMusicViewEnabled(requestedSheetMusicViewEnabled);
   }, [
     activeRegion,
-    isSpectrogram,
+    isAudioOnly,
     pianoRollViewRequestVersion,
     playheadPosition,
     requestedSheetMusicViewEnabled,
@@ -419,41 +445,261 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
   }, [isDragging, isResizing, dragOffset, position]);
 
-  // Handle title click to rename the region
-  const handleTitleClick = async () => {
-    // If we were just dragging, don't show the rename dialog
-    if (wasDraggingRef.current) {
-      if (DEBUG_MODE.PIANO_ROLL) {
-        console.log("Skipping rename dialog because the window was just dragged");
-      }
+  useEffect(() => {
+    if (!isEditingTitle && activeRegion) {
+      setTitleInputValue(activeRegion.getName());
+    }
+  }, [activeRegion, isEditingTitle]);
+
+  const cancelTitleEdit = () => {
+    setTitleInputValue(activeRegion?.getName() ?? '');
+    setIsEditingTitle(false);
+  };
+
+  const commitTitleEdit = async () => {
+    if (!activeRegion) {
+      setIsEditingTitle(false);
       return;
     }
 
-    if (!activeRegion) return;
+    const newName = titleInputValue.trim();
+    setIsEditingTitle(false);
+    setTitleInputValue(activeRegion.getName());
 
-    // Show a prompt to get the new name
-    const newName = await showPrompt("Enter a new name for the region:", activeRegion.getName());
+    if (!newName || newName === activeRegion.getName()) return;
 
-    // If the user clicked Cancel or entered an empty string, do nothing
-    if (!newName || newName.trim() === '' || newName === activeRegion.getName()) return;
-
-    // Use command pattern to update the region name with undo support
     try {
-      const command = new UpdateRegionCommand(activeRegion.getId(), { name: newName.trim() });
+      const command = new UpdateRegionCommand(activeRegion.getId(), { name: newName });
       KGCore.instance().executeCommand(command);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Executed UpdateRegionCommand: renamed region ${activeRegion.getId()} to "${newName}" using command pattern`);
       }
 
-      // Update the store to trigger re-render
       const updatedTracks = [...tracks];
       useProjectStore.setState({ tracks: updatedTracks });
-
     } catch (error) {
       console.error('Error renaming region:', error);
       await showAlert('Failed to rename region. Please try again.');
     }
+  };
+
+  const handleDetectChords = useCallback(async () => {
+    if (!audioRegion && !activeRegion) {
+      await showAlert('Open a MIDI or audio region before detecting chords.');
+      return;
+    }
+
+    const project = KGCore.instance().getCurrentProject();
+    const audioWindows = audioRegion ? buildAudioChordWindowsForRegion(project, audioRegion) : null;
+    const midiWindows = !audioRegion && activeRegion ? buildMidiChordWindowsForRegion(project, activeRegion) : null;
+    const chordWindows = audioWindows ?? midiWindows ?? [];
+    if (chordWindows.length === 0) {
+      await showAlert(audioRegion
+        ? 'The selected audio region has no audible span to analyze.'
+        : 'The selected MIDI region has no bars to analyze.'
+      );
+      return;
+    }
+
+    const detectionOptions = audioRegion
+      ? await showChordDetectionOptions(
+        'Tune audio chord detection settings before processing.',
+        DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
+      )
+      : await showMidiChordDetectionOptions(
+        'Tune MIDI chord detection settings before processing.',
+        DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+      );
+    if (!detectionOptions) {
+      return;
+    }
+
+    setIsDetectingChords(true);
+    setDetectChordProgressPercent(0);
+    let worker: Worker | null = null;
+
+    try {
+      let detectedChords: DetectedAudioChord[] | DetectedMidiChord[];
+      if (audioRegion) {
+        if (!projectName || !trackId) {
+      await showAlert('Open an audio region in spectrogram mode before detecting chords.');
+          return;
+        }
+
+        let audioBuffer = KGAudioInterface.instance().getAudioBuffer(trackId, audioRegion.getAudioFileId());
+        if (!audioBuffer) {
+          const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioRegion.getAudioFileId());
+          const actx = Tone.getContext().rawContext as AudioContext;
+          audioBuffer = await actx.decodeAudioData(rawBuffer);
+        }
+
+        const monoPcm = new Float32Array(audioBuffer.length);
+        for (let channelIndex = 0; channelIndex < audioBuffer.numberOfChannels; channelIndex++) {
+          const channelData = audioBuffer.getChannelData(channelIndex);
+          for (let sampleIndex = 0; sampleIndex < audioBuffer.length; sampleIndex++) {
+            monoPcm[sampleIndex] += channelData[sampleIndex] / audioBuffer.numberOfChannels;
+          }
+        }
+
+        const request: AudioChordDetectionRequest = {
+          pcm: monoPcm,
+          sampleRate: audioBuffer.sampleRate,
+          clipStartOffsetSeconds: audioRegion.getClipStartOffsetSeconds(),
+          windows: audioWindows ?? [],
+          options: detectionOptions as AudioChordDetectionOptions,
+        };
+
+        detectedChords = await new Promise<DetectedAudioChord[]>((resolve, reject) => {
+          worker = new Worker(
+            new URL('../../workers/audioChordDetectionWorker.ts', import.meta.url),
+            { type: 'module' },
+          );
+
+          worker.onmessage = (event: MessageEvent<AudioChordDetectionWorkerMessage>) => {
+            if (event.data.type === 'progress') {
+              setDetectChordProgressPercent(event.data.progress.percent);
+              return;
+            }
+
+            resolve(event.data.results);
+          };
+          worker.onerror = () => {
+            reject(new Error('Chord detection worker failed.'));
+          };
+          worker.postMessage(request, [request.pcm.buffer]);
+        });
+      } else {
+        setDetectChordProgressPercent(100);
+        detectedChords = detectChordsFromMidi({
+          project,
+          region: activeRegion as KGMidiRegion,
+          windows: midiWindows ?? [],
+          options: detectionOptions as MidiChordDetectionOptions,
+        });
+      }
+
+      const replacements = detectedChords
+        .filter(result => result.symbol !== 'N' && result.endBeat > result.startBeat)
+        .map(result => ({
+          startBeat: result.startBeat,
+          length: result.endBeat - result.startBeat,
+          symbol: result.symbol,
+        }));
+
+      const spanStartBeat = chordWindows[0].startBeat;
+      const spanEndBeat = chordWindows[chordWindows.length - 1].endBeat;
+      KGCore.instance().executeCommand(
+        new ReplaceChordRegionsInRangeCommand(spanStartBeat, spanEndBeat, replacements),
+      );
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error detecting chords:', error);
+      await showAlert(audioRegion
+        ? 'Failed to detect chords from this audio region.'
+        : 'Failed to detect chords from this MIDI region.'
+      );
+    } finally {
+      if (worker) {
+        worker.terminate();
+      }
+      setIsDetectingChords(false);
+      setDetectChordProgressPercent(0);
+    }
+  }, [activeRegion, audioRegion, projectName, refreshProjectState, trackId]);
+
+  const handleDetectTempo = useCallback(async () => {
+    if (!audioRegion) {
+      await showAlert('Open an audio region before detecting tempo.');
+      return;
+    }
+
+    const project = KGCore.instance().getCurrentProject();
+    const analysisSpan = buildAudioTempoAnalysisSpanForRegion(project, audioRegion);
+    if (!analysisSpan) {
+      await showAlert('The selected audio region has no audible span to analyze.');
+      return;
+    }
+
+    const detectionOptions = await showTempoDetectionOptions(
+      'Tune audio tempo detection settings before processing.',
+      DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
+    );
+    if (!detectionOptions) {
+      return;
+    }
+
+    if (!projectName || !trackId) {
+      await showAlert('Open an audio region in spectrogram mode before detecting tempo.');
+      return;
+    }
+
+    setIsDetectingTempo(true);
+
+    try {
+      let audioBuffer = KGAudioInterface.instance().getAudioBuffer(trackId, audioRegion.getAudioFileId());
+      if (!audioBuffer) {
+        const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioRegion.getAudioFileId());
+        const actx = Tone.getContext().rawContext as AudioContext;
+        audioBuffer = await actx.decodeAudioData(rawBuffer);
+      }
+
+      const result = await detectTempoFromAudio(
+        audioBuffer,
+        analysisSpan,
+        detectionOptions as AudioTempoDetectionOptions,
+      );
+
+      const applyResult = await showTempoApply(
+        buildDetectedTempoChoiceMessage(result.bpm),
+        [
+          { label: 'Update Current Tempo', value: DETECTED_TEMPO_ACTION_UPDATE_CURRENT },
+          { label: 'Insert Tempo Change', value: DETECTED_TEMPO_ACTION_INSERT_REGION },
+        ],
+      );
+      if (!applyResult) {
+        return;
+      }
+
+      applyDetectedTempoAction({
+        action: applyResult.action as typeof DETECTED_TEMPO_ACTION_UPDATE_CURRENT | typeof DETECTED_TEMPO_ACTION_INSERT_REGION,
+        detectedBpm: result.bpm,
+        detectedTempo: result.tempo,
+        detectedOffsetSeconds: result.offsetSeconds,
+        autoAlignRegionToBeat: applyResult.autoAlignRegionToBeat,
+        project,
+        regionId: audioRegion.getId(),
+        regionStartBeat: audioRegion.getStartFromBeat(),
+        regionTrackId: audioRegion.getTrackId(),
+        regionTrackIndex: audioRegion.getTrackIndex(),
+        refreshProjectState,
+        setBpm,
+      });
+    } catch (error) {
+      console.error('Error detecting tempo:', error);
+      await showAlert('Failed to detect tempo from this audio region.');
+    } finally {
+      setIsDetectingTempo(false);
+    }
+  }, [audioRegion, projectName, refreshProjectState, setBpm, trackId]);
+
+  // Handle title click to rename the region
+  const handleTitleClick = () => {
+    // If we were just dragging, don't show the rename dialog
+    if (wasDraggingRef.current) {
+      if (DEBUG_MODE.PIANO_ROLL) {
+        console.log("Skipping inline rename because the window was just dragged");
+      }
+      return;
+    }
+
+    if (!activeRegion) return;
+    setTitleInputValue(activeRegion.getName());
+    setIsEditingTitle(true);
+    window.setTimeout(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 0);
   };
 
   // Handle tool selection
@@ -483,18 +729,19 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [setSelectedMode]);
 
   // Handle chord guide selection
-  const handleChordGuideSelect = useCallback((value: string) => {
+  const handleChordGuideSelect = useCallback((value: ChordGuideFunction) => {
     setChordGuide(value);
   }, []);
 
-  // Update suitable chords whenever chord guide, key signature, or mode changes
+  // Update suitable chords whenever chord guide selection or effective key signature changes
   useEffect(() => {
     const pianoRollState = KGPianoRollState.instance();
 
     if (chordGuide === 'N') {
       // Disabled - clear chord data
-      pianoRollState.setCurrentSuitableChords({});
+      pianoRollState.setCurrentSuitableChords([]);
       pianoRollState.setCurrentSuitableChordsPitchClasses({});
+      pianoRollState.setCurrentHoveredChordGuideCandidate(null);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Chord guide disabled - cleared suitable chords`);
@@ -502,40 +749,23 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     } else {
       // Get suitable chords for the selected function (T/S/D)
       const functionType = chordGuide as 'T' | 'S' | 'D';
-      const suitableChords = getSuitableChords(keySignature, selectedMode, functionType);
-
-      // Convert note names to pitch classes (ensuring ascending order)
-      const chordsPitchClasses: Record<string, number[]> = {};
-      for (const [chordSymbol, noteNames] of Object.entries(suitableChords)) {
-        const pitchClasses: number[] = [];
-        let previousPitch = -1;
-
-        for (const noteName of noteNames) {
-          let pitchClass = noteNameToPitchClass(noteName);
-
-          // If this pitch is lower than the previous one, add an octave
-          if (previousPitch >= 0 && pitchClass <= previousPitch) {
-            pitchClass += 12;
-          }
-
-          pitchClasses.push(pitchClass);
-          previousPitch = pitchClass;
-        }
-
-        chordsPitchClasses[chordSymbol] = pitchClasses;
-      }
+      const suitableChords = resolveChordGuideItems(effectiveChordGuideKeySignature, chordGuideMode, functionType);
+      const chordsPitchClasses = Object.fromEntries(
+        suitableChords.map((item) => [item.name, item.pitchClasses])
+      );
 
       // Update piano roll state
       pianoRollState.setCurrentSuitableChords(suitableChords);
       pianoRollState.setCurrentSuitableChordsPitchClasses(chordsPitchClasses);
+      pianoRollState.setCurrentHoveredChordGuideCandidate(null);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Chord guide updated: ${chordGuide} (${functionType})`);
-        console.log(`Suitable chords for ${keySignature} in ${selectedMode} mode:`, suitableChords);
+        console.log(`Suitable chords for ${effectiveChordGuideKeySignature} in ${chordGuideMode} mode:`, suitableChords);
         console.log(`Pitch classes:`, chordsPitchClasses);
       }
     }
-  }, [chordGuide, keySignature, selectedMode]);
+  }, [chordGuide, chordGuideMode, effectiveChordGuideKeySignature]);
 
   // Handler for receiving the setNoteUpdateCounter function from PianoRollContent
   const handleSetNoteUpdateTrigger = (setNoteFn: React.Dispatch<React.SetStateAction<number>>) => {
@@ -850,6 +1080,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     });
   }, [activeRegion, playheadPosition, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
 
+  const handleAudioSpectrogramToggle = useCallback(() => {
+    if (isHybrid || !audioRegion) {
+      return;
+    }
+
+    setCurrentMode(current => current === 'spectrogram' ? 'audio-waveform' : 'spectrogram');
+  }, [audioRegion, isHybrid]);
+
   const handleSheetMeasureMetricsChange = useCallback((metrics: SheetMeasureMetric[]) => {
     setSheetMeasureMetrics((current) => {
       if (
@@ -875,6 +1113,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return;
     }
 
+    if (isAudioWaveform) {
+      container.scrollTop = 0;
+      return;
+    }
+
     const keyHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     const c4Position = 4 * 12 * keyHeight;
     const totalHeight = 8 * 12 * keyHeight;
@@ -882,7 +1125,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     const scrollPosition = (totalHeight - c4Position) - (viewportHeight / 2);
 
     container.scrollTop = Math.max(0, scrollPosition);
-  }, []);
+  }, [isAudioWaveform]);
 
   // Calculate C4 position and scroll to it when piano roll opens
   useEffect(() => {
@@ -1112,14 +1355,30 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Handle piano roll hotkeys
       const configManager = ConfigManager.instance();
       if (configManager.getIsInitialized()) {
-        // Chord guide switch hotkey
-        const switch_key = configManager.get('hotkeys.piano_roll.switch') as string;
-        if (event.key && event.key.toLowerCase() === switch_key.toLowerCase()) {
-          // Call the switchChord function exposed by PianoGrid
+        const chordGuideSwitchShortcut = configManager.get('hotkeys.piano_roll.switch') as string;
+        const chordGuideSwitchVoicingShortcut = configManager.get('hotkeys.piano_roll.switch_voicing') as string;
+
+        if (chordGuideSwitchShortcut && matchesKeyboardShortcut(event, chordGuideSwitchShortcut)) {
+          event.preventDefault();
+          setChordGuide((current) => getNextChordGuideSelection(current));
+          return;
+        }
+
+        if (chordGuide !== 'N' && matchesKeyboardShortcut(event, 'tab')) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const switchChord = (window as any).__pianoGridSwitchChord;
           if (typeof switchChord === 'function') {
-            switchChord();
+            switchChord(1);
+            event.preventDefault();
+          }
+          return;
+        }
+
+        if (chordGuide !== 'N' && chordGuideSwitchVoicingShortcut && matchesKeyboardShortcut(event, chordGuideSwitchVoicingShortcut)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const switchChord = (window as any).__pianoGridSwitchChord;
+          if (typeof switchChord === 'function') {
+            switchChord(-1);
             event.preventDefault();
           }
           return;
@@ -1235,11 +1494,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     return () => {
       window.removeEventListener('keydown', handlePianoRollKeyDown);
     };
-  }, [handleQuantSelect, handleSnappingSelect]);
+  }, [chordGuide, handleQuantSelect, handleSnappingSelect]);
 
   // Get the title for the piano roll based on the active region
   const getPianoRollTitle = () => {
-    if (isSpectrogram) return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
+    if (currentMode === 'spectrogram') return audioRegion ? `SPECTROGRAM — ${audioRegion.getName()}` : 'SPECTROGRAM';
+    if (currentMode === 'audio-waveform') return audioRegion ? `WAVEFORM — ${audioRegion.getName()}` : 'WAVEFORM';
     if (isHybrid) {
       const midiName = activeRegion?.getName() ?? 'MIDI';
       const audioName = audioRegion?.getName() ?? 'Audio';
@@ -1274,8 +1534,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       <PianoRollHeader
         onClose={onClose}
         title={getPianoRollTitle()}
+        isEditingTitle={isEditingTitle}
+        titleInputValue={titleInputValue}
         onTitleClick={handleTitleClick}
+        onTitleInputChange={setTitleInputValue}
+        onTitleCommit={() => { void commitTitleEdit(); }}
+        onTitleCancel={cancelTitleEdit}
         onMouseDown={(e) => handleMouseDown(e, 'drag')}
+        titleInputRef={titleInputRef}
       />
 
       <PianoRollToolbar
@@ -1286,6 +1552,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         sheetQuantization={sheetQuantization}
         onSheetQuantizationChange={handleSheetQuantizationChange}
         sheetQuantizationOptions={getSheetQuantizationOptions()}
+        showAudioSpectrogramToggle={!!audioRegion && !isHybrid}
+        audioSpectrogramEnabled={currentMode === 'spectrogram'}
+        onAudioSpectrogramToggle={handleAudioSpectrogramToggle}
+        sheetMusicToggleDisabled={!activeRegion}
         activeTool={activeTool}
         onToolSelect={handleToolSelect}
         quantPosition={quantPosition}
@@ -1298,21 +1568,25 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         chordGuide={chordGuide}
         onChordGuideChange={handleChordGuideSelect}
         blinkButton={blinkButton}
-        mode={mode}
+        mode={currentMode}
         thresholdDb={spectrogramThresholdDb}
         onThresholdChange={setSpectrogramThresholdDb}
         power={spectrogramPower}
         onPowerChange={setSpectrogramPower}
         zoom={pianoRollZoom}
         onZoomChange={handleZoomChange}
-        showAutomationControls={!isSpectrogram}
+        showAutomationControls={!isAudioOnly}
         automationEnabled={automationEnabled}
         automationType={automationType}
         onAutomationToggle={handleAutomationToggle}
         onAutomationTypeChange={handleAutomationTypeChange}
+        onDetectChords={handleDetectChords}
+        detectingChords={isDetectingChords}
+        onDetectTempo={audioRegion ? handleDetectTempo : undefined}
+        detectingTempo={isDetectingTempo}
       />
 
-      <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isSpectrogram} activeRegion={activeRegion} />
+      <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />
 
       <PianoRollContent
         contentRef={pianoRollContentRef}
@@ -1328,7 +1602,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         selectedMode={selectedMode}
         keySignature={keySignature}
         chordGuide={chordGuide}
-        mode={mode}
+        chordGuideKeySignature={effectiveChordGuideKeySignature}
+        chordGuideMode={chordGuideMode}
+        mode={currentMode}
         audioRegion={audioRegion}
         trackId={trackId}
         projectName={projectName}
@@ -1346,6 +1622,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         sheetKeySignature={keySignature}
         sheetInstrument={activeInstrument}
         onSheetMeasureMetricsChange={handleSheetMeasureMetricsChange}
+        overlayMessage={isDetectingChords ? `Detecting chords… (${detectChordProgressPercent.toString().padStart(2, '0')}% completed)` : null}
+        overlayProgressPercent={isDetectingChords ? detectChordProgressPercent : null}
       />
 
       <div
@@ -1359,233 +1637,3 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 };
 
 export default PianoRoll; 
-
-export function getRegionPlayheadRelation(
-  playheadBeat: number,
-  regionStartBeat: number,
-  regionEndBeat: number
-): RegionPlayheadRelation {
-  if (playheadBeat < regionStartBeat) {
-    return 'before';
-  }
-
-  if (playheadBeat > regionEndBeat) {
-    return 'after';
-  }
-
-  return 'inside';
-}
-
-export function createPendingModeSwitchRequest({
-  playheadBeat,
-  regionStartBeat,
-  regionEndBeat,
-  sourceSheetMusicViewEnabled,
-  destinationSheetMusicViewEnabled,
-  destinationSheetMusicTrackScopeEnabled,
-}: ModeSwitchRequestOptions): PendingModeSwitchRequest {
-  const relation = getRegionPlayheadRelation(playheadBeat, regionStartBeat, regionEndBeat);
-  const enteringTrackScopeSheet = (
-    !sourceSheetMusicViewEnabled &&
-    destinationSheetMusicViewEnabled &&
-    destinationSheetMusicTrackScopeEnabled
-  );
-
-  if (relation === 'inside') {
-    return {
-      sourceSheetMusicViewEnabled,
-      destinationSheetMusicViewEnabled,
-      destinationSheetMusicTrackScopeEnabled,
-      alignment: 'center',
-      anchorBeat: playheadBeat,
-      clampScope: destinationSheetMusicTrackScopeEnabled ? 'track' : 'region',
-    };
-  }
-
-  if (enteringTrackScopeSheet) {
-    return {
-      sourceSheetMusicViewEnabled,
-      destinationSheetMusicViewEnabled,
-      destinationSheetMusicTrackScopeEnabled,
-      alignment: 'center',
-      anchorBeat: playheadBeat,
-      clampScope: 'track',
-    };
-  }
-
-  return {
-    sourceSheetMusicViewEnabled,
-    destinationSheetMusicViewEnabled,
-    destinationSheetMusicTrackScopeEnabled,
-    alignment: relation === 'before' ? 'region-start' : 'region-end',
-    anchorBeat: relation === 'before' ? regionStartBeat : regionEndBeat,
-    clampScope: 'region',
-  };
-}
-
-function getHorizontalViewportMetrics(container: HTMLDivElement, sheetMusicViewEnabled: boolean): {
-  visibleWidth: number;
-  keysWidth: number;
-} {
-  const keysWidth = sheetMusicViewEnabled
-    ? 0
-    : (parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
-      ) || 60);
-
-  return {
-    visibleWidth: Math.max(0, container.clientWidth - keysWidth),
-    keysWidth,
-  };
-}
-
-function getPixelForAbsoluteBeat(
-  beat: number,
-  sheetMusicViewEnabled: boolean,
-  sheetMusicTrackScopeEnabled: boolean,
-  sheetMeasureMetrics: SheetMeasureMetric[],
-  activeRegionStartBeat: number
-): number {
-  if (sheetMusicViewEnabled) {
-    return getSheetPlayheadPixel(
-      sheetMusicTrackScopeEnabled
-        ? Math.max(0, beat)
-        : Math.max(0, beat - activeRegionStartBeat),
-      sheetMeasureMetrics
-    );
-  }
-
-  const beatWidth = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-  ) || 40;
-  return beat * beatWidth;
-}
-
-function getScopeBoundsInPixels(
-  request: PendingModeSwitchRequest,
-  sheetMeasureMetrics: SheetMeasureMetric[],
-  activeRegionStartBeat: number,
-  activeRegionEndBeat: number,
-  songEndBeat: number
-): { startPx: number; endPx: number } {
-  if (request.destinationSheetMusicViewEnabled) {
-    if (request.clampScope === 'track') {
-      return {
-        startPx: getSheetPlayheadPixel(0, sheetMeasureMetrics),
-        endPx: getSheetPlayheadPixel(songEndBeat, sheetMeasureMetrics),
-      };
-    }
-
-    return {
-      startPx: getSheetPlayheadPixel(0, sheetMeasureMetrics),
-      endPx: getSheetPlayheadPixel(activeRegionEndBeat - activeRegionStartBeat, sheetMeasureMetrics),
-    };
-  }
-
-  const beatWidth = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-  ) || 40;
-
-  if (request.clampScope === 'track') {
-    return {
-      startPx: 0,
-      endPx: songEndBeat * beatWidth,
-    };
-  }
-
-  return {
-    startPx: activeRegionStartBeat * beatWidth,
-    endPx: activeRegionEndBeat * beatWidth,
-  };
-}
-
-function clampScrollLeftToContainer(container: HTMLDivElement, scrollLeft: number): number {
-  return Math.max(0, Math.min(scrollLeft, container.scrollWidth - container.clientWidth));
-}
-
-function getCenteredScrollLeft({
-  pixelPosition,
-  visibleWidth,
-  scopeStartPx,
-  scopeEndPx,
-  container,
-}: {
-  pixelPosition: number;
-  visibleWidth: number;
-  scopeStartPx: number;
-  scopeEndPx: number;
-  container: HTMLDivElement;
-}): number {
-  const unclamped = pixelPosition - visibleWidth / 2;
-  const maxScopeScrollLeft = Math.max(scopeStartPx, scopeEndPx - visibleWidth);
-  const clampedToScope = Math.max(scopeStartPx, Math.min(unclamped, maxScopeScrollLeft));
-  return clampScrollLeftToContainer(container, clampedToScope);
-}
-
-function getRegionEndAlignedScrollLeft({
-  visibleWidth,
-  scopeEndPx,
-  container,
-}: {
-  visibleWidth: number;
-  scopeEndPx: number;
-  container: HTMLDivElement;
-}): number {
-  return clampScrollLeftToContainer(container, Math.max(0, scopeEndPx - visibleWidth));
-}
-
-export function getScrollLeftForViewportRequest({
-  request,
-  container,
-  sheetMeasureMetrics,
-  activeRegionStartBeat,
-  activeRegionEndBeat,
-  songEndBeat,
-}: ScrollLeftForViewportRequestOptions): number {
-  const { visibleWidth } = getHorizontalViewportMetrics(
-    container,
-    request.destinationSheetMusicViewEnabled
-  );
-  const pixelPosition = getPixelForAbsoluteBeat(
-    request.anchorBeat,
-    request.destinationSheetMusicViewEnabled,
-    request.destinationSheetMusicTrackScopeEnabled,
-    sheetMeasureMetrics,
-    activeRegionStartBeat
-  );
-  const { startPx, endPx } = getScopeBoundsInPixels(
-    request,
-    sheetMeasureMetrics,
-    activeRegionStartBeat,
-    activeRegionEndBeat,
-    songEndBeat
-  );
-
-  if (request.alignment === 'region-start') {
-    return clampScrollLeftToContainer(container, startPx);
-  }
-
-  if (request.alignment === 'region-end') {
-    return getRegionEndAlignedScrollLeft({
-      visibleWidth,
-      scopeEndPx: endPx,
-      container,
-    });
-  }
-
-  return getCenteredScrollLeft({
-    pixelPosition,
-    visibleWidth,
-    scopeStartPx: startPx,
-    scopeEndPx: endPx,
-    container,
-  });
-}
-
-export function getRegionStartScrollLeft(startBeat: number): number {
-  const beatWidth = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
-  ) || TOOLBAR_CONSTANTS.BASE_BAR_WIDTH;
-
-  return Math.max(0, startBeat * beatWidth);
-}

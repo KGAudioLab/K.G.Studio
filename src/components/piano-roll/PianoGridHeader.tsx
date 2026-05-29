@@ -8,11 +8,13 @@ import { getSnappedBeatPosition } from './pianoRollSnap';
 interface PianoGridHeaderProps {
   maxBars: number;
   timeSignature?: { numerator: number; denominator: number };
+  hasPianoKeys?: boolean;
 }
 
 const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({ 
   maxBars, 
-  timeSignature = { numerator: 4, denominator: 4 } // Default to 4/4 if not provided
+  timeSignature = { numerator: 4, denominator: 4 }, // Default to 4/4 if not provided
+  hasPianoKeys = true,
 }) => {
   // Get store access for playhead position updates
   const { setPlayheadPosition, requestMainContentScroll } = useProjectStore();
@@ -29,9 +31,11 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     const relativeX = clientX - rect.left;
     
     // Account for the piano keys width offset
-    const pianoKeysWidth = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
-    ) || 60;
+    const pianoKeysWidth = hasPianoKeys
+      ? (parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
+        ) || 60)
+      : 0;
     
     const adjustedX = relativeX - pianoKeysWidth;
     
@@ -138,7 +142,7 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
 
   return (
     <div 
-      className="piano-grid-header" 
+      className={`piano-grid-header${hasPianoKeys ? '' : ' no-piano-keys'}`}
       ref={headerElementRef}
       onMouseDown={handleMouseDown}
       onClick={handlePianoGridHeaderClick}

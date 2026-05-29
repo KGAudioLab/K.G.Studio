@@ -46,6 +46,7 @@ const storeState = {
   showPianoRoll: false,
   openMidiPianoRoll: vi.fn(),
   openMidiPianoRollWithSheetMusicView: vi.fn(),
+  openAudioWaveformViewer: vi.fn(),
   openSpectrogramViewer: vi.fn(),
   playheadPosition: 12,
   refreshProjectState: vi.fn(),
@@ -165,6 +166,7 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
     storeState.selectedRegionIds = ['region-a', 'region-b'];
     storeState.openMidiPianoRoll.mockClear();
     storeState.openMidiPianoRollWithSheetMusicView.mockClear();
+    storeState.openAudioWaveformViewer.mockClear();
     storeState.openSpectrogramViewer.mockClear();
     vi.mocked(showAlert).mockClear();
   });
@@ -217,6 +219,7 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
     fireEvent.keyDown(document.body, { key: 'e' });
 
     expect(storeState.openMidiPianoRollWithSheetMusicView).toHaveBeenCalledWith('region-b', false);
+    expect(storeState.openAudioWaveformViewer).not.toHaveBeenCalled();
     expect(storeState.openSpectrogramViewer).not.toHaveBeenCalled();
   });
 
@@ -260,7 +263,27 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
 
     expect(showAlert).toHaveBeenCalledWith('Sheet music view is only available for MIDI regions.');
     expect(storeState.openSpectrogramViewer).not.toHaveBeenCalled();
+    expect(storeState.openAudioWaveformViewer).not.toHaveBeenCalled();
     expect(storeState.openMidiPianoRollWithSheetMusicView).not.toHaveBeenCalled();
+  });
+
+  it('opens a selected audio region in waveform view on E', () => {
+    mockTracks = [
+      {
+        getRegions: () => [
+          {
+            getId: () => 'region-b',
+          },
+        ],
+      },
+    ];
+
+    render(<HookHarness />);
+    fireEvent.keyDown(document.body, { key: 'e' });
+
+    expect(storeState.openAudioWaveformViewer).toHaveBeenCalledWith('region-b');
+    expect(storeState.openMidiPianoRollWithSheetMusicView).not.toHaveBeenCalled();
+    expect(storeState.openSpectrogramViewer).not.toHaveBeenCalled();
   });
 
   it('does not close the editor when N is pressed while piano roll is already open', () => {

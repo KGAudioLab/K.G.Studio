@@ -25,8 +25,11 @@ import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { KGAudioInterface } from './KGAudioInterface';
 import { KGAudioBus } from './KGAudioBus';
+import { beatRangeToSeconds, beatToSeconds, findGlobalTrackByType, getEffectiveBpmAtBeat, getSortedTempoRegions } from '../../util/globalTrackUtil';
+import { GlobalTrackType } from '../global-track';
 import { ConfigManager } from '../config/ConfigManager';
 import { Mp3Encoder } from '@breezystack/lamejs';
+import { createStereoTrackPanner } from './createStereoTrackPanner';
 
 export interface RenderOptions {
   sampleRate?: number;  // default 44100
@@ -92,8 +95,7 @@ export class KGOfflineRenderer {
     const tailSeconds = options?.tailSeconds ?? 2;
 
     // Calculate render duration in seconds
-    const bpm = project.getBpm();
-    const secondsPerBeat = 60 / bpm;
+    const bpm = getEffectiveBpmAtBeat(project, 0);
     const timeSignature = project.getTimeSignature();
     const beatsPerBar = timeSignature.numerator;
 
@@ -279,7 +281,7 @@ export class KGOfflineRenderer {
       // else: no content found, keep the full project range as fallback
     }
 
-    const durationSeconds = (renderEndBeat - renderStartBeat) * secondsPerBeat + tailSeconds;
+    const durationSeconds = beatRangeToSeconds(project, renderStartBeat, renderEndBeat) + tailSeconds;
 
     console.log(`Offline render: ${durationSeconds}s (beats ${renderStartBeat}-${renderEndBeat}), ${sampleRate}Hz, ${channels}ch`);
 
@@ -289,8 +291,20 @@ export class KGOfflineRenderer {
       const masterGain = new Tone.Gain(1).toDestination();
 
       // Set BPM and time signature on offline transport
-      context.transport.bpm.value = bpm;
+      context.transport.bpm.value = getEffectiveBpmAtBeat(project, renderStartBeat);
       context.transport.timeSignature = [timeSignature.numerator, timeSignature.denominator];
+      const tempoTrack = findGlobalTrackByType(project, GlobalTrackType.Tempo);
+      const tempoRegions = tempoTrack ? getSortedTempoRegions(tempoTrack, timeSignature.numerator) : [];
+      tempoRegions.forEach((region) => {
+        const regionStartBeat = region.getStartBar() * timeSignature.numerator;
+        if (regionStartBeat <= renderStartBeat || regionStartBeat >= renderEndBeat) {
+          return;
+        }
+
+        context.transport.schedule((time) => {
+          context.transport.bpm.setValueAtTime(region.getBpm(), time);
+        }, beatsToOfflineTransportTime(regionStartBeat, renderStartBeat));
+      });
 
       // ---- Create MIDI track samplers ----
       const samplerPromises: Promise<void>[] = [];
@@ -318,7 +332,7 @@ export class KGOfflineRenderer {
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
             sampler.volume.value = 0;
             const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
-            const trackPanner = new Tone.Panner(0);
+            const trackPanner = createStereoTrackPanner(0);
             sampler.connect(trackGain);
             trackGain.connect(trackPanner);
             trackPanner.connect(masterGain);
@@ -328,9 +342,9 @@ export class KGOfflineRenderer {
               trackInfo.volumeAutomation,
               trackInfo.panAutomation,
               trackInfo.volume,
+              project,
               renderStartBeat,
               renderEndBeat,
-              secondsPerBeat,
               interpolationIntervalMs,
               bpm
             );
@@ -343,7 +357,7 @@ export class KGOfflineRenderer {
               renderEndBeat,
               {
                 maxIntervalMs: interpolationIntervalMs,
-                bpm: project.getBpm(),
+                bpm: getEffectiveBpmAtBeat(project, renderStartBeat),
                 defaultValue: MIDI_PITCH_BEND_CENTER,
               }
             );
@@ -353,7 +367,7 @@ export class KGOfflineRenderer {
               renderEndBeat,
               {
                 maxIntervalMs: interpolationIntervalMs,
-                bpm: project.getBpm(),
+                bpm: getEffectiveBpmAtBeat(project, renderStartBeat),
                 defaultValue: 127,
                 interpolationMode: 'linear',
                 quantizeValue: clampMidiControllerValue,
@@ -366,14 +380,12 @@ export class KGOfflineRenderer {
                 // Skip notes outside render range
                 if (note.startBeat >= renderEndBeat || note.endBeat <= renderStartBeat) continue;
 
-                const offsetBeat = note.startBeat - renderStartBeat;
-                const noteStartTime = offsetBeat * secondsPerBeat;
                 const sustainedEndBeat = resolveSustainExtendedEndBeat(
                   trackInfo.controllerEventsByType[64],
                   note.endBeat,
                   0
                 );
-                const noteDuration = Math.max(0, sustainedEndBeat - note.startBeat) * secondsPerBeat;
+                const noteDuration = beatRangeToSeconds(project, note.startBeat, sustainedEndBeat);
                 const velocity = note.velocity / 127;
                 const initialNormalizedPitchBend = midiPitchBendToNormalized(
                   resolveMidiAutomationValueAtBeat(trackInfo.pitchBends, note.startBeat, MIDI_PITCH_BEND_CENTER)
@@ -398,19 +410,19 @@ export class KGOfflineRenderer {
                   source,
                   basePlaybackRate,
                   bakedTrackPitchBends.filter(point => point.beat > note.startBeat && point.beat < sustainedEndBeat),
+                  project,
                   renderStartBeat,
-                  secondsPerBeat
                 );
                 applyOfflineExpressionAutomation(
                   gainNode,
                   bakedExpressionEvents.filter(point => point.beat > note.startBeat && point.beat < sustainedEndBeat),
+                  project,
                   renderStartBeat,
-                  secondsPerBeat
                 );
 
                 context.transport.schedule((time) => {
                   source.start(time, 0, noteDuration, velocity);
-                }, noteStartTime);
+                }, beatsToOfflineTransportTime(note.startBeat, renderStartBeat));
               }
             }
           } catch (error) {
@@ -426,7 +438,7 @@ export class KGOfflineRenderer {
         if (!shouldPlay(trackInfo, hasSoloedTracks)) continue;
 
         const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
-        const trackPanner = new Tone.Panner(0);
+        const trackPanner = createStereoTrackPanner(0);
         trackGain.connect(trackPanner);
         trackPanner.connect(masterGain);
         applyOfflineTrackAutomation(
@@ -435,9 +447,9 @@ export class KGOfflineRenderer {
           trackInfo.volumeAutomation,
           trackInfo.panAutomation,
           trackInfo.volume,
+          project,
           renderStartBeat,
           renderEndBeat,
-          secondsPerBeat,
           interpolationIntervalMs,
           bpm
         );
@@ -451,13 +463,12 @@ export class KGOfflineRenderer {
 
           const clipStartOffsetSeconds = regionInfo.clipStartOffsetSeconds;
           const audioDurationSeconds = regionInfo.audioDurationSeconds;
-          const regionLengthSeconds = regionInfo.lengthBeats * secondsPerBeat;
+          const regionLengthSeconds = beatRangeToSeconds(project, regionStartBeat, regionEndBeat);
           const effectiveDurationSeconds = Math.min(regionLengthSeconds, audioDurationSeconds - clipStartOffsetSeconds);
 
           if (effectiveDurationSeconds <= 0) continue;
 
-          const offsetBeat = regionStartBeat - renderStartBeat;
-          const regionStartTime = Math.max(0, offsetBeat * secondsPerBeat);
+          const regionStartTime = beatsToOfflineTransportTime(regionStartBeat, renderStartBeat);
 
           // Create buffer source NOW while the offline context is still active.
           // Schedule callbacks fire during rendering after Tone.js restores the
@@ -647,11 +658,11 @@ export function applyOfflinePitchBendAutomation(
   source: Tone.ToneBufferSource,
   basePlaybackRate: number,
   bakedPitchBends: BakedMidiAutomationPoint[],
+  project: KGProject,
   renderStartBeat: number,
-  secondsPerBeat: number
 ): void {
   bakedPitchBends.forEach(point => {
-    const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+    const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
     setOfflinePlaybackRate(
       source,
       KGAudioBus.applyNormalizedPitchBendToPlaybackRate(basePlaybackRate, midiPitchBendToNormalized(point.value)),
@@ -663,11 +674,11 @@ export function applyOfflinePitchBendAutomation(
 export function applyOfflineExpressionAutomation(
   gainNode: Tone.Gain,
   bakedExpressionEvents: BakedMidiAutomationPoint[],
+  project: KGProject,
   renderStartBeat: number,
-  secondsPerBeat: number
 ): void {
   bakedExpressionEvents.forEach(point => {
-    const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+    const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
     setOfflineGainValue(gainNode, clampMidiControllerValue(point.value) / 127, automationTime);
   });
 }
@@ -678,9 +689,9 @@ function applyOfflineTrackAutomation(
   volumeAutomation: MidiAutomationPoint[],
   panAutomation: MidiAutomationPoint[],
   baseVolume: number,
+  project: KGProject,
   renderStartBeat: number,
   renderEndBeat: number,
-  secondsPerBeat: number,
   interpolationIntervalMs: number,
   bpm: number
 ): void {
@@ -704,7 +715,7 @@ function applyOfflineTrackAutomation(
         return;
       }
 
-      const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+      const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
       setOfflineGainValue(gainNode, getOfflineTrackGain(point.value, false), automationTime);
     });
   } else {
@@ -731,12 +742,18 @@ function applyOfflineTrackAutomation(
         return;
       }
 
-      const automationTime = (point.beat - renderStartBeat) * secondsPerBeat;
+      const automationTime = beatToSeconds(project, point.beat) - beatToSeconds(project, renderStartBeat);
       setOfflinePanValue(pannerNode, point.value, automationTime);
     });
   } else {
     setOfflinePanValue(pannerNode, 0, 0);
   }
+}
+
+function beatsToOfflineTransportTime(beat: number, renderStartBeat: number): Tone.Unit.Time {
+  const transportBeats = Math.max(0, beat - renderStartBeat);
+  const transportTicks = Math.round(transportBeats * Tone.Transport.PPQ);
+  return transportTicks === 0 ? 0 : `${transportTicks}i` as Tone.Unit.Time;
 }
 
 export function getOfflineTrackVolumeDb(volumeDb: number, muted: boolean): number {

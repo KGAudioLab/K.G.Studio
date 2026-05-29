@@ -4,6 +4,7 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import type { InstrumentType } from '../track/KGMidiTrack';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
+import { createStereoTrackPanner } from './createStereoTrackPanner';
 
 // InstrumentType is defined in KGMidiTrack and re-used here
 
@@ -100,7 +101,7 @@ export class KGAudioBus {
       ]);
       
       // Create the audio bus instance
-      const panner = new Tone.Panner(pan);
+      const panner = createStereoTrackPanner(pan);
       sampler.connect(panner);
       const audioBus = new KGAudioBus(sampler, audioBuffers, instrument, panner, volume, pan, muted, solo);
       

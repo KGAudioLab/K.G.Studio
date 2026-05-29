@@ -81,7 +81,7 @@ export const createMockTrack = (name = 'Test Track') => {
     id: `track-${Date.now()}`,
     name,
     instrument: 'acoustic_grand_piano',
-    volume: 0.8,
+    volume: 0,
     regions: [],
   };
 };

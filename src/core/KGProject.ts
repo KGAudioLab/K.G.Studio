@@ -2,6 +2,7 @@ import { Expose, Type } from 'class-transformer';
 import { KGTrack } from './track/KGTrack';
 import { KGMidiTrack } from './track/KGMidiTrack';
 import { KGAudioTrack } from './track/KGAudioTrack';
+import { KGChordTrack, KGGlobalTrack, KGMarkerTrack, KGSignatureTrack, KGTempoTrack, createDefaultGlobalTracks } from './global-track';
 import { type TimeSignature, WithDefault } from '../types/projectTypes';
 import { TIME_CONSTANTS, KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
@@ -47,7 +48,7 @@ export class KGProject {
 
   @Expose()
   @WithDefault(1)
-  private barWidthMultiplier: number = 1;
+  private barWidthMultiplier: number = 2;
 
   @Expose()
   @WithDefault(1)
@@ -57,7 +58,7 @@ export class KGProject {
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 12;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 15;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -72,8 +73,23 @@ export class KGProject {
   })
   private tracks: KGTrack[] = [];
 
+  @Expose()
+  @Type(() => KGGlobalTrack, {
+    discriminator: {
+      property: '__type',
+      subTypes: [
+        { value: KGGlobalTrack, name: 'KGGlobalTrack' },
+        { value: KGMarkerTrack, name: 'KGMarkerTrack' },
+        { value: KGTempoTrack, name: 'KGTempoTrack' },
+        { value: KGSignatureTrack, name: 'KGSignatureTrack' },
+        { value: KGChordTrack, name: 'KGChordTrack' },
+      ],
+    },
+  })
+  private globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks();
+
   // Constructor
-  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = 125, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 1, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1) {
+  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = TIME_CONSTANTS.DEFAULT_BPM, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 2, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks()) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
@@ -87,6 +103,7 @@ export class KGProject {
     this.tracks = tracks;
     this.projectStructureVersion = projectStructureVersion;
     this.pianoRollZoom = pianoRollZoom;
+    this.globalTracks = globalTracks;
   }
 
   // Getters
@@ -126,6 +143,10 @@ export class KGProject {
     return this.tracks;
   }
 
+  public getGlobalTracks(): KGGlobalTrack[] {
+    return this.globalTracks;
+  }
+
   // Setters
   public setName(name: string): void {
     this.name = name;
@@ -153,6 +174,10 @@ export class KGProject {
 
   public setTracks(tracks: KGTrack[]): void {
     this.tracks = tracks;
+  }
+
+  public setGlobalTracks(globalTracks: KGGlobalTrack[]): void {
+    this.globalTracks = globalTracks;
   }
 
   public setProjectStructureVersion(projectStructureVersion: number): void {

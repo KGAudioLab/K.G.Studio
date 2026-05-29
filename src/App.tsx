@@ -19,9 +19,11 @@ import type { RenderingEvent } from './core/audio-interface/KGOfflineRenderer';
 import { KGCore } from './core/KGCore';
 import { ConfigManager } from './core/config/ConfigManager';
 import { validateFunctionalChordsJSON } from './util/scaleUtil';
+import { buildChordGuideDataFromDefaultsAndConfig } from './util/chordGuideConfigUtil';
 import { showAlert } from './util/dialogUtil';
 import { KGProjectStorage } from './core/io/KGProjectStorage';
 import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
+import type { ChordGuideCustomConfig } from './core/ChordGuideTypes';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
@@ -60,7 +62,8 @@ function App() {
       loadProject(null);
 
       // Initialize ConfigManager first to load config.json and user settings
-      await ConfigManager.instance().initialize();
+      const configManager = ConfigManager.instance();
+      await configManager.initialize();
 
       // Check for kgone-server.json (managed deployment override)
       try {
@@ -86,20 +89,24 @@ function App() {
 
       // Load all mode and chord data files in parallel
       try {
-        const [functionalChordsResponse] = await Promise.all([
-          fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`)
+        const [functionalChordsResponse, chordGuideResponse] = await Promise.all([
+          fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`),
+          fetch(`${import.meta.env.BASE_URL}resources/modes/chord_guide.json`)
         ]);
 
-        const [functionalChordsData] = await Promise.all([
-          functionalChordsResponse.json()
+        const [functionalChordsData, chordGuideData] = await Promise.all([
+          functionalChordsResponse.json(),
+          chordGuideResponse.json(),
         ]);
 
         // Store original functional chords data
         KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA = functionalChordsData;
         console.log(`Loaded original functional chords for ${Object.keys(functionalChordsData).length} modes`);
+        const customChordGuideItems = configManager.get('chord_guide.custom_items') as ChordGuideCustomConfig | null | undefined;
+        KGCore.CHORD_GUIDE_DATA = buildChordGuideDataFromDefaultsAndConfig(chordGuideData, customChordGuideItems);
+        console.log(`Loaded chord guide data for ${Object.keys(chordGuideData).length} modes`);
 
         // Check if custom chord definition exists and is valid
-        const configManager = ConfigManager.instance();
         const customDefinition = configManager.get('chord_guide.chord_definition') as string;
 
         if (customDefinition && customDefinition.trim()) {
@@ -130,6 +137,10 @@ function App() {
         };
         KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA = fallbackData;
         KGCore.FUNCTIONAL_CHORDS_DATA = fallbackData;
+        KGCore.CHORD_GUIDE_DATA = {
+          ionian: { T: [], S: [], D: [] },
+          aeolian: { T: [], S: [], D: [] },
+        };
       }
 
       // Log maxBars after initialization completes

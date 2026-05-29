@@ -1,3 +1,4 @@
+import type { ChordGuideCustomConfig } from '../ChordGuideTypes';
 import { KGConfigStorage } from '../io/KGConfigStorage';
 
 /**
@@ -14,6 +15,7 @@ interface AppConfig {
     };
     uvr5_web_runtime: {
       mdx_net_model_url: string;
+      htdemucs_4s_model_url: string;
     };
     openai: {
       api_key: string;
@@ -64,6 +66,7 @@ interface AppConfig {
     };
     piano_roll: {
       switch: string;
+      switch_voicing: string;
       select: string;
       pencil: string;
       hold_to_create_note: string;
@@ -101,8 +104,16 @@ interface AppConfig {
   };
   chord_guide: {
     chord_definition: string;
+    custom_items: ChordGuideCustomConfig | null;
   };
   [key: string]: unknown;
+}
+
+export function enforceDefaultHotkeysForAppConfig(config: AppConfig, defaultConfig: AppConfig): AppConfig {
+  return {
+    ...config,
+    hotkeys: defaultConfig.hotkeys,
+  };
 }
 
 /**
@@ -161,6 +172,7 @@ export class ConfigManager {
       
       // Merge with default config (saved config overrides defaults)
       this.config = this.mergeConfigs(this.defaultConfig!, savedConfig);
+      this.config = enforceDefaultHotkeysForAppConfig(this.config, this.defaultConfig!);
       
       this.isInitialized = true;
       console.log('ConfigManager initialized successfully with config:', this.config);
@@ -224,7 +236,8 @@ export class ConfigManager {
             model_url: 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'
           },
           uvr5_web_runtime: {
-            mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx'
+            mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx',
+            htdemucs_4s_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx',
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'
@@ -251,7 +264,8 @@ export class ConfigManager {
             merge_regions: 'ctrl+j'
           },
           piano_roll: {
-            switch: 'tab', 
+            switch: 'g',
+            switch_voicing: 'shift+tab',
             select: 'q',
             pencil: 'w',
             hold_to_create_note: 'ctrl',
@@ -288,7 +302,8 @@ export class ConfigManager {
           custom_instructions: ''
         },
         chord_guide: {
-          chord_definition: ''
+          chord_definition: '',
+          custom_items: null,
         }
       };
       console.log('Using fallback hardcoded config due to load error');
@@ -327,9 +342,10 @@ export class ConfigManager {
     try {
       const shouldSanitize = !this.isRunningOnLocalhost() &&
         !this.config.general.persist_api_keys_non_localhost;
-      const configToPersist = shouldSanitize
+      const baseConfigToPersist = shouldSanitize
         ? this.getSanitizedConfigForStorage()
         : this.config;
+      const configToPersist = this.removeHotkeysFromConfigForStorage(baseConfigToPersist);
 
       await this.storage.save(
         ConfigManager.CONFIG_KEY,
@@ -471,6 +487,11 @@ export class ConfigManager {
    */
   public getAll(): Readonly<AppConfig> {
     return { ...this.config };
+  }
+
+  private removeHotkeysFromConfigForStorage(config: AppConfig): AppConfig {
+    const { hotkeys: _hotkeys, ...configWithoutHotkeys } = config;
+    return configWithoutHotkeys as AppConfig;
   }
 
   /**

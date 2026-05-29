@@ -1,10 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { plainToInstance } from 'class-transformer';
-import { convertRegionToABCNotation } from '../../../util/abcNotationUtil';
+import {
+  convertRegionToABCNotation,
+  convertBeatRangeChordProgressionToABCNotation,
+  formatChordProgressionNoteLine,
+  formatChordProgressionSymbolLine,
+  getChordProgressionSegmentsForBeatRange,
+} from '../../../util/abcNotationUtil';
 import { KGMidiRegion } from '../../../core/region/KGMidiRegion';
+import { KGChordRegion } from '../../../core/region/KGChordRegion';
 import { KGMidiTrack } from '../../../core/track/KGMidiTrack';
 import { KGCore } from '../../../core/KGCore';
 import { KGProject } from '../../../core/KGProject';
+import { findGlobalTrackByType } from '../../../util/globalTrackUtil';
+import { GlobalTrackType } from '../../../core/global-track';
 
 // Import the test fixture
 import joyProjectData from '../../fixtures/joy-project.json';
@@ -220,6 +229,51 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const lines = result.split('\n');
       const musicLine = lines[lines.length - 1]; // Last line contains the music
       expect(musicLine).toBeTruthy();
+    });
+  });
+
+  describe('chord progression formatting', () => {
+    it('formats the exact 8-bar progression in both symbolic and note-based representations', () => {
+      const project = new KGProject('chords', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+      const midiTrack = new KGMidiTrack('Melody', 1);
+      const midiRegion = new KGMidiRegion('midi-region-1', '1', 0, 'Melody Region', 0, 32);
+      midiTrack.addRegion(midiRegion);
+      project.setTracks([midiTrack]);
+
+      const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
+      expect(chordTrack).not.toBeNull();
+
+      const chords = ['Am', 'F', 'Dm', 'E7', 'Am', 'C', 'Dm', 'E7'];
+      chords.forEach((symbol, index) => {
+        chordTrack!.addRegion(new KGChordRegion(`chord-${index}`, chordTrack!.getId(), chordTrack!.getTrackIndex(), symbol, index * 4, 4));
+      });
+
+      const segments = getChordProgressionSegmentsForBeatRange(project, 0, 32);
+
+      expect(formatChordProgressionSymbolLine(segments, project.getTimeSignature())).toBe(
+        '[Am]4 | [F]4 | [Dm]4 | [E7]4 | [Am]4 | [C]4 | [Dm]4 | [E7]4 |'
+      );
+      expect(formatChordProgressionNoteLine(segments, project.getTimeSignature())).toBe(
+        '[A, C E]4 | [F, A, C]4 | [D F A]4 | [E ^G B d]4 | [A, C E]4 | [C E G]4 | [D F A]4 | [E ^G B d]4 |'
+      );
+
+      const output = convertBeatRangeChordProgressionToABCNotation(project, 0, 32);
+      expect(output).toContain('M:4/4');
+      expect(output).toContain('L:1/4');
+      expect(output).toContain('Q:1/4=120');
+      expect(output).toContain('K:C');
+      expect(output).not.toContain('X:');
+      expect(output).not.toContain('T:');
+    });
+
+    it('formats accidentals with ABC prefix notation in note-based chord output', () => {
+      const project = new KGProject('accidentals', 1, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+      const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
+      expect(chordTrack).not.toBeNull();
+      chordTrack!.addRegion(new KGChordRegion('chord-1', chordTrack!.getId(), chordTrack!.getTrackIndex(), 'E7', 0, 4));
+
+      const segments = getChordProgressionSegmentsForBeatRange(project, 0, 4);
+      expect(formatChordProgressionNoteLine(segments, project.getTimeSignature())).toBe('[E ^G B d]4 |');
     });
   });
 });

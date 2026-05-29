@@ -176,6 +176,25 @@ describe('projectStore piano roll state', () => {
     expect(state.pianoRollViewRequestVersion).toBe(1);
   });
 
+  it('opens an audio region in waveform view and clears hybrid state', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().openHybridMode('midi-a', 'audio-a');
+    });
+
+    act(() => {
+      useProjectStore.getState().openAudioWaveformViewer('audio-b');
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.showPianoRoll).toBe(true);
+    expect(state.pianoRollMode).toBe('audio-waveform');
+    expect(state.activeRegionId).toBe('audio-b');
+    expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.requestedSheetMusicViewEnabled).toBe(false);
+  });
+
   it('tracks playback preparation around startPlaying success', async () => {
     let resolveStart: (() => void) | null = null;
     mockCore.startPlaying.mockImplementationOnce(() => new Promise<void>((resolve) => {

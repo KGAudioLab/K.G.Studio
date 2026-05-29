@@ -214,6 +214,8 @@
   background-color: #232323;
   border: 1px solid #373737;
   border-radius: 6px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .event-list-table {
@@ -278,4 +280,6 @@
   font-size: 11px;
   line-height: 16px;
   outline: none;
+  user-select: text;
+  -webkit-user-select: text;
 }

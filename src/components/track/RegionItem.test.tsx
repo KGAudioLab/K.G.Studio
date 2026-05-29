@@ -1,8 +1,9 @@
 import React from 'react';
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, screen } from '@testing-library/react';
 import RegionItem from './RegionItem';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 
 vi.mock('../../stores/projectStore', () => ({
@@ -72,7 +73,7 @@ describe('RegionItem', () => {
     fireEvent.mouseMove(document, { clientX: 102, clientY: 102 });
     fireEvent.mouseUp(document, { clientX: 102, clientY: 102 });
 
-    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: false });
+    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: false, metaKey: false, ctrlKey: false });
     expect(onDragStart).not.toHaveBeenCalled();
     expect(onDrag).not.toHaveBeenCalled();
     expect(onDragEnd).not.toHaveBeenCalled();
@@ -88,7 +89,20 @@ describe('RegionItem', () => {
     fireEvent.mouseDown(region!, { clientX: 100, clientY: 100, shiftKey: true });
     fireEvent.mouseUp(document, { clientX: 100, clientY: 100, shiftKey: true });
 
-    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: true });
+    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: true, metaKey: false, ctrlKey: false });
+  });
+
+  it('passes cmd-click state through the region click callback', () => {
+    const onClick = vi.fn();
+    const { container } = renderRegion({ onClick });
+    const region = container.querySelector('.track-region');
+
+    expect(region).toBeTruthy();
+
+    fireEvent.mouseDown(region!, { clientX: 100, clientY: 100, metaKey: true });
+    fireEvent.mouseUp(document, { clientX: 100, clientY: 100, metaKey: true });
+
+    expect(onClick).toHaveBeenCalledWith('midi-1', { shiftKey: false, metaKey: true, ctrlKey: false });
   });
 
   it('starts a drag after crossing the movement threshold', () => {
@@ -177,5 +191,25 @@ describe('RegionItem', () => {
       left: '-40px',
       width: '120px',
     });
+  });
+
+  it('shows the waveform button for audio regions and triggers the waveform open callback', () => {
+    const onOpenWaveform = vi.fn();
+    const audioRegion = new KGAudioRegion('audio-1', 'track-2', 1, 'Audio Region', 0, 4);
+
+    render(
+      <RegionItem
+        id="audio-1"
+        name="Audio Region"
+        style={{ left: '0px', width: '120px', position: 'absolute' }}
+        onClick={vi.fn()}
+        onOpenWaveform={onOpenWaveform}
+        audioRegion={audioRegion}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'View waveform' }));
+
+    expect(onOpenWaveform).toHaveBeenCalledWith('audio-1');
   });
 });

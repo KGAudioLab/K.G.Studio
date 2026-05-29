@@ -1,108 +1,415 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
+import { FaPlus, FaTrash } from 'react-icons/fa';
+import '../../EventListPanel.css';
 import { ConfigManager } from '../../../core/config/ConfigManager';
-import { validateFunctionalChordsJSON } from '../../../util/scaleUtil';
 import { KGCore } from '../../../core/KGCore';
+import type {
+  ChordGuideCustomConfig,
+  ChordGuideData,
+  ChordGuideGroupKey,
+  ChordGuideItem,
+  ChordGuideModeDefinition,
+} from '../../../core/ChordGuideTypes';
+import {
+  buildChordGuideCustomConfigFromData,
+  buildChordGuideDataFromDefaultsAndConfig,
+  buildDerivedChordGuideItem,
+  createDefaultChordForGroup,
+} from '../../../util/chordGuideConfigUtil';
+import { parseChordSymbol } from '../../../util/chordUtil';
 import { showAlert } from '../../../util/dialogUtil';
+import { isModifierKeyPressed } from '../../../util/osUtil';
+
+type FunctionType = 'T' | 'S' | 'D';
+type EditableColumn = 'name' | 'note';
+
+interface EditingCell {
+  group: ChordGuideGroupKey;
+  rowIndex: number;
+  column: EditableColumn;
+  value: string;
+}
+
+const FUNCTION_BUTTONS: Array<{ value: FunctionType; label: string; title: string }> = [
+  { value: 'T', label: 'T', title: 'Tonic' },
+  { value: 'S', label: 'S', title: 'Subdominant' },
+  { value: 'D', label: 'D', title: 'Dominant' },
+];
+
+const GROUP_LABELS: Record<ChordGuideGroupKey, string> = {
+  major: 'Major Candidate Chords',
+  minor: 'Minor Candidate Chords',
+};
+
+const GROUP_HELP: Record<ChordGuideGroupKey, string> = {
+  major: 'Enter chords relative to C major. The app will transpose them automatically for other major key signatures.',
+  minor: 'Enter chords relative to A minor. The app will transpose them automatically for other minor key signatures.',
+};
+
+const CONFIG_KEY = 'chord_guide.custom_items';
+
+function cloneModeDefinition(definition: ChordGuideModeDefinition): ChordGuideModeDefinition {
+  return {
+    T: definition.T.map((item) => ({ ...item, notes: [...item.notes] })),
+    S: definition.S.map((item) => ({ ...item, notes: [...item.notes] })),
+    D: definition.D.map((item) => ({ ...item, notes: [...item.notes] })),
+  };
+}
+
+function cloneCustomConfig(config: ChordGuideCustomConfig): ChordGuideCustomConfig {
+  return {
+    major: cloneModeDefinition(config.major),
+    minor: cloneModeDefinition(config.minor),
+  };
+}
+
+function getModeDefinition(config: ChordGuideCustomConfig, group: ChordGuideGroupKey): ChordGuideModeDefinition {
+  return group === 'major' ? config.major : config.minor;
+}
+
+function setModeDefinition(
+  config: ChordGuideCustomConfig,
+  group: ChordGuideGroupKey,
+  definition: ChordGuideModeDefinition,
+): ChordGuideCustomConfig {
+  return group === 'major'
+    ? { ...config, major: definition }
+    : { ...config, minor: definition };
+}
+
+async function loadBundledChordGuideData(): Promise<ChordGuideData> {
+  const response = await fetch(`${import.meta.env.BASE_URL}resources/modes/chord_guide.json`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch chord_guide.json: ${response.status}`);
+  }
+  return response.json() as Promise<ChordGuideData>;
+}
 
 const ChordGuideSettings: React.FC = () => {
-  const [chordDefinition, setChordDefinition] = useState<string>('');
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
   const configManager = ConfigManager.instance();
+  const [defaultsData, setDefaultsData] = React.useState<ChordGuideData | null>(null);
+  const [customConfig, setCustomConfig] = React.useState<ChordGuideCustomConfig | null>(null);
+  const [activeFunctions, setActiveFunctions] = React.useState<Record<ChordGuideGroupKey, FunctionType>>({
+    major: 'T',
+    minor: 'T',
+  });
+  const [selectedRows, setSelectedRows] = React.useState<Record<ChordGuideGroupKey, Set<number>>>({
+    major: new Set(),
+    minor: new Set(),
+  });
+  const [editingCell, setEditingCell] = React.useState<EditingCell | null>(null);
+  const editInputRef = React.useRef<HTMLInputElement | null>(null);
+  const previousEditingCellKeyRef = React.useRef<string | null>(null);
 
-  // Load configuration values on component mount
-  useEffect(() => {
-    const loadConfig = async () => {
+  React.useEffect(() => {
+    const initialize = async () => {
       if (!configManager.getIsInitialized()) {
         await configManager.initialize();
       }
 
-      setChordDefinition((configManager.get('chord_guide.chord_definition') as string) || '');
+      const bundledData = await loadBundledChordGuideData();
+      const persisted = configManager.get(CONFIG_KEY) as ChordGuideCustomConfig | null | undefined;
+      setDefaultsData(bundledData);
+      setCustomConfig(persisted ? cloneCustomConfig(persisted) : buildChordGuideCustomConfigFromData(bundledData));
     };
 
-    loadConfig();
+    void initialize().catch((error) => {
+      console.error('Failed to initialize chord guide settings:', error);
+      void showAlert('Failed to load chord guide settings.');
+    });
   }, [configManager]);
 
-  // Debounced save function for textarea
-  const debouncedSave = useCallback((value: string) => {
-    const timeoutId = setTimeout(async () => {
-      try {
-        await configManager.set('chord_guide.chord_definition', value);
-        console.log('Chord definition saved');
-      } catch (error) {
-        console.error('Failed to save chord definition:', error);
+  React.useEffect(() => {
+    if (!editingCell) {
+      previousEditingCellKeyRef.current = null;
+      return;
+    }
+
+    const editingCellKey = `${editingCell.group}-${editingCell.rowIndex}-${editingCell.column}`;
+    if (previousEditingCellKeyRef.current === editingCellKey) {
+      return;
+    }
+    previousEditingCellKeyRef.current = editingCellKey;
+
+    editInputRef.current?.focus();
+    editInputRef.current?.select();
+  }, [editingCell]);
+
+  const persistCustomConfig = React.useCallback(async (nextConfig: ChordGuideCustomConfig, persistValue: ChordGuideCustomConfig | null = nextConfig) => {
+    if (!defaultsData) {
+      return;
+    }
+    const cloned = cloneCustomConfig(nextConfig);
+    setCustomConfig(cloned);
+    KGCore.CHORD_GUIDE_DATA = buildChordGuideDataFromDefaultsAndConfig(defaultsData, cloned);
+    await configManager.set(CONFIG_KEY, persistValue ? cloneCustomConfig(persistValue) : null);
+  }, [configManager, defaultsData]);
+
+  const updateGroupRows = React.useCallback(async (
+    group: ChordGuideGroupKey,
+    functionType: FunctionType,
+    updater: (rows: ChordGuideItem[]) => ChordGuideItem[],
+  ) => {
+    if (!customConfig) {
+      return;
+    }
+    const nextConfig = cloneCustomConfig(customConfig);
+    const modeDefinition = getModeDefinition(nextConfig, group);
+    const nextDefinition: ChordGuideModeDefinition = {
+      ...modeDefinition,
+      [functionType]: updater(modeDefinition[functionType]),
+    };
+    const updatedConfig = setModeDefinition(nextConfig, group, nextDefinition);
+    await persistCustomConfig(updatedConfig);
+  }, [customConfig, persistCustomConfig]);
+
+  const commitEditingCell = React.useCallback(async () => {
+    if (!editingCell || !customConfig) {
+      return;
+    }
+
+    const { group, rowIndex, column } = editingCell;
+    const functionType = activeFunctions[group];
+    const modeDefinition = getModeDefinition(customConfig, group);
+    const row = modeDefinition[functionType][rowIndex];
+    if (!row) {
+      setEditingCell(null);
+      return;
+    }
+
+    const trimmedValue = editingCell.value.trim();
+    if (column === 'name') {
+      if (!trimmedValue || parseChordSymbol(trimmedValue) === null) {
+        await showAlert('Please enter a valid chord symbol. Example: Bm7b5');
+        return;
       }
-    }, 1000); // 1 second debounce for longer text
+      const derived = buildDerivedChordGuideItem(group, { name: trimmedValue, note: row.note });
+      if (!derived) {
+        await showAlert('Unable to derive notes for this chord. Please use a supported chord symbol.');
+        return;
+      }
+      await updateGroupRows(group, functionType, (rows) => rows.map((candidate, index) => (
+        index === rowIndex
+          ? { ...derived, roman: undefined }
+          : candidate
+      )));
+    } else {
+      await updateGroupRows(group, functionType, (rows) => rows.map((candidate, index) => (
+        index === rowIndex
+          ? { ...candidate, note: trimmedValue.slice(0, 128) }
+          : candidate
+      )));
+    }
 
-    return () => clearTimeout(timeoutId);
-  }, [configManager]);
+    setEditingCell(null);
+  }, [activeFunctions, customConfig, editingCell, updateGroupRows]);
 
-  // Save configuration when value changes
-  const handleChordDefinitionChange = (value: string) => {
-    setChordDefinition(value);
+  const handleEditInputBlur = () => {
+    void commitEditingCell();
+  };
 
-    // Validate the JSON
-    if (value.trim()) {
-      const validationResult = validateFunctionalChordsJSON(value);
-      setValidationErrors(validationResult.valid ? [] : validationResult.errors);
+  const handleEditInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void commitEditingCell();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setEditingCell(null);
+    }
+  };
 
-      // Update FUNCTIONAL_CHORDS_DATA if valid and non-empty
-      if (validationResult.valid) {
-        try {
-          KGCore.FUNCTIONAL_CHORDS_DATA = JSON.parse(value);
-          console.log('Applied custom chord definition');
-        } catch (error) {
-          console.error('Failed to parse chord definition:', error);
-          KGCore.FUNCTIONAL_CHORDS_DATA = KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA;
-        }
+  const handleRowClick = (
+    group: ChordGuideGroupKey,
+    rowIndex: number,
+    event: React.MouseEvent<HTMLTableRowElement>,
+  ) => {
+    event.stopPropagation();
+    if (editingCell) {
+      return;
+    }
+
+    const nextSelected = new Set(selectedRows[group]);
+    if (isModifierKeyPressed(event)) {
+      if (nextSelected.has(rowIndex)) {
+        nextSelected.delete(rowIndex);
       } else {
-        // Revert to original if invalid
-        KGCore.FUNCTIONAL_CHORDS_DATA = KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA;
-        console.log('Invalid chord definition, reverted to original');
+        nextSelected.add(rowIndex);
       }
     } else {
-      setValidationErrors([]);
-      // Revert to original if empty
-      KGCore.FUNCTIONAL_CHORDS_DATA = KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA;
-      console.log('Chord definition cleared, reverted to original');
+      nextSelected.clear();
+      nextSelected.add(rowIndex);
     }
 
-    debouncedSave(value);
+    setSelectedRows((previous) => ({ ...previous, [group]: nextSelected }));
   };
 
-  // Load default template from functional_chords.json (preserving original formatting)
-  const handleLoadDefaultTemplate = async () => {
-    try {
-      const response = await fetch(`${import.meta.env.BASE_URL}resources/modes/functional_chords.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch functional_chords.json: ${response.status}`);
-      }
-      // Get the raw text to preserve original formatting
-      const rawText = await response.text();
-      setChordDefinition(rawText);
-      setValidationErrors([]); // Clear errors when loading valid template
-      await configManager.set('chord_guide.chord_definition', rawText);
-
-      // Revert to original if empty
-      KGCore.FUNCTIONAL_CHORDS_DATA = KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA;
-
-      console.log('Loaded default chord template');
-    } catch (error) {
-      console.error('Failed to load default template:', error);
-      await showAlert('Failed to load default template. Please check the console for details.');
+  const handleTableBackgroundMouseDown = (group: ChordGuideGroupKey, event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return;
     }
+    setSelectedRows((previous) => ({ ...previous, [group]: new Set() }));
   };
 
-  // Clear the chord definition
-  const handleClear = async () => {
-    setChordDefinition('');
-    setValidationErrors([]); // Clear errors when clearing
-    await configManager.set('chord_guide.chord_definition', '');
+  const handleAddRow = async (group: ChordGuideGroupKey) => {
+    const functionType = activeFunctions[group];
+    const defaultChord = createDefaultChordForGroup(group);
+    await updateGroupRows(group, functionType, (rows) => [...rows, { ...defaultChord, roman: undefined }]);
+    setSelectedRows((previous) => ({ ...previous, [group]: new Set([getModeDefinition(customConfig!, group)[functionType].length]) }));
+  };
 
-    // Revert to original if empty
-    KGCore.FUNCTIONAL_CHORDS_DATA = KGCore.ORIGINAL_FUNCTIONAL_CHORDS_DATA;
-    
-    console.log('Chord definition cleared');
+  const handleDeleteRows = async (group: ChordGuideGroupKey) => {
+    const selection = selectedRows[group];
+    if (selection.size === 0) {
+      return;
+    }
+    const functionType = activeFunctions[group];
+    await updateGroupRows(group, functionType, (rows) => rows.filter((_, index) => !selection.has(index)));
+    setSelectedRows((previous) => ({ ...previous, [group]: new Set() }));
+  };
+
+  const handleResetToDefault = async () => {
+    if (!defaultsData) {
+      return;
+    }
+    const resetConfig = buildChordGuideCustomConfigFromData(defaultsData);
+    setEditingCell(null);
+    setSelectedRows({ major: new Set(), minor: new Set() });
+    setCustomConfig(resetConfig);
+    KGCore.CHORD_GUIDE_DATA = buildChordGuideDataFromDefaultsAndConfig(defaultsData, resetConfig);
+    await configManager.set(CONFIG_KEY, null);
+  };
+
+  const renderGroup = (group: ChordGuideGroupKey) => {
+    if (!customConfig) {
+      return null;
+    }
+
+    const functionType = activeFunctions[group];
+    const rows = getModeDefinition(customConfig, group)[functionType];
+    const selection = selectedRows[group];
+
+    return (
+      <div className="settings-group" key={group}>
+        <div className="settings-group-header">
+          <h4>{GROUP_LABELS[group]}</h4>
+        </div>
+        <div className="settings-description">{GROUP_HELP[group]}</div>
+
+        <div className="event-list-tabs" role="tablist" aria-label={`${GROUP_LABELS[group]} functions`}>
+          {FUNCTION_BUTTONS.map((button) => (
+            <button
+              key={button.value}
+              className={`event-list-tab${functionType === button.value ? ' active' : ''}`}
+              type="button"
+              title={button.title}
+              onClick={() => {
+                setActiveFunctions((previous) => ({ ...previous, [group]: button.value }));
+                setSelectedRows((previous) => ({ ...previous, [group]: new Set() }));
+                setEditingCell(null);
+              }}
+            >
+              {button.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="event-list-toolbar settings-chord-guide-toolbar">
+          <div className="event-list-toolbar-group">
+            <button
+              className="event-list-add-button settings-chord-guide-add-button"
+              title={`Add ${GROUP_LABELS[group]} chord`}
+              type="button"
+              onClick={() => { void handleAddRow(group); }}
+            >
+              <FaPlus />
+            </button>
+          </div>
+          <div className="event-list-toolbar-group event-list-toolbar-group-right">
+            <button
+              className="event-list-delete-button"
+              title="Delete selected rows"
+              type="button"
+              onClick={() => { void handleDeleteRows(group); }}
+              disabled={selection.size === 0}
+            >
+              <FaTrash />
+            </button>
+          </div>
+        </div>
+
+        <div className="event-list-table-shell" onMouseDown={(event) => handleTableBackgroundMouseDown(group, event)}>
+          <table className="event-list-table">
+            <thead>
+              <tr>
+                <th>Chord</th>
+                <th>Notes</th>
+                <th>Source</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => {
+                const isEditingName = editingCell?.group === group && editingCell.rowIndex === rowIndex && editingCell.column === 'name';
+                const isEditingNote = editingCell?.group === group && editingCell.rowIndex === rowIndex && editingCell.column === 'note';
+                return (
+                  <tr
+                    key={`${group}-${functionType}-${rowIndex}-${row.name}`}
+                    className={selection.has(rowIndex) ? 'selected' : ''}
+                    onClick={(event) => handleRowClick(group, rowIndex, event)}
+                  >
+                    <td
+                      title={row.name}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        setEditingCell({ group, rowIndex, column: 'name', value: row.name });
+                      }}
+                    >
+                      {isEditingName ? (
+                        <input
+                          ref={editInputRef}
+                          className="event-list-cell-input"
+                          value={editingCell.value}
+                          onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value })}
+                          onBlur={handleEditInputBlur}
+                          onClick={(event) => event.stopPropagation()}
+                          onDoubleClick={(event) => event.stopPropagation()}
+                          onKeyDown={handleEditInputKeyDown}
+                        />
+                      ) : row.name}
+                    </td>
+                    <td title={row.notes.join(' ')}>{row.notes.join(' ')}</td>
+                    <td title={row.source}>{row.source}</td>
+                    <td
+                      title={row.note}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        setEditingCell({ group, rowIndex, column: 'note', value: row.note });
+                      }}
+                    >
+                      {isEditingNote ? (
+                        <input
+                          ref={editInputRef}
+                          className="event-list-cell-input"
+                          maxLength={128}
+                          value={editingCell.value}
+                          onChange={(event) => setEditingCell({ ...editingCell, value: event.target.value.slice(0, 128) })}
+                          onBlur={handleEditInputBlur}
+                          onClick={(event) => event.stopPropagation()}
+                          onDoubleClick={(event) => event.stopPropagation()}
+                          onKeyDown={handleEditInputKeyDown}
+                        />
+                      ) : row.note}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -112,42 +419,13 @@ const ChordGuideSettings: React.FC = () => {
       </div>
 
       <div className="settings-section-content">
-        <div className="settings-group">
-          <h4>Chord Definition</h4>
-          <div className="settings-help-links">
-            <button
-              className="settings-help"
-              onClick={handleLoadDefaultTemplate}
-            >
-              Load Default Template
-            </button>
-            <button
-              className="settings-help"
-              onClick={handleClear}
-            >
-              Clear
-            </button>
-          </div>
-
-          <div className="settings-item">
-            <textarea
-              className="settings-textarea"
-              placeholder="Please input your chord definitions"
-              rows={8}
-              value={chordDefinition}
-              onChange={(e) => handleChordDefinitionChange(e.target.value)}
-            />
-            {validationErrors.length > 0 && (
-              <div className="settings-validation-errors">
-                {validationErrors.map((error, index) => (
-                  <div key={index} className="settings-validation-error">
-                    {error}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="settings-help-links settings-chord-guide-reset-row">
+          <button className="settings-help" type="button" onClick={() => { void handleResetToDefault(); }}>
+            Reset to Default
+          </button>
         </div>
+        {renderGroup('major')}
+        {renderGroup('minor')}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { act, render } from '@testing-library/react';
+import { act, createEvent, fireEvent, render } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import TrackGridItem from './TrackGridItem';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
@@ -176,6 +176,26 @@ describe('TrackGridItem preview behavior', () => {
     render(<SharedPreviewHarness />);
 
     return baseProps;
+  };
+
+  const createFileList = (files: File[]) => {
+    const fileList = {
+      length: files.length,
+      item: (index: number) => files[index] ?? null,
+      [Symbol.iterator]: function* iterator() {
+        yield* files;
+      },
+    } as FileList & Iterable<File>;
+
+    files.forEach((file, index) => {
+      Object.defineProperty(fileList, index, {
+        configurable: true,
+        enumerable: true,
+        value: file,
+      });
+    });
+
+    return fileList;
   };
 
   it('renders a non-interactive preview region on the recording audio track', () => {
@@ -439,5 +459,75 @@ describe('TrackGridItem preview behavior', () => {
     });
     expect(getRegionItem('region-b').previewContentStyle).toBeUndefined();
     expect(onRegionDragEnd).toHaveBeenCalledWith('region-a', 2, 0);
+  });
+
+  it('advertises local file drag acceptance on audio rows', () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 1);
+    audioTrack.setTrackIndex(0);
+    const onAudioFileDrop = vi.fn();
+
+    const view = render(
+      <TrackGridItem
+        track={audioTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        regions={[]}
+        maxBars={8}
+        selectedRegionId={null}
+        gridContainerRef={createGridContainerRef()}
+        onDoubleClick={vi.fn()}
+        onAudioFileDrop={onAudioFileDrop}
+      />
+    );
+
+    const grid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    const dragEvent = createEvent.dragOver(grid);
+    Object.defineProperty(dragEvent, 'dataTransfer', {
+      value: {
+        files: createFileList([new File(['a'], 'drop.wav', { type: 'audio/wav' })]),
+        types: ['Files'],
+        dropEffect: 'move',
+      },
+    });
+
+    fireEvent(grid, dragEvent);
+
+    expect(dragEvent.defaultPrevented).toBe(true);
+    expect((dragEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('copy');
+  });
+
+  it('does not advertise local file drag acceptance on MIDI rows', () => {
+    const midiTrack = createMockMidiTrack({ id: 1, regions: [] });
+    midiTrack.setTrackIndex(0);
+
+    const view = render(
+      <TrackGridItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        regions={[]}
+        maxBars={8}
+        selectedRegionId={null}
+        gridContainerRef={createGridContainerRef()}
+        onDoubleClick={vi.fn()}
+      />
+    );
+
+    const grid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    const dragEvent = createEvent.dragOver(grid);
+    Object.defineProperty(dragEvent, 'dataTransfer', {
+      value: {
+        files: createFileList([new File(['a'], 'drop.wav', { type: 'audio/wav' })]),
+        types: ['Files'],
+        dropEffect: 'move',
+      },
+    });
+
+    fireEvent(grid, dragEvent);
+
+    expect(dragEvent.defaultPrevented).toBe(true);
+    expect((dragEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('none');
   });
 });

@@ -29,6 +29,7 @@ const configState = new Map<string, unknown>([
   ['general.local_browser.context_length', 65536],
   ['general.local_browser.model_url', 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'],
   ['general.uvr5_web_runtime.mdx_net_model_url', 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx'],
+  ['general.uvr5_web_runtime.htdemucs_4s_model_url', 'https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx'],
   ['general.soundfont.base_url', 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'],
   ['general.kgone.enabled', false],
   ['general.kgone.base_url', 'http://127.0.0.1:8000'],
@@ -80,7 +81,7 @@ vi.mock('../../../util/localLLMModelManager', () => ({
   },
 }));
 
-vi.mock('../../../util/localSeparatorModelCache', () => ({
+vi.mock('../../../util/local-separator/modelCache', () => ({
   LocalSeparatorModelCache: localSeparatorModelCacheMock,
 }));
 
@@ -140,6 +141,7 @@ describe('GeneralSettings', () => {
 
     expect(await screen.findByDisplayValue('https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task')).toBeTruthy();
     expect(screen.getByDisplayValue('https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx')).toBeTruthy();
+    expect(screen.getByDisplayValue('https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx')).toBeTruthy();
 
     const inputs = screen.getAllByRole('textbox');
     const gemmaUrlInput = inputs.find(input =>
@@ -148,22 +150,30 @@ describe('GeneralSettings', () => {
     const uvr5UrlInput = inputs.find(input =>
       (input as HTMLInputElement).value.includes('UVR-MDX-NET-Inst_HQ_3.onnx'),
     ) as HTMLInputElement | undefined;
+    const htdemucsUrlInput = inputs.find(input =>
+      (input as HTMLInputElement).value.includes('htdemucs_embedded.onnx'),
+    ) as HTMLInputElement | undefined;
 
     expect(gemmaUrlInput).toBeTruthy();
     expect(uvr5UrlInput).toBeTruthy();
+    expect(htdemucsUrlInput).toBeTruthy();
 
     fireEvent.change(gemmaUrlInput!, { target: { value: 'https://example.com/gemma.task' } });
     fireEvent.change(uvr5UrlInput!, { target: { value: 'https://example.com/uvr5.onnx' } });
+    fireEvent.change(htdemucsUrlInput!, { target: { value: 'https://example.com/htdemucs.onnx' } });
 
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.local_browser.model_url', 'https://example.com/gemma.task');
       expect(configManagerMock.set).toHaveBeenCalledWith('general.uvr5_web_runtime.mdx_net_model_url', 'https://example.com/uvr5.onnx');
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.uvr5_web_runtime.htdemucs_4s_model_url', 'https://example.com/htdemucs.onnx');
     });
   });
 
   it('restores default download URLs and deletes the UVR5 model cache', async () => {
     localSeparatorModelCacheMock.exists
       .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false);
 
     render(<GeneralSettings />);
@@ -173,6 +183,7 @@ describe('GeneralSettings', () => {
     const restoreLinks = screen.getAllByText('Restore default');
     fireEvent.click(restoreLinks[0]);
     fireEvent.click(restoreLinks[1]);
+    fireEvent.click(restoreLinks[2]);
     const uvr5DeleteButton = screen.getAllByRole('button', { name: 'Delete Cached Model' })[1];
     expect(uvr5DeleteButton).not.toBeDisabled();
     fireEvent.click(uvr5DeleteButton);
@@ -185,6 +196,10 @@ describe('GeneralSettings', () => {
       expect(configManagerMock.set).toHaveBeenCalledWith(
         'general.uvr5_web_runtime.mdx_net_model_url',
         'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx',
+      );
+      expect(configManagerMock.set).toHaveBeenCalledWith(
+        'general.uvr5_web_runtime.htdemucs_4s_model_url',
+        'https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx',
       );
       expect(localSeparatorModelCacheMock.delete).toHaveBeenCalled();
     });

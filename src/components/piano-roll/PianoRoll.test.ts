@@ -36,7 +36,7 @@ import {
   getRegionStartScrollLeft,
   getRegionPlayheadRelation,
   getScrollLeftForViewportRequest,
-} from './PianoRoll';
+} from './pianoRollViewport';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
 
 function createContainer({ clientWidth, scrollWidth }: { clientWidth: number; scrollWidth: number }): HTMLDivElement {

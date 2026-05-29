@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KGProjectStorage, DuplicateEntryError } from './KGProjectStorage';
 import { KGProject } from '../KGProject';
+import { GlobalTrackType } from '../global-track';
+import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
+import { KGMarkerRegion } from '../region/KGMarkerRegion';
+import { KGChordRegion } from '../region/KGChordRegion';
 import { KGTrack } from '../track/KGTrack';
 
 // --- OPFS mock infrastructure ---
@@ -105,10 +109,10 @@ describe('KGProjectStorage', () => {
     return new KGProject(name, 16, 0, 120);
   }
 
-  it('defaults both zoom levels to 1 on a fresh project', () => {
+  it('defaults the main-grid zoom to 2 and piano-roll zoom to 1 on a fresh project', () => {
     const project = new KGProject();
 
-    expect(project.getBarWidthMultiplier()).toBe(1);
+    expect(project.getBarWidthMultiplier()).toBe(2);
     expect(project.getPianoRollZoom()).toBe(1);
   });
 
@@ -157,6 +161,61 @@ describe('KGProjectStorage', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.getBarWidthMultiplier()).toBe(3);
     expect(loaded!.getPianoRollZoom()).toBe(5);
+  });
+
+  it('preserves global tracks and marker regions when saving and loading', async () => {
+    const project = createTestProject('Marker Song');
+    const markerTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Marker);
+
+    expect(markerTrack).toBeDefined();
+    markerTrack?.addRegion(new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, 8));
+
+    await storage.save('Marker Song', project);
+
+    const loaded = await storage.load('Marker Song');
+    const loadedMarkerTrack = loaded?.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Marker);
+
+    expect(loadedMarkerTrack).toBeDefined();
+    expect(loadedMarkerTrack?.getRegions()).toHaveLength(1);
+    expect(loadedMarkerTrack?.getRegions()[0]).toBeInstanceOf(KGMarkerRegion);
+    expect(loadedMarkerTrack?.getRegions()[0].getName()).toBe('Intro');
+  });
+
+  it('preserves key signature regions when saving and loading', async () => {
+    const project = createTestProject('Signature Song');
+    const signatureTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Signature);
+
+    expect(signatureTrack).toBeDefined();
+    signatureTrack?.addRegion(new KGKeySignatureRegion('signature-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 4, 12, 4));
+
+    await storage.save('Signature Song', project);
+
+    const loaded = await storage.load('Signature Song');
+    const loadedSignatureTrack = loaded?.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Signature);
+
+    expect(loadedSignatureTrack).toBeDefined();
+    expect(loadedSignatureTrack?.getRegions()).toHaveLength(1);
+    expect(loadedSignatureTrack?.getRegions()[0]).toBeInstanceOf(KGKeySignatureRegion);
+    expect((loadedSignatureTrack?.getRegions()[0] as KGKeySignatureRegion).getKeySignature()).toBe('G major');
+    expect((loadedSignatureTrack?.getRegions()[0] as KGKeySignatureRegion).getStartBar()).toBe(4);
+  });
+
+  it('preserves chord regions when saving and loading', async () => {
+    const project = createTestProject('Chord Song');
+    const chordTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Chord);
+
+    expect(chordTrack).toBeDefined();
+    chordTrack?.addRegion(new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Bm7b5', 5, 3));
+
+    await storage.save('Chord Song', project);
+
+    const loaded = await storage.load('Chord Song');
+    const loadedChordTrack = loaded?.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Chord);
+
+    expect(loadedChordTrack).toBeDefined();
+    expect(loadedChordTrack?.getRegions()).toHaveLength(1);
+    expect(loadedChordTrack?.getRegions()[0]).toBeInstanceOf(KGChordRegion);
+    expect((loadedChordTrack?.getRegions()[0] as KGChordRegion).getSymbol()).toBe('Bm7b5');
   });
 
   it('creates meta.json and media/ directory on save', async () => {

@@ -1,0 +1,62 @@
+.track-create-dialog-modal {
+  max-width: 520px;
+}
+
+.track-create-dialog-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.track-create-option {
+  border: 1px solid #4a4a4a;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #323232 0%, #282828 100%);
+  color: #e0e0e0;
+  padding: 28px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.12s ease;
+}
+
+.track-create-option:hover {
+  border-color: #6a6a6a;
+  transform: translateY(-1px);
+}
+
+.track-create-option.selected {
+  border-color: #e1ae01;
+  box-shadow: inset 0 0 0 1px rgba(225, 174, 1, 0.35);
+}
+
+.track-create-option-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: #ffffff;
+}
+
+.track-create-option-icon.midi {
+  background-color: #159947;
+}
+
+.track-create-option-icon.audio {
+  background-color: #1f78d1;
+}
+
+.track-create-option-label {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}

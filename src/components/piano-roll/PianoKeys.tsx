@@ -243,4 +243,4 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
   );
 };
 
-export default PianoKeys; 
+export default PianoKeys;

@@ -10,8 +10,15 @@ import { useProjectStore } from '../../stores/projectStore';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import type { AudioRecordingPeak } from '../../core/audio-interface/KGAudioRecorder';
 import type { RegionPreviewContentStyle } from '../interfaces';
+import { KGCore } from '../../core/KGCore';
+import { beatRangeToSeconds } from '../../util/globalTrackUtil';
 
 const DRAG_START_THRESHOLD_PX = 4;
+const getRegionClickOptions = (event: Pick<React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
+  shiftKey: event.shiftKey,
+  metaKey: event.metaKey,
+  ctrlKey: event.ctrlKey,
+});
 
 interface RegionItemProps {
   id: string;
@@ -32,6 +39,7 @@ interface RegionItemProps {
   onClick?: (regionId: string, options: RegionClickOptions) => void;
   // Explicit open piano roll action from header pencil icon
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenWaveform?: (regionId: string) => void;
   // Open spectrogram viewer for audio regions
   onOpenSpectrogram?: (regionId: string) => void;
   // Enter hybrid mode (show + when piano roll is open with the opposite region type selected)
@@ -48,6 +56,7 @@ interface RegionItemProps {
   isPreview?: boolean;
   isAudioRegion?: boolean;
   previewContentStyle?: RegionPreviewContentStyle;
+  redrawVersion?: number;
 }
 
 const RegionItem: React.FC<RegionItemProps> = ({
@@ -65,6 +74,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   onDragEnd,
   onClick,
   onOpenPianoRoll,
+  onOpenWaveform,
   onOpenSpectrogram,
   showHybridButton,
   onOpenHybrid,
@@ -76,6 +86,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   isPreview = false,
   isAudioRegion = false,
   previewContentStyle,
+  redrawVersion = 0,
 }) => {
   // Get selection state and time signature from store
   const { selectedRegionIds, timeSignature, bpm } = useProjectStore();
@@ -273,10 +284,18 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const clipStartOffsetSeconds = audioRegion ? audioRegion.getClipStartOffsetSeconds() : 0;
     const clipStartSample = Math.floor(clipStartOffsetSeconds * sampleRate);
 
-    // Calculate visible duration from region length in beats
-    const secondsPerBeat = 60 / bpm;
+    const currentProject = KGCore.instance().getCurrentProject();
     const regionLengthBeats = audioRegion ? audioRegion.getLength() : 0;
-    const visibleDurationSeconds = regionLengthBeats * secondsPerBeat;
+    const visibleDurationSeconds = audioRegion
+      ? Math.min(
+          beatRangeToSeconds(
+            currentProject,
+            audioRegion.getStartFromBeat(),
+            audioRegion.getStartFromBeat() + regionLengthBeats
+          ),
+          Math.max(0, audioRegion.getAudioDurationSeconds() - clipStartOffsetSeconds)
+        )
+      : 0;
     const visibleSamples = Math.floor(visibleDurationSeconds * sampleRate);
 
     // Clamp to buffer boundaries
@@ -383,7 +402,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     } else {
       renderNotesOnCanvas();
     }
-  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length, previewContentStyle?.width]);
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length, previewContentStyle?.width, redrawVersion]);
 
   // Re-render canvas when region content size changes
   useEffect(() => {
@@ -406,7 +425,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         resizeObserver.unobserve(previewContentRef.current);
       }
     };
-  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, previewContentStyle?.width]);
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, previewContentStyle?.width, redrawVersion]);
 
   // Handle mouse movement to detect edge proximity
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -469,7 +488,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
         if (DEBUG_MODE.REGION_ITEM) {
           console.log(`REGION CLICKED (pencil mode): regionId=${id}`);
         }
-        onClick(id, { shiftKey: e.shiftKey });
+        onClick(id, getRegionClickOptions(e));
       }
       return;
     }
@@ -596,7 +615,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (DEBUG_MODE.REGION_ITEM) {
         console.log(`REGION CLICKED: regionId=${id}`);
       }
-      onClick(id, { shiftKey: e.shiftKey });
+      onClick(id, getRegionClickOptions(e));
     }
 
     isPendingDragRef.current = false;
@@ -696,7 +715,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
                 if (onOpenPianoRoll) {
                   onOpenPianoRoll(id);
                 } else if (onClick) {
-                  onClick(id, { shiftKey: e.shiftKey });
+                  onClick(id, getRegionClickOptions(e));
                 }
               }}
               aria-label="Open piano roll"
@@ -715,6 +734,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                onOpenWaveform?.(id);
               }}
               aria-label="View waveform"
             >

@@ -16,7 +16,18 @@ const POWER_OPTIONS = [
   { label: 'Strong', value: '0.3' },
 ];
 
+const CHORD_GUIDE_BUTTONS: Array<{ label: string; value: 'N' | 'T' | 'S' | 'D'; ariaLabel: string }> = [
+  { label: '⊘', value: 'N', ariaLabel: 'Chord guide off' },
+  { label: 'T', value: 'T', ariaLabel: 'Chord guide tonic' },
+  { label: 'S', value: 'S', ariaLabel: 'Chord guide subdominant' },
+  { label: 'D', value: 'D', ariaLabel: 'Chord guide dominant' },
+];
+
 interface PianoRollToolbarProps {
+  showAudioSpectrogramToggle?: boolean;
+  audioSpectrogramEnabled?: boolean;
+  onAudioSpectrogramToggle?: () => void;
+  sheetMusicToggleDisabled?: boolean;
   sheetMusicViewEnabled?: boolean;
   onSheetMusicViewToggle?: () => void;
   sheetMusicTrackScopeEnabled?: boolean;
@@ -33,10 +44,10 @@ interface PianoRollToolbarProps {
   onSnappingSelect: (value: string) => void;
   selectedMode: string;
   onModeChange: (value: string) => void;
-  chordGuide: string;
-  onChordGuideChange: (value: string) => void;
+  chordGuide: 'N' | 'T' | 'S' | 'D';
+  onChordGuideChange: (value: 'N' | 'T' | 'S' | 'D') => void;
   blinkButton?: string | null;
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   thresholdDb?: number;
   onThresholdChange?: (db: number) => void;
   power?: number;
@@ -48,9 +59,17 @@ interface PianoRollToolbarProps {
   automationType?: PianoRollAutomationType;
   onAutomationToggle?: () => void;
   onAutomationTypeChange?: (value: PianoRollAutomationType) => void;
+  onDetectChords?: () => void | Promise<void>;
+  detectingChords?: boolean;
+  onDetectTempo?: () => void | Promise<void>;
+  detectingTempo?: boolean;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
+  showAudioSpectrogramToggle = false,
+  audioSpectrogramEnabled = false,
+  onAudioSpectrogramToggle,
+  sheetMusicToggleDisabled = false,
   sheetMusicViewEnabled = false,
   onSheetMusicViewToggle,
   sheetMusicTrackScopeEnabled = false,
@@ -82,9 +101,16 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   automationType = 'pitch-bend',
   onAutomationToggle,
   onAutomationTypeChange,
+  onDetectChords,
+  detectingChords = false,
+  onDetectTempo,
+  detectingTempo = false,
 }) => {
-  const showMidiControls = mode !== 'spectrogram' && !sheetMusicViewEnabled;   // midi-edit and hybrid
+  const showMidiControls = mode !== 'spectrogram' && mode !== 'audio-waveform' && !sheetMusicViewEnabled;
+  const showAudioOnlyControls = mode === 'audio-waveform' && !sheetMusicViewEnabled;
+  const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
+  const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo);
 
   const [showZoomSlider, setShowZoomSlider] = React.useState(false);
   const zoomSliderRef = React.useRef<HTMLDivElement>(null);
@@ -100,18 +126,53 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showZoomSlider]);
 
+  const [showMoreMenu, setShowMoreMenu] = React.useState(false);
+  const specMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (specMenuRef.current && !specMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMoreMenu]);
+
+  const spectrogramToggleButton = showAudioSpectrogramToggle ? (
+    <button
+      className={`tool-button icon-only sheet-mode-toggle ${audioSpectrogramEnabled ? 'active' : ''}`}
+      onClick={() => onAudioSpectrogramToggle?.()}
+      title="Spectrogram View"
+      aria-label="Spectrogram View"
+    >
+      <svg className="spectrogram-view-icon" width="12" height="12" viewBox="0 0 10 10" fill="currentColor">
+        <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4" />
+        <rect x="1.5" y="3.75" width="6.5" height="2.5" rx="0.4" />
+        <rect x="0" y="7" width="6.5" height="2.5" rx="0.4" />
+      </svg>
+    </button>
+  ) : null;
+
+  const sheetMusicToggleButton = (
+    <button
+      className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
+      onClick={() => onSheetMusicViewToggle?.()}
+      title="Sheet Music View"
+      aria-label="Sheet Music View"
+      disabled={sheetMusicToggleDisabled}
+    >
+      ♬
+    </button>
+  );
+
   return (
     <div className="piano-roll-toolbar">
       {showMidiControls && (
         <div className="toolbar-left">
-          <button
-            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
-            onClick={() => onSheetMusicViewToggle?.()}
-            title="Sheet Music View"
-            aria-label="Sheet Music View"
-          >
-            ♬
-          </button>
+          {spectrogramToggleButton}
+          {sheetMusicToggleButton}
           <button
             className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
             onClick={() => onToolSelect('pointer')}
@@ -154,32 +215,40 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             buttonClassName="mode-dropdown"
             showValueAsLabel={true}
           />
-          <KGDropdown
-            options={[
-              { label: 'Guide: Disabled', value: 'N' },
-              { label: 'Chord Guide: T', value: 'T' },
-              { label: 'Chord Guide: S', value: 'S' },
-              { label: 'Chord Guide: D', value: 'D' }
-            ]}
-            value={chordGuide}
-            onChange={(value) => onChordGuideChange(value)}
-            label="Chord"
-            buttonClassName="chord-guide-dropdown"
-            showValueAsLabel={true}
-          />
+          <div className="piano-roll-chord-guide-toolbar-group" role="group" aria-label="Chord guide">
+            {CHORD_GUIDE_BUTTONS.map((button, index) => (
+              <button
+                key={button.value}
+                type="button"
+                className={`tool-button automation-toggle-button chord-guide-toggle-button chord-guide-toggle-button-${index} ${chordGuide === button.value ? 'active' : ''}`}
+                onClick={() => onChordGuideChange(button.value)}
+                title={button.ariaLabel}
+                aria-label={button.ariaLabel}
+                aria-pressed={chordGuide === button.value}
+              >
+                {button.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showAudioOnlyControls && (
+        <div className="toolbar-left">
+          {spectrogramToggleButton}
+        </div>
+      )}
+
+      {showSpectrogramOnlyControls && (
+        <div className="toolbar-left">
+          {spectrogramToggleButton}
         </div>
       )}
 
       {sheetMusicViewEnabled && (
         <div className="toolbar-left">
-          <button
-            className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
-            onClick={() => onSheetMusicViewToggle?.()}
-            title="Sheet Music View"
-            aria-label="Sheet Music View"
-          >
-            ♬
-          </button>
+          {spectrogramToggleButton}
+          {sheetMusicToggleButton}
           {mode !== 'spectrogram' && (
             <button
               className={`tool-button icon-only sheet-track-scope-toggle ${sheetMusicTrackScopeEnabled ? 'active' : ''}`}
@@ -276,6 +345,52 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                   onChange={(e) => onZoomChange(parseInt(e.target.value))}
                 />
                 <span className="piano-roll-zoom-value">{zoom}x</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {showSpecMenu && (
+          <div className="quant-dropdown-container" ref={specMenuRef}>
+            <button
+              className="quant-button"
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              title="More options"
+            >
+              ...
+            </button>
+            {showMoreMenu && (
+              <div className="quant-dropdown" style={{ right: 0, left: 'auto', width: 'auto', whiteSpace: 'nowrap' }}>
+                {onDetectChords && (
+                  <div
+                    className={`quant-option${detectingChords ? ' disabled' : ''}`}
+                    onClick={() => {
+                      if (detectingChords) {
+                        return;
+                      }
+                      setShowMoreMenu(false);
+                      void onDetectChords();
+                    }}
+                    aria-disabled={detectingChords}
+                  >
+                    {detectingChords ? 'Detecting chords...' : 'Detect chords...'}
+                  </div>
+                )}
+                {onDetectTempo && (
+                  <div
+                    className={`quant-option${detectingTempo ? ' disabled' : ''}`}
+                    onClick={() => {
+                      if (detectingTempo) {
+                        return;
+                      }
+                      setShowMoreMenu(false);
+                      void onDetectTempo();
+                    }}
+                    aria-disabled={detectingTempo}
+                  >
+                    {detectingTempo ? 'Detecting tempo...' : 'Detect tempo...'}
+                  </div>
+                )}
               </div>
             )}
           </div>

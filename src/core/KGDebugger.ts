@@ -5,7 +5,7 @@
 
 import { KGCore } from './KGCore';
 import { KGMidiRegion } from './region/KGMidiRegion';
-import { convertRegionToABCNotation } from '../util/abcNotationUtil';
+import { convertRegionToABCNotation, convertBeatRangeChordProgressionToABCNotation } from '../util/abcNotationUtil';
 import { extractXMLFromString } from '../util/xmlUtil';
 import { AgentCore } from '../agent/core/AgentCore';
 import { AVAILABLE_TOOLS } from '../agent/tools';
@@ -23,6 +23,7 @@ export class KGDebugger {
   private constructor() {
     console.log("🔧 KGDebugger initialized - Available methods:", [
       'convertSelectedRegionToABCNotation(startFromBeat?)',
+      'convertSelectedRegionChordProgressionToABCNotation()',
       'testQuantizeDuration(durationBeats, timeSignature?)',
       'debugSelectedItems()',
       'createTestRegion()',
@@ -125,6 +126,74 @@ export class KGDebugger {
 
     } catch (error) {
       console.error("❌ Error converting to ABC notation:", error);
+    }
+  }
+
+  /**
+   * Convert the chord progression that overlaps the currently selected MIDI region to ABC notation
+   */
+  public convertSelectedRegionChordProgressionToABCNotation(): void {
+    const core = KGCore.instance();
+    const selectedItems = core.getSelectedItems();
+
+    let midiRegion: KGMidiRegion | null = null;
+
+    if (selectedItems.length > 0) {
+      midiRegion = selectedItems.find(item => item.getCurrentType() === 'KGMidiRegion') as KGMidiRegion;
+    }
+
+    if (!midiRegion) {
+      const storeState = useProjectStore.getState();
+      const activeRegionId = storeState.activeRegionId;
+      const tracks = storeState.tracks;
+
+      if (activeRegionId) {
+        for (const track of tracks) {
+          const region = track.getRegions().find(candidate => candidate.getId() === activeRegionId);
+          if (region instanceof KGMidiRegion) {
+            midiRegion = region;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!midiRegion) {
+      console.error('❌ No MIDI region found.');
+      console.log('💡 Try one of these:');
+      console.log('  • Select a region in the track grid');
+      console.log('  • Open a region in the piano roll editor');
+      return;
+    }
+
+    const startBeat = midiRegion.getStartFromBeat();
+    const endBeat = startBeat + midiRegion.getLength();
+
+    console.log(`🎼 Reading chord progression for region: "${midiRegion.getName()}"`);
+    console.log(`📍 Range: beats ${startBeat}-${endBeat}`);
+
+    try {
+      const output = convertBeatRangeChordProgressionToABCNotation(
+        KGCore.instance().getCurrentProject(),
+        startBeat,
+        endBeat,
+      );
+
+      console.log('✅ Chord progression conversion successful!');
+      console.log('📄 Result:');
+      console.log('─'.repeat(50));
+      console.log(output);
+      console.log('─'.repeat(50));
+
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(output).then(() => {
+          console.log('📋 Chord progression notation copied to clipboard!');
+        }).catch(() => {
+          console.log('📋 Could not copy to clipboard (requires HTTPS)');
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error converting chord progression:', error);
     }
   }
 
@@ -342,6 +411,7 @@ export class KGDebugger {
     console.log("🔧 KGDebugger Help");
     console.log("Available methods:");
     console.log("  convertSelectedRegionToABCNotation(startFromBeat?) - Convert selected region to ABC");
+    console.log("  convertSelectedRegionChordProgressionToABCNotation() - Convert selected region chord progression to dual ABC views");
     console.log("  testQuantizeDuration(beats, timeSignature?) - Test quantization logic");
     console.log("  debugSelectedItems() - Show info about selected items");
     console.log("  createTestRegion() - Create test region (not implemented)");

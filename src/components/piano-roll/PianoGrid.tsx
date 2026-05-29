@@ -3,12 +3,15 @@ import type { MutableRefObject } from 'react';
 import { Playhead } from '../common';
 import SelectionBox from './SelectionBox';
 import { isModifierKeyPressed } from '../../util/osUtil';
-import { generatePianoGridBackground, getMatchingChordsForPitch } from '../../util/scaleUtil';
+import { generatePianoGridBackground } from '../../util/scaleUtil';
 import type { KeySignature } from '../../core/KGProject';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import SpectrogramCanvas from './SpectrogramCanvas';
+import AudioWaveformCanvas from './AudioWaveformCanvas';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
+import { getNextChordCandidateIndex } from './chordGuideUtil';
+import { getMatchingChordGuideCandidatesForPitch } from '../../util/chordGuideDataUtil';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -26,7 +29,9 @@ interface PianoGridProps {
   regionStartBeat?: number;
   selectedMode: string;
   keySignature: KeySignature;
-  chordGuide: string;
+  chordGuide: 'N' | 'T' | 'S' | 'D';
+  chordGuideKeySignature: KeySignature;
+  chordGuideMode: 'ionian' | 'aeolian';
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;
@@ -35,7 +40,7 @@ interface PianoGridProps {
   spectrogramPower?: number;
   spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   onSpectrogramLoadingChange?: (loading: boolean) => void;
 }
 
@@ -58,6 +63,8 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   selectedMode,
   keySignature,
   chordGuide,
+  chordGuideKeySignature,
+  chordGuideMode,
   audioRegion,
   trackId,
   projectName,
@@ -66,6 +73,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   spectrogramPower = 0.5,
   spectrogramHeightResolution = 3,
   pianoRollZoom = 1,
+  mode = 'midi-edit',
   onSpectrogramLoadingChange,
 }) => {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
@@ -152,24 +160,28 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   };
 
   // Get all matching chords for the current hover position
-  const matchingChords = useMemo(() => {
+  const matchingCandidates = useMemo(() => {
     if (!cursorPosition) return [];
 
     // If chord guide is disabled, return empty array
     if (chordGuide === 'N') return [];
 
-    // Use the utility function to get matching chords
+    // Use the utility function to get matching chords in the same order used by candidate cycling.
     const functionType = chordGuide as 'T' | 'S' | 'D';
-    return getMatchingChordsForPitch(cursorPosition.pitch, keySignature, selectedMode, functionType);
-  }, [cursorPosition, chordGuide, keySignature, selectedMode]);
+    return getMatchingChordGuideCandidatesForPitch(cursorPosition.pitch, chordGuideKeySignature, chordGuideMode, functionType);
+  }, [cursorPosition, chordGuide, chordGuideKeySignature, chordGuideMode]);
+
+  const matchingChords = useMemo(() => (
+    matchingCandidates.map((candidate) => candidate.displayPitchClasses)
+  ), [matchingCandidates]);
 
   // Calculate chord highlights based on selected chord index
   const chordHighlights = useMemo(() => {
-    if (matchingChords.length === 0) return [];
+    if (matchingCandidates.length === 0) return [];
 
     // Use the selected chord index (wrap around if needed)
-    const chordIndex = selectedChordIndex % matchingChords.length;
-    const matchedChordPitches = matchingChords[chordIndex];
+    const chordIndex = selectedChordIndex % matchingCandidates.length;
+    const matchedChordPitches = matchingCandidates[chordIndex].displayPitchClasses;
 
     // Convert pitch classes to actual pitches in the same octave as cursor
     const highlights: Array<{ pitch: number; beat: number }> = [];
@@ -187,15 +199,22 @@ const PianoGrid: React.FC<PianoGridProps> = ({
     }
 
     return highlights;
-  }, [cursorPosition, matchingChords, selectedChordIndex]);
+  }, [cursorPosition, matchingCandidates, selectedChordIndex]);
 
   const cursorPitch = cursorPosition?.pitch ?? null;
+  const selectedHoverCandidate = useMemo(() => {
+    if (matchingCandidates.length === 0) {
+      return null;
+    }
+    return matchingCandidates[selectedChordIndex % matchingCandidates.length].item;
+  }, [matchingCandidates, selectedChordIndex]);
 
   useEffect(() => {
     const pianoRollState = KGPianoRollState.instance();
     pianoRollState.setCurrentMatchingChords(matchingChords);
     pianoRollState.setCurrentChordCursorPitch(cursorPitch);
-  }, [matchingChords, cursorPitch]);
+    pianoRollState.setCurrentHoveredChordGuideCandidate(selectedHoverCandidate);
+  }, [matchingChords, cursorPitch, selectedHoverCandidate]);
 
   useEffect(() => {
     KGPianoRollState.instance().setCurrentSelectedChordIndex(selectedChordIndex);
@@ -210,9 +229,9 @@ const PianoGrid: React.FC<PianoGridProps> = ({
 
   // Expose switchChord function via window for hotkey handler
   useEffect(() => {
-    const switchChord = () => {
-      if (matchingChords.length > 1) {
-        setSelectedChordIndex(prev => (prev + 1) % matchingChords.length);
+    const switchChord = (direction: 1 | -1 = 1) => {
+      if (matchingCandidates.length > 1) {
+        setSelectedChordIndex(prev => getNextChordCandidateIndex(prev, matchingCandidates.length, direction));
       }
     };
 
@@ -224,7 +243,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__pianoGridSwitchChord;
     };
-  }, [matchingChords.length]);
+  }, [matchingCandidates.length]);
 
   return (
     <div className="piano-grid-container">
@@ -239,7 +258,16 @@ const PianoGrid: React.FC<PianoGridProps> = ({
         onMouseLeave={handleMouseLeave}
       >
         {/* Spectrogram layer — rendered at z-index 0, behind all highlights and notes */}
-        {audioRegion && trackId && projectName && (
+        {audioRegion && mode === 'audio-waveform' && trackId && projectName && (
+          <AudioWaveformCanvas
+            audioRegion={audioRegion}
+            trackId={trackId}
+            projectName={projectName}
+            zoom={pianoRollZoom}
+          />
+        )}
+
+        {audioRegion && (mode === 'spectrogram' || mode === 'hybrid') && trackId && projectName && (
           <SpectrogramCanvas
             audioRegion={audioRegion}
             trackId={trackId}

@@ -14,6 +14,29 @@ export interface TimeSigResult {
   denominator: number;
 }
 
+export interface ChordDetectionOptionsResult {
+  sensitivity: number;
+  stability: number;
+  noChordThreshold: number;
+  enableSevenths: boolean;
+}
+
+export interface MidiChordDetectionOptionsResult {
+  enableSevenths: boolean;
+  shortNoteSuppression: 'low' | 'medium' | 'high';
+  harmonicFocus: 'balanced' | 'favor-sustained-notes';
+}
+
+export interface TempoDetectionOptionsResult {
+  minTempo: number;
+  maxTempo: number;
+}
+
+export interface TempoApplyResult {
+  action: string;
+  autoAlignRegionToBeat: boolean;
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -24,6 +47,10 @@ let _showConfirmFn: ((message: string, options?: ConfirmOptions) => Promise<bool
 let _showPromptFn: ((message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>) | null = null;
 let _showTimeSigFn: ((message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>) | null = null;
 let _showChoiceFn: ((message: string, choices: ChoiceOption[]) => Promise<string | null>) | null = null;
+let _showChordDetectionOptionsFn: ((message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>) | null = null;
+let _showMidiChordDetectionOptionsFn: ((message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>) | null = null;
+let _showTempoDetectionOptionsFn: ((message: string, defaultValue?: TempoDetectionOptionsResult) => Promise<TempoDetectionOptionsResult | null>) | null = null;
+let _showTempoApplyFn: ((message: string, choices: ChoiceOption[]) => Promise<TempoApplyResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -31,12 +58,20 @@ export function registerDialogFns(
   promptFn: (message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>,
   timeSigFn: (message: string, defaultValue?: TimeSigResult) => Promise<TimeSigResult | null>,
   choiceFn?: (message: string, choices: ChoiceOption[]) => Promise<string | null>,
+  chordDetectionOptionsFn?: (message: string, defaultValue?: ChordDetectionOptionsResult) => Promise<ChordDetectionOptionsResult | null>,
+  midiChordDetectionOptionsFn?: (message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>,
+  tempoDetectionOptionsFn?: (message: string, defaultValue?: TempoDetectionOptionsResult) => Promise<TempoDetectionOptionsResult | null>,
+  tempoApplyFn?: (message: string, choices: ChoiceOption[]) => Promise<TempoApplyResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
   _showPromptFn = promptFn;
   _showTimeSigFn = timeSigFn;
   if (choiceFn) _showChoiceFn = choiceFn;
+  if (chordDetectionOptionsFn) _showChordDetectionOptionsFn = chordDetectionOptionsFn;
+  if (midiChordDetectionOptionsFn) _showMidiChordDetectionOptionsFn = midiChordDetectionOptionsFn;
+  if (tempoDetectionOptionsFn) _showTempoDetectionOptionsFn = tempoDetectionOptionsFn;
+  if (tempoApplyFn) _showTempoApplyFn = tempoApplyFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -77,4 +112,57 @@ export function showTimeSigPrompt(message: string, defaultValue?: TimeSigResult)
     return Promise.resolve({ numerator: n, denominator: d });
   }
   return _showTimeSigFn(message, defaultValue);
+}
+
+export function showChordDetectionOptions(
+  message: string,
+  defaultValue?: ChordDetectionOptionsResult,
+): Promise<ChordDetectionOptionsResult | null> {
+  if (!_showChordDetectionOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      sensitivity: 50,
+      stability: 50,
+      noChordThreshold: 0,
+      enableSevenths: false,
+    });
+  }
+  return _showChordDetectionOptionsFn(message, defaultValue);
+}
+
+export function showMidiChordDetectionOptions(
+  message: string,
+  defaultValue?: MidiChordDetectionOptionsResult,
+): Promise<MidiChordDetectionOptionsResult | null> {
+  if (!_showMidiChordDetectionOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      enableSevenths: false,
+      shortNoteSuppression: 'medium',
+      harmonicFocus: 'favor-sustained-notes',
+    });
+  }
+  return _showMidiChordDetectionOptionsFn(message, defaultValue);
+}
+
+export function showTempoDetectionOptions(
+  message: string,
+  defaultValue?: TempoDetectionOptionsResult,
+): Promise<TempoDetectionOptionsResult | null> {
+  if (!_showTempoDetectionOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      minTempo: 80,
+      maxTempo: 180,
+    });
+  }
+  return _showTempoDetectionOptionsFn(message, defaultValue);
+}
+
+export function showTempoApply(message: string, choices: ChoiceOption[]): Promise<TempoApplyResult | null> {
+  if (!_showTempoApplyFn) {
+    return Promise.resolve(
+      window.confirm(message)
+        ? { action: choices[0]?.value ?? '', autoAlignRegionToBeat: false }
+        : null,
+    );
+  }
+  return _showTempoApplyFn(message, choices);
 }

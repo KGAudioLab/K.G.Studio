@@ -6,7 +6,7 @@ import { splitSelectedRegionAtPlayhead } from './regionEditUtil';
 
 const storeState = {
   showPianoRoll: false,
-  pianoRollMode: 'midi-edit' as 'midi-edit' | 'spectrogram' | 'hybrid',
+  pianoRollMode: 'midi-edit' as 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid',
   activeRegionId: null as string | null,
   selectedNoteIds: [] as string[],
   setShowPianoRoll: vi.fn(),

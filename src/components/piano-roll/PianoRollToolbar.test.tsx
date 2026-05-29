@@ -56,10 +56,11 @@ describe('PianoRollToolbar', () => {
     onSnappingSelect: vi.fn(),
     selectedMode: 'ionian',
     onModeChange: vi.fn(),
-    chordGuide: 'N',
+    chordGuide: 'N' as const,
     onChordGuideChange: vi.fn(),
     zoom: 1,
     onZoomChange: vi.fn(),
+    onDetectChords: vi.fn(),
   };
 
   it('shows automation controls in midi mode and toggles the lane', () => {
@@ -105,6 +106,46 @@ describe('PianoRollToolbar', () => {
     expect(onAutomationTypeChange).toHaveBeenCalledWith('cc-11');
   });
 
+  it('renders chord guide toggle buttons and marks off as active by default', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Chord guide off' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide tonic' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide subdominant' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide dominant' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide off' }).className).toContain('active');
+    expect(screen.queryByRole('button', { name: 'Chord' })).not.toBeInTheDocument();
+  });
+
+  it('emits the selected chord guide value when toggle buttons are clicked', () => {
+    const onChordGuideChange = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+        onChordGuideChange={onChordGuideChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide off' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide tonic' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide subdominant' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide dominant' }));
+
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(1, 'N');
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(2, 'T');
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(3, 'S');
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(4, 'D');
+  });
+
   it('hides automation controls in spectrogram mode', () => {
     render(
       <PianoRollToolbar
@@ -116,6 +157,145 @@ describe('PianoRollToolbar', () => {
 
     expect(screen.queryByRole('button', { name: 'Toggle automation lane' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pitch Bend/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the spectrogram toggle for pure audio waveform mode and toggles it', () => {
+    const onAudioSpectrogramToggle = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="audio-waveform"
+        showAudioSpectrogramToggle={true}
+        audioSpectrogramEnabled={false}
+        onAudioSpectrogramToggle={onAudioSpectrogramToggle}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Spectrogram View' }));
+
+    expect(onAudioSpectrogramToggle).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Spectrogram View' }).className).not.toContain('active');
+  });
+
+  it('hides the spectrogram toggle in hybrid mode', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="hybrid"
+        showAudioSpectrogramToggle={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Spectrogram View' })).not.toBeInTheDocument();
+  });
+
+  it('shows the detect chords action in spectrogram mode and triggers it', () => {
+    const onDetectChords = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onDetectChords={onDetectChords}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Detect chords...'));
+
+    expect(onDetectChords).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the detect tempo action when the audio callback is provided and triggers it', () => {
+    const onDetectTempo = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onDetectTempo={onDetectTempo}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Detect tempo...'));
+
+    expect(onDetectTempo).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the detect chords action in midi mode and triggers it', () => {
+    const onDetectChords = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+        onDetectChords={onDetectChords}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Detect chords...'));
+
+    expect(onDetectChords).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the detect chords action while detection is running', () => {
+    const onDetectChords = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        detectingChords={true}
+        onDetectChords={onDetectChords}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    const detectItem = screen.getByText('Detecting chords...');
+    expect(detectItem).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(detectItem);
+    expect(onDetectChords).not.toHaveBeenCalled();
+  });
+
+  it('disables the detect tempo action while detection is running', () => {
+    const onDetectTempo = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onDetectChords={undefined}
+        detectingTempo={true}
+        onDetectTempo={onDetectTempo}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    const detectItem = screen.getByText('Detecting tempo...');
+    expect(detectItem).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(detectItem);
+    expect(onDetectTempo).not.toHaveBeenCalled();
+  });
+
+  it('does not show the detect tempo action without the audio callback', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    expect(screen.queryByText('Detect tempo...')).not.toBeInTheDocument();
   });
 
   it('shows only the sheet controls when sheet mode is enabled', () => {

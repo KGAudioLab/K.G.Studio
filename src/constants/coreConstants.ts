@@ -7,7 +7,7 @@ export const DB_CONSTANTS = {
 };
 
 export const TIME_CONSTANTS = {
-  DEFAULT_BPM: 125,
+  DEFAULT_BPM: 120,
   DEFAULT_TIME_SIGNATURE: {
     numerator: 4,
     denominator: 4,
@@ -62,7 +62,7 @@ export const KEY_SIGNATURE_MAP = {
 // };
 
 export const AUDIO_INTERFACE_CONSTANTS = {
-  DEFAULT_MASTER_VOLUME: 0.8,
+  DEFAULT_MASTER_VOLUME: 1.0,
   DEFAULT_TRACK_VOLUME: 0,   // 0 dB (unity gain)
   MIN_TRACK_VOLUME_DB: -60,  // practical floor; displayed as −∞
   MAX_TRACK_VOLUME_DB: 12,

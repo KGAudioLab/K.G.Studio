@@ -7,10 +7,14 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGCore } from '../core/KGCore';
 import { KGProject } from '../core/KGProject';
+import { KGChordRegion } from '../core/region/KGChordRegion';
 import { pitchToNoteName } from './midiUtil';
 import { beatsToTicks, getTicksPerBar, reduceFraction } from './mathUtil';
 import type { TimeSignature } from '../types/projectTypes';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
+import { getChordMidiPitches, parseChordSymbol } from './chordUtil';
+import { getEffectiveBpmAtBeat, getEffectiveKeySignatureAtBeat, findGlobalTrackByType } from './globalTrackUtil';
+import { GlobalTrackType } from '../core/global-track';
 
 // MIDI timing constants
 const TICKS_PER_QUARTER_NOTE = 480;
@@ -24,6 +28,12 @@ interface ABCNote {
   startTick: number; // Start time in MIDI ticks
   endTick: number; // End time in MIDI ticks
   tieWithNext: boolean; // Whether this note should be tied to the next note
+}
+
+export interface ChordProgressionSegment {
+  symbol: string;
+  startBeat: number;
+  endBeat: number;
 }
 
 // Define valid quantization fraction types
@@ -58,7 +68,9 @@ function midiPitchToABCNote(pitch: number): string {
   // C5 is "c", C6 is "c'", C7 is "c''"
   // C3 is "C,", C2 is "C,," etc.
   
-  const baseNote = note.replace('#', '^'); // Convert sharp to ABC sharp notation
+  const accidental = note.includes('#') ? '^' : note.includes('b') ? '_' : '';
+  const naturalNote = note.replace('#', '').replace('b', '');
+  const baseNote = `${accidental}${naturalNote}`;
   
   if (octave >= 4) {
     if (octave === 4) {
@@ -175,6 +187,197 @@ function formatABCHeader(region: KGMidiRegion, project: KGProject): string {
   ];
   
   return header.join('\n');
+}
+
+function formatABCSharedHeader(project: KGProject, beat: number): string {
+  const timeSignature = project.getTimeSignature();
+  const bpm = getEffectiveBpmAtBeat(project, beat);
+  const keySignature = getEffectiveKeySignatureAtBeat(project, beat);
+  const abcKeySignature = KEY_SIGNATURE_MAP[keySignature]?.abcNotationKeySignature || 'C';
+
+  return [
+    `M:${timeSignature.numerator}/${timeSignature.denominator}`,
+    `L:1/${timeSignature.denominator}`,
+    `Q:1/${timeSignature.denominator}=${bpm}`,
+    `K:${abcKeySignature}`
+  ].join('\n');
+}
+
+function getChordRootMidi(symbol: string): number | null {
+  const descriptor = parseChordSymbol(symbol);
+  if (!descriptor) {
+    return null;
+  }
+
+  const rootToPitchClass: Record<string, number> = {
+    C: 0,
+    'C#': 1,
+    Db: 1,
+    D: 2,
+    'D#': 3,
+    Eb: 3,
+    E: 4,
+    F: 5,
+    'F#': 6,
+    Gb: 6,
+    G: 7,
+    'G#': 8,
+    Ab: 8,
+    A: 9,
+    'A#': 10,
+    Bb: 10,
+    B: 11,
+  };
+
+  const pitchClass = rootToPitchClass[descriptor.root];
+  if (pitchClass === undefined) {
+    return null;
+  }
+
+  const middleCOctaveMidi = 60 + pitchClass;
+  return middleCOctaveMidi > 64 ? middleCOctaveMidi - 12 : middleCOctaveMidi;
+}
+
+function formatBeatsToABCLength(lengthBeats: number, timeSignature: TimeSignature): string {
+  const ticks = beatsToTicks(lengthBeats, timeSignature);
+  return convertTicksToABCLength(ticks, timeSignature);
+}
+
+function splitSegmentAtBarBoundaries(
+  startBeat: number,
+  endBeat: number,
+  beatsPerBar: number,
+): Array<{ startBeat: number; endBeat: number }> {
+  const segments: Array<{ startBeat: number; endBeat: number }> = [];
+  let currentStart = startBeat;
+
+  while (currentStart < endBeat) {
+    const nextBarBeat = Math.floor(currentStart / beatsPerBar + 1) * beatsPerBar;
+    const currentEnd = Math.min(endBeat, nextBarBeat);
+    segments.push({ startBeat: currentStart, endBeat: currentEnd });
+    currentStart = currentEnd;
+  }
+
+  return segments;
+}
+
+function formatTimedChordTokens(
+  values: string[],
+  segments: ChordProgressionSegment[],
+  timeSignature: TimeSignature,
+): string {
+  const beatsPerBar = timeSignature.numerator;
+  const tokens: string[] = [];
+
+  segments.forEach((segment, index) => {
+    const splitSegments = splitSegmentAtBarBoundaries(segment.startBeat, segment.endBeat, beatsPerBar);
+    splitSegments.forEach((part) => {
+      const length = formatBeatsToABCLength(part.endBeat - part.startBeat, timeSignature);
+      tokens.push(`[${values[index]}]${length}`);
+      tokens.push('|');
+    });
+  });
+
+  return tokens.join(' ');
+}
+
+export function getChordProgressionSegmentsForBeatRange(
+  project: KGProject,
+  startBeat: number,
+  endBeat: number,
+): ChordProgressionSegment[] {
+  if (endBeat <= startBeat) {
+    return [];
+  }
+
+  const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
+  if (!chordTrack) {
+    return [];
+  }
+
+  return chordTrack.getRegions()
+    .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
+    .map((region) => ({
+      region,
+      startBeat: Math.max(startBeat, region.getStartFromBeat()),
+      endBeat: Math.min(endBeat, region.getStartFromBeat() + region.getLength()),
+    }))
+    .filter(({ startBeat: segmentStart, endBeat: segmentEnd }) => segmentEnd > segmentStart)
+    .sort((left, right) => left.startBeat - right.startBeat)
+    .map(({ region, startBeat: segmentStart, endBeat: segmentEnd }) => ({
+      symbol: region.getSymbol(),
+      startBeat: segmentStart,
+      endBeat: segmentEnd,
+    }));
+}
+
+export function formatChordProgressionSymbolLine(
+  segments: ChordProgressionSegment[],
+  timeSignature: TimeSignature,
+): string {
+  return formatTimedChordTokens(
+    segments.map(segment => segment.symbol),
+    segments,
+    timeSignature,
+  );
+}
+
+export function formatChordProgressionNoteLine(
+  segments: ChordProgressionSegment[],
+  timeSignature: TimeSignature,
+): string {
+  const values = segments.map((segment) => {
+    const rootMidi = getChordRootMidi(segment.symbol);
+    if (rootMidi === null) {
+      throw new Error(`Unable to parse chord "${segment.symbol}"`);
+    }
+
+    const pitches = getChordMidiPitches(segment.symbol, rootMidi);
+    if (pitches.length === 0) {
+      throw new Error(`Unable to parse chord "${segment.symbol}"`);
+    }
+
+    return pitches.map(midiPitchToABCNote).join(' ');
+  });
+
+  return formatTimedChordTokens(values, segments, timeSignature);
+}
+
+export function convertBeatRangeChordProgressionToABCNotation(
+  project: KGProject,
+  startBeat: number,
+  endBeat: number,
+): string {
+  const segments = getChordProgressionSegmentsForBeatRange(project, startBeat, endBeat);
+  const header = formatABCSharedHeader(project, startBeat);
+
+  if (segments.length === 0) {
+    return [
+      'Selected Region Chord Progression',
+      'This progression comes only from user-defined chord regions on the global chord track. If no chord progression is defined for this range, read the notes directly with `read_music`.',
+      '',
+      header,
+      '',
+      'No chord progression is defined for the selected MIDI region range. Use `read_music` to inspect the notes directly.'
+    ].join('\n');
+  }
+
+  const timeSignature = project.getTimeSignature();
+  const chordSymbols = formatChordProgressionSymbolLine(segments, timeSignature);
+  const chordNotes = formatChordProgressionNoteLine(segments, timeSignature);
+
+  return [
+    'Selected Region Chord Progression',
+    'This progression comes only from user-defined chord regions on the global chord track. Representation 1 uses symbolic chord names such as `Em7b5`. Representation 2 rewrites the same progression as note-based ABC chord tokens.',
+    '',
+    header,
+    '',
+    'Chord-symbol representation:',
+    chordSymbols,
+    '',
+    'Note-based ABC chord representation:',
+    chordNotes,
+  ].join('\n');
 }
 
 /**

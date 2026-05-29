@@ -8,8 +8,10 @@ import TrackAutomationLane from './TrackAutomationLane';
 import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI, ResizeAction } from '../interfaces';
 import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
-import { isModifierKeyPressed } from '../../util/osUtil';
 import { useProjectStore } from '../../stores/projectStore';
+import { isModifierKeyPressed } from '../../util/osUtil';
+import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
+import { TrackType } from '../../core/track/KGTrack';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -46,12 +48,15 @@ interface TrackGridItemProps {
   onRegionFineMoveEnd?: (regionId: string, deltaInBars: number) => void;
   onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onOpenPianoRoll?: (regionId: string) => void;
+  onOpenWaveform?: (regionId: string) => void;
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
   showHybridButtonForMidi?: boolean;
   onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
+  onAudioFileDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
+  onChordRegionDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   previewRegionStyles?: Record<string, React.CSSProperties>;
   setPreviewRegionStyles?: React.Dispatch<React.SetStateAction<Record<string, React.CSSProperties>>>;
   previewRegionContentStyles?: Record<string, RegionPreviewContentStyle>;
@@ -76,12 +81,15 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onRegionFineMoveEnd,
   onRegionClick,
   onOpenPianoRoll,
+  onOpenWaveform,
   onOpenSpectrogram,
   showHybridButtonForAudio,
   showHybridButtonForMidi,
   onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
+  onAudioFileDrop,
+  onChordRegionDrop,
   previewRegionStyles,
   setPreviewRegionStyles,
   previewRegionContentStyles,
@@ -91,6 +99,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const trackAutomationRedrawVersion = useProjectStore(state => state.trackAutomationRedrawVersion);
+  const audioWaveformRedrawVersion = useProjectStore(state => state.audioWaveformRedrawVersion);
   const recordingMode = useProjectStore(state => state.recordingMode);
   const recordingTargetTrackIndex = useProjectStore(state => state.recordingTargetTrackIndex);
   const recordingCommitStartBeatAbsolute = useProjectStore(state => state.recordingCommitStartBeatAbsolute);
@@ -199,28 +208,28 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     };
   }, [gridContainerRef]);
 
-  // Track modifier key state for cursor feedback
+  // Track tool state for cursor feedback.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isModifierKeyPressed(e)) {
-        setIsModifierPressed(true);
-      }
+    const syncCursorState = (event?: KeyboardEvent | MouseEvent) => {
+      const isPencilMode = KGMainContentState.instance().getActiveTool() === 'pencil';
+      const hasModifierPressed = event ? isModifierKeyPressed(event) : false;
+      setIsModifierPressed(isPencilMode || hasModifierPressed);
     };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (!isModifierKeyPressed(e)) {
-        setIsModifierPressed(false);
-      }
+    const syncCursorStateFromFocus = () => {
+      setIsModifierPressed(KGMainContentState.instance().getActiveTool() === 'pencil');
     };
 
     // Add global event listeners
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', syncCursorState);
+    window.addEventListener('keyup', syncCursorState);
+    window.addEventListener('focus', syncCursorStateFromFocus);
+    syncCursorStateFromFocus();
 
     // Cleanup listeners on unmount
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', syncCursorState);
+      window.removeEventListener('keyup', syncCursorState);
+      window.removeEventListener('focus', syncCursorStateFromFocus);
     };
   }, []);
 
@@ -720,6 +729,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     <div
       className={`track-grid ${isDragOver ? 'drag-over' : ''} ${isDragging ? 'dragging' : ''} ${isModifierPressed ? 'pencil-cursor' : ''} ${isAutomationActive ? 'automation-active' : ''}`}
       data-test-id={`track-grid-${track.getId()}`}
+      data-track-index={index}
+      data-track-type={track.getType()}
       onDoubleClick={(e) => {
         if (!isAutomationActive) {
           onDoubleClick(e, index);
@@ -732,15 +743,39 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       }}
       ref={trackElementRef}
       onDragOver={(e) => {
-        if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
+        const dataTypes = Array.from(e.dataTransfer.types);
+        const hasLocalFiles = (e.dataTransfer.files?.length ?? 0) > 0 || dataTypes.includes('Files');
+
+        if (dataTypes.includes('application/kgone-clip') || dataTypes.includes(CHORD_REGION_IMPORT_MIME_TYPE)) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'copy';
+          return;
+        }
+
+        if (hasLocalFiles) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = track.getType() === TrackType.Wave ? 'copy' : 'none';
         }
       }}
       onDrop={(e) => {
-        if (Array.from(e.dataTransfer.types).includes('application/kgone-clip')) {
+        const dataTypes = Array.from(e.dataTransfer.types);
+        const hasLocalFiles = (e.dataTransfer.files?.length ?? 0) > 0 || dataTypes.includes('Files');
+
+        if (dataTypes.includes('application/kgone-clip')) {
           e.preventDefault();
           onKGOneClipDrop?.(e, index);
+          return;
+        }
+
+        if (dataTypes.includes(CHORD_REGION_IMPORT_MIME_TYPE)) {
+          e.preventDefault();
+          onChordRegionDrop?.(e, index);
+          return;
+        }
+
+        if (hasLocalFiles) {
+          e.preventDefault();
+          onAudioFileDrop?.(e, index);
         }
       }}
     >
@@ -784,9 +819,12 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
                 onOpenPianoRoll(regionId);
               } else if (onRegionClick) {
                 // Fallback to legacy behavior
-                onRegionClick(regionId, { shiftKey: false });
+                onRegionClick(regionId, { shiftKey: false, metaKey: false, ctrlKey: false });
               }
             }}
+            onOpenWaveform={audioRegion ? (regionId) => {
+              onOpenWaveform?.(regionId);
+            } : undefined}
             onOpenSpectrogram={audioRegion ? (regionId) => {
               onOpenSpectrogram?.(regionId);
             } : undefined}
@@ -796,6 +834,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             audioRegion={audioRegion}
             audioBuffer={audioBuffer}
             previewContentStyle={tempPreviewRegionContentStyles[region.id]}
+            redrawVersion={audioWaveformRedrawVersion}
           />
         );
       })}

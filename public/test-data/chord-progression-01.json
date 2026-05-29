@@ -1,0 +1,486 @@
+{
+  "name": "chord-midi conversion test",
+  "maxBars": 32,
+  "currentBars": 0,
+  "timeSignature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "bpm": 125,
+  "keySignature": "A minor",
+  "selectedMode": "ionian",
+  "isLooping": false,
+  "loopingRange": [
+    0,
+    0
+  ],
+  "barWidthMultiplier": 2,
+  "pianoRollZoom": 1,
+  "projectStructureVersion": 15,
+  "tracks": [
+    {
+      "__type": "KGMidiTrack",
+      "name": "Melody",
+      "id": 1,
+      "trackIndex": 0,
+      "type": "MIDI",
+      "volume": 0,
+      "muted": false,
+      "solo": false,
+      "regions": [
+        {
+          "__type": "KGMidiRegion",
+          "id": "KGMidiRegion_1779769428819_b7o8981rl",
+          "trackId": "1",
+          "trackIndex": 0,
+          "name": "Chord Progression",
+          "startFromBeat": 0,
+          "length": 32,
+          "selected": false,
+          "notes": [
+            {
+              "id": "KGMidiNote_1779769428819_0rub4fxuu",
+              "startBeat": 0,
+              "endBeat": 4,
+              "pitch": 45,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_xm390pxjt",
+              "startBeat": 0,
+              "endBeat": 4,
+              "pitch": 57,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_lnjgm5h4y",
+              "startBeat": 0,
+              "endBeat": 4,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_mhadr3rqs",
+              "startBeat": 0,
+              "endBeat": 4,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_6iotgyszv",
+              "startBeat": 4,
+              "endBeat": 8,
+              "pitch": 41,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_t948mgv63",
+              "startBeat": 4,
+              "endBeat": 8,
+              "pitch": 53,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_17lfthyzq",
+              "startBeat": 4,
+              "endBeat": 8,
+              "pitch": 57,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_8rck5x4qu",
+              "startBeat": 4,
+              "endBeat": 8,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_7lzkhxewk",
+              "startBeat": 8,
+              "endBeat": 12,
+              "pitch": 50,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_vudwound0",
+              "startBeat": 8,
+              "endBeat": 12,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_3dlhf70kk",
+              "startBeat": 8,
+              "endBeat": 12,
+              "pitch": 65,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_yqcv8cfm1",
+              "startBeat": 8,
+              "endBeat": 12,
+              "pitch": 69,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_uyz56w2ln",
+              "startBeat": 12,
+              "endBeat": 16,
+              "pitch": 52,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_datxn33uz",
+              "startBeat": 12,
+              "endBeat": 16,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_sd8mv9pr6",
+              "startBeat": 12,
+              "endBeat": 16,
+              "pitch": 68,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_ja7sz9w2k",
+              "startBeat": 12,
+              "endBeat": 16,
+              "pitch": 71,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_f68y3owck",
+              "startBeat": 12,
+              "endBeat": 16,
+              "pitch": 74,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_2kfouqrvw",
+              "startBeat": 16,
+              "endBeat": 20,
+              "pitch": 45,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_fvlkoqryj",
+              "startBeat": 16,
+              "endBeat": 20,
+              "pitch": 57,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_w9bz827to",
+              "startBeat": 16,
+              "endBeat": 20,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_0tqsc6c0m",
+              "startBeat": 16,
+              "endBeat": 20,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_ixzfcrjvc",
+              "startBeat": 20,
+              "endBeat": 24,
+              "pitch": 48,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_fyhjqc8iz",
+              "startBeat": 20,
+              "endBeat": 24,
+              "pitch": 60,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_h6o16p7os",
+              "startBeat": 20,
+              "endBeat": 24,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_pruviieci",
+              "startBeat": 20,
+              "endBeat": 24,
+              "pitch": 67,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_tnskhun3e",
+              "startBeat": 24,
+              "endBeat": 28,
+              "pitch": 50,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_wm50u0odu",
+              "startBeat": 24,
+              "endBeat": 28,
+              "pitch": 62,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_6xj1yzqhb",
+              "startBeat": 24,
+              "endBeat": 28,
+              "pitch": 65,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_nm8rlk6bl",
+              "startBeat": 24,
+              "endBeat": 28,
+              "pitch": 69,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_dwu4rjqeb",
+              "startBeat": 28,
+              "endBeat": 32,
+              "pitch": 52,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_rq9tzzjee",
+              "startBeat": 28,
+              "endBeat": 32,
+              "pitch": 64,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_r678w4eew",
+              "startBeat": 28,
+              "endBeat": 32,
+              "pitch": 68,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_d2akv8vpt",
+              "startBeat": 28,
+              "endBeat": 32,
+              "pitch": 71,
+              "velocity": 127,
+              "selected": false
+            },
+            {
+              "id": "KGMidiNote_1779769428819_q2l671ma4",
+              "startBeat": 28,
+              "endBeat": 32,
+              "pitch": 74,
+              "velocity": 127,
+              "selected": false
+            }
+          ],
+          "pitchBends": [],
+          "controllerEventsByType": [
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            []
+          ]
+        }
+      ],
+      "volumeAutomation": [],
+      "panAutomation": [],
+      "instrument": "acoustic_grand_piano"
+    }
+  ],
+  "globalTracks": [
+    {
+      "__type": "KGMarkerTrack",
+      "id": "global-marker",
+      "trackIndex": 0,
+      "type": "marker",
+      "name": "Marker",
+      "regions": []
+    },
+    {
+      "__type": "KGTempoTrack",
+      "id": "global-tempo",
+      "trackIndex": 1,
+      "type": "tempo",
+      "name": "Tempo",
+      "regions": []
+    },
+    {
+      "__type": "KGSignatureTrack",
+      "id": "global-signature",
+      "trackIndex": 2,
+      "type": "signature",
+      "name": "Key Signature",
+      "regions": []
+    },
+    {
+      "__type": "KGChordTrack",
+      "id": "global-chord",
+      "trackIndex": 3,
+      "type": "chord",
+      "name": "Chord",
+      "regions": []
+    }
+  ]
+}

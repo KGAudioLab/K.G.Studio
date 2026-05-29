@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
-import { LocalSeparatorModelCache } from '../../../util/localSeparatorModelCache';
+import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
 import {
   formatLocalLLMContextLength,
   LOCAL_LLM_CONTEXT_LENGTH_OPTIONS,
@@ -12,7 +12,10 @@ import {
   normalizeLocalLLMContextLength,
   type LocalLLMContextLength,
 } from '../../../util/localLLMConfig';
-import { LOCAL_SEPARATOR_DEFAULT_MODEL_URL } from '../../../util/localSeparatorConfig';
+import {
+  LOCAL_SEPARATOR_MODEL_CONFIGS,
+  LOCAL_SEPARATOR_MODEL_IDS,
+} from '../../../util/local-separator/config';
 
 const GeneralSettings: React.FC = () => {
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
@@ -39,9 +42,12 @@ const GeneralSettings: React.FC = () => {
   const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
   const [localModelUrl, setLocalModelUrl] = useState<string>('');
   const [uvr5ModelUrl, setUvr5ModelUrl] = useState<string>('');
+  const [htdemucsModelUrl, setHtdemucsModelUrl] = useState<string>('');
   const [isUvr5ModelCached, setIsUvr5ModelCached] = useState<boolean>(false);
   const [isCheckingUvr5ModelCache, setIsCheckingUvr5ModelCache] = useState<boolean>(false);
   const [isDeletingUvr5Model, setIsDeletingUvr5Model] = useState<boolean>(false);
+  const [isHtdemucsModelCached, setIsHtdemucsModelCached] = useState<boolean>(false);
+  const [isDeletingHtdemucsModel, setIsDeletingHtdemucsModel] = useState<boolean>(false);
 
   const configManager = ConfigManager.instance();
 
@@ -62,10 +68,16 @@ const GeneralSettings: React.FC = () => {
   const refreshUvr5ModelCacheState = useCallback(async () => {
     setIsCheckingUvr5ModelCache(true);
     try {
-      setIsUvr5ModelCached(await LocalSeparatorModelCache.exists());
+      const [mdxCached, demucsCached] = await Promise.all([
+        LocalSeparatorModelCache.exists(LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium]),
+        LocalSeparatorModelCache.exists(LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s]),
+      ]);
+      setIsUvr5ModelCached(mdxCached);
+      setIsHtdemucsModelCached(demucsCached);
     } catch (error) {
       console.error('Failed to check UVR5 cached model state:', error);
       setIsUvr5ModelCached(false);
+      setIsHtdemucsModelCached(false);
     } finally {
       setIsCheckingUvr5ModelCache(false);
     }
@@ -95,7 +107,14 @@ const GeneralSettings: React.FC = () => {
       setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
       setLocalContextLength(normalizeLocalLLMContextLength(configManager.get('general.local_browser.context_length')));
       setLocalModelUrl((configManager.get('general.local_browser.model_url') as string) || LOCAL_LLM_DEFAULT_MODEL_URL);
-      setUvr5ModelUrl((configManager.get('general.uvr5_web_runtime.mdx_net_model_url') as string) || LOCAL_SEPARATOR_DEFAULT_MODEL_URL);
+      setUvr5ModelUrl(
+        (configManager.get('general.uvr5_web_runtime.mdx_net_model_url') as string)
+        || LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium].download.defaultUrl,
+      );
+      setHtdemucsModelUrl(
+        (configManager.get('general.uvr5_web_runtime.htdemucs_4s_model_url') as string)
+        || LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s].download.defaultUrl,
+      );
       setSoundfontBaseUrl((configManager.get('general.soundfont.base_url') as string) || '');
       setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
       setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
@@ -245,6 +264,11 @@ const GeneralSettings: React.FC = () => {
     debouncedSave('general.uvr5_web_runtime.mdx_net_model_url', value);
   };
 
+  const handleHtdemucsModelUrlChange = (value: string) => {
+    setHtdemucsModelUrl(value);
+    debouncedSave('general.uvr5_web_runtime.htdemucs_4s_model_url', value);
+  };
+
   const handleDeleteLocalModel = async () => {
     try {
       await LocalLLMModelManager.deleteCachedModel();
@@ -256,12 +280,25 @@ const GeneralSettings: React.FC = () => {
   const handleDeleteUvr5Model = async () => {
     setIsDeletingUvr5Model(true);
     try {
-      await LocalSeparatorModelCache.delete();
+      await LocalSeparatorModelCache.delete(LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium]);
       setIsUvr5ModelCached(false);
     } catch (error) {
       console.error('Failed to delete UVR5 cached model:', error);
     } finally {
       setIsDeletingUvr5Model(false);
+      await refreshUvr5ModelCacheState();
+    }
+  };
+
+  const handleDeleteHtdemucsModel = async () => {
+    setIsDeletingHtdemucsModel(true);
+    try {
+      await LocalSeparatorModelCache.delete(LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s]);
+      setIsHtdemucsModelCached(false);
+    } catch (error) {
+      console.error('Failed to delete HTDemucs cached model:', error);
+    } finally {
+      setIsDeletingHtdemucsModel(false);
       await refreshUvr5ModelCacheState();
     }
   };
@@ -448,7 +485,7 @@ const GeneralSettings: React.FC = () => {
             <input
               type="text"
               className="settings-input"
-              placeholder={`e.g. ${LOCAL_SEPARATOR_DEFAULT_MODEL_URL}`}
+              placeholder={`e.g. ${LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium].download.defaultUrl}`}
               value={uvr5ModelUrl}
               onChange={(e) => handleUvr5ModelUrlChange(e.target.value)}
             />
@@ -458,7 +495,9 @@ const GeneralSettings: React.FC = () => {
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
-                  handleUvr5ModelUrlChange(LOCAL_SEPARATOR_DEFAULT_MODEL_URL);
+                  handleUvr5ModelUrlChange(
+                    LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium].download.defaultUrl,
+                  );
                 }}
                 style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
               >
@@ -475,6 +514,45 @@ const GeneralSettings: React.FC = () => {
               disabled={isCheckingUvr5ModelCache || isDeletingUvr5Model || !isUvr5ModelCached}
             >
               {isDeletingUvr5Model ? 'Deleting...' : 'Delete Cached Model'}
+            </button>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              htdemucs_4s Download URL
+            </label>
+            <input
+              type="text"
+              className="settings-input"
+              placeholder={`e.g. ${LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s].download.defaultUrl}`}
+              value={htdemucsModelUrl}
+              onChange={(e) => handleHtdemucsModelUrlChange(e.target.value)}
+            />
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Changing this URL may break downloads or point to an incompatible model file.{' '}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleHtdemucsModelUrlChange(
+                    LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s].download.defaultUrl,
+                  );
+                }}
+                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Restore default
+              </a>
+            </div>
+          </div>
+
+          <div className="settings-item" style={{ marginTop: '12px' }}>
+            <button
+              type="button"
+              className="settings-btn settings-btn-danger"
+              onClick={() => void handleDeleteHtdemucsModel()}
+              disabled={isCheckingUvr5ModelCache || isDeletingHtdemucsModel || !isHtdemucsModelCached}
+            >
+              {isDeletingHtdemucsModel ? 'Deleting...' : 'Delete Cached Model'}
             </button>
           </div>
         </div>

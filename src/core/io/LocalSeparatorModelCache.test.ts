@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LocalSeparatorModelCache } from '../../util/localSeparatorModelCache';
+import { LocalSeparatorModelCache } from '../../util/local-separator/modelCache';
 import {
-  LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES,
-  LOCAL_SEPARATOR_MODEL_FILENAME,
-} from '../../util/localSeparatorConfig';
+  LOCAL_SEPARATOR_MODEL_CONFIGS,
+  LOCAL_SEPARATOR_MODEL_IDS,
+} from '../../util/local-separator/config';
 
 class MockWritableFileStream {
   private readonly handle: MockFileSystemFileHandle;
@@ -113,7 +113,9 @@ vi.stubGlobal('navigator', {
 });
 
 describe('LocalSeparatorModelCache', () => {
-  const makeModelBytes = (fill: number): Uint8Array => new Uint8Array(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES).fill(fill);
+  const mdxConfig = LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium];
+  const demucsConfig = LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s];
+  const makeModelBytes = (size: number, fill: number): Uint8Array => new Uint8Array(size).fill(fill);
 
   beforeEach(() => {
     mockRoot.clear();
@@ -121,64 +123,64 @@ describe('LocalSeparatorModelCache', () => {
   });
 
   it('downloads and stores a model in OPFS cache', async () => {
-    const bytes = makeModelBytes(1);
+    const bytes = makeModelBytes(mdxConfig.download.expectedSizeBytes, 1);
     vi.stubGlobal('fetch', vi.fn(async () => new Response(bytes, {
       status: 200,
-      headers: { 'Content-Length': String(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES) },
+      headers: { 'Content-Length': String(mdxConfig.download.expectedSizeBytes) },
     })));
 
-    await LocalSeparatorModelCache.download('https://example.com/model.onnx');
+    await LocalSeparatorModelCache.download(mdxConfig, 'https://example.com/model.onnx');
 
-    expect(await LocalSeparatorModelCache.exists()).toBe(true);
-    const buffer = await LocalSeparatorModelCache.getArrayBuffer();
-    expect(buffer.byteLength).toBe(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES);
+    expect(await LocalSeparatorModelCache.exists(mdxConfig)).toBe(true);
+    const buffer = await LocalSeparatorModelCache.getArrayBuffer(mdxConfig);
+    expect(buffer.byteLength).toBe(mdxConfig.download.expectedSizeBytes);
     expect(new Uint8Array(buffer)[0]).toBe(1);
   });
 
   it('replaces a broken cached file on redownload', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(1), {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(mdxConfig.download.expectedSizeBytes, 1), {
       status: 200,
-      headers: { 'Content-Length': String(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES) },
+      headers: { 'Content-Length': String(mdxConfig.download.expectedSizeBytes) },
     })));
-    await LocalSeparatorModelCache.download('https://example.com/model.onnx');
+    await LocalSeparatorModelCache.download(mdxConfig, 'https://example.com/model.onnx');
 
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(9), {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(mdxConfig.download.expectedSizeBytes, 9), {
       status: 200,
-      headers: { 'Content-Length': String(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES) },
+      headers: { 'Content-Length': String(mdxConfig.download.expectedSizeBytes) },
     })));
-    await LocalSeparatorModelCache.download('https://example.com/model.onnx');
+    await LocalSeparatorModelCache.download(mdxConfig, 'https://example.com/model.onnx');
 
-    const buffer = await LocalSeparatorModelCache.getArrayBuffer();
-    expect(buffer.byteLength).toBe(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES);
+    const buffer = await LocalSeparatorModelCache.getArrayBuffer(mdxConfig);
+    expect(buffer.byteLength).toBe(mdxConfig.download.expectedSizeBytes);
     expect(new Uint8Array(buffer)[0]).toBe(9);
   });
 
   it('deletes the cached model file', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(2), {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(mdxConfig.download.expectedSizeBytes, 2), {
       status: 200,
-      headers: { 'Content-Length': String(LOCAL_SEPARATOR_MODEL_EXPECTED_SIZE_BYTES) },
+      headers: { 'Content-Length': String(mdxConfig.download.expectedSizeBytes) },
     })));
-    await LocalSeparatorModelCache.download('https://example.com/model.onnx');
+    await LocalSeparatorModelCache.download(mdxConfig, 'https://example.com/model.onnx');
 
-    await LocalSeparatorModelCache.delete();
+    await LocalSeparatorModelCache.delete(mdxConfig);
 
-    expect(await LocalSeparatorModelCache.exists()).toBe(false);
+    expect(await LocalSeparatorModelCache.exists(mdxConfig)).toBe(false);
   });
 
   it('rejects and deletes a cached file when the size is wrong', async () => {
     const dir = await navigator.storage.getDirectory();
     const modelsDir = await dir.getDirectoryHandle('models', { create: true });
-    const fileHandle = await modelsDir.getFileHandle(LOCAL_SEPARATOR_MODEL_FILENAME, { create: true });
+    const fileHandle = await modelsDir.getFileHandle(mdxConfig.filename, { create: true });
     const fileWritable = await fileHandle.createWritable();
     await fileWritable.write(new Uint8Array([1, 2, 3]));
     await fileWritable.close();
 
-    const sizeHandle = await modelsDir.getFileHandle(`${LOCAL_SEPARATOR_MODEL_FILENAME}.size`, { create: true });
+    const sizeHandle = await modelsDir.getFileHandle(`${mdxConfig.filename}.size`, { create: true });
     const sizeWritable = await sizeHandle.createWritable();
     await sizeWritable.write(String(3));
     await sizeWritable.close();
 
-    expect(await LocalSeparatorModelCache.exists()).toBe(false);
+    expect(await LocalSeparatorModelCache.exists(mdxConfig)).toBe(false);
   });
 
   it('fails a download when the final size does not match the expected model size', async () => {
@@ -187,7 +189,19 @@ describe('LocalSeparatorModelCache', () => {
       headers: { 'Content-Length': '3' },
     })));
 
-    await expect(LocalSeparatorModelCache.download('https://example.com/model.onnx')).rejects.toThrow(/size mismatch/i);
-    expect(await LocalSeparatorModelCache.exists()).toBe(false);
+    await expect(LocalSeparatorModelCache.download(mdxConfig, 'https://example.com/model.onnx')).rejects.toThrow(/size mismatch/i);
+    expect(await LocalSeparatorModelCache.exists(mdxConfig)).toBe(false);
+  });
+
+  it('tracks cached files independently per model', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(makeModelBytes(demucsConfig.download.expectedSizeBytes, 7), {
+      status: 200,
+      headers: { 'Content-Length': String(demucsConfig.download.expectedSizeBytes) },
+    })));
+
+    await LocalSeparatorModelCache.download(demucsConfig, 'https://example.com/htdemucs.onnx');
+
+    expect(await LocalSeparatorModelCache.exists(demucsConfig)).toBe(true);
+    expect(await LocalSeparatorModelCache.exists(mdxConfig)).toBe(false);
   });
 });

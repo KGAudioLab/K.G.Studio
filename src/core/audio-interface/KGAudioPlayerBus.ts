@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
+import { createStereoTrackPanner } from './createStereoTrackPanner';
 
 /**
  * KGAudioPlayerBus - Represents an audio playback bus for a track.
@@ -61,7 +62,7 @@ export class KGAudioPlayerBus {
   ): Promise<KGAudioPlayerBus> {
     try {
       const gainNode = new Tone.Gain(1);
-      const pannerNode = new Tone.Panner(pan);
+      const pannerNode = createStereoTrackPanner(pan);
       gainNode.connect(pannerNode);
       const bus = new KGAudioPlayerBus(gainNode, pannerNode, volume, pan, muted, solo);
       console.log('KGAudioPlayerBus created successfully');

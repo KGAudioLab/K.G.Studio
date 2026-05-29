@@ -36,8 +36,10 @@ interface PianoRollContentProps {
   onSetDeleteNotesTrigger?: (deleteFn: () => boolean) => void;
   selectedMode: string;
   keySignature: KeySignature;
-  chordGuide: string;
-  mode?: 'midi-edit' | 'spectrogram' | 'hybrid';
+  chordGuide: 'N' | 'T' | 'S' | 'D';
+  chordGuideKeySignature?: KeySignature;
+  chordGuideMode?: 'ionian' | 'aeolian';
+  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;
@@ -55,6 +57,8 @@ interface PianoRollContentProps {
   sheetKeySignature?: KeySignature;
   sheetInstrument?: InstrumentType;
   onSheetMeasureMetricsChange?: (metrics: SheetMeasureMetric[]) => void;
+  overlayMessage?: string | null;
+  overlayProgressPercent?: number | null;
 }
 
 const PianoRollContent: React.FC<PianoRollContentProps> = ({
@@ -71,6 +75,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   selectedMode,
   keySignature,
   chordGuide,
+  chordGuideKeySignature = keySignature,
+  chordGuideMode = 'ionian',
   mode = 'midi-edit',
   audioRegion,
   trackId,
@@ -89,9 +95,12 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   sheetKeySignature = 'C major',
   sheetInstrument = 'acoustic_grand_piano',
   onSheetMeasureMetricsChange,
+  overlayMessage = null,
+  overlayProgressPercent = null,
 }) => {
+  const isAudioView = mode === 'audio-waveform' || mode === 'spectrogram';
   const isSpectrogram = mode === 'spectrogram';
-  const showAutomationLane = automationEnabled && !isSpectrogram && !sheetMusicViewEnabled;
+  const showAutomationLane = automationEnabled && !isAudioView && !sheetMusicViewEnabled;
   const [spectrogramLoading, setSpectrogramLoading] = useState(false);
   const [noteScrollLeft, setNoteScrollLeft] = useState(0);
   const handleSpectrogramLoadingChange = useCallback((loading: boolean) => {
@@ -170,7 +179,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
 
   // Combined click handler for both pointer and pencil modes
   const handleCombinedClick = (e: React.MouseEvent) => {
-    if (isSpectrogram) return;
+    if (isAudioView) return;
     handleBackgroundClick(e);
     handleGridClick(e);
   };
@@ -208,7 +217,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
 
   // Memoize the notes rendering to prevent unnecessary recalculations
   const memoizedNotes = useMemo(() => {
-    if (isSpectrogram || sheetMusicViewEnabled || !activeRegion) return null;
+    if (isAudioView || sheetMusicViewEnabled || !activeRegion) return null;
     
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Rendering notes for region: ${activeRegion.getId()}`);
@@ -285,7 +294,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
         />
       );
     });
-  }, [mode, activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks, sheetMusicViewEnabled]);
+  }, [isAudioView, activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks, sheetMusicViewEnabled]);
 
   const recordingNoteOverlays = useMemo(() => {
     if (!isRecording || !activeRegion || recordingNotes.length === 0) return null;
@@ -321,6 +330,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     container.scrollTop = 0;
   }, [noteScrollRef, sheetMusicViewEnabled]);
 
+  const effectiveOverlayMessage = overlayMessage ?? (spectrogramLoading ? 'Computing spectrogram…' : null);
+
   return (
     <div className="piano-roll-content-outer">
       <div
@@ -335,10 +346,14 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
             onScroll={(event) => setNoteScrollLeft(event.currentTarget.scrollLeft)}
           >
             {!sheetMusicViewEnabled && (
-              <PianoGridHeader maxBars={maxBars} timeSignature={timeSignature} />
+              <PianoGridHeader
+                maxBars={maxBars}
+                timeSignature={timeSignature}
+                hasPianoKeys={mode !== 'audio-waveform'}
+              />
             )}
-            <div className={`piano-roll-body ${sheetMusicViewEnabled ? 'sheet-music-body' : ''}`}>
-              {!sheetMusicViewEnabled && <PianoKeys activeRegion={activeRegion} />}
+            <div className={`piano-roll-body ${sheetMusicViewEnabled ? 'sheet-music-body' : ''} ${mode === 'audio-waveform' ? 'audio-waveform-body' : ''}`}>
+              {!sheetMusicViewEnabled && mode !== 'audio-waveform' && <PianoKeys activeRegion={activeRegion} />}
               {sheetMusicViewEnabled && activeRegion && sheetQuantization ? (
                 <SheetMusicView
                   activeRegion={activeRegion}
@@ -357,14 +372,16 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                 <PianoGrid
                   gridRef={pianoGridRef}
                   onDoubleClick={isSpectrogram ? () => {} : handleGridDoubleClick}
-                  onClick={isSpectrogram ? () => {} : handleCombinedClick}
-                  onMouseDown={isSpectrogram ? () => {} : handleBackgroundMouseDown}
-                  isBoxSelecting={isSpectrogram ? false : isBoxSelectingRef.current}
-                  selectionBox={isSpectrogram ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
+                  onClick={isAudioView ? () => {} : handleCombinedClick}
+                  onMouseDown={isAudioView ? () => {} : handleBackgroundMouseDown}
+                  isBoxSelecting={isAudioView ? false : isBoxSelectingRef.current}
+                  selectionBox={isAudioView ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
                   regionStartBeat={activeRegion?.getStartFromBeat() || 0}
                   selectedMode={selectedMode}
                   keySignature={keySignature}
                   chordGuide={chordGuide}
+                  chordGuideKeySignature={chordGuideKeySignature}
+                  chordGuideMode={chordGuideMode}
                   audioRegion={audioRegion}
                   trackId={trackId}
                   projectName={projectName}
@@ -373,10 +390,11 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                   spectrogramPower={spectrogramPower}
                   spectrogramHeightResolution={spectrogramHeightResolution}
                   pianoRollZoom={pianoRollZoom}
+                  mode={mode}
                   onSpectrogramLoadingChange={handleSpectrogramLoadingChange}
                 >
                   {memoizedNotes}
-                  {!isSpectrogram && recordingNoteOverlays}
+                  {!isAudioView && recordingNoteOverlays}
                 </PianoGrid>
               )}
             </div>
@@ -397,10 +415,26 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           </div>
         )}
       </div>
-      {spectrogramLoading && (
+      {effectiveOverlayMessage && (
         <div className="spectrogram-loading-overlay">
           <div className="spectrogram-loading-label">
-            Computing spectrogram…
+            {effectiveOverlayMessage}
+            {overlayProgressPercent !== null && (
+              <div className="piano-roll-progress-block">
+                <div
+                  className="piano-roll-progress-track"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.max(0, Math.min(100, overlayProgressPercent))}
+                >
+                  <div
+                    className="piano-roll-progress-fill"
+                    style={{ width: `${Math.max(0, Math.min(100, overlayProgressPercent))}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
 import { bakeMidiAutomationPointsInWindow } from '../../util/midiAutomationUtil';
+import { GlobalTrackType } from '../global-track';
+import { KGTempoRegion } from '../region/KGTempoRegion';
 
 const { offlineMock, configGetMock } = vi.hoisted(() => ({
   offlineMock: vi.fn(),
@@ -31,6 +33,15 @@ vi.mock('../config/ConfigManager', () => ({
 }));
 
 import { KGOfflineRenderer, applyOfflinePitchBendAutomation, encodeWav, getOfflineTrackGain, getOfflineTrackVolumeDb } from './KGOfflineRenderer';
+
+function setTempoRegions(project: ReturnType<typeof createMockProject>, regions: KGTempoRegion[]): void {
+  const tempoTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Tempo);
+  if (!tempoTrack) {
+    throw new Error('Tempo track missing in test setup');
+  }
+
+  tempoTrack.setRegions(regions);
+}
 
 /**
  * Create a minimal AudioBuffer-like object for testing.
@@ -215,8 +226,8 @@ describe('offline pitch bend automation', () => {
       source,
       1,
       [{ beat: 1, value: 0 }],
+      createMockProject({ bpm: 120 }),
       0,
-      0.5
     );
 
     expect(calls).toHaveLength(1);
@@ -252,10 +263,42 @@ describe('offline pitch bend automation', () => {
       }
     );
 
-    applyOfflinePitchBendAutomation(source, 1, baked.filter(point => point.beat > 0), 0, 0.5);
+    applyOfflinePitchBendAutomation(source, 1, baked.filter(point => point.beat > 0), createMockProject({ bpm: 120 }), 0);
 
     expect(calls).toHaveLength(1);
     expect(calls[0][1]).toBe(0.26);
+  });
+
+  it('uses tempo-aware automation timing after a BPM change', () => {
+    const source = {
+      playbackRate: {
+        value: 1,
+        setValueAtTime: (..._args: unknown[]) => undefined,
+      },
+    } as unknown as Parameters<typeof applyOfflinePitchBendAutomation>[0];
+
+    const calls: Array<[number, number]> = [];
+    source.playbackRate.setValueAtTime = ((value: number, time: number) => {
+      calls.push([value, time]);
+      return source.playbackRate as never;
+    }) as typeof source.playbackRate.setValueAtTime;
+
+    const project = createMockProject({ bpm: 120 });
+    setTempoRegions(project, [
+      new KGTempoRegion('tempo-a', 'tempo-track', 0, 120, 0, 1, 4),
+      new KGTempoRegion('tempo-b', 'tempo-track', 0, 60, 1, 31, 4),
+    ]);
+
+    applyOfflinePitchBendAutomation(
+      source,
+      1,
+      [{ beat: 5, value: 0 }],
+      project,
+      0,
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toBe(3);
   });
 });
 

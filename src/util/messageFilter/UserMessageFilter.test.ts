@@ -49,7 +49,7 @@ vi.mock('../localLLMConfig', async () => {
   };
 });
 
-describe('processUserMessage /welcome', () => {
+describe('processUserMessage slash commands', () => {
   beforeEach(() => {
     configState.clear();
     configState.set('general.llm_provider', 'local_browser');
@@ -130,6 +130,49 @@ describe('processUserMessage /welcome', () => {
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/welcome_local_llm.md'));
     expect(message?.role).toBe('assistant');
     expect(message?.content).toContain('welcome_local_llm.md');
+  });
+
+  it('fetches the hotkeys guide for /hotkeys', async () => {
+    const result = await processUserMessage('/hotkeys');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/hotkeys.md'));
+    expect(result).toMatchObject({
+      displayUserMessage: false,
+      sendToLLM: false,
+      finalMessageForLLM: null,
+      metadata: { command: 'hotkeys' },
+    });
+    expect(result.pseudoAssistantResponse).toContain('chat/hotkeys.md');
+  });
+
+  it('supports /hotkey as an alias of /hotkeys', async () => {
+    const result = await processUserMessage('/hotkey');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/hotkeys.md'));
+    expect(result).toMatchObject({
+      displayUserMessage: false,
+      sendToLLM: false,
+      finalMessageForLLM: null,
+      metadata: { command: 'hotkeys' },
+    });
+    expect(result.pseudoAssistantResponse).toContain('chat/hotkeys.md');
+  });
+
+  it('lists the new hotkeys commands for unknown slash commands', async () => {
+    const result = await processUserMessage('/unknown foo');
+
+    expect(storeState.setStatus).toHaveBeenCalledWith(
+      'Unknown command: /unknown. Available commands: /clear, /welcome, /help, /hotkeys, /hotkey'
+    );
+    expect(result.pseudoAssistantResponse).toBe(
+      'Unknown command: /unknown foo.\nAvailable commands: /clear, /welcome, /help, /hotkeys, /hotkey'
+    );
+    expect(result).toMatchObject({
+      displayUserMessage: false,
+      sendToLLM: false,
+      finalMessageForLLM: null,
+      metadata: { command: 'unknown' },
+    });
   });
 
   it('blocks local-browser messages when the runtime is hard unsupported', async () => {

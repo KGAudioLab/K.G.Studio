@@ -146,6 +146,81 @@
   line-height: 1;
 }
 
+.dialog-chord-detection-form {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dialog-hint-card {
+  margin-top: 12px;
+  background-color: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog-hint-card-title {
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dialog-hint-card-text {
+  color: #999;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.dialog-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog-slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-slider-label {
+  color: #d0d0d0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dialog-slider-value {
+  color: #8fbce0;
+  font-size: 12px;
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.dialog-slider {
+  width: 100%;
+  accent-color: #5a9fd4;
+}
+
+.dialog-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #d0d0d0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dialog-checkbox-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #5a9fd4;
+}
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;

@@ -2,11 +2,26 @@
 
 Welcome to **K.G.Studio Musician Assistant**—your AI-powered agent for music composition and arrangement. Harnessing advanced language models, I am here to help you create, arrange, and refine your musical ideas with ease and intelligence.
 
-To get started, you will need to configure an LLM (Large Language Model) Provider in the application settings. Please follow the instructions below to ensure proper setup:
+To get started, you can either use the **built-in browser LLM** (no API key required) or configure an external LLM provider. Follow the instructions below for your preferred option.
 
 ---
 
-### Configuring Your LLM Provider
+### Using Local LLM (Browser) — No API Key Required
+
+K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acceleration. No API calls are made, no cost is incurred, and your data never leaves your machine.
+
+1. In **Settings ⚙️ → General → LLM Provider**, select **Local LLM (Browser)** (this is the default).
+2. The model (~2.8 GB) downloads automatically the first time you open the chat and is cached locally for instant subsequent launches.
+3. Optionally configure the **Context Length** (32k / 64k / 128k tokens) — larger values require more VRAM.
+4. Start chatting! No key, no account, no network traffic after the initial model download.
+
+**Requirements:** Chrome 113+ or Edge 113+, a secure context (HTTPS or localhost), and a GPU with at least 8 GB VRAM or a system with at least 16 GB unified RAM.
+
+> Note: The local model's quality cannot match commercial models like GPT or Claude. For complex tasks, an external provider will produce better results.
+
+---
+
+### Configuring an External LLM Provider
 
 Navigate to **Settings ⚙️ → General → LLM Provider**. Depending on your chosen provider, you will need to supply the appropriate API Key and, if applicable, a custom base URL (for non-official OpenAI-compatible services such as Ollama, OpenRouter, etc.).
 
@@ -34,34 +49,60 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
     - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — best balance of quality and cost for the Claude series
     - `Qwen: Qwen3.5-35B-A3B` (`qwen/qwen3.5-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.5-35b-a3b)) — recommended open source model
-    - `Qwen: Qwen3.6 Plus` (FREE MODEL: `qwen/qwen3.6-plus:free`: [Link](https://openrouter.ai/qwen/qwen3.6-plus:free)) — recommended free model; note that free model providers may collect your data, check the model page for details
-6. Input the base URL `https://openrouter.ai/api/v1` **OpenAI Compatible Server → Base URL**.
+    - `Qwen: Qwen3-Next-80B-A3B` (FREE MODEL: `qwen/qwen3-next-80b-a3b-instruct:free`: [Link](https://openrouter.ai/qwen/qwen3-next-80b-a3b-instruct:free)) — recommended free model
+    - `OpenAI: GPT-OSS 120B` (FREE MODEL: `openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free)) — recommended free model
+    - Note: free model availability changes frequently — for the latest free options, visit the [OpenRouter Models Page](https://openrouter.ai/models) and use the **Prompt Pricing** filter
+    - Note: free model providers may collect your data; check the model page for details before use
+6. Input the base URL `https://openrouter.ai/api/v1` in **OpenAI Compatible Server → Base URL**.
 
 ### Basic DAW Operations
+
+Chat commands: `/clear`, `/welcome`, `/help`, `/hotkeys`
 
 - Tracks
   - Add, rename, and reorder tracks from the track info panel.
   - Change instrument using the instrument button (piano icon); adjust Solo (S), Mute (M), and Volume.
-  - Delete a track from the track’s settings menu (button to the right of the instrument).
+  - Delete a track from the track's settings menu (button to the right of the instrument).
+  - **Audio recording**: click the Rec button in the toolbar to record directly from your microphone into an audio track.
 
 - Regions
   - Create region: with the Pointer tool, double‑click; or hold Ctrl/Cmd and click. With the Pencil tool, single‑click.
   - Move/resize: drag the body to move; drag edges to resize.
-  - Open Piano Roll via the small pencil at a region’s top‑left.
+  - Open Piano Roll via the small pencil at a region's top‑left.
 
 - Piano Roll (MIDI notes)
   - Tools: Select vs Pencil.
   - Create notes: double‑click or Ctrl/Cmd+click (Select); single‑click (Pencil).
   - Select notes: click; Shift+click for multi‑select; drag to box‑select.
   - Move/resize: drag note body to move selected notes; drag edges to resize.
+  - **Sheet music view**: toggle between Piano Roll and Staff Notation views from the piano roll toolbar. Supports automatic clef selection, key signature rendering, beam grouping, and ties. Enable **Track Scope** to render all regions on the track as a continuous score.
+  - **Automation lanes**: draw and edit pitch bend and MIDI CC curves (Modulation, Breath, Volume, Expression, Sustain) in the editable lane below the piano grid.
+  - **Spectrogram mode**: view an audio region's spectrogram inside the piano roll as a reference layer while editing MIDI notes.
+  - **Event List Panel**: tabbed panel (Notes / Pitch Bend / Controller) for inspecting and inline-editing all events in the active MIDI region.
   - Close the piano roll with X or ESC.
 
 - Intelligent Chord Assistant
-  - Enable chord guide from the piano roll toolbar: select T (Tonic), S (Subdominant), or D (Dominant) function.
-  - Hover over any key to see context-aware chord suggestions highlighted in red, matching your selected key signature and mode.
-  - Press Tab to cycle through different chord voicings for the same harmonic function.
+  - Enable chord guide from the piano roll toolbar with `⊘`, `T`, `S`, or `D`.
+  - Chord-guide candidates follow the effective key signature at the playhead: major uses Ionian, minor uses Aeolian.
+  - Hover over any key to see context-aware chord suggestions highlighted in red.
+  - Press `g` to cycle chord-guide state, `Tab` to move to the next candidate chord, and `Shift+Tab` to move to the previous one.
   - Double-click (or Ctrl/Cmd+click) on a highlighted chord to create all notes at once.
   - Chord length automatically matches your last edited note for consistent rhythm.
+
+- Global Track System
+  - Four persistent tracks at the top of the timeline: **Marker** (label spans), **Tempo** (BPM regions), **Key Signature**, and **Chord** (chord-symbol spans).
+  - Create a global region: double‑click or Ctrl/Cmd+click in a global track row; drag to move, drag edges to resize.
+  - These tracks drive playback timing, chord guide suggestions, sheet music key rendering, and chord detection results.
+
+- Audio Analysis Features
+  - **Detect Chords**: open the piano roll on an audio region and click **...** → **Detect Chords** to automatically analyse the recording and populate the global Chord Track. Configurable sensitivity, stability, and seventh-chord detection.
+  - **Detect Tempo**: open the piano roll on an audio region and click **...** → **Detect Tempo** to analyse the audio for BPM; optionally auto-aligns the project's Tempo Track regions to match detected beats.
+
+- K.G.One Music Generator
+  - Click the **✦** (magic wand) button in the toolbar to open the Music Generator panel.
+  - **Full Song Generation**: generate a complete song from a text caption and optional lyrics (requires K.G.One server).
+  - **Clip Generation**: generate short instrument clips and MIDI loops from text prompts (requires K.G.One server).
+  - **Stem Separation (browser)**: split any audio region into stems entirely in-browser — no server needed. Two models available: **UVR-MDX-NET-Inst_HQ_3** (2-stem: Vocals / Instrumental, ~64 MB) and **Demucs htdemucs_4s** (4-stem: Vocals / Drums / Bass / Others, ~172 MB). Download the model once from the Generator panel, then click **Separate Stems**. Requires WebGPU (Chrome 113+ / Edge 113+).
 
 - Snapping and Quantize
   - Set snapping from the NO SNAP menu (top‑right).

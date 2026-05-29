@@ -15,7 +15,10 @@ import {
   FaCog, FaMagnet, FaCut, FaCircle, FaCompress
 } from 'react-icons/fa';
 import { KGProject, type KeySignature } from '../core/KGProject';
+import { GlobalTrackType } from '../core/global-track';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
+import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
+import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { plainToInstance } from 'class-transformer';
@@ -24,17 +27,19 @@ import { KGMainContentState } from '../core/state/KGMainContentState';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
-import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { KGOfflineRenderer } from '../core/audio-interface/KGOfflineRenderer';
 import KGDropdown from './common/KGDropdown';
+import FloatingPopup from './common/FloatingPopup';
 import FileImportModal from './common/FileImportModal';
 import LoadingOverlay from './common/LoadingOverlay';
 import OpenProjectModal from './common/OpenProjectModal';
+import KeySignaturePickerPopup from './KeySignaturePickerPopup';
 import { clearChatHistoryAndUI } from '../util/chatUtil';
 import PianoIcon from './common/icons/PianoIcon';
 import MetronomeIcon from './common/icons/MetronomeIcon';
 import { mergeSelectedMidiRegions, splitSelectedRegionAtPlayhead } from '../util/regionEditUtil';
 import { showAlert, showChoice, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
+import { UpdateKeySignatureRegionCommand, UpdateTempoRegionCommand } from '../core/commands';
 
 const Toolbar: React.FC = () => {
   const {
@@ -46,6 +51,7 @@ const Toolbar: React.FC = () => {
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
+    globalTracks,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
@@ -55,7 +61,7 @@ const Toolbar: React.FC = () => {
     selectedRegionIds, selectedTrackId,
     // Playhead and refresh
     playheadPosition, refreshProjectState,
-    requestMainContentScroll, requestPianoRollScroll
+    requestMainContentScroll, requestPianoRollScroll, bumpAudioWaveformRedrawVersion
   } = useProjectStore();
 
   // State for main content tools
@@ -64,6 +70,24 @@ const Toolbar: React.FC = () => {
 
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
+
+  const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null;
+  const signatureRegions = (signatureTrack?.getRegions() ?? [])
+    .filter((region): region is KGKeySignatureRegion => region instanceof KGKeySignatureRegion)
+    .sort((left, right) => left.getStartBar() - right.getStartBar());
+  const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
+  const tempoRegions = (tempoTrack?.getRegions() ?? [])
+    .filter((region): region is KGTempoRegion => region instanceof KGTempoRegion)
+    .sort((left, right) => left.getStartBar() - right.getStartBar());
+  const playheadBar = Math.floor(playheadPosition / timeSignature.numerator);
+  const activeKeySignatureRegion = signatureRegions.find(
+    region => playheadBar >= region.getStartBar() && playheadBar < region.getEndBar()
+  ) ?? null;
+  const activeTempoRegion = tempoRegions.find(
+    region => playheadBar >= region.getStartBar() && playheadBar < region.getEndBar()
+  ) ?? null;
+  const displayedBpm = activeTempoRegion?.getBpm() ?? bpm;
+  const displayedKeySignature = activeKeySignatureRegion?.getKeySignature() ?? keySignature;
 
   // State for export dropdown
   const [showExportDropdown, setShowExportDropdown] = React.useState(false);
@@ -90,9 +114,6 @@ const Toolbar: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showZoomSlider]);
-
-  // Key signature options
-  const keySignatureOptions = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
 
   // Export options
   const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
@@ -280,7 +301,7 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleConfirmOpenProject = async (_projectNameToLoad: string) => {
+  const handleConfirmOpenProject = async () => {
     const confirmed = await showConfirm(
       'Open this project? Any unsaved changes in the current project will be lost.'
     );
@@ -638,7 +659,7 @@ const Toolbar: React.FC = () => {
       console.log("BPM clicked, current BPM:", bpm);
     }
 
-    const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, bpm.toString());
+    const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, displayedBpm.toString());
 
     // Check if user cancelled
     if (newBpmStr === null) {
@@ -661,11 +682,17 @@ const Toolbar: React.FC = () => {
     }
 
     // Update BPM
-    setBpm(newBpm);
+    if (activeTempoRegion) {
+      KGCore.instance().executeCommand(new UpdateTempoRegionCommand(activeTempoRegion.getId(), newBpm));
+      bumpAudioWaveformRedrawVersion();
+      refreshProjectState();
+    } else {
+      setBpm(newBpm);
+    }
     setStatus(`BPM changed to ${newBpm}`);
 
     if (DEBUG_MODE.TOOLBAR) {
-      console.log(`BPM updated from ${bpm} to ${newBpm}`);
+      console.log(`BPM updated from ${displayedBpm} to ${newBpm}`);
     }
   };
 
@@ -693,10 +720,18 @@ const Toolbar: React.FC = () => {
 
   const handleKeySignatureChange = (newKeySignature: string) => {
     if (DEBUG_MODE.TOOLBAR) {
-      console.log("Key signature changed from", keySignature, "to", newKeySignature);
+      console.log("Key signature changed from", displayedKeySignature, "to", newKeySignature);
     }
 
-    setKeySignature(newKeySignature as KeySignature);
+    if (activeKeySignatureRegion) {
+      KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(
+        activeKeySignatureRegion.getId(),
+        newKeySignature as KeySignature
+      ));
+      refreshProjectState();
+    } else {
+      setKeySignature(newKeySignature as KeySignature);
+    }
     setStatus(`Key signature changed to ${newKeySignature}`);
     setShowKeySignatureDropdown(false);
   };
@@ -1007,6 +1042,7 @@ const Toolbar: React.FC = () => {
           <div
             className="project-name"
             onClick={handleProjectNameClick}
+            title={projectName}
           >
             {projectName}
           </div>
@@ -1148,31 +1184,35 @@ const Toolbar: React.FC = () => {
               <span className='current-time' onClick={handleCurrentTimeClick} style={{ cursor: 'pointer' }}>{currentTime}</span>
             </div>
             <div className="transport-item">
-              <span className='current-bpm' onClick={handleBpmClick} style={{ cursor: 'pointer' }}>{bpm}</span>
+              <span className='current-bpm' onClick={handleBpmClick} style={{ cursor: 'pointer' }}>{displayedBpm}</span>
             </div>
             <div className="transport-item">
               <span className='current-time-signature' onClick={handleTimeSignatureClick} style={{ cursor: 'pointer' }}>{timeSignature.numerator + "/" + timeSignature.denominator}</span>
             </div>
             <div className="transport-item" style={{ position: 'relative' }}>
-              <span
-                className='current-key-signature'
-                onClick={() => setShowKeySignatureDropdown(!showKeySignatureDropdown)}
-                style={{ cursor: 'pointer' }}
+              <FloatingPopup
+                isOpen={showKeySignatureDropdown}
+                onClose={() => setShowKeySignatureDropdown(false)}
+                placement="bottom"
+                className="key-signature-popup-anchor"
+                contentClassName="key-signature-popup-surface"
+                panelClassName="key-signature-popup-panel"
+                arrowClassName="key-signature-popup-arrow"
+                trigger={(
+                  <button
+                    type="button"
+                    className='current-key-signature'
+                    onClick={() => setShowKeySignatureDropdown((current) => !current)}
+                    aria-haspopup="dialog"
+                    aria-expanded={showKeySignatureDropdown}
+                    aria-label={`Choose key signature, current ${displayedKeySignature}`}
+                  >
+                    {displayedKeySignature}
+                  </button>
+                )}
               >
-                {keySignature}
-              </span>
-              <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
-                <KGDropdown
-                  options={keySignatureOptions}
-                  value={keySignature}
-                  onChange={handleKeySignatureChange}
-                  label="Key Signature"
-                  hideButton={true}
-                  isOpen={showKeySignatureDropdown}
-                  onToggle={setShowKeySignatureDropdown}
-                  className="key-signature-dropdown"
-                />
-              </div>
+                <KeySignaturePickerPopup value={displayedKeySignature} onChange={handleKeySignatureChange} />
+              </FloatingPopup>
             </div>
           </div>
           <button

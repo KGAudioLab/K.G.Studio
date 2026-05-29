@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
+import { createMockMidiNote, createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
 import { MockTransport } from '../../test/mocks/tone';
+import { GlobalTrackType } from '../global-track';
+import { KGTempoRegion } from '../region/KGTempoRegion';
 
 vi.mock('tone', async () => {
   const { ToneMock } = await import('../../test/mocks/tone');
@@ -41,6 +43,22 @@ function createMockAudioBus() {
   };
 }
 
+function setTempoRegions(project: ReturnType<typeof createMockProject>, regions: KGTempoRegion[]): void {
+  const tempoTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Tempo);
+  if (!tempoTrack) {
+    throw new Error('Tempo track missing in test setup');
+  }
+
+  tempoTrack.setRegions(regions);
+}
+
+function transportTimeToBeats(time: unknown): number {
+  if (typeof time === 'string' && time.endsWith('i')) {
+    return Number.parseFloat(time.slice(0, -1)) / MockTransport.PPQ;
+  }
+  return Number(time);
+}
+
 describe('KGAudioInterface preroll playback', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -53,6 +71,7 @@ describe('KGAudioInterface preroll playback', () => {
     MockTransport.clear.mockClear();
     MockTransport.schedule.mockClear();
     MockTransport.bpm.value = 120;
+    ;(MockTransport as typeof MockTransport & { seconds?: number }).seconds = 0;
 
     const project = createMockProject({
       bpm: 120,
@@ -129,7 +148,7 @@ describe('KGAudioInterface preroll playback', () => {
     const audio = KGAudioInterface.instance();
     audio.preparePlayback(project, 12, { allowStartBeforeLoopStart: true });
 
-    expect(MockTransport.position).toBe(6);
+    expect(MockTransport.position).toBe(0);
   });
 
   it('schedules baked pitch bend points instead of authored step changes only', () => {
@@ -147,9 +166,9 @@ describe('KGAudioInterface preroll playback', () => {
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 0);
 
-    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => time);
-    expect(scheduledTimes).toContain(0.25);
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => transportTimeToBeats(time));
     expect(scheduledTimes).toContain(0.5);
+    expect(scheduledTimes).toContain(1);
   });
 
   it('skips redundant scheduled pitch bend events when interpolated values round to the same MIDI value', () => {
@@ -167,8 +186,8 @@ describe('KGAudioInterface preroll playback', () => {
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 0);
 
-    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => time);
-    expect(scheduledTimes).toEqual([0.25]);
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => transportTimeToBeats(time));
+    expect(scheduledTimes).toEqual([0.5]);
   });
 
   it('computes the initial interpolated bend for non-zero playback starts', () => {
@@ -207,8 +226,74 @@ describe('KGAudioInterface preroll playback', () => {
     ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
     audio.preparePlayback(project, 5);
 
-    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => time);
-    expect(scheduledTimes).toContain(2);
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => transportTimeToBeats(time));
+    expect(scheduledTimes).toContain(0);
+  });
+
+  it('schedules post-tempo-change notes using playback-local transport time', () => {
+    const notes = [
+      createMockMidiNote({ id: 'note-1', startBeat: 4, endBeat: 5 }),
+      createMockMidiNote({ id: 'note-2', startBeat: 5, endBeat: 6 }),
+    ];
+    const region = createMockMidiRegion({ notes, length: 8 });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+    setTempoRegions(project, [
+      new KGTempoRegion('tempo-a', 'tempo-track', 0, 120, 0, 1, 4),
+      new KGTempoRegion('tempo-b', 'tempo-track', 0, 60, 1, 31, 4),
+    ]);
+
+    const audio = KGAudioInterface.instance();
+    const audioBus = createMockAudioBus();
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+
+    audio.preparePlayback(project, 0);
+
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => transportTimeToBeats(time));
+    expect(scheduledTimes.filter(time => time === 4)).toHaveLength(2);
+    expect(scheduledTimes).toContain(5);
+  });
+
+  it('keeps post-tempo-change note spacing correct for nonzero playback starts', () => {
+    const notes = [
+      createMockMidiNote({ id: 'note-1', startBeat: 4, endBeat: 5 }),
+      createMockMidiNote({ id: 'note-2', startBeat: 5, endBeat: 6 }),
+    ];
+    const region = createMockMidiRegion({ notes, length: 8 });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+    setTempoRegions(project, [
+      new KGTempoRegion('tempo-a', 'tempo-track', 0, 120, 0, 1, 4),
+      new KGTempoRegion('tempo-b', 'tempo-track', 0, 60, 1, 31, 4),
+    ]);
+
+    const audio = KGAudioInterface.instance();
+    const audioBus = createMockAudioBus();
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+
+    audio.preparePlayback(project, 2);
+
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => transportTimeToBeats(time));
+    expect(scheduledTimes.filter(time => time === 2)).toHaveLength(2);
+    expect(scheduledTimes).toContain(3);
+  });
+
+  it('maps transport seconds back to project beats across a tempo change', () => {
+    const project = createMockProject({ bpm: 120, tracks: [] });
+    setTempoRegions(project, [
+      new KGTempoRegion('tempo-a', 'tempo-track', 0, 120, 0, 1, 4),
+      new KGTempoRegion('tempo-b', 'tempo-track', 0, 60, 1, 31, 4),
+    ]);
+
+    vi.mocked(KGCore.instance).mockReturnValue({
+      getCurrentProject: () => project,
+    } as unknown as KGCore);
+
+    const audio = KGAudioInterface.instance();
+    audio.preparePlayback(project, 2);
+    ;(MockTransport as typeof MockTransport & { seconds?: number }).seconds = 2;
+
+    expect(audio.getTransportPosition()).toBeCloseTo(5, 5);
   });
 });
 

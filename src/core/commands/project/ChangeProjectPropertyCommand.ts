@@ -2,6 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGProject, type KeySignature } from '../../KGProject';
 import type { TimeSignature } from '../../../types/projectTypes';
+import { normalizeTempoRegionsForProject } from '../../../util/globalTrackUtil';
 
 /**
  * Interface defining properties that can be updated on a project
@@ -59,6 +60,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     // Update maxBars
     if (this.newProperties.maxBars !== undefined && this.newProperties.maxBars !== this.originalProperties.maxBars) {
       this.targetProject.setMaxBars(this.newProperties.maxBars);
+      normalizeTempoRegionsForProject(this.targetProject);
       this.changedProperties.add('maxBars');
       updatedProperties.push(`maxBars: ${this.originalProperties.maxBars} → ${this.newProperties.maxBars}`);
     }
@@ -85,6 +87,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       // Compare time signatures
       if (originalTS.numerator !== newTS.numerator || originalTS.denominator !== newTS.denominator) {
         this.targetProject.setTimeSignature(newTS);
+        normalizeTempoRegionsForProject(this.targetProject);
         this.changedProperties.add('timeSignature');
         updatedProperties.push(`timeSignature: ${originalTS.numerator}/${originalTS.denominator} → ${newTS.numerator}/${newTS.denominator}`);
       }
@@ -128,6 +131,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     // Restore maxBars (only if it was changed)
     if (this.changedProperties.has('maxBars') && this.originalProperties.maxBars !== undefined) {
       this.targetProject.setMaxBars(this.originalProperties.maxBars);
+      normalizeTempoRegionsForProject(this.targetProject);
       restoredProperties.push(`maxBars: ${this.originalProperties.maxBars}`);
     }
 
@@ -146,6 +150,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     // Restore time signature (only if it was changed)
     if (this.changedProperties.has('timeSignature') && this.originalProperties.timeSignature !== undefined) {
       this.targetProject.setTimeSignature(this.originalProperties.timeSignature);
+      normalizeTempoRegionsForProject(this.targetProject);
       const ts = this.originalProperties.timeSignature;
       restoredProperties.push(`timeSignature: ${ts.numerator}/${ts.denominator}`);
     }

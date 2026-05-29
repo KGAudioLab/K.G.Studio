@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGProject, type KeySignature } from '../core/KGProject';
+import { KGGlobalTrack } from '../core/global-track';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { beatsToTimeString } from '../util/timeUtil';
@@ -26,6 +27,8 @@ import { CreateMidiEventsCommand, type NoteCreationData, type PitchBendCreationD
 import { MIDI_PITCH_BEND_CENTER } from '../util/midiUtil';
 import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/KGTrackAutomationPoint';
 import type { AudioRecordingPeak } from '../core/audio-interface/KGAudioRecorder';
+import { getAudioImportDecodeFailureMessage } from '../util/audioImportUtil';
+import { beatToSeconds } from '../util/globalTrackUtil';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -53,6 +56,16 @@ function updateBarWidthMultiplierCSS(multiplier: number): void {
   );
 }
 
+function formatCurrentTime(project: KGProject, beat: number): string {
+  const seconds = beatToSeconds(project, beat);
+  const bpmForLegacyFormatting = seconds > 0 ? (beat / seconds) * 60 : project.getBpm();
+  return beatsToTimeString(beat, bpmForLegacyFormatting, project.getTimeSignature());
+}
+
+function getProjectGlobalTracks(project: KGProject): KGGlobalTrack[] {
+  return (project.getGlobalTracks?.() ?? []) as KGGlobalTrack[];
+}
+
 type SidePanelType = 'kgone' | 'chat' | 'eventList';
 
 function getSidePanelVisibilityState(activePanel: SidePanelType | null) {
@@ -69,6 +82,7 @@ interface ProjectState {
   projectName: string;
   savedProjectName: string; // OPFS folder name where the project is currently saved
   tracks: KGTrack[];
+  globalTracks: KGGlobalTrack[];
   currentStatus: string;
   maxBars: number;
   barWidthMultiplier: number;
@@ -96,7 +110,7 @@ interface ProjectState {
   // Piano roll state
   showPianoRoll: boolean;
   activeRegionId: string | null;
-  pianoRollMode: 'midi-edit' | 'spectrogram' | 'hybrid';
+  pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
   requestedSheetMusicViewEnabled: boolean;
   pianoRollViewRequestVersion: number;
@@ -104,6 +118,7 @@ interface ProjectState {
   activeTrackAutomationTrackId: string | null;
   activeTrackAutomationType: TrackAutomationType | null;
   trackAutomationRedrawVersion: number;
+  audioWaveformRedrawVersion: number;
 
   // ChatBox state
   showChatBox: boolean;
@@ -197,10 +212,12 @@ interface ProjectState {
   setActiveRegionId: (regionId: string | null) => void;
   openMidiPianoRoll: (regionId: string) => void;
   openMidiPianoRollWithSheetMusicView: (regionId: string, sheetMusicViewEnabled: boolean) => void;
+  openAudioWaveformViewer: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
   bumpAutomationRedrawVersion: () => void;
   bumpTrackAutomationRedrawVersion: () => void;
+  bumpAudioWaveformRedrawVersion: () => void;
 
   // Project state cleanup
   cleanupProjectState: () => void;
@@ -316,9 +333,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Set up playhead update callback to keep store in sync during playback
   KGCore.instance().setPlayheadUpdateCallback((position: number) => {
     const { bpm, timeSignature } = get();
+    const project = KGCore.instance().getCurrentProject();
     set(state => ({
       playheadPosition: position,
-      currentTime: beatsToTimeString(position, bpm, timeSignature),
+      currentTime: formatCurrentTime(project, position),
       recordingAudioPreviewCurrentBeat: state.recordingMode === 'audio'
         ? Math.max(state.recordingCommitStartBeatAbsolute, position)
         : state.recordingAudioPreviewCurrentBeat,
@@ -405,6 +423,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     projectName: currentProject.getName(),
     savedProjectName: currentProject.getName(),
     tracks: currentProject.getTracks() as KGTrack[],
+    globalTracks: getProjectGlobalTracks(currentProject),
     currentStatus: KGCore.instance().getStatus() || 'Unknown',
     maxBars: currentProject.getMaxBars(),
     barWidthMultiplier: currentProject.getBarWidthMultiplier(),
@@ -419,7 +438,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     isPlaying: KGCore.instance().getIsPlaying(),
     isPreparingPlayback: false,
     autoScrollEnabled: true,
-    currentTime: beatsToTimeString(KGCore.instance().getPlayheadPosition(), currentProject.getBpm(), currentProject.getTimeSignature()),
+    currentTime: formatCurrentTime(currentProject, KGCore.instance().getPlayheadPosition()),
 
     // Initial selection state
     selectedNoteIds: [],
@@ -440,6 +459,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeTrackAutomationTrackId: null,
     activeTrackAutomationType: null,
     trackAutomationRedrawVersion: 0,
+    audioWaveformRedrawVersion: 0,
 
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
@@ -517,7 +537,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(project)],
+        });
 
         // Auto-select the newly created track and open instrument selection panel
         const newTrackId = command.getTrackId().toString();
@@ -539,7 +562,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         KGCore.instance().executeCommand(command);
 
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(project)],
+        });
 
         const newTrackId = command.getTrackId().toString();
         set({
@@ -562,19 +588,23 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Decode the audio file to get duration
         const arrayBuffer = await file.arrayBuffer();
         const toneBuffer = new Tone.ToneAudioBuffer();
-        await new Promise<void>((resolve, reject) => {
-          toneBuffer.onload = () => resolve();
-          // Set buffer from array buffer
-          const audioContext = Tone.getContext().rawContext as AudioContext;
-          audioContext.decodeAudioData(
-            arrayBuffer.slice(0),  // slice to avoid detached buffer
-            (decoded) => {
-              toneBuffer.set(decoded);
-              resolve();
-            },
-            (err) => reject(err)
-          );
-        });
+        try {
+          await new Promise<void>((resolve, reject) => {
+            toneBuffer.onload = () => resolve();
+            // Set buffer from array buffer
+            const audioContext = Tone.getContext().rawContext as AudioContext;
+            audioContext.decodeAudioData(
+              arrayBuffer.slice(0),  // slice to avoid detached buffer
+              (decoded) => {
+                toneBuffer.set(decoded);
+                resolve();
+              },
+              (err) => reject(err)
+            );
+          });
+        } catch {
+          throw new Error(getAudioImportDecodeFailureMessage(file.name));
+        }
 
         const audioDurationSeconds = toneBuffer.duration;
         const { bpm, timeSignature, playheadPosition, maxBars } = get();
@@ -632,7 +662,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         console.log(`Imported audio "${file.name}" to track ${trackId}`);
       } catch (error) {
         console.error('Error importing audio:', error);
-        get().setStatus(`Failed to import audio: ${error}`);
+        get().setStatus(error instanceof Error ? error.message : `Failed to import "${file.name}".`);
       }
     },
 
@@ -659,7 +689,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Update the store state with a new array reference to trigger re-render
         const project = KGCore.instance().getCurrentProject();
         const remainingTracks = [...project.getTracks()] as KGTrack[];
-        set({ tracks: remainingTracks });
+        set({
+          tracks: remainingTracks,
+          globalTracks: [...getProjectGlobalTracks(project)],
+        });
 
         // Auto-select another track if any remain
         if (remainingTracks.length > 0) {
@@ -744,7 +777,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state with the current project state
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(project)],
+        });
 
         console.log(`Updated track ${trackId} properties`);
       } catch (error) {
@@ -773,7 +809,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state with the current project state
         const project = KGCore.instance().getCurrentProject();
-        set({ tracks: [...project.getTracks()] as KGTrack[] });
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(project)],
+        });
 
         console.log(`Reordered track from index ${sourceIndex} to ${destinationIndex}`);
       } catch (error) {
@@ -902,6 +941,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           projectName: projectToLoad.getName(),
           savedProjectName: savedName ?? projectToLoad.getName(),
           tracks: [...tracks],
+          globalTracks: [...getProjectGlobalTracks(projectToLoad)],
           maxBars,
           barWidthMultiplier: projectToLoad.getBarWidthMultiplier(),
           timeSignature,
@@ -928,7 +968,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           recordingAudioPreviewCurrentBeat: 0,
           recordingAudioPreviewFileName: null,
           playheadPosition: 0, // Ensure store state is also updated
-          currentTime: beatsToTimeString(0, bpm, timeSignature) // Reset time display
+          currentTime: formatCurrentTime(projectToLoad, 0) // Reset time display
         });
 
         // After loading a project, auto-select the first track and open Instrument Selection
@@ -959,7 +999,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       KGCore.instance().setPlayheadPosition(position);
       set({
         playheadPosition: position,
-        currentTime: beatsToTimeString(position, bpm, timeSignature)
+        currentTime: formatCurrentTime(KGCore.instance().getCurrentProject(), position)
       });
     },
 
@@ -1438,6 +1478,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Update the store state
         set({ bpm });
+        get().bumpAudioWaveformRedrawVersion();
 
         console.log(`Set BPM to ${bpm}`);
       } catch (error) {
@@ -1590,6 +1631,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }));
     },
 
+    openAudioWaveformViewer: (regionId: string) => {
+      set({
+        showPianoRoll: true,
+        activeRegionId: regionId,
+        pianoRollMode: 'audio-waveform',
+        hybridAudioRegionId: null,
+        requestedSheetMusicViewEnabled: false,
+      });
+    },
+
     openSpectrogramViewer: (regionId: string) => {
       set({
         showPianoRoll: true,
@@ -1615,6 +1666,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     bumpTrackAutomationRedrawVersion: () => {
       set(state => ({ trackAutomationRedrawVersion: state.trackAutomationRedrawVersion + 1 }));
     },
+    bumpAudioWaveformRedrawVersion: () => {
+      set(state => ({ audioWaveformRedrawVersion: state.audioWaveformRedrawVersion + 1 }));
+    },
 
     // Project state cleanup - used when starting new/loading projects
     cleanupProjectState: () => {
@@ -1631,6 +1685,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeTrackAutomationTrackId: null,
         activeTrackAutomationType: null,
         trackAutomationRedrawVersion: 0,
+        audioWaveformRedrawVersion: 0,
         recordingAudioPreviewPeaks: [],
         recordingAudioPreviewCurrentBeat: 0,
       });
@@ -1788,6 +1843,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Use centralized refresh method
         get().refreshProjectState();
         get().bumpTrackAutomationRedrawVersion();
+        get().bumpAudioWaveformRedrawVersion();
         console.log('Undo completed');
       }
     },
@@ -1798,6 +1854,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Use centralized refresh method
         get().refreshProjectState();
         get().bumpTrackAutomationRedrawVersion();
+        get().bumpAudioWaveformRedrawVersion();
         console.log('Redo completed');
       }
     },
@@ -1822,12 +1879,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({
         projectName: project.getName(),
         tracks: [...project.getTracks()] as KGTrack[], // Force new array reference - key for re-rendering!
+        globalTracks: [...getProjectGlobalTracks(project)],
         maxBars: project.getMaxBars(),
         barWidthMultiplier: project.getBarWidthMultiplier(),
         timeSignature: project.getTimeSignature(),
         bpm: project.getBpm(),
         keySignature: project.getKeySignature(),
-        selectedMode: project.getSelectedMode()
+        selectedMode: project.getSelectedMode(),
+        currentTime: formatCurrentTime(project, core.getPlayheadPosition()),
       });
 
       // Sync CSS variables that affect layout

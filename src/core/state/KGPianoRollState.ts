@@ -1,3 +1,5 @@
+import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
+
 /**
  * KGPianoRollState - State management for the piano roll
  * Implements the singleton pattern for global access
@@ -21,11 +23,13 @@ export class KGPianoRollState {
   private sheetQuantization: string = '16,48';
 
   // Chord guide state
-  private currentSuitableChords: Record<string, string[]> = {}; // Map of chord symbols to note names (e.g., {"I": ["C", "E", "G"]})
-  private currentSuitableChordsPitchClasses: Record<string, number[]> = {}; // Map of chord symbols to pitch classes (e.g., {"I": [0, 4, 7]})
+  private currentSuitableChords: ResolvedChordGuideItem[] = [];
+  private currentSuitableChordsPitchClasses: Record<string, number[]> = {};
   private currentMatchingChords: number[][] = [];
   private currentSelectedChordIndex: number = 0;
   private currentChordCursorPitch: number | null = null;
+  private currentHoveredChordGuideCandidate: ResolvedChordGuideItem | null = null;
+  private listeners = new Set<() => void>();
 
   private constructor() {
     console.log("KGPianoRollState initialized");
@@ -119,11 +123,11 @@ export class KGPianoRollState {
     this.sheetQuantization = value;
   }
 
-  public getCurrentSuitableChords(): Record<string, string[]> {
+  public getCurrentSuitableChords(): ResolvedChordGuideItem[] {
     return this.currentSuitableChords;
   }
 
-  public setCurrentSuitableChords(chords: Record<string, string[]>): void {
+  public setCurrentSuitableChords(chords: ResolvedChordGuideItem[]): void {
     this.currentSuitableChords = chords;
   }
 
@@ -141,6 +145,7 @@ export class KGPianoRollState {
 
   public setCurrentMatchingChords(chords: number[][]): void {
     this.currentMatchingChords = chords;
+    this.emitChange();
   }
 
   public getCurrentSelectedChordIndex(): number {
@@ -149,6 +154,7 @@ export class KGPianoRollState {
 
   public setCurrentSelectedChordIndex(index: number): void {
     this.currentSelectedChordIndex = index;
+    this.emitChange();
   }
 
   public getCurrentChordCursorPitch(): number | null {
@@ -157,5 +163,26 @@ export class KGPianoRollState {
 
   public setCurrentChordCursorPitch(pitch: number | null): void {
     this.currentChordCursorPitch = pitch;
+    this.emitChange();
+  }
+
+  public getCurrentHoveredChordGuideCandidate(): ResolvedChordGuideItem | null {
+    return this.currentHoveredChordGuideCandidate;
+  }
+
+  public setCurrentHoveredChordGuideCandidate(candidate: ResolvedChordGuideItem | null): void {
+    this.currentHoveredChordGuideCandidate = candidate;
+    this.emitChange();
+  }
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emitChange(): void {
+    this.listeners.forEach((listener) => listener());
   }
 }
