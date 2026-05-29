@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Note } from 'tonal';
 import { KGCore } from '../core/KGCore';
+import type { ChordGuideData } from '../core/ChordGuideTypes';
 import { getMatchingChordGuideChordsForPitch, resolveChordGuideItems } from './chordGuideDataUtil';
 import { getChordPitchClasses, parseChordSymbol } from './chordUtil';
-import chordGuideData from '../../public/resources/modes/chord_guide.json';
+import chordGuideDataJson from '../../public/resources/modes/chord_guide.json';
+
+const chordGuideData = chordGuideDataJson as ChordGuideData;
 
 function getExpectedPitchClassesFromNotes(notes: string[]): number[] {
   return notes.map((note) => {

@@ -1,8 +1,10 @@
+export type ChordGuideSource = 'Diatonic' | 'Non-Diatonic';
+
 export interface ChordGuideItem {
   name: string;
-  roman: string;
+  roman?: string;
   notes: string[];
-  source: string;
+  source: ChordGuideSource;
   note: string;
 }
 
@@ -20,4 +22,11 @@ export interface ChordGuideData {
 export interface ResolvedChordGuideItem extends ChordGuideItem {
   resolvedNotes: string[];
   pitchClasses: number[];
+}
+
+export type ChordGuideGroupKey = 'major' | 'minor';
+
+export interface ChordGuideCustomConfig {
+  major: ChordGuideModeDefinition;
+  minor: ChordGuideModeDefinition;
 }

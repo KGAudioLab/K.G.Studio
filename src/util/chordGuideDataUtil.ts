@@ -9,6 +9,12 @@ const SHARP_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 
 export type ChordGuideMode = 'ionian' | 'aeolian';
 export type ChordGuideFunctionType = 'T' | 'S' | 'D';
 
+export interface MatchingChordGuideCandidate {
+  item: ResolvedChordGuideItem;
+  matchedPitchIndex: number;
+  displayPitchClasses: number[];
+}
+
 function getReferenceTonic(mode: ChordGuideMode): string {
   return mode === 'aeolian' ? 'A' : 'C';
 }
@@ -85,13 +91,23 @@ export function getMatchingChordGuideChordsForPitch(
   mode: ChordGuideMode,
   functionType: ChordGuideFunctionType
 ): number[][] {
+  return getMatchingChordGuideCandidatesForPitch(hoverPitch, keySignature, mode, functionType)
+    .map((candidate) => candidate.displayPitchClasses);
+}
+
+export function getMatchingChordGuideCandidatesForPitch(
+  hoverPitch: number,
+  keySignature: KeySignature,
+  mode: ChordGuideMode,
+  functionType: ChordGuideFunctionType
+): MatchingChordGuideCandidate[] {
   const resolvedChords = resolveChordGuideItems(keySignature, mode, functionType);
   if (resolvedChords.length === 0) {
     return [];
   }
 
-  const hoverPitchClass = hoverPitch % 12;
-  const matchesByPosition: number[][][] = [];
+  const hoverPitchClass = ((hoverPitch % 12) + 12) % 12;
+  const matchesByPosition: MatchingChordGuideCandidate[][] = [];
 
   for (const item of resolvedChords) {
     for (let i = 0; i < item.pitchClasses.length; i++) {
@@ -103,10 +119,13 @@ export function getMatchingChordGuideChordsForPitch(
         matchesByPosition[i] = [];
       }
 
-      const chord = item.pitchClasses[i] >= 12
-        ? item.pitchClasses.map((pitch) => pitch - 12)
-        : item.pitchClasses;
-      matchesByPosition[i].push(chord);
+      matchesByPosition[i].push({
+        item,
+        matchedPitchIndex: i,
+        displayPitchClasses: item.pitchClasses[i] >= 12
+          ? item.pitchClasses.map((pitch) => pitch - 12)
+          : item.pitchClasses,
+      });
       break;
     }
   }

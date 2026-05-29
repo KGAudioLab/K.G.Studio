@@ -741,6 +741,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Disabled - clear chord data
       pianoRollState.setCurrentSuitableChords([]);
       pianoRollState.setCurrentSuitableChordsPitchClasses({});
+      pianoRollState.setCurrentHoveredChordGuideCandidate(null);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Chord guide disabled - cleared suitable chords`);
@@ -756,6 +757,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Update piano roll state
       pianoRollState.setCurrentSuitableChords(suitableChords);
       pianoRollState.setCurrentSuitableChordsPitchClasses(chordsPitchClasses);
+      pianoRollState.setCurrentHoveredChordGuideCandidate(null);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Chord guide updated: ${chordGuide} (${functionType})`);

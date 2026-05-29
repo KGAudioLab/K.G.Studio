@@ -28,6 +28,8 @@ export class KGPianoRollState {
   private currentMatchingChords: number[][] = [];
   private currentSelectedChordIndex: number = 0;
   private currentChordCursorPitch: number | null = null;
+  private currentHoveredChordGuideCandidate: ResolvedChordGuideItem | null = null;
+  private listeners = new Set<() => void>();
 
   private constructor() {
     console.log("KGPianoRollState initialized");
@@ -143,6 +145,7 @@ export class KGPianoRollState {
 
   public setCurrentMatchingChords(chords: number[][]): void {
     this.currentMatchingChords = chords;
+    this.emitChange();
   }
 
   public getCurrentSelectedChordIndex(): number {
@@ -151,6 +154,7 @@ export class KGPianoRollState {
 
   public setCurrentSelectedChordIndex(index: number): void {
     this.currentSelectedChordIndex = index;
+    this.emitChange();
   }
 
   public getCurrentChordCursorPitch(): number | null {
@@ -159,5 +163,26 @@ export class KGPianoRollState {
 
   public setCurrentChordCursorPitch(pitch: number | null): void {
     this.currentChordCursorPitch = pitch;
+    this.emitChange();
+  }
+
+  public getCurrentHoveredChordGuideCandidate(): ResolvedChordGuideItem | null {
+    return this.currentHoveredChordGuideCandidate;
+  }
+
+  public setCurrentHoveredChordGuideCandidate(candidate: ResolvedChordGuideItem | null): void {
+    this.currentHoveredChordGuideCandidate = candidate;
+    this.emitChange();
+  }
+
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emitChange(): void {
+    this.listeners.forEach((listener) => listener());
   }
 }

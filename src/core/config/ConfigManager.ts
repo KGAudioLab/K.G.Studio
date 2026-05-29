@@ -1,3 +1,4 @@
+import type { ChordGuideCustomConfig } from '../ChordGuideTypes';
 import { KGConfigStorage } from '../io/KGConfigStorage';
 
 /**
@@ -103,6 +104,7 @@ interface AppConfig {
   };
   chord_guide: {
     chord_definition: string;
+    custom_items: ChordGuideCustomConfig | null;
   };
   [key: string]: unknown;
 }
@@ -300,7 +302,8 @@ export class ConfigManager {
           custom_instructions: ''
         },
         chord_guide: {
-          chord_definition: ''
+          chord_definition: '',
+          custom_items: null,
         }
       };
       console.log('Using fallback hardcoded config due to load error');
