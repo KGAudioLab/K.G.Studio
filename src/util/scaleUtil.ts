@@ -18,6 +18,14 @@ export const getRootNoteFromKeySignature = (keySignature: KeySignature): string 
 };
 
 /**
+ * Resolves the chord-guide mode from a key signature.
+ * Chord guiding only supports major/minor quality and maps them to Ionian/Aeolian.
+ */
+export const getChordGuideModeFromKeySignature = (keySignature: KeySignature): 'ionian' | 'aeolian' => {
+  return keySignature.endsWith(' minor') ? 'aeolian' : 'ionian';
+};
+
+/**
  * Converts a note name (without octave) to pitch class (0-11)
  * @param noteName - Note name like "C", "C#", "Db", "F#"
  * @returns Pitch class (0=C, 1=C#/Db, 2=D, ..., 11=B)

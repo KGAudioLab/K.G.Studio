@@ -21,6 +21,7 @@ import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { getSuitableChords, noteNameToPitchClass } from '../../util/scaleUtil';
 import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
+import { matchesKeyboardShortcut } from '../../util/osUtil';
 import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
@@ -61,6 +62,7 @@ import {
   getScrollLeftForViewportRequest,
   type PendingModeSwitchRequest,
 } from './pianoRollViewport';
+import { getNextChordGuideSelection, resolveChordGuideContext, type ChordGuideFunction } from './chordGuideUtil';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -126,7 +128,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [snapping, setSnapping] = useState<string>('NO SNAP');
 
   // Chord guide state
-  const [chordGuide, setChordGuide] = useState<string>('N');
+  const [chordGuide, setChordGuide] = useState<ChordGuideFunction>('N');
 
   // Piano roll state with temporary initial values
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
@@ -161,6 +163,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     () => parseSheetQuantization(sheetQuantization),
     [sheetQuantization]
   );
+  const chordGuideContext = useMemo(() => {
+    const project = KGCore.instance().getCurrentProject();
+    return resolveChordGuideContext(project, playheadPosition);
+  }, [playheadPosition]);
+  const effectiveChordGuideKeySignature = chordGuideContext.keySignature;
+  const chordGuideMode = chordGuideContext.mode;
 
   const pianoRollRef = useRef<HTMLDivElement>(null);
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
@@ -721,11 +729,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [setSelectedMode]);
 
   // Handle chord guide selection
-  const handleChordGuideSelect = useCallback((value: string) => {
+  const handleChordGuideSelect = useCallback((value: ChordGuideFunction) => {
     setChordGuide(value);
   }, []);
 
-  // Update suitable chords whenever chord guide, key signature, or mode changes
+  // Update suitable chords whenever chord guide selection or effective key signature changes
   useEffect(() => {
     const pianoRollState = KGPianoRollState.instance();
 
@@ -740,7 +748,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     } else {
       // Get suitable chords for the selected function (T/S/D)
       const functionType = chordGuide as 'T' | 'S' | 'D';
-      const suitableChords = getSuitableChords(keySignature, selectedMode, functionType);
+      const suitableChords = getSuitableChords(effectiveChordGuideKeySignature, chordGuideMode, functionType);
 
       // Convert note names to pitch classes (ensuring ascending order)
       const chordsPitchClasses: Record<string, number[]> = {};
@@ -769,11 +777,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Chord guide updated: ${chordGuide} (${functionType})`);
-        console.log(`Suitable chords for ${keySignature} in ${selectedMode} mode:`, suitableChords);
+        console.log(`Suitable chords for ${effectiveChordGuideKeySignature} in ${chordGuideMode} mode:`, suitableChords);
         console.log(`Pitch classes:`, chordsPitchClasses);
       }
     }
-  }, [chordGuide, keySignature, selectedMode]);
+  }, [chordGuide, chordGuideMode, effectiveChordGuideKeySignature]);
 
   // Handler for receiving the setNoteUpdateCounter function from PianoRollContent
   const handleSetNoteUpdateTrigger = (setNoteFn: React.Dispatch<React.SetStateAction<number>>) => {
@@ -1363,14 +1371,30 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       // Handle piano roll hotkeys
       const configManager = ConfigManager.instance();
       if (configManager.getIsInitialized()) {
-        // Chord guide switch hotkey
-        const switch_key = configManager.get('hotkeys.piano_roll.switch') as string;
-        if (event.key && event.key.toLowerCase() === switch_key.toLowerCase()) {
-          // Call the switchChord function exposed by PianoGrid
+        const chordGuideSwitchShortcut = configManager.get('hotkeys.piano_roll.switch') as string;
+        const chordGuideSwitchVoicingShortcut = configManager.get('hotkeys.piano_roll.switch_voicing') as string;
+
+        if (chordGuideSwitchShortcut && matchesKeyboardShortcut(event, chordGuideSwitchShortcut)) {
+          event.preventDefault();
+          setChordGuide((current) => getNextChordGuideSelection(current));
+          return;
+        }
+
+        if (chordGuide !== 'N' && matchesKeyboardShortcut(event, 'tab')) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const switchChord = (window as any).__pianoGridSwitchChord;
           if (typeof switchChord === 'function') {
-            switchChord();
+            switchChord(1);
+            event.preventDefault();
+          }
+          return;
+        }
+
+        if (chordGuide !== 'N' && chordGuideSwitchVoicingShortcut && matchesKeyboardShortcut(event, chordGuideSwitchVoicingShortcut)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const switchChord = (window as any).__pianoGridSwitchChord;
+          if (typeof switchChord === 'function') {
+            switchChord(-1);
             event.preventDefault();
           }
           return;
@@ -1486,7 +1510,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     return () => {
       window.removeEventListener('keydown', handlePianoRollKeyDown);
     };
-  }, [handleQuantSelect, handleSnappingSelect]);
+  }, [chordGuide, handleQuantSelect, handleSnappingSelect]);
 
   // Get the title for the piano roll based on the active region
   const getPianoRollTitle = () => {
@@ -1594,6 +1618,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         selectedMode={selectedMode}
         keySignature={keySignature}
         chordGuide={chordGuide}
+        chordGuideKeySignature={effectiveChordGuideKeySignature}
+        chordGuideMode={chordGuideMode}
         mode={currentMode}
         audioRegion={audioRegion}
         trackId={trackId}

@@ -65,6 +65,7 @@ interface AppConfig {
     };
     piano_roll: {
       switch: string;
+      switch_voicing: string;
       select: string;
       pencil: string;
       hold_to_create_note: string;
@@ -104,6 +105,13 @@ interface AppConfig {
     chord_definition: string;
   };
   [key: string]: unknown;
+}
+
+export function enforceDefaultHotkeysForAppConfig(config: AppConfig, defaultConfig: AppConfig): AppConfig {
+  return {
+    ...config,
+    hotkeys: defaultConfig.hotkeys,
+  };
 }
 
 /**
@@ -162,6 +170,7 @@ export class ConfigManager {
       
       // Merge with default config (saved config overrides defaults)
       this.config = this.mergeConfigs(this.defaultConfig!, savedConfig);
+      this.config = enforceDefaultHotkeysForAppConfig(this.config, this.defaultConfig!);
       
       this.isInitialized = true;
       console.log('ConfigManager initialized successfully with config:', this.config);
@@ -253,7 +262,8 @@ export class ConfigManager {
             merge_regions: 'ctrl+j'
           },
           piano_roll: {
-            switch: 'tab', 
+            switch: 'g',
+            switch_voicing: 'shift+tab',
             select: 'q',
             pencil: 'w',
             hold_to_create_note: 'ctrl',
@@ -329,9 +339,10 @@ export class ConfigManager {
     try {
       const shouldSanitize = !this.isRunningOnLocalhost() &&
         !this.config.general.persist_api_keys_non_localhost;
-      const configToPersist = shouldSanitize
+      const baseConfigToPersist = shouldSanitize
         ? this.getSanitizedConfigForStorage()
         : this.config;
+      const configToPersist = this.removeHotkeysFromConfigForStorage(baseConfigToPersist);
 
       await this.storage.save(
         ConfigManager.CONFIG_KEY,
@@ -473,6 +484,11 @@ export class ConfigManager {
    */
   public getAll(): Readonly<AppConfig> {
     return { ...this.config };
+  }
+
+  private removeHotkeysFromConfigForStorage(config: AppConfig): AppConfig {
+    const { hotkeys: _hotkeys, ...configWithoutHotkeys } = config;
+    return configWithoutHotkeys as AppConfig;
   }
 
   /**

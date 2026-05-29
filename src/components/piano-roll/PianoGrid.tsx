@@ -10,6 +10,7 @@ import SpectrogramCanvas from './SpectrogramCanvas';
 import AudioWaveformCanvas from './AudioWaveformCanvas';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
+import { getNextChordCandidateIndex } from './chordGuideUtil';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -27,7 +28,9 @@ interface PianoGridProps {
   regionStartBeat?: number;
   selectedMode: string;
   keySignature: KeySignature;
-  chordGuide: string;
+  chordGuide: 'N' | 'T' | 'S' | 'D';
+  chordGuideKeySignature: KeySignature;
+  chordGuideMode: 'ionian' | 'aeolian';
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;
@@ -59,6 +62,8 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   selectedMode,
   keySignature,
   chordGuide,
+  chordGuideKeySignature,
+  chordGuideMode,
   audioRegion,
   trackId,
   projectName,
@@ -162,8 +167,8 @@ const PianoGrid: React.FC<PianoGridProps> = ({
 
     // Use the utility function to get matching chords
     const functionType = chordGuide as 'T' | 'S' | 'D';
-    return getMatchingChordsForPitch(cursorPosition.pitch, keySignature, selectedMode, functionType);
-  }, [cursorPosition, chordGuide, keySignature, selectedMode]);
+    return getMatchingChordsForPitch(cursorPosition.pitch, chordGuideKeySignature, chordGuideMode, functionType);
+  }, [cursorPosition, chordGuide, chordGuideKeySignature, chordGuideMode]);
 
   // Calculate chord highlights based on selected chord index
   const chordHighlights = useMemo(() => {
@@ -212,9 +217,9 @@ const PianoGrid: React.FC<PianoGridProps> = ({
 
   // Expose switchChord function via window for hotkey handler
   useEffect(() => {
-    const switchChord = () => {
+    const switchChord = (direction: 1 | -1 = 1) => {
       if (matchingChords.length > 1) {
-        setSelectedChordIndex(prev => (prev + 1) % matchingChords.length);
+        setSelectedChordIndex(prev => getNextChordCandidateIndex(prev, matchingChords.length, direction));
       }
     };
 

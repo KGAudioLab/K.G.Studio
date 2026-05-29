@@ -16,6 +16,13 @@ const POWER_OPTIONS = [
   { label: 'Strong', value: '0.3' },
 ];
 
+const CHORD_GUIDE_BUTTONS: Array<{ label: string; value: 'N' | 'T' | 'S' | 'D'; ariaLabel: string }> = [
+  { label: '⊘', value: 'N', ariaLabel: 'Chord guide off' },
+  { label: 'T', value: 'T', ariaLabel: 'Chord guide tonic' },
+  { label: 'S', value: 'S', ariaLabel: 'Chord guide subdominant' },
+  { label: 'D', value: 'D', ariaLabel: 'Chord guide dominant' },
+];
+
 interface PianoRollToolbarProps {
   showAudioSpectrogramToggle?: boolean;
   audioSpectrogramEnabled?: boolean;
@@ -37,8 +44,8 @@ interface PianoRollToolbarProps {
   onSnappingSelect: (value: string) => void;
   selectedMode: string;
   onModeChange: (value: string) => void;
-  chordGuide: string;
-  onChordGuideChange: (value: string) => void;
+  chordGuide: 'N' | 'T' | 'S' | 'D';
+  onChordGuideChange: (value: 'N' | 'T' | 'S' | 'D') => void;
   blinkButton?: string | null;
   mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   thresholdDb?: number;
@@ -208,19 +215,21 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             buttonClassName="mode-dropdown"
             showValueAsLabel={true}
           />
-          <KGDropdown
-            options={[
-              { label: 'Guide: Disabled', value: 'N' },
-              { label: 'Chord Guide: T', value: 'T' },
-              { label: 'Chord Guide: S', value: 'S' },
-              { label: 'Chord Guide: D', value: 'D' }
-            ]}
-            value={chordGuide}
-            onChange={(value) => onChordGuideChange(value)}
-            label="Chord"
-            buttonClassName="chord-guide-dropdown"
-            showValueAsLabel={true}
-          />
+          <div className="piano-roll-chord-guide-toolbar-group" role="group" aria-label="Chord guide">
+            {CHORD_GUIDE_BUTTONS.map((button, index) => (
+              <button
+                key={button.value}
+                type="button"
+                className={`tool-button automation-toggle-button chord-guide-toggle-button chord-guide-toggle-button-${index} ${chordGuide === button.value ? 'active' : ''}`}
+                onClick={() => onChordGuideChange(button.value)}
+                title={button.ariaLabel}
+                aria-label={button.ariaLabel}
+                aria-pressed={chordGuide === button.value}
+              >
+                {button.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

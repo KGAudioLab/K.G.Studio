@@ -59,7 +59,8 @@
             "merge_regions": "ctrl+j"
         },
         "piano_roll": {
-            "switch": "tab", 
+            "switch": "g",
+            "switch_voicing": "shift+tab",
             "select": "q",
             "pencil": "w",
             "hold_to_create_note": "ctrl",

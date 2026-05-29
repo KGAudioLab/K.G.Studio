@@ -36,7 +36,9 @@ interface PianoRollContentProps {
   onSetDeleteNotesTrigger?: (deleteFn: () => boolean) => void;
   selectedMode: string;
   keySignature: KeySignature;
-  chordGuide: string;
+  chordGuide: 'N' | 'T' | 'S' | 'D';
+  chordGuideKeySignature?: KeySignature;
+  chordGuideMode?: 'ionian' | 'aeolian';
   mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   audioRegion?: KGAudioRegion;
   trackId?: string;
@@ -73,6 +75,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   selectedMode,
   keySignature,
   chordGuide,
+  chordGuideKeySignature = keySignature,
+  chordGuideMode = 'ionian',
   mode = 'midi-edit',
   audioRegion,
   trackId,
@@ -376,6 +380,8 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                   selectedMode={selectedMode}
                   keySignature={keySignature}
                   chordGuide={chordGuide}
+                  chordGuideKeySignature={chordGuideKeySignature}
+                  chordGuideMode={chordGuideMode}
                   audioRegion={audioRegion}
                   trackId={trackId}
                   projectName={projectName}

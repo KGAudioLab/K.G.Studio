@@ -148,9 +148,37 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
         }
       }
 
+      case '/hotkeys':
+      case '/hotkey': {
+        try {
+          const url = `${import.meta.env.BASE_URL}chat/hotkeys.md`;
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+          }
+          const md = await resp.text();
+          return {
+            displayUserMessage: false,
+            sendToLLM: false,
+            finalMessageForLLM: null,
+            pseudoAssistantResponse: md,
+            metadata: { command: 'hotkeys' }
+          };
+        } catch (err) {
+          const fallback = 'Hotkeys guide is currently unavailable.';
+          return {
+            displayUserMessage: false,
+            sendToLLM: false,
+            finalMessageForLLM: null,
+            pseudoAssistantResponse: fallback,
+            metadata: { command: 'hotkeys', error: String(err) }
+          };
+        }
+      }
+
       default: {
         const { setStatus } = useProjectStore.getState();
-        const help = 'Available commands: /clear, /welcome, /help';
+        const help = 'Available commands: /clear, /welcome, /help, /hotkeys, /hotkey';
         setStatus(`Unknown command: ${command}. ${help}`);
         return {
           displayUserMessage: false,

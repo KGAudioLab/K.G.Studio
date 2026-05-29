@@ -56,7 +56,7 @@ describe('PianoRollToolbar', () => {
     onSnappingSelect: vi.fn(),
     selectedMode: 'ionian',
     onModeChange: vi.fn(),
-    chordGuide: 'N',
+    chordGuide: 'N' as const,
     onChordGuideChange: vi.fn(),
     zoom: 1,
     onZoomChange: vi.fn(),
@@ -104,6 +104,46 @@ describe('PianoRollToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: /Pitch Bend/i }));
 
     expect(onAutomationTypeChange).toHaveBeenCalledWith('cc-11');
+  });
+
+  it('renders chord guide toggle buttons and marks off as active by default', () => {
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Chord guide off' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide tonic' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide subdominant' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide dominant' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chord guide off' }).className).toContain('active');
+    expect(screen.queryByRole('button', { name: 'Chord' })).not.toBeInTheDocument();
+  });
+
+  it('emits the selected chord guide value when toggle buttons are clicked', () => {
+    const onChordGuideChange = vi.fn();
+
+    render(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        showAutomationControls={false}
+        onChordGuideChange={onChordGuideChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide off' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide tonic' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide subdominant' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chord guide dominant' }));
+
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(1, 'N');
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(2, 'T');
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(3, 'S');
+    expect(onChordGuideChange).toHaveBeenNthCalledWith(4, 'D');
   });
 
   it('hides automation controls in spectrogram mode', () => {

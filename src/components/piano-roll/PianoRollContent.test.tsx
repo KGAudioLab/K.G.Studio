@@ -76,7 +76,7 @@ describe('PianoRollContent', () => {
     tracks: [],
     selectedMode: 'ionian',
     keySignature: 'C major' as KeySignature,
-    chordGuide: 'N',
+    chordGuide: 'N' as const,
     bpm: 120,
   };
 
