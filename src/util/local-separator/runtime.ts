@@ -1,4 +1,5 @@
 import * as ort from 'onnxruntime-web/webgpu';
+import ortWasmAsyncifyMjsUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url';
 import ortWasmAsyncifyUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
 import type { LocalRuntimeState, LocalRuntimeSupport, LocalSeparatorModelConfig } from './types';
 
@@ -43,10 +44,15 @@ export class LocalOrtRuntimeManager {
     }
 
     if (!LocalOrtRuntimeManager.wasmPathsConfigured) {
+      // Pin both loader and wasm binary to Vite-emitted same-origin assets so
+      // static hosting never falls back to package-relative or third-party URLs.
       ort.env.wasm.wasmPaths = {
+        mjs: ortWasmAsyncifyMjsUrl,
         wasm: ortWasmAsyncifyUrl,
       };
+      ort.env.wasm.numThreads = 1;
       log('Configured ONNX Runtime wasm paths.', ort.env.wasm.wasmPaths);
+      log('Configured ONNX Runtime wasm threading.', { numThreads: ort.env.wasm.numThreads });
       LocalOrtRuntimeManager.wasmPathsConfigured = true;
     }
 
