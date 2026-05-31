@@ -15,6 +15,7 @@ import type { KeySignature } from '../core/KGProject';
 import { ImportStemsCommand } from '../core/commands';
 import type { StemImportEntry } from '../core/commands';
 import { showAlert } from '../util/dialogUtil';
+import { useI18n } from '../i18n/useI18n';
 import {
   getLocalSeparatorModelConfig,
   LOCAL_SEPARATOR_MODELS,
@@ -73,13 +74,6 @@ function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function formatKGOneTabLabel(tab: Tab): string {
-  if (tab === 'fullsong') return 'Full Song';
-  if (tab === 'remix') return 'Remix';
-  if (tab === 'repaint') return 'Repaint';
-  return 'Separator';
 }
 
 function getDefaultKGOneTab(mode: KGOneMode): Tab {
@@ -213,6 +207,7 @@ interface ClipTabProps {
 }
 
 const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
+  const { t } = useI18n();
   const { note: defaultNote, scale: defaultScale } = parseKeySignature(keySignature);
 
   // Form state
@@ -269,7 +264,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
     try {
       // ── 1. Load the clip model ──────────────────────────────────────────────
       setGenStatus('loading-model');
-      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+      setGenHint(t('kgone.shared.hint.loadingModel'));
 
       const baseUrl = getKGOneBaseUrl();
 
@@ -292,7 +287,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
 
       // ── 2. Submit generation job ────────────────────────────────────────────
       setGenStatus('generating');
-      setGenHint('Submitting generation request...');
+      setGenHint(t('kgone.shared.hint.submitting'));
 
       const genPayload = {
         prompt,
@@ -330,15 +325,14 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
 
       // ── 3. Poll for completion ──────────────────────────────────────────────
       setGenStatus('polling');
-      setGenHint('Generating clip...');
-
+      setGenHint(t('kgone.clip.hint.generating'));
 
       while (true) {
         if (signal.aborted) return;
 
         await new Promise<void>(r => {
-          const t = setTimeout(r, 5000);
-          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+          const timer = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(timer); r(); }, { once: true });
         });
 
         if (signal.aborted) return;
@@ -358,7 +352,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
 
       // ── 4. Download the WAV ─────────────────────────────────────────────────
       setGenStatus('downloading');
-      setGenHint('Downloading audio...');
+      setGenHint(t('kgone.shared.hint.downloadingAudio'));
 
       kgoneLog('REQ', `GET /v1/clip/audio/${task_id}`, null);
       const audioResp = await fetchWithRetry(`${baseUrl}/v1/clip/audio/${task_id}`, { signal });
@@ -380,121 +374,119 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
   }, [
     prompt, negativePrompt, bars, clipBpm, note, scale,
     steps, cfgScale, seed, samplerType, sigmaMin, sigmaMax, cfgRescale,
-    audioUrl,
+    audioUrl, t,
   ]);
 
   const btnLabel = () => {
     switch (genStatus) {
-      case 'loading-model': return 'Loading model...';
-      case 'generating': return 'Generating...';
-      case 'polling': return 'Processing...';
-      case 'downloading': return 'Downloading...';
-      default: return 'Generate Clip';
+      case 'loading-model': return t('kgone.shared.btn.loadingModel');
+      case 'generating': return t('kgone.shared.btn.generating');
+      case 'polling': return t('kgone.shared.btn.processing');
+      case 'downloading': return t('kgone.shared.btn.downloading');
+      default: return t('kgone.clip.btn.generate');
     }
   };
 
   return (
     <>
       <div className="kgone-field">
-        <label className="kgone-label">Prompt</label>
+        <label className="kgone-label">{t('kgone.clip.field.prompt')}</label>
         <textarea
           className="kgone-textarea"
           value={prompt}
           onChange={e => setPrompt(e.target.value)}
-          placeholder="e.g. Gritty, Acid, Bassline, 303, Synth Lead, FM, Sub, Upper Mids, High Phaser, High Reverb, Pitch Bend, 8 Bars, 140 BPM, E minor"
+          placeholder={t('kgone.clip.field.promptPlaceholder')}
           rows={3}
         />
-        <div className="kgone-hint">
-          Describe the clip with comma-separated tags: instrument family, sub-type, timbre, FX, bars, BPM, key.
-        </div>
+        <div className="kgone-hint">{t('kgone.clip.field.promptHint')}</div>
       </div>
 
       <div className="kgone-field">
-        <label className="kgone-label">Negative Prompt</label>
+        <label className="kgone-label">{t('kgone.clip.field.negativePrompt')}</label>
         <textarea
           className="kgone-textarea"
           value={negativePrompt}
           onChange={e => setNegativePrompt(e.target.value)}
-          placeholder="e.g. distortion, noise"
+          placeholder={t('kgone.clip.field.negativePromptPlaceholder')}
           rows={2}
         />
       </div>
 
       <div className="kgone-field">
-        <label className="kgone-label">Bars</label>
+        <label className="kgone-label">{t('kgone.clip.field.bars')}</label>
         <select
           className="kgone-select"
           value={bars}
           onChange={e => setBars(Number(e.target.value) as 4 | 8)}
         >
-          <option value={4}>4 Bars</option>
-          <option value={8}>8 Bars</option>
+          <option value={4}>{t('kgone.clip.field.bars4')}</option>
+          <option value={8}>{t('kgone.clip.field.bars8')}</option>
         </select>
       </div>
 
-      <Expander label="Advanced Settings">
+      <Expander label={t('kgone.shared.advancedSettings')}>
         <div className="kgone-row">
           <div className="kgone-field">
-            <label className="kgone-label">Note</label>
+            <label className="kgone-label">{t('kgone.clip.field.note')}</label>
             <select className="kgone-select" value={note} onChange={e => setNote(e.target.value)}>
               {CLIP_NOTES.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div className="kgone-field">
-            <label className="kgone-label">Scale</label>
+            <label className="kgone-label">{t('kgone.clip.field.scale')}</label>
             <select className="kgone-select" value={scale} onChange={e => setScale(e.target.value as 'major' | 'minor')}>
-              <option value="major">Major</option>
-              <option value="minor">Minor</option>
+              <option value="major">{t('kgone.clip.field.scaleMajor')}</option>
+              <option value="minor">{t('kgone.clip.field.scaleMinor')}</option>
             </select>
           </div>
         </div>
 
         <div className="kgone-field">
-          <label className="kgone-label">BPM</label>
+          <label className="kgone-label">{t('kgone.clip.field.bpm')}</label>
           <input type="number" className="kgone-input" value={clipBpm} min={40} max={300}
             onChange={e => setClipBpm(Number(e.target.value))} />
         </div>
 
         <div className="kgone-row">
           <div className="kgone-field">
-            <label className="kgone-label">Steps</label>
+            <label className="kgone-label">{t('kgone.clip.field.steps')}</label>
             <input type="number" className="kgone-input" value={steps} min={1} max={500}
               onChange={e => setSteps(Number(e.target.value))} />
           </div>
           <div className="kgone-field">
-            <label className="kgone-label">CFG Scale</label>
+            <label className="kgone-label">{t('kgone.clip.field.cfgScale')}</label>
             <input type="number" className="kgone-input" value={cfgScale} min={0} max={25} step={0.1}
               onChange={e => setCfgScale(Number(e.target.value))} />
           </div>
         </div>
 
         <div className="kgone-field">
-          <label className="kgone-label">Seed (-1 = random)</label>
+          <label className="kgone-label">{t('kgone.clip.field.seedLabel')}</label>
           <input type="number" className="kgone-input" value={seed}
             onChange={e => setSeed(Number(e.target.value))} />
         </div>
 
         <div className="kgone-field">
-          <label className="kgone-label">Sampler Type</label>
+          <label className="kgone-label">{t('kgone.clip.field.samplerType')}</label>
           <input type="text" className="kgone-input" value={samplerType}
             onChange={e => setSamplerType(e.target.value)} />
         </div>
 
         <div className="kgone-row">
           <div className="kgone-field">
-            <label className="kgone-label">Sigma Min</label>
+            <label className="kgone-label">{t('kgone.clip.field.sigmaMin')}</label>
             <input type="number" className="kgone-input" value={sigmaMin} step={0.01}
               onChange={e => setSigmaMin(Number(e.target.value))} />
           </div>
           <div className="kgone-field">
-            <label className="kgone-label">Sigma Max</label>
+            <label className="kgone-label">{t('kgone.clip.field.sigmaMax')}</label>
             <input type="number" className="kgone-input" value={sigmaMax} step={1}
               onChange={e => setSigmaMax(Number(e.target.value))} />
           </div>
         </div>
 
         <div className="kgone-field">
-          <label className="kgone-label">CFG Rescale</label>
+          <label className="kgone-label">{t('kgone.clip.field.cfgRescale')}</label>
           <input type="number" className="kgone-input" value={cfgRescale} min={0} max={1} step={0.01}
             onChange={e => setCfgRescale(Number(e.target.value))} />
         </div>
@@ -513,12 +505,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
 
       {/* Drag-to-track hint — shown after a successful generation */}
       {genStatus === 'done' && (
-        <div className="kgone-hint">
-          Drag the player above to a track to import the clip.
-          Drop onto an <strong>audio track</strong> to import as a WAV region (recommended),
-          or onto a <strong>MIDI track</strong> to import as a MIDI region.
-          Note: MIDI is transcribed from the audio and may not be perfectly accurate.
-        </div>
+        <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.clip.hint.drag') }} />
       )}
 
       {/* Error message */}
@@ -527,7 +514,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       )}
 
       <button
-        className="kgone-btn-generate kgone-btn-generate-accent"
+        className="dialog-btn dialog-btn-primary kgone-btn-generate"
         disabled={isGenerating || !prompt.trim()}
         onClick={handleGenerate}
       >
@@ -539,7 +526,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       {genHint && <div className="kgone-gen-hint">{genHint}</div>}
 
       <div className="kgone-powered-by">
-        Powered by <a href="https://huggingface.co/RoyalCities/Foundation-1" target="_blank" rel="noopener noreferrer">Foundation-1</a>
+        {t('kgone.shared.poweredBy')}<a href="https://huggingface.co/RoyalCities/Foundation-1" target="_blank" rel="noopener noreferrer">{t('kgone.clip.poweredBy')}</a>
       </div>
     </>
   );
@@ -548,6 +535,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
 // ─── Full Song Tab ────────────────────────────────────────────────────────────
 
 const FullSongTab: React.FC = () => {
+  const { t } = useI18n();
   // Form state
   const [caption, setCaption] = useState('');
   const [lyrics, setLyrics] = useState('');
@@ -592,7 +580,7 @@ const FullSongTab: React.FC = () => {
     try {
       // ── 1. Load the fullsong model ──────────────────────────────────────────
       setGenStatus('loading-model');
-      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+      setGenHint(t('kgone.shared.hint.loadingModel'));
 
       const baseUrl = getKGOneBaseUrl();
 
@@ -614,7 +602,7 @@ const FullSongTab: React.FC = () => {
 
       // ── 2. Submit generation job ────────────────────────────────────────────
       setGenStatus('generating');
-      setGenHint('Submitting generation request...');
+      setGenHint(t('kgone.shared.hint.submitting'));
 
       const genPayload = {
         caption,
@@ -652,19 +640,18 @@ const FullSongTab: React.FC = () => {
 
       // ── 3. Poll for completion ──────────────────────────────────────────────
       setGenStatus('polling');
-      setGenHint('Generating...');
+      setGenHint(t('kgone.fullSong.hint.generating'));
 
       // Response shape: { "data": [{ "status": 0|1, "result": "<JSON_STRING>", ... }], ... }
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
 
-
       while (true) {
         if (signal.aborted) return;
 
         await new Promise<void>(r => {
-          const t = setTimeout(r, 5000);
-          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+          const timer = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(timer); r(); }, { once: true });
         });
 
         if (signal.aborted) return;
@@ -685,7 +672,10 @@ const FullSongTab: React.FC = () => {
           if (item) {
             const pct = Math.round((item.progress ?? 0) * 100);
             const stage = item.stage ?? '';
-            setGenHint(stage ? `Generating... ${pct}% — ${stage}` : `Generating... ${pct}%`);
+            setGenHint(stage
+              ? t('kgone.fullSong.hint.generatingProgress', { pct: String(pct), stage })
+              : t('kgone.fullSong.hint.generatingProgressNoStage', { pct: String(pct) }),
+            );
           }
         } catch {
           // result may be empty string while still queued — ignore parse errors
@@ -697,7 +687,7 @@ const FullSongTab: React.FC = () => {
 
       // ── 4. Download the MP3 ─────────────────────────────────────────────────
       setGenStatus('downloading');
-      setGenHint('Downloading audio...');
+      setGenHint(t('kgone.shared.hint.downloadingAudio'));
 
       kgoneLog('REQ', `GET /v1/fullsong/audio/${task_id}?index=0`, null);
       const audioResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
@@ -716,65 +706,61 @@ const FullSongTab: React.FC = () => {
       setGenStatus('error');
       setGenHint('');
     }
-  }, [caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, audioUrl]);
+  }, [caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, audioUrl, t]);
 
   const btnLabel = () => {
     switch (genStatus) {
-      case 'loading-model': return 'Loading model...';
-      case 'generating': return 'Generating...';
-      case 'polling': return 'Processing...';
-      case 'downloading': return 'Downloading...';
-      default: return 'Generate Song';
+      case 'loading-model': return t('kgone.shared.btn.loadingModel');
+      case 'generating': return t('kgone.shared.btn.generating');
+      case 'polling': return t('kgone.shared.btn.processing');
+      case 'downloading': return t('kgone.shared.btn.downloading');
+      default: return t('kgone.fullSong.btn.generate');
     }
   };
 
   return (
     <>
       <div className="kgone-field">
-        <label className="kgone-label">Caption</label>
+        <label className="kgone-label">{t('kgone.shared.caption')}</label>
         <textarea
           className="kgone-textarea"
           value={caption}
           onChange={e => setCaption(e.target.value)}
-          placeholder="e.g. Genre: Eurodance, 90s dance-pop, upbeat electronic. Style: Catchy, energetic... Tempo: ~130 BPM. Instrumentation: driving kick drum, eurodance bassline..."
+          placeholder={t('kgone.fullSong.field.captionPlaceholder')}
           rows={5}
         />
-        <div className="kgone-hint">
-          Describe the song style, mood, tempo, instrumentation, and structure in natural language.
-        </div>
+        <div className="kgone-hint">{t('kgone.fullSong.field.captionHint')}</div>
       </div>
 
       <div className="kgone-field">
-        <label className="kgone-label">Lyrics</label>
+        <label className="kgone-label">{t('kgone.shared.lyrics')}</label>
         <textarea
           className="kgone-textarea"
           value={lyrics}
           onChange={e => setLyrics(e.target.value)}
-          placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
+          placeholder={t('kgone.shared.lyricsPlaceholder')}
           rows={6}
           disabled={instrumental}
           style={instrumental ? { opacity: 0.4 } : undefined}
         />
-        <div className="kgone-hint">
-          Use [Intro], [Verse], [Chorus], [Bridge] tags to mark sections.
-        </div>
+        <div className="kgone-hint">{t('kgone.fullSong.field.lyricsHint')}</div>
       </div>
 
       <div className="kgone-checkbox-row">
         <input type="checkbox" id="kgone-instrumental" checked={instrumental}
           onChange={e => setInstrumental(e.target.checked)} />
-        <label htmlFor="kgone-instrumental">Instrumental (no vocals)</label>
+        <label htmlFor="kgone-instrumental">{t('kgone.shared.instrumental')}</label>
       </div>
 
-      <Expander label="Advanced Settings">
+      <Expander label={t('kgone.shared.advancedSettings')}>
         <div className="kgone-row">
           <div className="kgone-field">
-            <label className="kgone-label">Inference Steps</label>
+            <label className="kgone-label">{t('kgone.shared.inferenceSteps')}</label>
             <input type="number" className="kgone-input" value={inferenceSteps} min={1} max={200}
               onChange={e => setInferenceSteps(Number(e.target.value))} />
           </div>
           <div className="kgone-field">
-            <label className="kgone-label">Guidance Scale</label>
+            <label className="kgone-label">{t('kgone.shared.guidanceScale')}</label>
             <input type="number" className="kgone-input" value={guidanceScale} min={0} max={20} step={0.1}
               onChange={e => setGuidanceScale(Number(e.target.value))} />
           </div>
@@ -783,11 +769,11 @@ const FullSongTab: React.FC = () => {
         <div className="kgone-checkbox-row">
           <input type="checkbox" id="kgone-use-random-seed" checked={useRandomSeed}
             onChange={e => setUseRandomSeed(e.target.checked)} />
-          <label htmlFor="kgone-use-random-seed">Use Random Seed</label>
+          <label htmlFor="kgone-use-random-seed">{t('kgone.shared.useRandomSeed')}</label>
         </div>
 
         <div className="kgone-field">
-          <label className="kgone-label">Seed</label>
+          <label className="kgone-label">{t('kgone.shared.seed')}</label>
           <input type="number" className="kgone-input" value={seed}
             disabled={useRandomSeed} style={useRandomSeed ? { opacity: 0.4 } : undefined}
             onChange={e => setSeed(Number(e.target.value))} />
@@ -796,7 +782,7 @@ const FullSongTab: React.FC = () => {
         <div className="kgone-checkbox-row">
           <input type="checkbox" id="kgone-thinking" checked={thinking}
             onChange={e => setThinking(e.target.checked)} />
-          <label htmlFor="kgone-thinking">Thinking (CoT metadata generation)</label>
+          <label htmlFor="kgone-thinking">{t('kgone.shared.thinking')}</label>
         </div>
       </Expander>
 
@@ -810,10 +796,7 @@ const FullSongTab: React.FC = () => {
       )}
 
       {genStatus === 'done' && (
-        <div className="kgone-hint">
-          Drag the player above to an <strong>audio track</strong> to import the song.
-          Dropping onto a MIDI track is not supported for full song generation.
-        </div>
+        <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.fullSong.hint.drag') }} />
       )}
 
       {genStatus === 'error' && errorMsg && (
@@ -832,13 +815,22 @@ const FullSongTab: React.FC = () => {
       {genHint && <div className="kgone-gen-hint">{genHint}</div>}
 
       <div className="kgone-powered-by">
-        Powered by <a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">ACE-Step 1.5</a>
+        {t('kgone.shared.poweredBy')}<a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">{t('kgone.fullSong.poweredBy')}</a>
       </div>
     </>
   );
 };
 
 // ─── Separator Tab ────────────────────────────────────────────────────────────
+
+/** Map a separator model value/id to its translated display label. */
+function getModelLabel(modelValue: string, t: (key: string) => string): string {
+  if (modelValue === 'UVR-MDX-NET-Inst_HQ_3.onnx') return t('kgone.separator.model.vocalInstMedium');
+  if (modelValue === 'MDX23C-8KFFT-InstVoc_HQ.ckpt') return t('kgone.separator.model.vocalInstHigh');
+  if (modelValue === 'htdemucs_6s.yaml') return t('kgone.separator.model.6stem');
+  if (modelValue === 'htdemucs_4s.onnx') return t('kgone.separator.model.htdemucs4s');
+  return modelValue;
+}
 
 /** Extract the stem label from a filename like `uuid_(Vocals)_ModelName.mp3` */
 function extractStemName(filename: string): string {
@@ -863,6 +855,7 @@ function countRepaintTracks(sourceTrackName: string): number {
 }
 
 const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
+  const { t } = useI18n();
   const { selectedRegionIds, projectName, bpm, timeSignature, maxBars, refreshProjectState } = useProjectStore();
   const localOnlyMode = mode === 'local-separator';
   const availableSeparatorModels = localOnlyMode ? LOCAL_SEPARATOR_MODEL_OPTIONS : SERVER_SEPARATOR_MODELS;
@@ -988,7 +981,8 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     setIsDownloadingLocalModel(true);
     setErrorMsg('');
     setLocalProgressPercent(0);
-    setLocalProgressText(`Downloading ${currentLocalModelConfig.displayName}...`);
+    const modelLabel = getModelLabel(currentLocalModelConfig.id, t);
+    setLocalProgressText(t('kgone.separator.local.progress.downloading', { name: modelLabel }));
 
     try {
       await LocalSeparatorModelCache.download(
@@ -1000,13 +994,13 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
           setLocalProgressPercent(progress.totalBytes ? progress.percent : 0);
           setLocalProgressText(
             totalMb
-              ? `Downloading ${currentLocalModelConfig.displayName}... ${receivedMb} / ${totalMb} MB`
-              : `Downloading ${currentLocalModelConfig.displayName}... ${receivedMb} MB`,
+              ? t('kgone.separator.local.progress.downloadingWithSize', { name: modelLabel, received: receivedMb, total: totalMb })
+              : t('kgone.separator.local.progress.downloadingMbOnly', { name: modelLabel, received: receivedMb }),
           );
         },
       );
       setLocalProgressPercent(100);
-      setLocalProgressText(`${currentLocalModelConfig.displayName} is ready.`);
+      setLocalProgressText(t('kgone.separator.local.progress.ready', { name: modelLabel }));
       await refreshLocalModelCacheState();
     } catch (err) {
       setLocalProgressPercent(0);
@@ -1015,7 +1009,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     } finally {
       setIsDownloadingLocalModel(false);
     }
-  }, [currentLocalModelConfig, getConfiguredLocalSeparatorModelUrl, refreshLocalModelCacheState]);
+  }, [currentLocalModelConfig, getConfiguredLocalSeparatorModelUrl, refreshLocalModelCacheState, t]);
 
   const handleDeleteLocalModel = useCallback(async () => {
     setIsDeletingLocalModel(true);
@@ -1060,7 +1054,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     try {
       // ── 1. Load the separator model ────────────────────────────────────────
       setGenStatus('loading-model');
-      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+      setGenHint(t('kgone.shared.hint.loadingModel'));
 
       const baseUrl = getKGOneBaseUrl();
 
@@ -1084,7 +1078,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       // ── 2. Load audio file from OPFS and build multipart form ──────────────
       setGenStatus('generating');
-      setGenHint('Reading audio file...');
+      setGenHint(t('kgone.shared.btn.preparingUpload'));
 
       const audioFileId = selectedAudioRegion.region.getAudioFileId();
       const audioFileName = selectedAudioRegion.region.getAudioFileName();
@@ -1101,7 +1095,6 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       let uploadMimeType: string;
 
       if (needsSlice) {
-        setGenHint('Trimming audio to region range...');
         uploadBuffer = await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration);
         uploadFileName = audioFileName.replace(/\.[^.]+$/, '.wav');
         uploadMimeType = 'audio/wav';
@@ -1119,7 +1112,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       if (signal.aborted) return;
 
-      setGenHint('Submitting separation request...');
+      setGenHint(t('kgone.separator.btn.server.polling'));
 
       kgoneLog('REQ', 'POST /v1/separator/separate', { file: uploadFileName, model_filename: model });
       const sepResp = await fetch(`${baseUrl}/v1/separator/separate`, {
@@ -1141,7 +1134,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       // ── 3. Poll for completion ─────────────────────────────────────────────
       setGenStatus('polling');
-      setGenHint('Separating stems...');
+      setGenHint(t('kgone.separator.btn.server.polling'));
 
       type SepPollResponse = {
         task_id: string;
@@ -1152,13 +1145,12 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       let files: string[] = [];
 
-
       while (true) {
         if (signal.aborted) return;
 
         await new Promise<void>(r => {
-          const t = setTimeout(r, 5000);
-          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+          const timer = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(timer); r(); }, { once: true });
         });
 
         if (signal.aborted) return;
@@ -1181,7 +1173,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       // ── 4. Download all stem files in parallel ─────────────────────────────
       setGenStatus('downloading');
-      setGenHint('Downloading stems...');
+      setGenHint(t('kgone.shared.hint.downloadingAudio'));
 
       const stemResults = await Promise.all(
         files.map(async (filename) => {
@@ -1207,7 +1199,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       setGenStatus('error');
       setGenHint('');
     }
-  }, [selectedAudioRegion, projectName, model, stemAudioUrls, bpm]);
+  }, [selectedAudioRegion, projectName, model, stemAudioUrls, bpm, t]);
 
   const handleSeparateLocal = useCallback(async () => {
     if (!selectedAudioRegion || !isLocalModelCached) return;
@@ -1224,7 +1216,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     setErrorMsg('');
     setGenStatus('loading-model');
     setLocalProgressPercent(0);
-    setLocalProgressText('Preparing ONNX Runtime session...');
+    setLocalProgressText(t('kgone.separator.local.progress.preparingRuntime'));
     setLocalProviderLabel(runtimeSupport.webgpuExposed ? 'webgpu available' : 'cpu/wasm only');
 
     try {
@@ -1237,7 +1229,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       setGenStatus('generating');
       setLocalProgressPercent(3);
-      setLocalProgressText('Reading audio file...');
+      setLocalProgressText(t('kgone.separator.local.progress.readingAudio'));
 
       const audioFileId = selectedAudioRegion.region.getAudioFileId();
       const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
@@ -1253,7 +1245,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
       setGenStatus('polling');
       setLocalProgressPercent(5);
-      setLocalProgressText('Running browser separation...');
+      setLocalProgressText(t('kgone.separator.local.progress.running'));
 
       const chunkDuration = localChunkDurationSeconds.trim()
         ? Number.parseFloat(localChunkDurationSeconds)
@@ -1283,7 +1275,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       setStemAudioUrls(nextStemAudioUrls);
       setGenStatus('done');
       setLocalProgressPercent(100);
-      setLocalProgressText('Separation complete.');
+      setLocalProgressText(t('kgone.separator.local.progress.complete'));
       kgoneLog('RES', 'local separator summary', result.debugSummary);
     } catch (err) {
       console.error('[KGOne] Local separator error:', err);
@@ -1300,6 +1292,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     localChunkDurationSeconds,
     localOverlap,
     currentLocalModelConfig,
+    t,
   ]);
 
   const handleSeparate = useCallback(async () => {
@@ -1375,20 +1368,20 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
   const btnLabel = () => {
     if (localOnlyMode) {
       switch (genStatus) {
-        case 'loading-model': return 'Preparing local model...';
-        case 'generating': return 'Preparing audio...';
-        case 'polling': return 'Separating locally...';
-        case 'downloading': return 'Finalizing...';
-        default: return 'Separate Stems';
+        case 'loading-model': return t('kgone.separator.btn.local.loadingModel');
+        case 'generating': return t('kgone.separator.btn.local.generating');
+        case 'polling': return t('kgone.separator.btn.local.polling');
+        case 'downloading': return t('kgone.separator.btn.local.downloading');
+        default: return t('kgone.separator.btn.separateStems');
       }
     }
 
     switch (genStatus) {
-      case 'loading-model': return 'Loading model...';
-      case 'generating': return 'Preparing upload...';
-      case 'polling': return 'Separating stems...';
-      case 'downloading': return 'Downloading...';
-      default: return 'Separate Stems';
+      case 'loading-model': return t('kgone.separator.btn.server.loadingModel');
+      case 'generating': return t('kgone.separator.btn.server.generating');
+      case 'polling': return t('kgone.separator.btn.server.polling');
+      case 'downloading': return t('kgone.separator.btn.server.downloading');
+      default: return t('kgone.separator.btn.separateStems');
     }
   };
 
@@ -1396,20 +1389,15 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     <>
       {localOnlyMode && (
         <div className="kgone-local-mode-card">
-          <div className="kgone-local-mode-title">Local Separator Mode</div>
+          <div className="kgone-local-mode-title">{t('kgone.separator.local.title')}</div>
           <div className="kgone-local-mode-text">
-            If K.G.One Music Studio is unavailable, Local Separator Mode provides a built-in alternative for extracting stems
-            directly in your browser. Two local models are available: Vocal and Instrument (Medium Accuracy), and Vocal,
-            Drums, Bass, and Others. Download status below reflects the currently selected model. Vocal and Instrument
-            (Medium Accuracy) usually takes longer to process than Vocal, Drums, Bass, and Others, and total processing time
-            will still depend on your hardware. If processing falls back to CPU, the page may become temporarily less
-            responsive while separation is running.{' '}
-            <a href="https://github.com/KGAudioLab/K.G.One" target="_blank" rel="noopener noreferrer">Learn more about K.G.One Music Studio server integration.</a>
+            {t('kgone.separator.local.description')}{' '}
+            <a href="https://github.com/KGAudioLab/K.G.One" target="_blank" rel="noopener noreferrer">{t('kgone.separator.local.learnMore')}</a>
           </div>
           <div className="kgone-runtime-row">
-            <div className="kgone-provider-chip">Provider: {localProviderLabel}</div>
+            <div className="kgone-provider-chip">{t('kgone.separator.local.provider')}{localProviderLabel}</div>
             <div className="kgone-provider-chip">
-              Model: {currentLocalModelConfig.displayName} ({isLocalModelCached ? 'downloaded' : 'not downloaded'})
+              {t('kgone.separator.local.model')}{getModelLabel(currentLocalModelConfig.id, t)} ({isLocalModelCached ? t('kgone.separator.local.downloaded') : t('kgone.separator.local.notDownloaded')})
             </div>
           </div>
           {(localProgressText || isCheckingLocalModel) && (
@@ -1424,7 +1412,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
                 <div className="kgone-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localProgressPercent))}%` }} />
               </div>
               <div className="kgone-gen-hint">
-                {isCheckingLocalModel ? 'Checking local model cache...' : localProgressText}
+                {isCheckingLocalModel ? t('kgone.separator.local.checkingCache') : localProgressText}
               </div>
             </div>
           )}
@@ -1436,7 +1424,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
                 disabled={isCheckingLocalModel || isDownloadingLocalModel || isDeletingLocalModel || isGenerating}
                 onClick={() => void handleDownloadLocalModel()}
               >
-                {isDownloadingLocalModel ? 'Downloading Model...' : 'Download Selected Model'}
+                {isDownloadingLocalModel ? t('kgone.separator.local.btn.downloading') : t('kgone.separator.local.btn.download')}
               </button>
             ) : (
               <>
@@ -1446,7 +1434,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
                   disabled={isCheckingLocalModel || isDownloadingLocalModel || isDeletingLocalModel || isGenerating}
                   onClick={() => void handleDownloadLocalModel()}
                 >
-                  {isDownloadingLocalModel ? 'Redownloading...' : 'Redownload Model'}
+                  {isDownloadingLocalModel ? t('kgone.separator.local.btn.redownloading') : t('kgone.separator.local.btn.redownload')}
                 </button>
                 <button
                   className="kgone-btn-secondary kgone-btn-danger"
@@ -1454,7 +1442,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
                   disabled={isCheckingLocalModel || isDownloadingLocalModel || isDeletingLocalModel || isGenerating}
                   onClick={() => void handleDeleteLocalModel()}
                 >
-                  {isDeletingLocalModel ? 'Deleting...' : 'Delete Cached Model'}
+                  {isDeletingLocalModel ? t('kgone.separator.local.btn.deleting') : t('kgone.separator.local.btn.deleteCache')}
                 </button>
               </>
             )}
@@ -1465,41 +1453,41 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       {selectedAudioRegion ? (
         <>
           <div className="kgone-region-info">
-            <div className="kgone-region-info-label">Selected Region</div>
+            <div className="kgone-region-info-label">{t('kgone.shared.selectedRegion')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.region.getName()}</div>
-            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Track</div>
+            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>{t('kgone.shared.track')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.trackName}</div>
           </div>
 
           <div className="kgone-field">
-            <label className="kgone-label">Separation Model</label>
+            <label className="kgone-label">{t('kgone.separator.field.separationModel')}</label>
             <select className="kgone-select" value={model} onChange={e => setModel(e.target.value)}>
               {availableSeparatorModels.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
+                <option key={m.value} value={m.value}>{getModelLabel(m.value, t)}</option>
               ))}
             </select>
           </div>
 
           {localOnlyMode && (
-            <Expander label="Advanced Settings">
+            <Expander label={t('kgone.shared.advancedSettings')}>
               <div className="kgone-field">
-                <label className="kgone-label">Optional audio chunk duration (seconds)</label>
+                <label className="kgone-label">{t('kgone.separator.field.chunkDuration')}</label>
                 <input
                   className="kgone-input"
-                  aria-label="Optional audio chunk duration (seconds)"
+                  aria-label={t('kgone.separator.field.chunkDuration')}
                   type="number"
                   min={1}
                   step={1}
                   value={localChunkDurationSeconds}
                   onChange={e => setLocalChunkDurationSeconds(e.target.value)}
-                  placeholder="Leave blank to process the full region"
+                  placeholder={t('kgone.separator.field.chunkDurationPlaceholder')}
                 />
               </div>
               <div className="kgone-field">
-                <label className="kgone-label">Model overlap</label>
+                <label className="kgone-label">{t('kgone.separator.field.modelOverlap')}</label>
                 <input
                   className="kgone-input"
-                  aria-label="Model overlap"
+                  aria-label={t('kgone.separator.field.modelOverlap')}
                   type="number"
                   min={0.001}
                   max={0.999}
@@ -1530,10 +1518,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 
           {/* Drag-to-track hint — shown after successful separation */}
           {genStatus === 'done' && (
-            <div className="kgone-hint">
-              Drag each stem player above to an <strong>audio track</strong> to import it.
-              Dropping onto a MIDI track is not supported for stem separation.
-            </div>
+            <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.separator.hint.drag') }} />
           )}
 
           {/* Bulk import button — shown after successful separation */}
@@ -1546,7 +1531,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
                 style={{ marginTop: 0 }}
               >
                 {isImporting && <FaCircleNotch className="kgone-spinner" />}
-                {isImporting ? 'Importing...' : 'Import All Stems to Timeline'}
+                {isImporting ? t('kgone.shared.btn.importing') : t('kgone.separator.btn.importAllStems')}
               </button>
               {importError && <div className="kgone-error-msg">{importError}</div>}
             </>
@@ -1574,14 +1559,14 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       ) : (
         <div className="kgone-separator-hint">
           {localOnlyMode && !isLocalModelCached
-            ? `Download ${currentLocalModelConfig.displayName}, then select an audio region on the timeline to extract stems from it.`
-            : 'Select an audio region on the timeline to extract stems from it. Only audio regions are supported — MIDI regions cannot be separated.'}
+            ? t('kgone.separator.hint.noRegion.download', { model: getModelLabel(currentLocalModelConfig.id, t) })
+            : t('kgone.separator.hint.noRegion.select')}
         </div>
       )}
 
       {!localOnlyMode && (
         <div className="kgone-powered-by">
-          Powered by <a href="https://github.com/nomadkaraoke/python-audio-separator" target="_blank" rel="noopener noreferrer">UVR5 CLI</a>
+          {t('kgone.shared.poweredBy')}<a href="https://github.com/nomadkaraoke/python-audio-separator" target="_blank" rel="noopener noreferrer">{t('kgone.separator.poweredBy')}</a>
         </div>
       )}
     </>
@@ -1591,6 +1576,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
 // ─── Remix Tab ────────────────────────────────────────────────────────────────
 
 const RemixTab: React.FC = () => {
+  const { t } = useI18n();
   const { selectedRegionIds, projectName, bpm, maxBars, refreshProjectState } = useProjectStore();
 
   // Form state (mirrors FullSongTab)
@@ -1682,7 +1668,7 @@ const RemixTab: React.FC = () => {
 
       // ── 1. Load the fullsong model ──────────────────────────────────────────
       setGenStatus('loading-model');
-      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+      setGenHint(t('kgone.shared.hint.loadingModel'));
 
       const loadPayload = { model: 'fullsong' };
       kgoneLog('REQ', 'POST /v1/models/load', loadPayload);
@@ -1704,7 +1690,7 @@ const RemixTab: React.FC = () => {
 
       // ── 2. Load audio from OPFS and build multipart form ───────────────────
       setGenStatus('generating');
-      setGenHint('Reading audio file...');
+      setGenHint(t('kgone.shared.btn.preparingUpload'));
 
       const audioFileId = selectedAudioRegion.region.getAudioFileId();
       const audioFileName = selectedAudioRegion.region.getAudioFileName();
@@ -1721,7 +1707,6 @@ const RemixTab: React.FC = () => {
       let uploadMimeType: string;
 
       if (needsSlice) {
-        setGenHint('Trimming audio to region range...');
         uploadBuffer = await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration);
         uploadFileName = audioFileName.replace(/\.[^.]+$/, '.wav');
         uploadMimeType = 'audio/wav';
@@ -1750,7 +1735,7 @@ const RemixTab: React.FC = () => {
 
       if (signal.aborted) return;
 
-      setGenHint('Submitting remix request...');
+      setGenHint(t('kgone.remix.hint.submitting'));
 
       kgoneLog('REQ', 'POST /v1/fullsong/remix', {
         file: uploadFileName, caption, instrumental, inference_steps: inferenceSteps,
@@ -1778,18 +1763,17 @@ const RemixTab: React.FC = () => {
 
       // ── 3. Poll for completion (same as FullSongTab) ───────────────────────
       setGenStatus('polling');
-      setGenHint('Generating remix...');
+      setGenHint(t('kgone.remix.hint.generating'));
 
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
-
 
       while (true) {
         if (signal.aborted) return;
 
         await new Promise<void>(r => {
-          const t = setTimeout(r, 5000);
-          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+          const timer = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(timer); r(); }, { once: true });
         });
 
         if (signal.aborted) return;
@@ -1809,7 +1793,10 @@ const RemixTab: React.FC = () => {
           if (item) {
             const pct = Math.round((item.progress ?? 0) * 100);
             const stage = item.stage ?? '';
-            setGenHint(stage ? `Generating remix... ${pct}% — ${stage}` : `Generating remix... ${pct}%`);
+            setGenHint(stage
+              ? t('kgone.remix.hint.generatingProgress', { pct: String(pct), stage })
+              : t('kgone.remix.hint.generatingProgressNoStage', { pct: String(pct) }),
+            );
           }
         } catch {
           // result may be empty string while still queued — ignore parse errors
@@ -1820,7 +1807,7 @@ const RemixTab: React.FC = () => {
 
       // ── 4. Download the MP3 ─────────────────────────────────────────────────
       setGenStatus('downloading');
-      setGenHint('Downloading audio...');
+      setGenHint(t('kgone.shared.hint.downloadingAudio'));
 
       kgoneLog('REQ', `GET /v1/fullsong/audio/${task_id}?index=0`, null);
       const audioResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
@@ -1839,7 +1826,7 @@ const RemixTab: React.FC = () => {
       setGenStatus('error');
       setGenHint('');
     }
-  }, [selectedAudioRegion, projectName, bpm, caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, audioCoverStrength, coverNoiseStrength, audioUrl]);
+  }, [selectedAudioRegion, projectName, bpm, caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, audioCoverStrength, coverNoiseStrength, audioUrl, t]);
 
   const handleImportAligned = useCallback(async () => {
     const snap = originalRegionRef.current;
@@ -1897,11 +1884,11 @@ const RemixTab: React.FC = () => {
 
   const btnLabel = () => {
     switch (genStatus) {
-      case 'loading-model': return 'Loading model...';
-      case 'generating': return 'Preparing upload...';
-      case 'polling': return 'Processing remix...';
-      case 'downloading': return 'Downloading...';
-      default: return 'Generate Remix';
+      case 'loading-model': return t('kgone.shared.btn.loadingModel');
+      case 'generating': return t('kgone.shared.btn.preparingUpload');
+      case 'polling': return t('kgone.remix.btn.processingRemix');
+      case 'downloading': return t('kgone.shared.btn.downloading');
+      default: return t('kgone.remix.btn.generate');
     }
   };
 
@@ -1910,57 +1897,53 @@ const RemixTab: React.FC = () => {
       {selectedAudioRegion ? (
         <>
           <div className="kgone-region-info">
-            <div className="kgone-region-info-label">Selected Region</div>
+            <div className="kgone-region-info-label">{t('kgone.shared.selectedRegion')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.region.getName()}</div>
-            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Track</div>
+            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>{t('kgone.shared.track')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.trackName}</div>
           </div>
 
           <div className="kgone-field">
-            <label className="kgone-label">Caption</label>
+            <label className="kgone-label">{t('kgone.shared.caption')}</label>
             <textarea
               className="kgone-textarea"
               value={caption}
               onChange={e => setCaption(e.target.value)}
-              placeholder="e.g. Genre: Jazz, Style: Smooth and mellow, Instrumentation: piano, upright bass, brushed drums..."
+              placeholder={t('kgone.remix.field.captionPlaceholder')}
               rows={5}
             />
-            <div className="kgone-hint">
-              Describe the target style, mood, and instrumentation for the remix.
-            </div>
+            <div className="kgone-hint">{t('kgone.remix.field.captionHint')}</div>
           </div>
 
           <div className="kgone-field">
-            <label className="kgone-label">Lyrics</label>
+            <label className="kgone-label">{t('kgone.shared.lyrics')}</label>
             <textarea
               className="kgone-textarea"
               value={lyrics}
               onChange={e => setLyrics(e.target.value)}
-              placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
+              placeholder={t('kgone.shared.lyricsPlaceholder')}
               rows={6}
               disabled={instrumental}
               style={instrumental ? { opacity: 0.4 } : undefined}
             />
-            <div className="kgone-hint">
-              Leave empty to keep the original lyrics, or provide new ones. Use [Verse], [Chorus], [Bridge] tags.
-            </div>
+            <div className="kgone-hint">{t('kgone.remix.field.lyricsHint')}</div>
           </div>
 
           <div className="kgone-checkbox-row">
             <input type="checkbox" id="kgone-remix-instrumental" checked={instrumental}
               onChange={e => setInstrumental(e.target.checked)} />
-            <label htmlFor="kgone-remix-instrumental">Instrumental (no vocals)</label>
+            <label htmlFor="kgone-remix-instrumental">{t('kgone.shared.instrumental')}</label>
           </div>
 
-          <Expander label="Advanced Settings">
+          <Expander label={t('kgone.shared.advancedSettings')}>
             <div className="kgone-row">
               <div className="kgone-field">
-                <label className="kgone-label">Inference Steps</label>
+                <label className="kgone-label">{t('kgone.shared.inferenceSteps')}</label>
                 <input type="number" className="kgone-input" value={inferenceSteps} min={1} max={200}
                   onChange={e => setInferenceSteps(Number(e.target.value))} />
               </div>
               <div className="kgone-field">
-                <label className="kgone-label">Guidance Scale</label>
+                <label className="kgone-label">{t('kgone.shared.guidanceScale')}</label>
                 <input type="number" className="kgone-input" value={guidanceScale} min={0} max={20} step={0.1}
                   onChange={e => setGuidanceScale(Number(e.target.value))} />
               </div>
@@ -1969,11 +1952,11 @@ const RemixTab: React.FC = () => {
             <div className="kgone-checkbox-row">
               <input type="checkbox" id="kgone-remix-use-random-seed" checked={useRandomSeed}
                 onChange={e => setUseRandomSeed(e.target.checked)} />
-              <label htmlFor="kgone-remix-use-random-seed">Use Random Seed</label>
+              <label htmlFor="kgone-remix-use-random-seed">{t('kgone.shared.useRandomSeed')}</label>
             </div>
 
             <div className="kgone-field">
-              <label className="kgone-label">Seed</label>
+              <label className="kgone-label">{t('kgone.shared.seed')}</label>
               <input type="number" className="kgone-input" value={seed}
                 disabled={useRandomSeed} style={useRandomSeed ? { opacity: 0.4 } : undefined}
                 onChange={e => setSeed(Number(e.target.value))} />
@@ -1981,23 +1964,23 @@ const RemixTab: React.FC = () => {
 
             <div className="kgone-row">
               <div className="kgone-field">
-                <label className="kgone-label">Cover Strength</label>
+                <label className="kgone-label">{t('kgone.remix.field.coverStrength')}</label>
                 <input type="number" className="kgone-input" value={audioCoverStrength} min={0} max={1} step={0.05}
                   onChange={e => setAudioCoverStrength(Number(e.target.value))} />
-                <div className="kgone-hint">0 = creative, 1 = faithful to source structure</div>
+                <div className="kgone-hint">{t('kgone.remix.field.coverStrengthHint')}</div>
               </div>
               <div className="kgone-field">
-                <label className="kgone-label">Noise Strength</label>
+                <label className="kgone-label">{t('kgone.remix.field.noiseStrength')}</label>
                 <input type="number" className="kgone-input" value={coverNoiseStrength} min={0} max={1} step={0.05}
                   onChange={e => setCoverNoiseStrength(Number(e.target.value))} />
-                <div className="kgone-hint">0 = pure style transfer, 0.1–0.25 recommended</div>
+                <div className="kgone-hint">{t('kgone.remix.field.noiseStrengthHint')}</div>
               </div>
             </div>
 
             <div className="kgone-checkbox-row">
               <input type="checkbox" id="kgone-remix-thinking" checked={thinking}
                 onChange={e => setThinking(e.target.checked)} />
-              <label htmlFor="kgone-remix-thinking">Thinking (CoT metadata generation)</label>
+              <label htmlFor="kgone-remix-thinking">{t('kgone.shared.thinking')}</label>
             </div>
           </Expander>
 
@@ -2011,21 +1994,19 @@ const RemixTab: React.FC = () => {
           )}
 
           {genStatus === 'done' && (
-            <div className="kgone-hint">
-              Drag the player above to an <strong>audio track</strong> to import the remix.
-            </div>
+            <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.remix.hint.drag') }} />
           )}
 
           {genStatus === 'done' && audioUrl && (
             <>
               <button
-                className="kgone-btn-generate kgone-btn-generate-accent"
+                className="dialog-btn dialog-btn-primary kgone-btn-generate"
                 disabled={isImporting}
                 onClick={handleImportAligned}
                 style={{ marginTop: 0 }}
               >
                 {isImporting && <FaCircleNotch className="kgone-spinner" />}
-                {isImporting ? 'Importing...' : 'Import Aligned to Source'}
+                {isImporting ? t('kgone.shared.btn.importing') : t('kgone.remix.btn.importAligned')}
               </button>
               {importError && <div className="kgone-error-msg">{importError}</div>}
             </>
@@ -2047,14 +2028,11 @@ const RemixTab: React.FC = () => {
           {genHint && <div className="kgone-gen-hint">{genHint}</div>}
         </>
       ) : (
-        <div className="kgone-separator-hint">
-          Select an audio region on the timeline to remix it.
-          Only audio regions are supported — MIDI regions cannot be remixed.
-        </div>
+        <div className="kgone-separator-hint">{t('kgone.remix.hint.noRegion')}</div>
       )}
 
       <div className="kgone-powered-by">
-        Powered by <a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">ACE-Step 1.5</a>
+        {t('kgone.shared.poweredBy')}<a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">{t('kgone.remix.poweredBy')}</a>
       </div>
     </>
   );
@@ -2063,6 +2041,7 @@ const RemixTab: React.FC = () => {
 // ─── Repaint Tab ──────────────────────────────────────────────────────────────
 
 const RepaintTab: React.FC = () => {
+  const { t } = useI18n();
   const { selectedRegionIds, projectName, bpm, timeSignature, maxBars,
     isLooping, loopingRange, refreshProjectState } = useProjectStore();
 
@@ -2205,7 +2184,7 @@ const RepaintTab: React.FC = () => {
 
       // ── 1. Load the fullsong model ──────────────────────────────────────────
       setGenStatus('loading-model');
-      setGenHint('Loading model — this can take 60+ seconds, please wait...');
+      setGenHint(t('kgone.shared.hint.loadingModel'));
 
       const loadPayload = { model: 'fullsong' };
       kgoneLog('REQ', 'POST /v1/models/load', loadPayload);
@@ -2227,7 +2206,7 @@ const RepaintTab: React.FC = () => {
 
       // ── 2. Load audio from OPFS and build multipart form ───────────────────
       setGenStatus('generating');
-      setGenHint('Reading audio file...');
+      setGenHint(t('kgone.shared.btn.preparingUpload'));
 
       const audioFileId = selectedAudioRegion.region.getAudioFileId();
       const audioFileName = selectedAudioRegion.region.getAudioFileName();
@@ -2238,7 +2217,6 @@ const RepaintTab: React.FC = () => {
       let uploadMimeType: string;
 
       if (needsSlice) {
-        setGenHint('Trimming audio to region range...');
         uploadBuffer = await sliceAudioToWav(rawBuffer, clipStart, effectiveDuration);
         uploadFileName = audioFileName.replace(/\.[^.]+$/, '.wav');
         uploadMimeType = 'audio/wav';
@@ -2268,7 +2246,7 @@ const RepaintTab: React.FC = () => {
 
       if (signal.aborted) return;
 
-      setGenHint('Submitting repaint request...');
+      setGenHint(t('kgone.repaint.hint.submitting'));
 
       kgoneLog('REQ', 'POST /v1/fullsong/repaint', {
         file: uploadFileName, caption, instrumental, inference_steps: inferenceSteps,
@@ -2296,18 +2274,17 @@ const RepaintTab: React.FC = () => {
 
       // ── 3. Poll for completion (same as FullSongTab) ───────────────────────
       setGenStatus('polling');
-      setGenHint('Generating repaint...');
+      setGenHint(t('kgone.repaint.hint.generating'));
 
       type ResultItem = { progress: number; stage: string; status: number };
       type PollResponse = { data: Array<{ status: number; result: string }>; code: number };
-
 
       while (true) {
         if (signal.aborted) return;
 
         await new Promise<void>(r => {
-          const t = setTimeout(r, 5000);
-          signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+          const timer = setTimeout(r, 5000);
+          signal.addEventListener('abort', () => { clearTimeout(timer); r(); }, { once: true });
         });
 
         if (signal.aborted) return;
@@ -2327,7 +2304,10 @@ const RepaintTab: React.FC = () => {
           if (item) {
             const pct = Math.round((item.progress ?? 0) * 100);
             const stage = item.stage ?? '';
-            setGenHint(stage ? `Generating repaint... ${pct}% — ${stage}` : `Generating repaint... ${pct}%`);
+            setGenHint(stage
+              ? t('kgone.repaint.hint.generatingProgress', { pct: String(pct), stage })
+              : t('kgone.repaint.hint.generatingProgressNoStage', { pct: String(pct) }),
+            );
           }
         } catch {
           // result may be empty string while still queued — ignore parse errors
@@ -2338,7 +2318,7 @@ const RepaintTab: React.FC = () => {
 
       // ── 4. Download the MP3 ─────────────────────────────────────────────────
       setGenStatus('downloading');
-      setGenHint('Downloading audio...');
+      setGenHint(t('kgone.shared.hint.downloadingAudio'));
 
       kgoneLog('REQ', `GET /v1/fullsong/audio/${task_id}?index=0`, null);
       const audioResp = await fetchWithRetry(`${baseUrl}/v1/fullsong/audio/${task_id}?index=0`, { signal });
@@ -2357,7 +2337,7 @@ const RepaintTab: React.FC = () => {
       setGenStatus('error');
       setGenHint('');
     }
-  }, [selectedAudioRegion, projectName, bpm, timeSignature, isLooping, loopingRange, caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, repaintStrength, audioUrl]);
+  }, [selectedAudioRegion, projectName, bpm, timeSignature, isLooping, loopingRange, caption, lyrics, instrumental, inferenceSteps, guidanceScale, useRandomSeed, seed, thinking, repaintStrength, audioUrl, t]);
 
   const handleImportAligned = useCallback(async () => {
     const snap = originalRegionRef.current;
@@ -2415,11 +2395,11 @@ const RepaintTab: React.FC = () => {
 
   const btnLabel = () => {
     switch (genStatus) {
-      case 'loading-model': return 'Loading model...';
-      case 'generating': return 'Preparing upload...';
-      case 'polling': return 'Processing repaint...';
-      case 'downloading': return 'Downloading...';
-      default: return 'Generate Repaint';
+      case 'loading-model': return t('kgone.shared.btn.loadingModel');
+      case 'generating': return t('kgone.shared.btn.preparingUpload');
+      case 'polling': return t('kgone.repaint.btn.processingRepaint');
+      case 'downloading': return t('kgone.shared.btn.downloading');
+      default: return t('kgone.repaint.btn.generate');
     }
   };
 
@@ -2428,26 +2408,26 @@ const RepaintTab: React.FC = () => {
       {selectedAudioRegion ? (
         <>
           <div className="kgone-region-info">
-            <div className="kgone-region-info-label">Selected Region</div>
+            <div className="kgone-region-info-label">{t('kgone.shared.selectedRegion')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.region.getName()}</div>
-            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Track</div>
+            <div className="kgone-region-info-label" style={{ marginTop: 4 }}>{t('kgone.shared.track')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.trackName}</div>
           </div>
 
           <div className="kgone-region-info">
-            <div className="kgone-region-info-label">Repaint Range</div>
+            <div className="kgone-region-info-label">{t('kgone.repaint.field.repaintRange')}</div>
             {!isLooping ? (
               <div className="kgone-region-info-value" style={{ opacity: 0.6 }}>
-                Loop mode is off. Enable the loop button on the toolbar and set a loop range to define the repaint window.
+                {t('kgone.repaint.field.loopModeOff')}
               </div>
             ) : computedRepaintRange ? (
               <>
-                <div className="kgone-region-info-label" style={{ marginTop: 4 }}>Start</div>
+                <div className="kgone-region-info-label" style={{ marginTop: 4 }}>{t('kgone.repaint.field.start')}</div>
                 <div className="kgone-region-info-value">{computedRepaintRange.startClamped.toFixed(2)} s</div>
-                <div className="kgone-region-info-label" style={{ marginTop: 4 }}>End</div>
+                <div className="kgone-region-info-label" style={{ marginTop: 4 }}>{t('kgone.repaint.field.end')}</div>
                 <div className="kgone-region-info-value">
                   {computedRepaintRange.endClamped >= computedRepaintRange.uploadedDuration - 0.1
-                    ? 'until end of audio'
+                    ? t('kgone.repaint.field.untilEnd')
                     : `${computedRepaintRange.endClamped.toFixed(2)} s`}
                 </div>
               </>
@@ -2455,50 +2435,46 @@ const RepaintTab: React.FC = () => {
           </div>
 
           <div className="kgone-field">
-            <label className="kgone-label">Caption</label>
+            <label className="kgone-label">{t('kgone.shared.caption')}</label>
             <textarea
               className="kgone-textarea"
               value={caption}
               onChange={e => setCaption(e.target.value)}
-              placeholder="e.g. Genre: Jazz, Style: Smooth and mellow, Instrumentation: piano, upright bass, brushed drums..."
+              placeholder={t('kgone.repaint.field.captionPlaceholder')}
               rows={5}
             />
-            <div className="kgone-hint">
-              Describe the target style and instrumentation for the repainted section.
-            </div>
+            <div className="kgone-hint">{t('kgone.repaint.field.captionHint')}</div>
           </div>
 
           <div className="kgone-field">
-            <label className="kgone-label">Lyrics</label>
+            <label className="kgone-label">{t('kgone.shared.lyrics')}</label>
             <textarea
               className="kgone-textarea"
               value={lyrics}
               onChange={e => setLyrics(e.target.value)}
-              placeholder={"[Verse 1]\nYour lyrics here...\n\n[Chorus]\n..."}
+              placeholder={t('kgone.shared.lyricsPlaceholder')}
               rows={6}
               disabled={instrumental}
               style={instrumental ? { opacity: 0.4 } : undefined}
             />
-            <div className="kgone-hint">
-              Leave empty to keep the original lyrics, or provide new ones for the repainted section.
-            </div>
+            <div className="kgone-hint">{t('kgone.repaint.field.lyricsHint')}</div>
           </div>
 
           <div className="kgone-checkbox-row">
             <input type="checkbox" id="kgone-repaint-instrumental" checked={instrumental}
               onChange={e => setInstrumental(e.target.checked)} />
-            <label htmlFor="kgone-repaint-instrumental">Instrumental (no vocals)</label>
+            <label htmlFor="kgone-repaint-instrumental">{t('kgone.shared.instrumental')}</label>
           </div>
 
-          <Expander label="Advanced Settings">
+          <Expander label={t('kgone.shared.advancedSettings')}>
             <div className="kgone-row">
               <div className="kgone-field">
-                <label className="kgone-label">Inference Steps</label>
+                <label className="kgone-label">{t('kgone.shared.inferenceSteps')}</label>
                 <input type="number" className="kgone-input" value={inferenceSteps} min={1} max={200}
                   onChange={e => setInferenceSteps(Number(e.target.value))} />
               </div>
               <div className="kgone-field">
-                <label className="kgone-label">Guidance Scale</label>
+                <label className="kgone-label">{t('kgone.shared.guidanceScale')}</label>
                 <input type="number" className="kgone-input" value={guidanceScale} min={0} max={20} step={0.1}
                   onChange={e => setGuidanceScale(Number(e.target.value))} />
               </div>
@@ -2507,27 +2483,27 @@ const RepaintTab: React.FC = () => {
             <div className="kgone-checkbox-row">
               <input type="checkbox" id="kgone-repaint-use-random-seed" checked={useRandomSeed}
                 onChange={e => setUseRandomSeed(e.target.checked)} />
-              <label htmlFor="kgone-repaint-use-random-seed">Use Random Seed</label>
+              <label htmlFor="kgone-repaint-use-random-seed">{t('kgone.shared.useRandomSeed')}</label>
             </div>
 
             <div className="kgone-field">
-              <label className="kgone-label">Seed</label>
+              <label className="kgone-label">{t('kgone.shared.seed')}</label>
               <input type="number" className="kgone-input" value={seed}
                 disabled={useRandomSeed} style={useRandomSeed ? { opacity: 0.4 } : undefined}
                 onChange={e => setSeed(Number(e.target.value))} />
             </div>
 
             <div className="kgone-field">
-              <label className="kgone-label">Repaint Strength</label>
+              <label className="kgone-label">{t('kgone.repaint.field.repaintStrength')}</label>
               <input type="number" className="kgone-input" value={repaintStrength} min={0} max={1} step={0.05}
                 onChange={e => setRepaintStrength(Number(e.target.value))} />
-              <div className="kgone-hint">0 = preserve original, 1 = full regeneration</div>
+              <div className="kgone-hint">{t('kgone.repaint.field.repaintStrengthHint')}</div>
             </div>
 
             <div className="kgone-checkbox-row">
               <input type="checkbox" id="kgone-repaint-thinking" checked={thinking}
                 onChange={e => setThinking(e.target.checked)} />
-              <label htmlFor="kgone-repaint-thinking">Thinking (CoT metadata generation)</label>
+              <label htmlFor="kgone-repaint-thinking">{t('kgone.shared.thinking')}</label>
             </div>
           </Expander>
 
@@ -2541,21 +2517,19 @@ const RepaintTab: React.FC = () => {
           )}
 
           {genStatus === 'done' && (
-            <div className="kgone-hint">
-              Drag the player above to an <strong>audio track</strong> to import the repaint.
-            </div>
+            <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.repaint.hint.drag') }} />
           )}
 
           {genStatus === 'done' && audioUrl && (
             <>
               <button
-                className="kgone-btn-generate kgone-btn-generate-accent"
+                className="dialog-btn dialog-btn-primary kgone-btn-generate"
                 disabled={isImporting}
                 onClick={handleImportAligned}
                 style={{ marginTop: 0 }}
               >
                 {isImporting && <FaCircleNotch className="kgone-spinner" />}
-                {isImporting ? 'Importing...' : 'Import Aligned to Source'}
+                {isImporting ? t('kgone.shared.btn.importing') : t('kgone.repaint.btn.importAligned')}
               </button>
               {importError && <div className="kgone-error-msg">{importError}</div>}
             </>
@@ -2577,14 +2551,11 @@ const RepaintTab: React.FC = () => {
           {genHint && <div className="kgone-gen-hint">{genHint}</div>}
         </>
       ) : (
-        <div className="kgone-separator-hint">
-          Select an audio region on the timeline to repaint it.
-          Only audio regions are supported — MIDI regions cannot be repainted.
-        </div>
+        <div className="kgone-separator-hint">{t('kgone.repaint.hint.noRegion')}</div>
       )}
 
       <div className="kgone-powered-by">
-        Powered by <a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">ACE-Step 1.5</a>
+        {t('kgone.shared.poweredBy')}<a href="https://github.com/ace-step/ACE-Step-1.5" target="_blank" rel="noopener noreferrer">{t('kgone.repaint.poweredBy')}</a>
       </div>
     </>
   );
@@ -2597,6 +2568,7 @@ interface KGOnePanelProps {
 }
 
 const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
+  const { t } = useI18n();
   const mode = getKGOneMode();
   const [activeTab, setActiveTab] = useState<Tab>(getDefaultKGOneTab(mode));
   const { bpm, keySignature } = useProjectStore();
@@ -2616,13 +2588,17 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
   return (
     <div className={`kgone-panel${isVisible ? '' : ' is-hidden'}`}>
       <div className="kgone-panel-header">
-        <h3>{mode === 'local-separator' ? 'Music Generator' : 'K.G.One Music Generator'}</h3>
+        <h3>{mode === 'local-separator' ? t('kgone.panel.title.local') : t('kgone.panel.title.server')}</h3>
       </div>
 
       <div className="kgone-tabs">
         {/* Clip tab temporarily disabled, will enable in the future */}
         {KGONE_TABS.map(tab => {
           const isDisabled = disabledTabs.has(tab);
+          const tabLabel = tab === 'fullsong' ? t('kgone.tab.fullSong')
+            : tab === 'remix' ? t('kgone.tab.remix')
+            : tab === 'repaint' ? t('kgone.tab.repaint')
+            : t('kgone.tab.separator');
           const button = (
             <button
               key={tab}
@@ -2634,13 +2610,13 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
               disabled={isDisabled}
               style={isDisabled ? { width: '100%' } : undefined}
             >
-              {formatKGOneTabLabel(tab)}
+              {tabLabel}
             </button>
           );
           return isDisabled ? (
             <span
               key={tab}
-              title="Requires K.G.One Music Studio server integration"
+              title={t('kgone.tab.requiresServer')}
               style={{ flex: 1 }}
             >
               {button}

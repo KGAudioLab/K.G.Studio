@@ -1,12 +1,13 @@
 import type { ChordGuideCustomConfig } from '../ChordGuideTypes';
 import { KGConfigStorage } from '../io/KGConfigStorage';
+import type { LanguageSetting } from '../../i18n/types';
 
 /**
  * Application configuration interface
  */
 interface AppConfig {
   general: {
-    language: string;
+    language: LanguageSetting;
     llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
     local_browser: {
@@ -205,7 +206,7 @@ export class ConfigManager {
       // Fallback to minimal hardcoded config
       this.defaultConfig = {
         general: {
-          language: 'en_us',
+          language: 'auto',
           llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           openai: {

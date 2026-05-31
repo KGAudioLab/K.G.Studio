@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ChordGuideSettings from './ChordGuideSettings';
 import chordGuideDataJson from '../../../../public/resources/modes/chord_guide.json';
 import type { ChordGuideData } from '../../../core/ChordGuideTypes';
+import { translate } from '../../../i18n/translate';
 
 const chordGuideData = chordGuideDataJson as ChordGuideData;
 
@@ -41,7 +42,9 @@ vi.mock('../../../core/KGCore', () => ({
 }));
 
 describe('ChordGuideSettings', () => {
-  const getGroup = (heading: 'Major Candidate Chords' | 'Minor Candidate Chords') => (
+  const majorHeading = translate('settings.chordGuide.group.major', undefined, 'en_us');
+  const minorHeading = translate('settings.chordGuide.group.minor', undefined, 'en_us');
+  const getGroup = (heading: string) => (
     screen.getByText(heading).closest('.settings-group') as HTMLElement
   );
 
@@ -67,17 +70,19 @@ describe('ChordGuideSettings', () => {
   it('renders major and minor groups with base-key guidance', async () => {
     render(<ChordGuideSettings />);
 
-    expect(await screen.findByText('Major Candidate Chords')).toBeTruthy();
-    expect(screen.getByText('Minor Candidate Chords')).toBeTruthy();
-    expect(screen.getByText(/relative to C major/i)).toBeTruthy();
-    expect(screen.getByText(/relative to A minor/i)).toBeTruthy();
+    expect(await screen.findByText(majorHeading)).toBeTruthy();
+    expect(screen.getByText(minorHeading)).toBeTruthy();
+    expect(screen.getByText(translate('settings.chordGuide.help.major', undefined, 'en_us'))).toBeTruthy();
+    expect(screen.getByText(translate('settings.chordGuide.help.minor', undefined, 'en_us'))).toBeTruthy();
+    expect(screen.getByText(translate('settings.chordGuide.resetToDefault', undefined, 'en_us'))).toBeTruthy();
+    expect(screen.getAllByRole('columnheader', { name: translate('settings.chordGuide.table.chord', undefined, 'en_us') })).toHaveLength(2);
   });
 
   it('switches T/S/D tabs as a mutex control', async () => {
     render(<ChordGuideSettings />);
 
-    await screen.findByText('Major Candidate Chords');
-    const majorGroup = getGroup('Major Candidate Chords');
+    await screen.findByText(majorHeading);
+    const majorGroup = getGroup(majorHeading);
 
     expect(within(majorGroup).getByTitle('C')).toBeTruthy();
     fireEvent.click(within(majorGroup).getByRole('button', { name: 'S' }));
@@ -89,8 +94,8 @@ describe('ChordGuideSettings', () => {
   it('adds and deletes rows in the active table', async () => {
     render(<ChordGuideSettings />);
 
-    await screen.findByText('Major Candidate Chords');
-    const addButtons = screen.getAllByTitle(/Add .* chord/);
+    await screen.findByText(majorHeading);
+    const addButtons = screen.getAllByTitle(translate('settings.chordGuide.addTitle', { group: majorHeading }, 'en_us'));
     fireEvent.click(addButtons[0]);
 
     await waitFor(() => {
@@ -106,7 +111,7 @@ describe('ChordGuideSettings', () => {
 
     const rows = screen.getAllByRole('row');
     fireEvent.click(rows[1]);
-    const deleteButtons = screen.getAllByTitle('Delete selected rows');
+    const deleteButtons = screen.getAllByTitle(translate('settings.chordGuide.deleteSelectedRows', undefined, 'en_us'));
     fireEvent.click(deleteButtons[0]);
 
     await waitFor(() => {
@@ -117,8 +122,8 @@ describe('ChordGuideSettings', () => {
   it('updates notes and source after a valid chord edit', async () => {
     render(<ChordGuideSettings />);
 
-    await screen.findByText('Major Candidate Chords');
-    const majorGroup = getGroup('Major Candidate Chords');
+    await screen.findByText(majorHeading);
+    const majorGroup = getGroup(majorHeading);
     fireEvent.click(within(majorGroup).getByRole('button', { name: 'S' }));
 
     const chordCell = within(majorGroup).getByTitle('F');
@@ -142,7 +147,7 @@ describe('ChordGuideSettings', () => {
   it('rejects invalid chord edits', async () => {
     render(<ChordGuideSettings />);
 
-    await screen.findByText('Major Candidate Chords');
+    await screen.findByText(majorHeading);
     const chordCell = screen.getAllByTitle('C')[0];
     fireEvent.doubleClick(chordCell);
     const input = screen.getByDisplayValue('C');
@@ -150,14 +155,14 @@ describe('ChordGuideSettings', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(showAlertMock).toHaveBeenCalledWith(expect.stringContaining('valid chord symbol'));
+      expect(showAlertMock).toHaveBeenCalledWith(translate('settings.chordGuide.invalidChordSymbol', undefined, 'en_us'));
     });
   });
 
   it('enforces the 128-character note limit', async () => {
     render(<ChordGuideSettings />);
 
-    await screen.findByText('Major Candidate Chords');
+    await screen.findByText(majorHeading);
     const noteCell = screen.getAllByRole('cell').find((cell) => cell.textContent === chordGuideData.ionian.T[0].note) as HTMLElement;
     fireEvent.doubleClick(noteCell);
     const input = screen.getByDisplayValue(chordGuideData.ionian.T[0].note);
@@ -194,7 +199,7 @@ describe('ChordGuideSettings', () => {
     render(<ChordGuideSettings />);
 
     expect((await screen.findAllByTitle('G')).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByText('Reset to Default'));
+    fireEvent.click(screen.getByText(translate('settings.chordGuide.resetToDefault', undefined, 'en_us')));
 
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('chord_guide.custom_items', null);

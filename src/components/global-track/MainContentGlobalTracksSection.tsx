@@ -4,18 +4,12 @@ import GlobalChordLane from './GlobalChordLane';
 import GlobalKeySignatureLane from './GlobalKeySignatureLane';
 import GlobalMarkerLane from './GlobalMarkerLane';
 import GlobalTempoLane from './GlobalTempoLane';
+import { useI18n } from '../../i18n/useI18n';
 
 interface GlobalTrackDefinition {
   id: 'marker' | 'tempo' | 'signature' | 'chord';
   label: string;
 }
-
-const GLOBAL_TRACKS: GlobalTrackDefinition[] = [
-  { id: 'marker', label: 'Marker' },
-  { id: 'tempo', label: 'Tempo' },
-  { id: 'signature', label: 'Key Signature' },
-  { id: 'chord', label: 'Chord' },
-];
 
 interface MainContentGlobalTracksSectionProps {
   visible: boolean;
@@ -40,8 +34,15 @@ const MainContentGlobalTracksSection: React.FC<MainContentGlobalTracksSectionPro
   keySignatureLaneProps,
   chordLaneProps,
 }) => {
+  const { t } = useI18n();
   const [shouldRender, setShouldRender] = useState(visible);
   const [isAnimated, setIsAnimated] = useState(false);
+  const globalTracks: GlobalTrackDefinition[] = [
+    { id: 'marker', label: t('globalTracks.marker') },
+    { id: 'tempo', label: t('globalTracks.tempo') },
+    { id: 'signature', label: t('globalTracks.signature') },
+    { id: 'chord', label: t('globalTracks.chord') },
+  ];
 
   useEffect(() => {
     if (!visible) {
@@ -71,9 +72,9 @@ const MainContentGlobalTracksSection: React.FC<MainContentGlobalTracksSectionPro
   return (
     <div
       className="global-tracks-section"
-      aria-label="Global tracks"
+      aria-label={t('globalTracks.label')}
       aria-hidden={!visible}
-      style={{ ['--global-track-count' as string]: String(GLOBAL_TRACKS.length) }}
+      style={{ ['--global-track-count' as string]: String(globalTracks.length) }}
     >
       <div
         className={`global-tracks-info-shell${isAnimated ? ' expanded' : ' collapsed'}`}
@@ -84,14 +85,14 @@ const MainContentGlobalTracksSection: React.FC<MainContentGlobalTracksSectionPro
         }}
       >
         <div className="global-tracks-info">
-          {GLOBAL_TRACKS.map(track => (
+          {globalTracks.map(track => (
             <div key={track.id} className="global-track-info-row">
               <span className="global-track-name">{track.label}</span>
               <button
                 type="button"
                 className="global-track-add-button"
-                aria-label={`Add ${track.label} global track item`}
-                title={`Add ${track.label} global track item`}
+                aria-label={t('globalTracks.addItem', { label: track.label })}
+                title={t('globalTracks.addItem', { label: track.label })}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();

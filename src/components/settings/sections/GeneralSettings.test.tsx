@@ -2,6 +2,8 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import GeneralSettings from './GeneralSettings';
+import { I18nContext } from '../../../i18n/I18nProvider';
+import { translate } from '../../../i18n/translate';
 
 const { localSeparatorModelCacheMock } = vi.hoisted(() => ({
   localSeparatorModelCacheMock: {
@@ -11,6 +13,7 @@ const { localSeparatorModelCacheMock } = vi.hoisted(() => ({
 }));
 
 const configState = new Map<string, unknown>([
+  ['general.language', 'auto'],
   ['general.llm_provider', 'local_browser'],
   ['general.persist_api_keys_non_localhost', false],
   ['general.openai.api_key', ''],
@@ -86,7 +89,23 @@ vi.mock('../../../util/local-separator/modelCache', () => ({
 }));
 
 describe('GeneralSettings', () => {
+  const renderSettings = (locale: 'en_us' | 'zh_cn' = 'en_us') => render(
+    <I18nContext.Provider
+      value={{
+        languageSetting: 'auto',
+        resolvedLocale: locale,
+        setLanguageSetting: async (value) => {
+          await configManagerMock.set('general.language', value);
+        },
+        t: (key, params) => translate(key, params, locale),
+      }}
+    >
+      <GeneralSettings />
+    </I18nContext.Provider>,
+  );
+
   beforeEach(() => {
+    configState.set('general.language', 'auto');
     configState.set('general.local_browser.context_length', 65536);
     configManagerMock.get.mockClear();
     configManagerMock.set.mockClear();
@@ -111,22 +130,40 @@ describe('GeneralSettings', () => {
   });
 
   it('renders the local context length selector and VRAM hint', async () => {
-    render(<GeneralSettings />);
+    renderSettings();
 
     expect(await screen.findByText('Gemma 4 E4B Local Runtime')).toBeTruthy();
     expect(screen.getByLabelText('Context Length')).toBeTruthy();
     expect(screen.getByText(/require more VRAM/i)).toBeTruthy();
   });
 
+  it('uses native language names in the language dropdown', async () => {
+    renderSettings();
+
+    const select = await screen.findByLabelText('Language');
+    const options = Array.from((select as HTMLSelectElement).options).map((option) => option.text);
+
+    expect(options).toEqual(['Auto', 'English', 'Français', '简体中文', '繁體中文']);
+  });
+
+  it('localizes the auto label while keeping language names native', async () => {
+    renderSettings('zh_cn');
+
+    const select = await screen.findByLabelText('语言');
+    const options = Array.from((select as HTMLSelectElement).options).map((option) => option.text);
+
+    expect(options).toEqual(['自动', 'English', 'Français', '简体中文', '繁體中文']);
+  });
+
   it('initializes the local context length from config', async () => {
-    render(<GeneralSettings />);
+    renderSettings();
 
     const select = await screen.findByLabelText('Context Length');
     expect((select as HTMLSelectElement).value).toBe('65536');
   });
 
   it('persists local context length changes', async () => {
-    render(<GeneralSettings />);
+    renderSettings();
 
     const select = await screen.findByLabelText('Context Length');
     fireEvent.change(select, { target: { value: '131072' } });
@@ -137,7 +174,7 @@ describe('GeneralSettings', () => {
   });
 
   it('renders and persists local runtime download URLs', async () => {
-    render(<GeneralSettings />);
+    renderSettings();
 
     expect(await screen.findByDisplayValue('https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task')).toBeTruthy();
     expect(screen.getByDisplayValue('https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx')).toBeTruthy();
@@ -176,7 +213,7 @@ describe('GeneralSettings', () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false);
 
-    render(<GeneralSettings />);
+    renderSettings();
 
     expect(await screen.findByText('UVR5 Web Runtime')).toBeTruthy();
 
@@ -219,10 +256,25 @@ describe('GeneralSettings', () => {
       reason: 'This host may not support the local browser runtime reliably because cross-origin isolation or SharedArrayBuffer is unavailable. COOP/COEP headers may be missing.',
     };
 
-    render(<GeneralSettings />);
+    renderSettings();
 
     expect(await screen.findByText('Gemma 4 E4B Local Runtime')).toBeTruthy();
     expect(screen.queryByText(/may not support the local browser runtime reliably/i)).toBeNull();
     expect(screen.getByText(/The local model downloads automatically/i)).toBeTruthy();
+  });
+
+  it('renders language first and persists language changes', async () => {
+    renderSettings();
+
+    const languageSelect = await screen.findByLabelText('Language');
+    expect(languageSelect).toBeTruthy();
+    expect(screen.getAllByRole('combobox')[0]).toBe(languageSelect);
+    expect(screen.getByRole('option', { name: 'Français' })).toBeTruthy();
+
+    fireEvent.change(languageSelect, { target: { value: 'fr_fr' } });
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.language', 'fr_fr');
+    });
   });
 });

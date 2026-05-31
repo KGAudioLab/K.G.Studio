@@ -23,6 +23,7 @@ export default defineConfig({
       'dist',
       '.git',
       '.cache',
+      'src/test/browser/**',
       // Temporarily skip failing integration tests
       'src/test/integration/store/command-execution.integration.test.ts',
       'src/test/integration/store/project-store-sync.integration.test.ts'

@@ -296,6 +296,16 @@
   font-size: 10px;
 }
 
+.piano-roll-toolbar .mode-dropdown {
+  min-width: 112px;
+  white-space: nowrap;
+}
+
+.piano-roll-toolbar .toolbar-left .quant-dropdown {
+  white-space: nowrap;
+  min-width: max-content;
+}
+
 .piano-roll-toolbar .chord-guide-toggle-button {
   margin: 0;
   border-radius: 0;
@@ -715,10 +725,17 @@
 }
 
 .key-label {
+  box-sizing: border-box;
+  display: block;
+  flex: 1 1 auto;
   font-size: 10px;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
   padding-left: 5px;
   padding-right: 18px;
   position: relative;
+  white-space: nowrap;
   z-index: 1;
 }
 

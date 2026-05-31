@@ -40,8 +40,10 @@ import MetronomeIcon from './common/icons/MetronomeIcon';
 import { mergeSelectedMidiRegions, splitSelectedRegionAtPlayhead } from '../util/regionEditUtil';
 import { showAlert, showChoice, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
 import { UpdateKeySignatureRegionCommand, UpdateTempoRegionCommand } from '../core/commands';
+import { useI18n } from '../i18n/useI18n';
 
 const Toolbar: React.FC = () => {
+  const { t } = useI18n();
   const {
     projectName, setProjectName,
     savedProjectName, setSavedProjectName,
@@ -116,18 +118,23 @@ const Toolbar: React.FC = () => {
   }, [showZoomSlider]);
 
   // Export options
-  const exportOptions = ["Export to KGStudio file", "Export to MIDI file", "Export to WAV", "Export to MP3"];
+  const exportOptions = [
+    { label: t('toolbar.export.kgstudio'), value: 'kgstudio' },
+    { label: t('toolbar.export.midi'), value: 'midi' },
+    { label: t('toolbar.export.wav'), value: 'wav' },
+    { label: t('toolbar.export.mp3'), value: 'mp3' },
+  ];
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   const handleProjectNameClick = async () => {
-    const newName = await showPrompt("Enter project name:", projectName);
+    const newName = await showPrompt(t('toolbar.projectName.prompt'), projectName);
     if (!newName) return;
     if (!isValidProjectName(newName)) {
-      await showAlert("Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.");
+      await showAlert(t('toolbar.projectName.invalid'));
       return;
     }
     if (isReservedProjectName(newName)) {
-      await showAlert(`"${RESERVED_PROJECT_NAME}" is a reserved project name. Please choose a different name.`);
+      await showAlert(t('toolbar.projectName.reserved', { name: RESERVED_PROJECT_NAME }));
       return;
     }
 
@@ -147,7 +154,7 @@ const Toolbar: React.FC = () => {
       const exists = await storage.exists(newName);
       if (exists) {
         const confirmed = await showConfirm(
-          `Project "${newName}" already exists. Do you want to overwrite it?`
+          t('toolbar.projectName.overwrite', { name: newName })
         );
         if (!confirmed) return;
         setProjectName(newName);
@@ -166,11 +173,11 @@ const Toolbar: React.FC = () => {
     }
 
     // Ask whether the user wants to rename or save as a copy
-    const choice = await showChoice(
-      "Would you like to rename this project, or save it as a new copy?",
+      const choice = await showChoice(
+      t('toolbar.projectName.renameOrCopy'),
       [
-        { label: 'Save as Copy', value: 'saveas' },
-        { label: 'Rename', value: 'rename' },
+        { label: t('toolbar.projectName.saveAsCopy'), value: 'saveas' },
+        { label: t('toolbar.projectName.rename'), value: 'rename' },
       ]
     );
     if (!choice) return;
@@ -181,7 +188,7 @@ const Toolbar: React.FC = () => {
       const exists = await storage.exists(newName);
       if (exists) {
         const confirmed = await showConfirm(
-          `Project "${newName}" already exists. Do you want to overwrite it?`
+          t('toolbar.projectName.overwrite', { name: newName })
         );
         if (!confirmed) return;
         setProjectName(newName);
@@ -204,10 +211,10 @@ const Toolbar: React.FC = () => {
         await storage.saveAs(savedProjectName, finalName, KGCore.instance().getCurrentProject());
         setProjectName(finalName);
         setSavedProjectName(finalName);
-        setStatus(`Saved as "${finalName}"`);
+        setStatus(t('toolbar.projectName.saveAsCopy') + ` "${finalName}"`);
       } catch (error) {
         console.error('Error saving project as copy:', error);
-        await showAlert(`An error occurred while saving: ${error}`);
+        await showAlert(t('toolbar.save.error', { error: String(error) }));
       }
     }
   };
@@ -232,7 +239,7 @@ const Toolbar: React.FC = () => {
       }
 
       // Update status to indicate project loaded
-      setStatus(`${sourceDescription} loaded successfully`);
+      setStatus(t('toolbar.status.projectLoaded', { description: sourceDescription }));
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log(`project loaded successfully from ${sourceDescription}`);
@@ -240,8 +247,8 @@ const Toolbar: React.FC = () => {
 
     } catch (error) {
       console.error(`Error loading project from ${sourceDescription}:`, error);
-      setStatus(`Failed to load project: ${error}`);
-      await showAlert(`An error occurred while loading the project: ${error}`);
+      setStatus(t('toolbar.status.loadFailed', { error: String(error) }));
+      await showAlert(t('toolbar.load.error', { error: String(error) }));
     }
   };
 
@@ -258,7 +265,7 @@ const Toolbar: React.FC = () => {
     const { loadProject: storeLoadProject } = useProjectStore.getState();
     storeLoadProject(newProject);
 
-    setStatus(`New project "${newProject.getName()}" created`);
+    setStatus(t('toolbar.status.newProjectCreated', { name: newProject.getName() }));
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log("new project created successfully");
@@ -267,7 +274,7 @@ const Toolbar: React.FC = () => {
 
   // Handler functions for file operations
   const handleNewProject = async () => {
-    const confirmed = await showConfirm("Are you sure you want to create a new project? Any unsaved changes will be lost.");
+    const confirmed = await showConfirm(t('toolbar.newProject.confirm'));
     if (confirmed) {
       createNewProject();
     }
@@ -288,14 +295,14 @@ const Toolbar: React.FC = () => {
       const loadedProject = await storage.load(projectNameToLoad);
 
       if (!loadedProject) {
-        await showAlert(`Project "${projectNameToLoad}" not found.`);
+        await showAlert(t('toolbar.project.notFound', { name: projectNameToLoad }));
         return;
       }
 
       await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
     } catch (error) {
       console.error("Error loading project:", error);
-      await showAlert(`An error occurred while loading the project: ${error}`);
+      await showAlert(t('toolbar.load.error', { error: String(error) }));
     } finally {
       setIsOpeningProject(false);
     }
@@ -303,7 +310,7 @@ const Toolbar: React.FC = () => {
 
   const handleConfirmOpenProject = async () => {
     const confirmed = await showConfirm(
-      'Open this project? Any unsaved changes in the current project will be lost.'
+      t('toolbar.openProject.confirm')
     );
     return confirmed;
   };
@@ -326,13 +333,13 @@ const Toolbar: React.FC = () => {
       console.log("user selected export option:", exportType);
     }
 
-    if (exportType === "Export to KGStudio file") {
+    if (exportType === 'kgstudio') {
       handleExportKGStudio();
-    } else if (exportType === "Export to MIDI file") {
+    } else if (exportType === 'midi') {
       handleExportMIDI();
-    } else if (exportType === "Export to WAV") {
+    } else if (exportType === 'wav') {
       handleBounceToWav();
-    } else if (exportType === "Export to MP3") {
+    } else if (exportType === 'mp3') {
       handleBounceToMp3();
     }
 
@@ -362,7 +369,7 @@ const Toolbar: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setStatus(`Project "${projectName}" exported as KGStudio file`);
+      setStatus(t('toolbar.status.projectExportedKgstudio', { name: projectName }));
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log("KGStudio export completed successfully");
@@ -370,8 +377,8 @@ const Toolbar: React.FC = () => {
 
     } catch (error) {
       console.error("Error exporting KGStudio file:", error);
-      setStatus(`Error exporting project: ${error}`);
-      await showAlert(`Failed to export project: ${error}`);
+      setStatus(t('toolbar.status.exportProjectError', { error: String(error) }));
+      await showAlert(t('toolbar.export.failedProject', { error: String(error) }));
     }
   };
 
@@ -404,7 +411,7 @@ const Toolbar: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setStatus(`Project "${projectName}" exported as MIDI file`);
+      setStatus(t('toolbar.status.projectExportedMidi', { name: projectName }));
 
       if (DEBUG_MODE.TOOLBAR) {
         console.log("MIDI export completed successfully");
@@ -412,8 +419,8 @@ const Toolbar: React.FC = () => {
 
     } catch (error) {
       console.error("Error exporting MIDI:", error);
-      setStatus(`Error exporting MIDI: ${error}`);
-      await showAlert(`Failed to export project as MIDI: ${error}`);
+      setStatus(t('toolbar.status.exportMidiError', { error: String(error) }));
+      await showAlert(t('toolbar.export.failedMidi', { error: String(error) }));
     }
   };
 
@@ -425,11 +432,11 @@ const Toolbar: React.FC = () => {
     try {
       const currentProject = KGCore.instance().getCurrentProject();
       await KGOfflineRenderer.instance().bounceToWav(currentProject, projectName);
-      setStatus(`Project "${projectName}" exported as WAV file`);
+      setStatus(t('toolbar.status.projectExportedWav', { name: projectName }));
     } catch (error) {
       console.error("Error bouncing to WAV:", error);
-      setStatus(`Error exporting WAV: ${error}`);
-      await showAlert(`Failed to export project as WAV: ${error}`);
+      setStatus(t('toolbar.status.exportWavError', { error: String(error) }));
+      await showAlert(t('toolbar.export.failedWav', { error: String(error) }));
     }
   };
 
@@ -441,11 +448,11 @@ const Toolbar: React.FC = () => {
     try {
       const currentProject = KGCore.instance().getCurrentProject();
       await KGOfflineRenderer.instance().bounceToMp3(currentProject, projectName);
-      setStatus(`Project "${projectName}" exported as MP3 file`);
+      setStatus(t('toolbar.status.projectExportedMp3', { name: projectName }));
     } catch (error) {
       console.error("Error bouncing to MP3:", error);
-      setStatus(`Error exporting MP3: ${error}`);
-      await showAlert(`Failed to export project as MP3: ${error}`);
+      setStatus(t('toolbar.status.exportMp3Error', { error: String(error) }));
+      await showAlert(t('toolbar.export.failedMp3', { error: String(error) }));
     }
   };
 
@@ -480,8 +487,8 @@ const Toolbar: React.FC = () => {
 
     } catch (error) {
       console.error("Error importing file:", error);
-      setStatus(`Failed to import file: ${error}`);
-      await showAlert(`Failed to import project file: ${error}`);
+      setStatus(t('toolbar.status.importFailed', { error: String(error) }));
+      await showAlert(t('toolbar.import.failedProjectFile', { error: String(error) }));
     }
   };
 
@@ -503,7 +510,7 @@ const Toolbar: React.FC = () => {
         console.log("KGStudio file imported successfully:", projectName);
       }
     } catch (error) {
-      await showAlert(`The .kgstudio file is corrupted or invalid: ${error}`);
+      await showAlert(t('toolbar.import.corruptedKgstudio', { error: String(error) }));
       throw error;
     }
   };
@@ -555,7 +562,7 @@ const Toolbar: React.FC = () => {
       }
 
       // Show loading status
-      setStatus(`Importing MIDI file "${file.name}"...`);
+      setStatus(t('toolbar.status.importingMidi', { name: file.name }));
 
       // Read the MIDI file as binary data
       const arrayBuffer = await file.arrayBuffer();
@@ -585,7 +592,7 @@ const Toolbar: React.FC = () => {
     } catch (error) {
       console.error("Error importing MIDI file:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      setStatus(`Failed to import MIDI file: ${errorMessage}`);
+      setStatus(t('toolbar.status.failedImportMidi', { error: errorMessage }));
       throw new Error(`Invalid MIDI file: ${errorMessage}`);
     }
   };
@@ -599,7 +606,7 @@ const Toolbar: React.FC = () => {
       await startPlaying();
     } catch (error) {
       console.error("Failed to start playback:", error);
-      setStatus("Playback failed to start");
+      setStatus(t('toolbar.status.playbackFailedStart'));
     }
   };
 
@@ -610,11 +617,11 @@ const Toolbar: React.FC = () => {
     try {
       await stopTransport();
       if (isRecording) {
-        setStatus("Recording stopped — notes committed");
+        setStatus(t('toolbar.status.recordingStoppedCommitted'));
       }
     } catch (error) {
       console.error("Failed to stop playback:", error);
-      setStatus("Failed to stop playback");
+      setStatus(t('toolbar.status.failedStopPlayback'));
     }
   };
 
@@ -637,21 +644,21 @@ const Toolbar: React.FC = () => {
   // Prompt to change max bars when clicking on current-time display
   const handleCurrentTimeClick = async () => {
     const MIN_BARS = 16;
-    const newMaxBarsStr = await showPrompt(`Enter new max bars (>= ${MIN_BARS}):`, String(maxBars ?? 32));
+    const newMaxBarsStr = await showPrompt(t('toolbar.maxBars.prompt', { min: MIN_BARS }), String(maxBars ?? 32));
     if (newMaxBarsStr === null) {
       return; // cancelled
     }
     const parsed = parseInt(newMaxBarsStr.trim(), 10);
     if (isNaN(parsed)) {
-      await showAlert('Invalid input. Please enter a valid number.');
+      await showAlert(t('toolbar.input.invalidNumber'));
       return;
     }
     if (parsed < MIN_BARS) {
-      await showAlert(`Invalid value. Please enter a number >= ${MIN_BARS}.`);
+      await showAlert(t('toolbar.maxBars.invalid', { min: MIN_BARS }));
       return;
     }
     setMaxBars(parsed);
-    setStatus(`Max bars changed to ${parsed}`);
+    setStatus(t('toolbar.status.maxBarsChanged', { value: parsed }));
   };
 
   const handleBpmClick = async () => {
@@ -659,7 +666,7 @@ const Toolbar: React.FC = () => {
       console.log("BPM clicked, current BPM:", bpm);
     }
 
-    const newBpmStr = await showPrompt(`Enter new BPM (${TIME_CONSTANTS.MIN_BPM}-${TIME_CONSTANTS.MAX_BPM}):`, displayedBpm.toString());
+    const newBpmStr = await showPrompt(t('toolbar.bpm.prompt', { min: TIME_CONSTANTS.MIN_BPM, max: TIME_CONSTANTS.MAX_BPM }), displayedBpm.toString());
 
     // Check if user cancelled
     if (newBpmStr === null) {
@@ -671,13 +678,13 @@ const Toolbar: React.FC = () => {
 
     // Check if it's a valid number
     if (isNaN(newBpm)) {
-      await showAlert("Invalid input. Please enter a valid number.");
+      await showAlert(t('toolbar.input.invalidNumber'));
       return;
     }
 
     // Check if it's within valid range
     if (newBpm <= TIME_CONSTANTS.MIN_BPM || newBpm >= TIME_CONSTANTS.MAX_BPM) {
-      await showAlert(`Invalid BPM. Please enter a value between ${TIME_CONSTANTS.MIN_BPM} and ${TIME_CONSTANTS.MAX_BPM}.`);
+      await showAlert(t('toolbar.bpm.invalid', { min: TIME_CONSTANTS.MIN_BPM, max: TIME_CONSTANTS.MAX_BPM }));
       return;
     }
 
@@ -689,7 +696,7 @@ const Toolbar: React.FC = () => {
     } else {
       setBpm(newBpm);
     }
-    setStatus(`BPM changed to ${newBpm}`);
+    setStatus(t('toolbar.status.bpmChanged', { value: newBpm }));
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`BPM updated from ${displayedBpm} to ${newBpm}`);
@@ -701,7 +708,7 @@ const Toolbar: React.FC = () => {
       console.log("Time signature clicked, current:", `${timeSignature.numerator}/${timeSignature.denominator}`);
     }
 
-    const result = await showTimeSigPrompt('Set the time signature:', timeSignature);
+    const result = await showTimeSigPrompt(t('toolbar.timeSignature.prompt'), timeSignature);
     if (result === null) return;
 
     const newTimeSignature = parseTimeSignature(`${result.numerator}/${result.denominator}`);
@@ -711,7 +718,7 @@ const Toolbar: React.FC = () => {
     }
 
     setTimeSignature(newTimeSignature);
-    setStatus(`Time signature changed to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
+    setStatus(t('toolbar.status.timeSignatureChanged', { value: `${newTimeSignature.numerator}/${newTimeSignature.denominator}` }));
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Time signature updated to ${newTimeSignature.numerator}/${newTimeSignature.denominator}`);
@@ -732,7 +739,7 @@ const Toolbar: React.FC = () => {
     } else {
       setKeySignature(newKeySignature as KeySignature);
     }
-    setStatus(`Key signature changed to ${newKeySignature}`);
+    setStatus(t('toolbar.status.keySignatureChanged', { value: newKeySignature }));
     setShowKeySignatureDropdown(false);
   };
 
@@ -764,12 +771,12 @@ const Toolbar: React.FC = () => {
     const copied = handleCopyOperation();
 
     if (copied) {
-      setStatus("Items copied to clipboard");
+      setStatus(t('toolbar.status.copied'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Items copied successfully");
       }
     } else {
-      setStatus("No items selected to copy");
+      setStatus(t('toolbar.status.copyNone'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("No items were selected for copying");
       }
@@ -785,12 +792,12 @@ const Toolbar: React.FC = () => {
     const pasted = handlePasteOperation();
 
     if (pasted) {
-      setStatus("Items pasted from clipboard");
+      setStatus(t('toolbar.status.pasted'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Items pasted successfully");
       }
     } else {
-      setStatus("Cannot paste - no valid clipboard content or context");
+      setStatus(t('toolbar.status.pasteFailed'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Paste operation failed or no valid context");
       }
@@ -806,12 +813,12 @@ const Toolbar: React.FC = () => {
     const deleted = regionDeleteManager.deleteSelectedRegions();
 
     if (deleted) {
-      setStatus("Selected regions deleted");
+      setStatus(t('toolbar.status.deleted'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Regions deleted successfully");
       }
     } else {
-      setStatus("No regions selected for deletion");
+      setStatus(t('toolbar.status.deleteNone'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("No regions were selected for deletion");
       }
@@ -863,13 +870,13 @@ const Toolbar: React.FC = () => {
     }
 
     if (!canUndo) {
-      await showAlert("Nothing to undo");
+      await showAlert(t('toolbar.undo.none'));
       return;
     }
 
     undo();
-    const description = undoDescription || "action";
-    setStatus(`Undid: ${description}`);
+    const description = undoDescription || t('toolbar.action');
+    setStatus(t('toolbar.status.undid', { description }));
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Undo successful: ${description}`);
@@ -883,13 +890,13 @@ const Toolbar: React.FC = () => {
     }
 
     if (!canRedo) {
-      await showAlert("Nothing to redo");
+      await showAlert(t('toolbar.redo.none'));
       return;
     }
 
     redo();
-    const description = redoDescription || "action";
-    setStatus(`Redid: ${description}`);
+    const description = redoDescription || t('toolbar.action');
+    setStatus(t('toolbar.status.redid', { description }));
 
     if (DEBUG_MODE.TOOLBAR) {
       console.log(`Redo successful: ${description}`);
@@ -907,7 +914,7 @@ const Toolbar: React.FC = () => {
     } else {
       toggleChatBox();
     }
-    setStatus("Chat toggled");
+    setStatus(t('toolbar.status.chatToggled'));
   };
 
   // Handle settings button click
@@ -917,7 +924,7 @@ const Toolbar: React.FC = () => {
     }
 
     toggleSettings();
-    setStatus("Settings toggled");
+    setStatus(t('toolbar.status.settingsToggled'));
   };
 
   // K.G.One panel toggle
@@ -967,7 +974,7 @@ const Toolbar: React.FC = () => {
       if (DEBUG_MODE.TOOLBAR) {
         console.log('No active or selected region; piano roll will not open');
       }
-      await showAlert('Please select a MIDI region to open the Piano Roll.');
+      await showAlert(t('toolbar.pianoRoll.selectMidiRegion'));
       return;
     }
 
@@ -988,21 +995,21 @@ const Toolbar: React.FC = () => {
   const handleRecordClick = async () => {
     if (isRecording) {
       await stopRecording();
-      setStatus("Recording stopped");
+      setStatus(t('toolbar.status.recordingStopped'));
       return;
     }
 
     const selectedTrack = useProjectStore.getState().tracks.find(track => track.getId().toString() === selectedTrackId) ?? null;
     if (selectedTrack instanceof KGAudioTrack) {
       await startRecording();
-      setStatus("Audio recording started...");
+      setStatus(t('toolbar.status.audioRecordingStarted'));
       return;
     }
 
     // Require an active or selected MIDI region
     const candidateId = activeRegionId ?? lastSelectedRegionId;
     if (!candidateId) {
-      await showAlert("Please open a MIDI region in the Piano Roll before starting recording.");
+      await showAlert(t('toolbar.recording.openMidiRegion'));
       return;
     }
     const tracks = KGCore.instance().getCurrentProject().getTracks();
@@ -1012,13 +1019,13 @@ const Toolbar: React.FC = () => {
       if (region) { isMidi = region instanceof KGMidiRegion; break; }
     }
     if (!isMidi) {
-      await showAlert("Please select a MIDI region before starting recording.");
+      await showAlert(t('toolbar.recording.selectMidiRegion'));
       return;
     }
 
     // Require at least one connected MIDI device
     if (KGMidiInput.instance().getConnectedInputCount() === 0) {
-      await showAlert("No MIDI device detected. Please connect a MIDI keyboard and try again.");
+      await showAlert(t('toolbar.recording.noMidiDevice'));
       return;
     }
 
@@ -1029,7 +1036,7 @@ const Toolbar: React.FC = () => {
     }
 
     await startRecording();
-    setStatus("Recording started...");
+    setStatus(t('toolbar.status.recordingStarted'));
   };
 
   return (
@@ -1049,12 +1056,12 @@ const Toolbar: React.FC = () => {
         </div>
 
         <div className="toolbar-center">
-          <button title="New" onClick={handleNewProject}><FaPlus /></button>
-          <button title="Load" onClick={handleLoadProject}><FaFolderOpen /></button>
-          <button title="Save" onClick={handleSaveProject}><FaSave /></button>
+          <button title={t('toolbar.button.new')} onClick={handleNewProject}><FaPlus /></button>
+          <button title={t('toolbar.button.load')} onClick={handleLoadProject}><FaFolderOpen /></button>
+          <button title={t('toolbar.button.save')} onClick={handleSaveProject}><FaSave /></button>
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <button
-              title="Export"
+              title={t('toolbar.button.export')}
               onClick={() => setShowExportDropdown(!showExportDropdown)}
               style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
             >
@@ -1063,9 +1070,9 @@ const Toolbar: React.FC = () => {
             <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
               <KGDropdown
                 options={exportOptions}
-                value={exportOptions[0]}
+                value={exportOptions[0].value}
                 onChange={handleExportProject}
-                label="Export"
+                label={t('toolbar.export.label')}
                 hideButton={true}
                 isOpen={showExportDropdown}
                 onToggle={setShowExportDropdown}
@@ -1073,71 +1080,71 @@ const Toolbar: React.FC = () => {
               />
             </div>
           </div>
-          <button title="Import" onClick={handleImportProject}><FaUpload /></button>
+          <button title={t('toolbar.button.import')} onClick={handleImportProject}><FaUpload /></button>
           <button
-            title="Settings"
+            title={t('toolbar.button.settings')}
             className={`tool-button ${showSettings ? 'active' : ''}`}
             onClick={handleSettingsClick}
           >
             <FaCog />
           </button>
           <div className="toolbar-separator"></div>
-          <button title="Undo" onClick={handleUndoClick}><FaUndo /></button>
-          <button title="Redo" onClick={handleRedoClick}><FaRedo /></button>
+          <button title={t('toolbar.button.undo')} onClick={handleUndoClick}><FaUndo /></button>
+          <button title={t('toolbar.button.redo')} onClick={handleRedoClick}><FaRedo /></button>
           <div className="toolbar-separator"></div>
           <button
-            title="Select"
+            title={t('toolbar.button.select')}
             className={`tool-button ${activeMainTool === 'pointer' ? 'active' : ''}`}
             onClick={() => handleMainToolSelect('pointer')}
           >
             <FaMousePointer />
           </button>
           <button
-            title="Pencil"
+            title={t('toolbar.button.pencil')}
             className={`tool-button ${activeMainTool === 'pencil' ? 'active' : ''}`}
             onClick={() => handleMainToolSelect('pencil')}
           >
             <FaPencil />
           </button>
           <button
-            title="Split Region at Playhead"
+            title={t('toolbar.button.splitRegion')}
             onClick={handleSplitClick}
           >
             <FaCut />
           </button>
           <button
-            title="Merge Selected MIDI Regions"
+            title={t('toolbar.button.mergeRegions')}
             onClick={handleMergeClick}
           >
             <FaCompress />
           </button>
           <button
-            title="Snap to Grid"
+            title={t('toolbar.button.snapToGrid')}
             className={`tool-button ${isSnapping ? 'active' : ''}`}
             onClick={handleSnappingToggle}
           >
             <FaMagnet />
           </button>
           <div className="toolbar-separator"></div>
-          <button title="Copy" onClick={handleCopyClick}><FaCopy /></button>
-          <button title="Paste" onClick={handlePasteClick}><FaPaste /></button>
-          <button title="Delete" onClick={handleDeleteClick}><FaTrash /></button>
+          <button title={t('toolbar.button.copy')} onClick={handleCopyClick}><FaCopy /></button>
+          <button title={t('toolbar.button.paste')} onClick={handlePasteClick}><FaPaste /></button>
+          <button title={t('toolbar.button.delete')} onClick={handleDeleteClick}><FaTrash /></button>
           <div className="toolbar-separator"></div>
-          <button title="Back to beginning" className="button-back-to-beginning" onClick={handleBackToBeginningClick}><FaStepBackward /></button>
+          <button title={t('toolbar.button.backToBeginning')} className="button-back-to-beginning" onClick={handleBackToBeginningClick}><FaStepBackward /></button>
           {!isPlaying ? (
-            <button title="Play" className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
+            <button title={t('toolbar.button.play')} className="button-play" onClick={handlePlayClick} disabled={isPreparingPlayback}><FaPlay /></button>
           ) : (
-            <button title="Pause" className="tool-button button-pause active" onClick={handlePauseClick}><FaPause /></button>
+            <button title={t('toolbar.button.pause')} className="tool-button button-pause active" onClick={handlePauseClick}><FaPause /></button>
           )}
           <button
-            title={isRecording ? "Stop Recording" : "Record"}
+            title={isRecording ? t('toolbar.button.stopRecording') : t('toolbar.button.record')}
             className={`tool-button record-button ${isRecording ? 'active' : ''}`}
             onClick={handleRecordClick}
           >
             <FaCircle />
           </button>
           <button
-            title="Loop"
+            title={t('toolbar.button.loop')}
             className={`tool-button ${isLooping ? 'active' : ''}`}
             onClick={handleLoopToggle}
           >
@@ -1145,13 +1152,13 @@ const Toolbar: React.FC = () => {
           </button>
           <div className="toolbar-separator"></div>
           <button
-            title="Metronome"
+            title={t('toolbar.button.metronome')}
             className={`tool-button ${isMetronomeEnabled ? 'active' : ''}`}
             onClick={handleMetronomeToggle}
           >
             <MetronomeIcon />
           </button>
-          <button title="Piano" onClick={handlePianoButtonClick}><PianoIcon /></button>
+          <button title={t('toolbar.button.piano')} onClick={handlePianoButtonClick}><PianoIcon /></button>
           {/* <button title="Record"><FaCircle className="record-btn" /></button>
         <button title="Metronome">🎵</button> */}
         </div>
@@ -1205,7 +1212,7 @@ const Toolbar: React.FC = () => {
                     onClick={() => setShowKeySignatureDropdown((current) => !current)}
                     aria-haspopup="dialog"
                     aria-expanded={showKeySignatureDropdown}
-                    aria-label={`Choose key signature, current ${displayedKeySignature}`}
+                    aria-label={t('toolbar.keySignatureChooser', { value: displayedKeySignature })}
                   >
                     {displayedKeySignature}
                   </button>
@@ -1216,21 +1223,21 @@ const Toolbar: React.FC = () => {
             </div>
           </div>
           <button
-            title="K.G.One Music Generator"
+            title={t('toolbar.button.kgone')}
             onClick={handleKGOneClick}
             className={!showSettings && showKGOnePanel ? 'active' : ''}
           >
             <FaWandMagicSparkles />
           </button>
           <button
-            title="Chat"
+            title={t('toolbar.button.chat')}
             onClick={handleChatClick}
             className={!showSettings && showChatBox ? 'active' : ''}
           >
             <FaComments />
           </button>
           <button
-            title="Event List Editor"
+            title={t('toolbar.button.eventList')}
             onClick={handleEventListClick}
             className={!showSettings && showEventListPanel ? 'active' : ''}
           >
@@ -1244,13 +1251,13 @@ const Toolbar: React.FC = () => {
         onClose={() => setShowImportModal(false)}
         onFileImport={handleFileImport}
         acceptedTypes={['.kgstudio', '.json', '.mid', '.midi']}
-        title="Import Project"
-        description="Drag and drop your project file here"
+        title={t('toolbar.importProject.title')}
+        description={t('toolbar.importProject.description')}
       />
 
       <LoadingOverlay
         visible={isOpeningProject}
-        message="Opening project..."
+        message={t('toolbar.openingProject')}
       />
 
       {showOpenProject && (

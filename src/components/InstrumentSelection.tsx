@@ -4,8 +4,11 @@ import { useProjectStore } from '../stores/projectStore';
 import { INSTRUMENT_GROUPS, FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import { useI18n } from '../i18n/useI18n';
+import { getInstrumentDisplayName, getInstrumentGroupLabel, type InstrumentGroupKey } from '../i18n/instruments';
 
 const InstrumentSelection: React.FC = () => {
+  const { t } = useI18n();
   const {
     tracks,
     selectedTrackId,
@@ -31,24 +34,23 @@ const InstrumentSelection: React.FC = () => {
     setSelectedGroupKey(currentInstrumentDef?.group || 'PIANO_AND_KEYBOARDS');
   }, [selectedTrackId, currentInstrumentKey, currentInstrumentDef]);
 
-  const groups = useMemo(() => Object.entries(INSTRUMENT_GROUPS) as Array<[string, string]>, []);
+  const groups = useMemo(() => Object.keys(INSTRUMENT_GROUPS) as InstrumentGroupKey[], []);
 
-  const instrumentsInGroup = useMemo(() => {
+  const instrumentsInGroup = useMemo<Array<{ key: InstrumentType; label: string }>>(() => {
     return Object.entries(FLUIDR3_INSTRUMENT_MAP)
       .filter((entry) => entry[1].group === selectedGroupKey)
-      .map((entry) => ({ key: entry[0], label: entry[1].displayName }));
-  }, [selectedGroupKey]);
+      .map((entry) => ({ key: entry[0] as InstrumentType, label: getInstrumentDisplayName(entry[0] as InstrumentType, t) }));
+  }, [selectedGroupKey, t]);
 
   const handleSelectGroup = (groupKey: string) => {
     setSelectedGroupKey(groupKey);
   };
 
-  const handleSelectInstrument = async (instrumentKey: string) => {
+  const handleSelectInstrument = async (instrumentKey: InstrumentType) => {
     // If no valid target track, ignore user interaction
     if (!targetTrack || !(targetTrack instanceof KGMidiTrack)) return;
-    const instrument = instrumentKey as InstrumentType;
     try {
-      await setTrackInstrument(targetTrack.getId(), instrument);
+      await setTrackInstrument(targetTrack.getId(), instrumentKey);
     } catch (err) {
       console.error('Failed to change instrument from panel:', err);
     }
@@ -56,7 +58,7 @@ const InstrumentSelection: React.FC = () => {
 
   const isAudioTrack = targetTrack instanceof KGAudioTrack;
   const previewImage = isAudioTrack ? 'speaker.png' : (FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.image || 'piano.png');
-  const previewAlt = isAudioTrack ? 'Audio Track' : (FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.displayName || currentInstrumentKey);
+  const previewAlt = isAudioTrack ? 'Audio Track' : getInstrumentDisplayName(currentInstrumentKey, t);
   const hasTargetTrack = !!targetTrack;
 
   return (
@@ -82,13 +84,13 @@ const InstrumentSelection: React.FC = () => {
       <div className="instrument-selection-bottom">
         <div className="instrument-groups">
           <div className="instrument-groups-list">
-            {groups.map(([key, label]) => (
+            {groups.map((key) => (
               <div
                 key={key}
                 className={`instrument-group-item${selectedGroupKey === key ? ' active' : ''}`}
                 onClick={() => handleSelectGroup(key)}
               >
-                {label}
+                {getInstrumentGroupLabel(key, t)}
               </div>
             ))}
           </div>
@@ -113,5 +115,3 @@ const InstrumentSelection: React.FC = () => {
 };
 
 export default InstrumentSelection;
-
-

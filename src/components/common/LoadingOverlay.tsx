@@ -1,12 +1,13 @@
 import React from 'react';
 import './LoadingOverlay.css';
+import { translate } from '../../i18n/translate';
 
 interface LoadingOverlayProps {
   visible: boolean;
   message?: string;
 }
 
-const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ visible, message = 'Loading ...' }) => {
+const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ visible, message = translate('app.loading') }) => {
   if (!visible) return null;
 
   return (
@@ -20,5 +21,4 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ visible, message = 'Loa
 };
 
 export default LoadingOverlay;
-
 

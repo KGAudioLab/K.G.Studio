@@ -7,6 +7,7 @@ import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import RegionEventListTab from './event-list-panel/RegionEventListTab';
 import TrackEventListTab from './event-list-panel/TrackEventListTab';
 import GlobalEventListTab from './event-list-panel/GlobalEventListTab';
+import { useI18n } from '../i18n/useI18n';
 
 interface EventListPanelProps {
   isVisible: boolean;
@@ -15,6 +16,7 @@ interface EventListPanelProps {
 type ScopeTab = 'region' | 'track' | 'global';
 
 const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
+  const { t } = useI18n();
   const {
     tracks,
     globalTracks,
@@ -55,30 +57,30 @@ const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
   return (
     <div className={`event-list-panel${isVisible ? '' : ' is-hidden'}`}>
       <div className="event-list-panel-header">
-        <h3>Event List</h3>
+        <h3>{t('eventList.title')}</h3>
       </div>
 
-      <div className="event-list-scope-tabs" role="tablist" aria-label="Event list scopes">
+      <div className="event-list-scope-tabs" role="tablist" aria-label={t('eventList.scopeTabs')}>
         <button
           className={`event-list-scope-tab${scopeTab === 'region' ? ' active' : ''}`}
           type="button"
           onClick={() => setScopeTab('region')}
         >
-          Region
+          {t('eventList.scope.region')}
         </button>
         <button
           className={`event-list-scope-tab${scopeTab === 'track' ? ' active' : ''}`}
           type="button"
           onClick={() => setScopeTab('track')}
         >
-          Track
+          {t('eventList.scope.track')}
         </button>
         <button
           className={`event-list-scope-tab${scopeTab === 'global' ? ' active' : ''}`}
           type="button"
           onClick={() => setScopeTab('global')}
         >
-          Global
+          {t('eventList.scope.global')}
         </button>
       </div>
 

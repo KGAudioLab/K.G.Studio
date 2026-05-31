@@ -35,6 +35,7 @@ import { UpdateControllerEventPropertiesCommand } from '../../core/commands/note
 import { UpdateNotePropertiesCommand } from '../../core/commands/note/UpdateNotePropertiesCommand';
 import { UpdatePitchBendPropertiesCommand } from '../../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { showAlert } from '../../util/dialogUtil';
+import { useI18n } from '../../i18n/useI18n';
 
 interface RegionEventListTabProps {
   activeMidiRegion: KGMidiRegion | null;
@@ -73,12 +74,6 @@ interface EditingCell {
   column: EditableColumn;
   value: string;
 }
-
-const ADD_EVENT_TYPE_OPTIONS = [
-  { label: 'Note', value: 'note' },
-  { label: 'Pitch Bend', value: 'pitch-bend' },
-  { label: 'Controller', value: 'controller' },
-] as const;
 
 const parseVelocityInput = (raw: string): { velocity: number } | { error: string } => {
   const trimmed = raw.trim();
@@ -182,6 +177,7 @@ const parseControllerValueDeltaInput = (raw: string): { delta: number } | { erro
 };
 
 const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegion, parentTrack }) => {
+  const { t } = useI18n();
   const {
     selectedNoteIds,
     selectedPitchBendIds,
@@ -253,6 +249,11 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
   const selectedControllerEventIdSet = new Set(selectedControllerEventIds);
   const selectedEventIdSet = new Set([...selectedNoteIds, ...selectedPitchBendIds, ...selectedControllerEventIds]);
   const visibleSelectedRows = eventRows.filter(row => selectedEventIdSet.has(row.id));
+  const addEventTypeOptions = [
+    { label: t('eventList.region.addType.note'), value: 'note' },
+    { label: t('eventList.region.addType.pitchBend'), value: 'pitch-bend' },
+    { label: t('eventList.region.addType.controller'), value: 'controller' },
+  ] as const;
 
   useEffect(() => {
     if (editingCell) {
@@ -941,15 +942,15 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
   return (
     <>
-      <div className="event-list-tabs" role="tablist" aria-label="Region event filters">
-        <button className={`event-list-tab${showNotes ? ' active' : ''}`} type="button" onClick={() => setShowNotes(value => !value)}>Notes</button>
-        <button className={`event-list-tab${showPitchBends ? ' active' : ''}`} type="button" onClick={() => setShowPitchBends(value => !value)}>Pitch Bends</button>
-        <button className={`event-list-tab${showControllers ? ' active' : ''}`} type="button" onClick={() => setShowControllers(value => !value)}>Controller</button>
+      <div className="event-list-tabs" role="tablist" aria-label={t('eventList.region.filters')}>
+        <button className={`event-list-tab${showNotes ? ' active' : ''}`} type="button" onClick={() => setShowNotes(value => !value)}>{t('eventList.region.filter.notes')}</button>
+        <button className={`event-list-tab${showPitchBends ? ' active' : ''}`} type="button" onClick={() => setShowPitchBends(value => !value)}>{t('eventList.region.filter.pitchBends')}</button>
+        <button className={`event-list-tab${showControllers ? ' active' : ''}`} type="button" onClick={() => setShowControllers(value => !value)}>{t('eventList.region.filter.controller')}</button>
       </div>
 
       {!activeMidiRegion ? (
         <div className="event-list-empty-state">
-          Please select a MIDI region, or open one in the Piano Roll, to view its event list.
+          {t('eventList.region.empty')}
         </div>
       ) : (
         <>
@@ -957,17 +958,23 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
             <div className="event-list-toolbar-group">
               <button
                 className="event-list-add-button"
-                title={addEventType === 'note' ? 'Add note at playhead' : addEventType === 'pitch-bend' ? 'Add pitch bend at playhead' : 'Add controller event at playhead'}
+                title={
+                  addEventType === 'note'
+                    ? t('eventList.region.add.noteTitle')
+                    : addEventType === 'pitch-bend'
+                      ? t('eventList.region.add.pitchBendTitle')
+                      : t('eventList.region.add.controllerTitle')
+                }
                 type="button"
                 onClick={handleAddEvent}
               >
                 <FaPlus />
               </button>
               <KGDropdown
-                options={[...ADD_EVENT_TYPE_OPTIONS]}
+                options={[...addEventTypeOptions]}
                 value={addEventType}
                 onChange={(value) => setAddEventType(value as AddEventType)}
-                label="Note"
+                label={t('eventList.region.add.label')}
                 buttonClassName="event-list-type-button"
                 showValueAsLabel
               />
@@ -975,28 +982,28 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
             <div className="event-list-toolbar-group event-list-toolbar-group-right">
               <KGDropdown
-                options={KGPianoRollState.QUANT_POS_OPTIONS}
+                options={KGPianoRollState.QUANT_POS_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value }))}
                 value={quantPosition}
                 onChange={(value) => {
                   setQuantPosition(value);
                   quantizeSelectedNotes(value);
                 }}
-                label="Qua. Pos."
+                label={t('pianoRoll.quantizePositionCompact')}
                 buttonClassName="event-list-quant-button"
               />
               <KGDropdown
-                options={KGPianoRollState.QUANT_LEN_OPTIONS}
+                options={KGPianoRollState.QUANT_LEN_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value }))}
                 value={quantLength}
                 onChange={(value) => {
                   setQuantLength(value);
                   quantizeSelectedNoteLengths(value);
                 }}
-                label="Qua. Len."
+                label={t('pianoRoll.quantizeLengthCompact')}
                 buttonClassName="event-list-quant-button"
               />
               <button
                 className="event-list-delete-button"
-                title="Delete visible selected rows"
+                title={t('eventList.deleteVisibleSelectedRows')}
                 type="button"
                 onClick={handleDeleteSelectedRows}
                 disabled={visibleSelectedRows.length === 0}
@@ -1010,18 +1017,22 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
             <table className="event-list-table">
               <thead>
                 <tr>
-                  <th>Position</th>
-                  <th>Status</th>
-                  <th>Num</th>
-                  <th>Val</th>
-                  <th>Length/Info</th>
+                  <th>{t('eventList.table.position')}</th>
+                  <th>{t('eventList.table.status')}</th>
+                  <th>{t('eventList.table.num')}</th>
+                  <th>{t('eventList.table.val')}</th>
+                  <th>{t('eventList.table.lengthInfo')}</th>
                 </tr>
               </thead>
               <tbody>
                 {eventRows.map((row, index) => {
                   const absoluteBeat = row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat;
                   const positionText = formatMidiEventPosition(absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-                  const statusText = row.type === 'note' ? 'Note' : row.type === 'pitch-bend' ? 'Pitch Bend' : 'Controller';
+                  const statusText = row.type === 'note'
+                    ? t('eventList.region.status.note')
+                    : row.type === 'pitch-bend'
+                      ? t('eventList.region.status.pitchBend')
+                      : t('eventList.region.status.controller');
                   const numText = row.type === 'note'
                     ? pitchToNoteNameString(row.note.getPitch())
                     : row.type === 'controller'

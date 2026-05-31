@@ -4,6 +4,8 @@ import { KGProjectStorage, type ProjectMeta } from '../../core/io/KGProjectStora
 import { isValidProjectName } from '../../util/projectNameUtil';
 import './OpenProjectModal.css';
 import { showAlert, showConfirm, showPrompt } from '../../util/dialogUtil';
+import { useI18n } from '../../i18n/useI18n';
+import { translate } from '../../i18n/translate';
 
 interface OpenProjectModalProps {
   onClose: () => void;
@@ -34,7 +36,7 @@ const matchesFilter = (projectName: string, filter: string): boolean => {
 };
 
 const formatDate = (timestamp: number): string => {
-  if (timestamp === 0) return 'Unknown';
+  if (timestamp === 0) return translate('openProjectModal.date.unknown');
   const date = new Date(timestamp);
   return date.toLocaleDateString(undefined, {
     year: 'numeric',
@@ -52,6 +54,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
   currentProjectName,
   onCreateNewProject
 }) => {
+  const { t } = useI18n();
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -145,12 +148,12 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
 
   const handleDuplicate = async (e: React.MouseEvent, projectName: string) => {
     e.stopPropagation();
-    const newName = await showPrompt('Enter a name for the duplicated project:', projectName);
+    const newName = await showPrompt(t('openProjectModal.dialog.duplicateName'), projectName);
     if (!newName || newName.trim() === '') return;
 
     const trimmed = newName.trim();
     if (!isValidProjectName(trimmed)) {
-      await showAlert('Invalid project name. Only letters, numbers, spaces, hyphens, underscores, periods, and parentheses are allowed.');
+      await showAlert(t('openProjectModal.dialog.invalidName'));
       return;
     }
 
@@ -165,7 +168,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
       startClose();
     } catch (error) {
       console.error('Error duplicating project:', error);
-      await showAlert(`Failed to duplicate project: ${error}`);
+      await showAlert(t('openProjectModal.dialog.duplicateError', { error: String(error) }));
     }
   };
 
@@ -177,7 +180,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
       await fetchProjects(viewMode);
     } catch (error) {
       console.error('Error deleting project:', error);
-      await showAlert(`Failed to delete project: ${error}`);
+      await showAlert(t('openProjectModal.dialog.deleteError', { error: String(error) }));
     }
   };
 
@@ -189,14 +192,14 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
       await fetchProjects(viewMode);
     } catch (error) {
       console.error('Error restoring project:', error);
-      await showAlert(`Failed to restore project: ${error}`);
+      await showAlert(t('openProjectModal.dialog.restoreError', { error: String(error) }));
     }
   };
 
   const handlePermanentDelete = async (e: React.MouseEvent, projectName: string) => {
     e.stopPropagation();
     const confirmed = await showConfirm(
-      `Are you sure you want to permanently delete "${projectName}"?\n\nThis operation cannot be undone.`
+      t('openProjectModal.dialog.confirmPermanentDelete', { name: projectName })
     );
     if (!confirmed) return;
 
@@ -210,7 +213,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
       }
     } catch (error) {
       console.error('Error permanently deleting project:', error);
-      await showAlert(`Failed to permanently delete project: ${error}`);
+      await showAlert(t('openProjectModal.dialog.permanentDeleteError', { error: String(error) }));
     }
   };
 
@@ -243,8 +246,8 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
     >
       <div className={`open-project-panel${isClosing ? ' open-project-panel-closing' : ''}`}>
         <div className="open-project-header">
-          <h3 className="open-project-title">Open Project</h3>
-          <button className="open-project-close-btn" onClick={startClose} aria-label="Close">
+          <h3 className="open-project-title">{t('openProjectModal.title')}</h3>
+          <button className="open-project-close-btn" onClick={startClose} aria-label={t('openProjectModal.close')}>
             <FaTimes />
           </button>
         </div>
@@ -253,7 +256,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
           <div className="open-project-filter-row">
             <input
               type="text"
-              placeholder="Filter projects..."
+              placeholder={t('openProjectModal.filter.placeholder')}
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               autoFocus
@@ -263,13 +266,13 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
                 className={`open-project-toggle-btn ${viewMode === 'projects' ? 'active' : ''}`}
                 onClick={() => handleViewModeChange('projects')}
               >
-                Projects
+                {t('openProjectModal.viewToggle.projects')}
               </button>
               <button
                 className={`open-project-toggle-btn ${viewMode === 'trash' ? 'active' : ''}`}
                 onClick={() => handleViewModeChange('trash')}
               >
-                Trash
+                {t('openProjectModal.viewToggle.trash')}
               </button>
             </div>
           </div>
@@ -277,7 +280,7 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
 
         {viewMode === 'trash' && (
           <div className="open-project-trash-hint">
-            Deleted projects are automatically removed after 30 days.
+            {t('openProjectModal.trash.hint')}
           </div>
         )}
 
@@ -286,29 +289,29 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
             className={`open-project-sort-col open-project-sort-col-name ${sortField === 'name' ? 'active' : ''}`}
             onClick={() => handleSortClick('name')}
           >
-            Name <SortIcon field="name" />
+            {t('openProjectModal.sort.name')} <SortIcon field="name" />
           </span>
           <span
             className={`open-project-sort-col open-project-sort-col-created ${sortField === 'createdAt' ? 'active' : ''}`}
             onClick={() => handleSortClick('createdAt')}
           >
-            Created <SortIcon field="createdAt" />
+            {t('openProjectModal.sort.created')} <SortIcon field="createdAt" />
           </span>
           <span
             className={`open-project-sort-col open-project-sort-col-updated ${sortField === 'updatedAt' ? 'active' : ''}`}
             onClick={() => handleSortClick('updatedAt')}
           >
-            Updated <SortIcon field="updatedAt" />
+            {t('openProjectModal.sort.updated')} <SortIcon field="updatedAt" />
           </span>
         </div>
 
         {isLoading ? (
-          <div className="open-project-loading">Loading projects...</div>
+          <div className="open-project-loading">{t('openProjectModal.loading')}</div>
         ) : filteredProjects.length === 0 ? (
           <div className="open-project-empty">
             {projects.length === 0
-              ? (viewMode === 'trash' ? 'Trash is empty' : 'No saved projects')
-              : 'No projects match the filter'}
+              ? (viewMode === 'trash' ? t('openProjectModal.empty.trash') : t('openProjectModal.empty.noProjects'))
+              : t('openProjectModal.empty.noMatch')}
           </div>
         ) : (
           <div className="open-project-list">
@@ -321,9 +324,9 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
                 <div className="open-project-item-info">
                   <div className="open-project-item-name">{project.name}</div>
                   <div className="open-project-item-meta">
-                    Created {formatDate(project.createdAt)} &middot; Updated {formatDate(project.updatedAt)}
+                    {t('openProjectModal.meta.created', { date: formatDate(project.createdAt) })} &middot; {t('openProjectModal.meta.updated', { date: formatDate(project.updatedAt) })}
                     {viewMode === 'trash' && project.deletedAt && (
-                      <> &middot; Deleted {formatDate(project.deletedAt)}</>
+                      <> &middot; {t('openProjectModal.meta.deleted', { date: formatDate(project.deletedAt) })}</>
                     )}
                   </div>
                 </div>
@@ -334,19 +337,19 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
                         className="open-project-item-open-btn"
                         onClick={(e) => { e.stopPropagation(); handleOpen(project.name); }}
                       >
-                        Open
+                        {t('openProjectModal.action.open')}
                       </button>
                       <button
                         className="open-project-item-action-btn open-project-item-duplicate-btn"
                         onClick={(e) => handleDuplicate(e, project.name)}
-                        title="Duplicate"
+                        title={t('openProjectModal.action.duplicate')}
                       >
                         <FaCopy />
                       </button>
                       <button
                         className="open-project-item-action-btn open-project-item-delete-btn"
                         onClick={(e) => handleSoftDelete(e, project.name)}
-                        title="Delete"
+                        title={t('openProjectModal.action.delete')}
                       >
                         <FaTrash />
                       </button>
@@ -356,14 +359,14 @@ const OpenProjectModal: React.FC<OpenProjectModalProps> = ({
                       <button
                         className="open-project-item-action-btn open-project-item-restore-btn"
                         onClick={(e) => handleRestore(e, project.name)}
-                        title="Restore"
+                        title={t('openProjectModal.action.restore')}
                       >
                         <FaUndo />
                       </button>
                       <button
                         className="open-project-item-action-btn open-project-item-permdelete-btn"
                         onClick={(e) => handlePermanentDelete(e, project.name)}
-                        title="Delete permanently"
+                        title={t('openProjectModal.action.deletePermanently')}
                       >
                         <FaTrash />
                       </button>

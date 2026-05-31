@@ -13,7 +13,13 @@ import PianoRollContent from './PianoRollContent';
 import { KGCore } from '../../core/KGCore';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
-import { KGPianoRollState } from '../../core/state/KGPianoRollState';
+import {
+  KGPianoRollState,
+  PIANO_ROLL_NO_SNAP,
+  type PianoRollQuantizeLengthValue,
+  type PianoRollQuantizePositionValue,
+  type PianoRollSnapValue,
+} from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar } from '../../util/midiUtil';
 import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
@@ -63,6 +69,7 @@ import {
   type PendingModeSwitchRequest,
 } from './pianoRollViewport';
 import { getNextChordGuideSelection, resolveChordGuideContext, type ChordGuideFunction } from './chordGuideUtil';
+import { useI18n } from '../../i18n/useI18n';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -95,6 +102,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const isAudioOnly = isAudioWaveform || isSpectrogram;
   const isHybrid = currentMode === 'hybrid';
   const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
+  const { t } = useI18n();
 
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -121,11 +129,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Quantization state
-  const [quantPosition, setQuantPosition] = useState<string>('1/8');
-  const [quantLength, setQuantLength] = useState<string>('1/8');
+  const [quantPosition, setQuantPosition] = useState<PianoRollQuantizePositionValue>('1/8');
+  const [quantLength, setQuantLength] = useState<PianoRollQuantizeLengthValue>('1/8');
 
   // Snapping state
-  const [snapping, setSnapping] = useState<string>('NO SNAP');
+  const [snapping, setSnapping] = useState<PianoRollSnapValue>(PIANO_ROLL_NO_SNAP);
 
   // Chord guide state
   const [chordGuide, setChordGuide] = useState<ChordGuideFunction>('N');
@@ -504,7 +512,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     const detectionOptions = audioRegion
       ? await showChordDetectionOptions(
-        'Tune audio chord detection settings before processing.',
+        t('dialog.message.chordDetection'),
         DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
       )
       : await showMidiChordDetectionOptions(
@@ -622,7 +630,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
 
     const detectionOptions = await showTempoDetectionOptions(
-      'Tune audio tempo detection settings before processing.',
+      t('dialog.message.tempoDetection'),
       DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
     );
     if (!detectionOptions) {
@@ -653,8 +661,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const applyResult = await showTempoApply(
         buildDetectedTempoChoiceMessage(result.bpm),
         [
-          { label: 'Update Current Tempo', value: DETECTED_TEMPO_ACTION_UPDATE_CURRENT },
-          { label: 'Insert Tempo Change', value: DETECTED_TEMPO_ACTION_INSERT_REGION },
+          { label: t('dialog.action.updateCurrentTempo'), value: DETECTED_TEMPO_ACTION_UPDATE_CURRENT },
+          { label: t('dialog.action.insertTempoChange'), value: DETECTED_TEMPO_ACTION_INSERT_REGION },
         ],
       );
       if (!applyResult) {
@@ -713,8 +721,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Handle snapping selection
   const handleSnappingSelect = useCallback((value: string) => {
-    setSnapping(value);
-    KGPianoRollState.instance().setCurrentSnap(value);
+    const nextValue = value as PianoRollSnapValue;
+    setSnapping(nextValue);
+    KGPianoRollState.instance().setCurrentSnap(nextValue);
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Selected snapping: ${value}`);
     }
@@ -974,19 +983,21 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Handle quantization selection
   const handleQuantSelect = useCallback((type: 'position' | 'length', value: string) => {
     if (type === 'position') {
-      setQuantPosition(value);
+      const nextValue = value as PianoRollQuantizePositionValue;
+      setQuantPosition(nextValue);
 
       // Apply quantization immediately when position quantization is changed
-      quantizeSelectedNotes(value);
+      quantizeSelectedNotes(nextValue);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`quant-position selected: ${value}`);
       }
     } else {
-      setQuantLength(value);
+      const nextValue = value as PianoRollQuantizeLengthValue;
+      setQuantLength(nextValue);
 
       // Apply length quantization immediately when length quantization is changed
-      quantizeNoteLength(value);
+      quantizeNoteLength(nextValue);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`quant-length selected: ${value}`);
@@ -1407,7 +1418,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         // Check snapping hotkeys
         if (event.key === snap_none_key) {
           actionType = 'snap';
-          actionValue = 'NO SNAP';
+          actionValue = PIANO_ROLL_NO_SNAP;
         } else if (event.key === snap_1_4_key) {
           actionType = 'snap';
           actionValue = '1/4';
@@ -1453,7 +1464,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
           if (actionType === 'snap') {
             // Validate the snap value exists in snap options
-            if (KGPianoRollState.SNAP_OPTIONS.includes(actionValue)) {
+            if (KGPianoRollState.SNAP_OPTIONS.some(option => option.value === actionValue)) {
               // Change snapping value
               handleSnappingSelect(actionValue);
 
@@ -1467,9 +1478,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
             }
           } else if (actionType === 'quantize' && quantType) {
             // Validate the quantValue exists in the appropriate options
-            const validOptions = quantType === 'length' ? KGPianoRollState.QUANT_LEN_OPTIONS : KGPianoRollState.QUANT_POS_OPTIONS;
+            const validOptions = quantType === 'length'
+              ? KGPianoRollState.QUANT_LEN_OPTIONS
+              : KGPianoRollState.QUANT_POS_OPTIONS;
 
-            if (validOptions.includes(actionValue)) {
+            if (validOptions.some(option => option.value === actionValue)) {
               // Apply quantization
               handleQuantSelect(quantType, actionValue);
 

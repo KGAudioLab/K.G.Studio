@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
 import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
+import { useI18n } from '../../../i18n/useI18n';
+import type { LanguageSetting } from '../../../i18n/types';
 import {
   formatLocalLLMContextLength,
   LOCAL_LLM_CONTEXT_LENGTH_OPTIONS,
@@ -17,7 +19,16 @@ import {
   LOCAL_SEPARATOR_MODEL_IDS,
 } from '../../../util/local-separator/config';
 
+const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> = {
+  en_us: 'English',
+  fr_fr: 'Français',
+  zh_cn: '简体中文',
+  zh_hk: '繁體中文',
+};
+
 const GeneralSettings: React.FC = () => {
+  const { t, setLanguageSetting } = useI18n();
+  const [language, setLanguage] = useState<LanguageSetting>('auto');
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
   const [openaiKey, setOpenaiKey] = useState<string>('');
   const [openaiModel, setOpenaiModel] = useState<string>('');
@@ -90,6 +101,7 @@ const GeneralSettings: React.FC = () => {
         await configManager.initialize();
       }
 
+      setLanguage(((configManager.get('general.language') as LanguageSetting | undefined) ?? 'auto'));
       setLlmProvider((configManager.get('general.llm_provider') as string) || LOCAL_LLM_PROVIDER_KEY);
       setOpenaiKey((configManager.get('general.openai.api_key') as string) || '');
       setOpenaiModel((configManager.get('general.openai.model') as string) || '');
@@ -150,6 +162,15 @@ const GeneralSettings: React.FC = () => {
       console.log('LLM provider changed to:', value);
     } catch (error) {
       console.error('Failed to save LLM provider:', error);
+    }
+  };
+
+  const handleLanguageChange = async (value: LanguageSetting) => {
+    setLanguage(value);
+    try {
+      await setLanguageSetting(value);
+    } catch (error) {
+      console.error('Failed to save language:', error);
     }
   };
 
@@ -322,45 +343,68 @@ const GeneralSettings: React.FC = () => {
   return (
     <div className="settings-section">
       <div className="settings-section-header">
-        <h3>General</h3>
+        <h3>{t('settings.general.title')}</h3>
       </div>
 
       <div className="settings-section-content">
         <div className="settings-group">
-          <h4>LLM Provider</h4>
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="general-language-select">
+              {t('settings.general.language.label')}
+            </label>
+            <select
+              id="general-language-select"
+              className="settings-select"
+              value={language}
+              onChange={(e) => void handleLanguageChange(e.target.value as LanguageSetting)}
+            >
+              <option value="auto">{t('settings.general.language.auto')}</option>
+              <option value="en_us">{LANGUAGE_OPTION_LABELS.en_us}</option>
+              <option value="fr_fr">{LANGUAGE_OPTION_LABELS.fr_fr}</option>
+              <option value="zh_cn">{LANGUAGE_OPTION_LABELS.zh_cn}</option>
+              <option value="zh_hk">{LANGUAGE_OPTION_LABELS.zh_hk}</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {t('settings.general.language.help')}
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>{t('settings.general.llmProvider.section')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              LLM Provider
+              {t('settings.general.llmProvider.label')}
             </label>
             <select
               className="settings-select"
               value={llmProvider}
               onChange={(e) => handleLlmProviderChange(e.target.value)}
             >
-              <option value={LOCAL_LLM_PROVIDER_KEY}>Local LLM (Browser)</option>
-              <option value="openai">OpenAI</option>
+              <option value={LOCAL_LLM_PROVIDER_KEY}>{t('settings.general.llmProvider.local')}</option>
+              <option value="openai">{t('settings.general.llmProvider.openai')}</option>
               {/* <option value="gemini">Gemini</option>
               <option value="claude">Claude</option> */}
-              <option value="claude_openrouter">Claude (via OpenRouter)</option>
-              <option value="openai_compatible">OpenAI Compatible (e.g. OpenRouter, Ollama)</option>
+              <option value="claude_openrouter">{t('settings.general.llmProvider.claudeOpenRouter')}</option>
+              <option value="openai_compatible">{t('settings.general.llmProvider.openaiCompatible')}</option>
             </select>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Persist API Keys on Non-Localhost
+              {t('settings.general.persistKeys.label')}
             </label>
             <select
               className="settings-select"
               value={persistApiKeysNonLocalhost ? 'yes' : 'no'}
               onChange={(e) => handlePersistApiKeysNonLocalhostChange(e.target.value)}
             >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
+              <option value="no">{t('settings.no')}</option>
+              <option value="yes">{t('settings.yes')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              When enabled, API keys will be saved to browser storage even on non-localhost environments. Warning: This may increase security vulnerability to XSS attacks.
+              {t('settings.general.persistKeys.help')}
             </div>
           </div>
         </div>
@@ -376,20 +420,20 @@ const GeneralSettings: React.FC = () => {
 
           <div className="settings-item">
             <label className="settings-label">
-              Cached Model Status
+              {t('settings.general.localRuntime.cachedStatus')}
             </label>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {localModelState.isChecking
-                ? 'Checking local model cache...'
+                ? t('settings.general.localRuntime.cacheChecking')
                 : localModelState.isCached
-                  ? 'Downloaded in browser cache.'
-                  : 'Not downloaded yet.'}
+                  ? t('settings.general.localRuntime.cacheDownloaded')
+                  : t('settings.general.localRuntime.cacheMissing')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label" htmlFor="local-llm-context-length">
-              Context Length
+              {t('settings.general.localRuntime.contextLength')}
             </label>
             <select
               id="local-llm-context-length"
@@ -404,13 +448,13 @@ const GeneralSettings: React.FC = () => {
               ))}
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Larger context lengths require more VRAM and may also reduce performance as conversations become longer.
+              {t('settings.general.localRuntime.contextHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Download URL
+              {t('settings.general.localRuntime.downloadUrl')}
             </label>
             <input
               type="text"
@@ -420,7 +464,7 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleLocalModelUrlChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changing this URL may break downloads or point to an incompatible model file.{' '}
+              {t('settings.general.localRuntime.downloadHelp')}{' '}
               <a
                 href="#"
                 onClick={(e) => {
@@ -429,14 +473,14 @@ const GeneralSettings: React.FC = () => {
                 }}
                 style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
               >
-                Restore default
+                {t('settings.restoreDefault')}
               </a>
             </div>
           </div>
 
           {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
-              The local model downloads automatically the next time you chat with `Local LLM (Browser)`.
+              {t('settings.general.localRuntime.autoDownload')}
             </div>
           )}
 
@@ -470,17 +514,17 @@ const GeneralSettings: React.FC = () => {
               onClick={() => void handleDeleteLocalModel()}
               disabled={localModelState.isDeleting || localModelState.isDownloading || !localModelState.isCached}
             >
-              {localModelState.isDeleting ? 'Deleting...' : 'Delete Cached Model'}
+              {localModelState.isDeleting ? t('settings.deleting') : t('settings.deleteCachedModel')}
             </button>
           </div>
         </div>
 
         <div className="settings-group">
-          <h4>UVR5 Web Runtime</h4>
+          <h4>{t('settings.general.uvr5.section')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              UVR-MDX-NET-Inst_HQ_3 Download URL
+              {t('settings.general.uvr5.downloadUrl')}
             </label>
             <input
               type="text"
@@ -490,7 +534,7 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleUvr5ModelUrlChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changing this URL may break downloads or point to an incompatible model file.{' '}
+              {t('settings.general.modelUrl.help')}{' '}
               <a
                 href="#"
                 onClick={(e) => {
@@ -501,7 +545,7 @@ const GeneralSettings: React.FC = () => {
                 }}
                 style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
               >
-                Restore default
+                {t('settings.restoreDefault')}
               </a>
             </div>
           </div>
@@ -513,13 +557,13 @@ const GeneralSettings: React.FC = () => {
               onClick={() => void handleDeleteUvr5Model()}
               disabled={isCheckingUvr5ModelCache || isDeletingUvr5Model || !isUvr5ModelCached}
             >
-              {isDeletingUvr5Model ? 'Deleting...' : 'Delete Cached Model'}
+              {isDeletingUvr5Model ? t('settings.deleting') : t('settings.deleteCachedModel')}
             </button>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              htdemucs_4s Download URL
+              {t('settings.general.htdemucs.downloadUrl')}
             </label>
             <input
               type="text"
@@ -529,7 +573,7 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleHtdemucsModelUrlChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changing this URL may break downloads or point to an incompatible model file.{' '}
+              {t('settings.general.modelUrl.help')}{' '}
               <a
                 href="#"
                 onClick={(e) => {
@@ -540,7 +584,7 @@ const GeneralSettings: React.FC = () => {
                 }}
                 style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
               >
-                Restore default
+                {t('settings.restoreDefault')}
               </a>
             </div>
           </div>
@@ -552,37 +596,37 @@ const GeneralSettings: React.FC = () => {
               onClick={() => void handleDeleteHtdemucsModel()}
               disabled={isCheckingUvr5ModelCache || isDeletingHtdemucsModel || !isHtdemucsModelCached}
             >
-              {isDeletingHtdemucsModel ? 'Deleting...' : 'Delete Cached Model'}
+              {isDeletingHtdemucsModel ? t('settings.deleting') : t('settings.deleteCachedModel')}
             </button>
           </div>
         </div>
 
         <div className="settings-group">
-          <h4>OpenAI</h4>
+          <h4>{t('settings.general.openai.section')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              Key
+              {t('settings.general.openai.key')}
             </label>
             <input
               type="password"
               className="settings-input"
-              placeholder="Enter your OpenAI API key"
+              placeholder={t('settings.general.openai.keyPlaceholder')}
               value={openaiKey}
               onChange={(e) => handleOpenaiKeyChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {isLocalEnvironment
-                ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                ? t('settings.general.keys.persisted')
                 : persistApiKeysNonLocalhost
-                  ? 'Keys are persisted locally (the IndexedDB in your browser).'
-                  : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+                  ? t('settings.general.keys.persisted')
+                  : t('settings.general.keys.sessionOnly')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Model
+              {t('settings.general.openai.model')}
             </label>
             <select
               className="settings-select"
@@ -601,18 +645,18 @@ const GeneralSettings: React.FC = () => {
 
           <div className="settings-item">
             <label className="settings-label">
-              Flex Mode
+              {t('settings.general.openai.flexMode')}
             </label>
             <select
               className="settings-select"
               value={openaiFlex ? 'yes' : 'no'}
               onChange={(e) => handleOpenaiFlexChange(e.target.value)}
             >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
+              <option value="no">{t('settings.no')}</option>
+              <option value="yes">{t('settings.yes')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Flex Mode uses OpenAI's flexible service tier. Pros: potential cost savings and higher throughput during busy periods. Cons: variable latency and possible queueing/deprioritization. Applies only to the OpenAI provider; no effect for OpenAI Compatible servers.
+              {t('settings.general.openai.flexHelp')}
             </div>
           </div>
         </div>
@@ -678,31 +722,31 @@ const GeneralSettings: React.FC = () => {
         </div> */}
 
         <div className="settings-group">
-          <h4>Anthropic Claude (via OpenRouter)</h4>
+          <h4>{t('settings.general.claudeOpenRouter.section')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              Key
+              {t('settings.general.openai.key')}
             </label>
             <input
               type="password"
               className="settings-input"
-              placeholder="Enter your Claude API key"
+              placeholder={t('settings.general.claudeOpenRouter.keyPlaceholder')}
               value={claudeOpenRouterKey}
               onChange={(e) => handleClaudeOpenRouterKeyChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {isLocalEnvironment
-                ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                ? t('settings.general.keys.persisted')
                 : persistApiKeysNonLocalhost
-                  ? 'Keys are persisted locally (the IndexedDB in your browser).'
-                  : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+                  ? t('settings.general.keys.persisted')
+                  : t('settings.general.keys.sessionOnly')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Base URL
+              {t('settings.general.baseUrl')}
             </label>
             <input
               type="text"
@@ -712,13 +756,13 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleClaudeOpenRouterBaseUrlChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              This is the base URL for the OpenRouter API. Please do not change this unless you know what you are doing.
+              {t('settings.general.claudeOpenRouter.baseUrlHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Model
+              {t('settings.general.openai.model')}
             </label>
             <select
               className="settings-select"
@@ -736,41 +780,41 @@ const GeneralSettings: React.FC = () => {
         </div>
 
         <div className="settings-group">
-          <h4>OpenAI Compatible Server</h4>
+          <h4>{t('settings.general.openaiCompatible.section')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              Key
+              {t('settings.general.openai.key')}
             </label>
             <input
               type="password"
               className="settings-input"
-              placeholder="Enter your API key"
+              placeholder={t('settings.general.openaiCompatible.keyPlaceholder')}
               value={compatibleKey}
               onChange={(e) => handleCompatibleKeyChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {isLocalEnvironment
-                ? 'Keys are persisted locally (the IndexedDB in your browser).'
+                ? t('settings.general.keys.persisted')
                 : persistApiKeysNonLocalhost
-                  ? 'Keys are persisted locally (the IndexedDB in your browser).'
-                  : 'For security, keys are not persisted on non-local hosts and are kept in-memory for this session.'}
+                  ? t('settings.general.keys.persisted')
+                  : t('settings.general.keys.sessionOnly')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Base URL
+              {t('settings.general.baseUrl')}
             </label>
             <input
               type="text"
               className="settings-input"
-              placeholder="e.g. https://openrouter.ai/api/v1"
+              placeholder={t('settings.general.openaiCompatible.baseUrlPlaceholder')}
               value={compatibleBaseUrl}
               onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Quick presets:{' '}
+              {t('settings.general.openaiCompatible.baseUrlHelp')}{' '}
               <a
                 href="#"
                 onClick={(e) => {
@@ -819,12 +863,12 @@ const GeneralSettings: React.FC = () => {
 
           <div className="settings-item">
             <label className="settings-label">
-              Model
+              {t('settings.general.openai.model')}
             </label>
             <input
               type="text"
               className="settings-input"
-              placeholder="e.g. qwen3:30b"
+              placeholder={t('settings.general.openaiCompatible.modelPlaceholder')}
               value={compatibleModel}
               onChange={(e) => handleCompatibleModelChange(e.target.value)}
             />
@@ -832,17 +876,17 @@ const GeneralSettings: React.FC = () => {
         </div>
 
         <div className="settings-group">
-          <h4>Soundfont Settings</h4>
+          <h4>{t('settings.general.soundfont.section')}</h4>
 
           {soundfontServerManaged && (
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
-              Soundfont configuration is managed by the server (kgone-server.json). Settings are read-only.
+              {t('settings.general.soundfont.managed')}
             </div>
           )}
 
           <div className="settings-item">
             <label className="settings-label">
-              Base URL
+              {t('settings.general.soundfont.baseUrl')}
             </label>
             <input
               type="text"
@@ -853,7 +897,7 @@ const GeneralSettings: React.FC = () => {
               disabled={soundfontServerManaged}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changing this URL to an incompatible soundfont source may cause some instruments to sound wrong or not play.{' '}
+              {t('settings.general.soundfont.baseUrlHelp')}{' '}
               <a
                 href="#"
                 onClick={(e) => {
@@ -862,24 +906,24 @@ const GeneralSettings: React.FC = () => {
                 }}
                 style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
               >
-                Restore default
+                {t('settings.restoreDefault')}
               </a>
             </div>
           </div>
         </div>
 
         <div className="settings-group">
-          <h4>K.G.One Settings</h4>
+          <h4>{t('settings.general.kgone.section')}</h4>
 
           {kgoneServerManaged && (
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
-              K.G.One configuration is managed by the server (kgone-server.json). Settings are read-only.
+              {t('settings.general.kgone.managed')}
             </div>
           )}
 
           <div className="settings-item">
             <label className="settings-label">
-              Enable K.G.One Integration
+              {t('settings.general.kgone.enabled')}
             </label>
             <select
               className="settings-select"
@@ -887,14 +931,14 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleKgoneEnabledChange(e.target.value === 'true')}
               disabled={kgoneServerManaged}
             >
-              <option value="false">Disabled</option>
-              <option value="true">Enabled</option>
+              <option value="false">{t('settings.general.kgone.disabled')}</option>
+              <option value="true">{t('settings.general.kgone.enabledOption')}</option>
             </select>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Server Base URL
+              {t('settings.general.kgone.serverBaseUrl')}
             </label>
             <input
               type="text"
@@ -905,7 +949,7 @@ const GeneralSettings: React.FC = () => {
               disabled={kgoneServerManaged}
             />
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Base URL of a running K.G.One Music Studio server. Used for full-song generation, clip generation, and stem separation.
+              {t('settings.general.kgone.serverBaseUrlHelp')}
             </div>
           </div>
         </div>

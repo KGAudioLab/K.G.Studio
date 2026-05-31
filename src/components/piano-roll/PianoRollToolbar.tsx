@@ -5,23 +5,10 @@ import { KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
 import {
-  PIANO_ROLL_AUTOMATION_OPTIONS,
+  getTranslatedAutomationOptions,
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
-
-const POWER_OPTIONS = [
-  { label: 'Linear', value: '1.0' },
-  { label: '√ (default)', value: '0.5' },
-  { label: 'Mild', value: '0.4' },
-  { label: 'Strong', value: '0.3' },
-];
-
-const CHORD_GUIDE_BUTTONS: Array<{ label: string; value: 'N' | 'T' | 'S' | 'D'; ariaLabel: string }> = [
-  { label: '⊘', value: 'N', ariaLabel: 'Chord guide off' },
-  { label: 'T', value: 'T', ariaLabel: 'Chord guide tonic' },
-  { label: 'S', value: 'S', ariaLabel: 'Chord guide subdominant' },
-  { label: 'D', value: 'D', ariaLabel: 'Chord guide dominant' },
-];
+import { useI18n } from '../../i18n/useI18n';
 
 interface PianoRollToolbarProps {
   showAudioSpectrogramToggle?: boolean;
@@ -106,11 +93,48 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onDetectTempo,
   detectingTempo = false,
 }) => {
+  const { t } = useI18n();
   const showMidiControls = mode !== 'spectrogram' && mode !== 'audio-waveform' && !sheetMusicViewEnabled;
   const showAudioOnlyControls = mode === 'audio-waveform' && !sheetMusicViewEnabled;
   const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo);
+  const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
+  const snapOptions = React.useMemo(
+    () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
+    [t],
+  );
+  const quantPositionOptions = React.useMemo(
+    () => KGPianoRollState.QUANT_POS_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
+    [t],
+  );
+  const quantLengthOptions = React.useMemo(
+    () => KGPianoRollState.QUANT_LEN_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
+    [t],
+  );
+  const POWER_OPTIONS = [
+    { label: t('pianoRoll.power.linear'), value: '1.0' },
+    { label: t('pianoRoll.power.sqrtDefault'), value: '0.5' },
+    { label: t('pianoRoll.power.mild'), value: '0.4' },
+    { label: t('pianoRoll.power.strong'), value: '0.3' },
+  ];
+  const modeOptions = React.useMemo(
+    () => Object.entries(KGCore.FUNCTIONAL_CHORDS_DATA).map(([id, data]) => {
+      const translationKey = `pianoRoll.modeOption.${id}`;
+      const translatedLabel = t(translationKey);
+      return {
+        label: translatedLabel === translationKey ? data.name : translatedLabel,
+        value: id,
+      };
+    }),
+    [t],
+  );
+  const CHORD_GUIDE_BUTTONS: Array<{ label: string; value: 'N' | 'T' | 'S' | 'D'; ariaLabel: string }> = [
+    { label: '⊘', value: 'N', ariaLabel: t('pianoRoll.chordGuide.off') },
+    { label: 'T', value: 'T', ariaLabel: t('pianoRoll.chordGuide.tonic') },
+    { label: 'S', value: 'S', ariaLabel: t('pianoRoll.chordGuide.subdominant') },
+    { label: 'D', value: 'D', ariaLabel: t('pianoRoll.chordGuide.dominant') },
+  ];
 
   const [showZoomSlider, setShowZoomSlider] = React.useState(false);
   const zoomSliderRef = React.useRef<HTMLDivElement>(null);
@@ -144,8 +168,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     <button
       className={`tool-button icon-only sheet-mode-toggle ${audioSpectrogramEnabled ? 'active' : ''}`}
       onClick={() => onAudioSpectrogramToggle?.()}
-      title="Spectrogram View"
-      aria-label="Spectrogram View"
+      title={t('pianoRoll.spectrogramView')}
+      aria-label={t('pianoRoll.spectrogramView')}
     >
       <svg className="spectrogram-view-icon" width="12" height="12" viewBox="0 0 10 10" fill="currentColor">
         <rect x="3" y="0.5" width="6.5" height="2.5" rx="0.4" />
@@ -159,8 +183,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     <button
       className={`tool-button sheet-mode-toggle ${sheetMusicViewEnabled ? 'active' : ''}`}
       onClick={() => onSheetMusicViewToggle?.()}
-      title="Sheet Music View"
-      aria-label="Sheet Music View"
+      title={t('pianoRoll.sheetMusicView')}
+      aria-label={t('pianoRoll.sheetMusicView')}
       disabled={sheetMusicToggleDisabled}
     >
       ♬
@@ -176,14 +200,14 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
           <button
             className={`tool-button ${activeTool === 'pointer' ? 'active' : ''}`}
             onClick={() => onToolSelect('pointer')}
-            title="Pointer Tool"
+            title={t('pianoRoll.pointerTool')}
           >
             <FaMousePointer className="piano-roll-tool-icon" />
           </button>
           <button
             className={`tool-button ${activeTool === 'pencil' ? 'active' : ''}`}
             onClick={() => onToolSelect('pencil')}
-            title="Pencil Tool"
+            title={t('pianoRoll.pencilTool')}
           >
             <FaPencilAlt className="piano-roll-tool-icon" />
           </button>
@@ -192,30 +216,30 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
               <button
                 className={`tool-button automation-toggle-button ${automationEnabled ? 'active' : ''}`}
                 onClick={() => onAutomationToggle?.()}
-                title="Toggle automation lane"
-                aria-label="Toggle automation lane"
+                title={t('pianoRoll.toggleAutomationLane')}
+                aria-label={t('pianoRoll.toggleAutomationLane')}
               >
                 A
               </button>
               <KGDropdown
-                options={PIANO_ROLL_AUTOMATION_OPTIONS}
+                options={automationOptions}
                 value={automationType}
                 onChange={(value) => onAutomationTypeChange?.(value as PianoRollAutomationType)}
-                label="Automation"
+                label={t('pianoRoll.automation')}
                 buttonClassName="automation-type-dropdown"
                 showValueAsLabel={true}
               />
             </div>
           )}
           <KGDropdown
-            options={Object.entries(KGCore.FUNCTIONAL_CHORDS_DATA).map(([id, data]) => ({ label: data.name, value: id }))}
+            options={modeOptions}
             value={selectedMode}
             onChange={(value) => onModeChange(value)}
-            label="Mode"
+            label={t('pianoRoll.mode')}
             buttonClassName="mode-dropdown"
             showValueAsLabel={true}
           />
-          <div className="piano-roll-chord-guide-toolbar-group" role="group" aria-label="Chord guide">
+          <div className="piano-roll-chord-guide-toolbar-group" role="group" aria-label={t('pianoRoll.chordGuide')}>
             {CHORD_GUIDE_BUTTONS.map((button, index) => (
               <button
                 key={button.value}
@@ -253,8 +277,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             <button
               className={`tool-button icon-only sheet-track-scope-toggle ${sheetMusicTrackScopeEnabled ? 'active' : ''}`}
               onClick={() => onSheetMusicTrackScopeToggle?.()}
-              title={sheetMusicTrackScopeEnabled ? 'Show Active Region Only' : 'Show Entire Track'}
-              aria-label={sheetMusicTrackScopeEnabled ? 'Show Active Region Only' : 'Show Entire Track'}
+              title={sheetMusicTrackScopeEnabled ? t('pianoRoll.showActiveRegionOnly') : t('pianoRoll.showEntireTrack')}
+              aria-label={sheetMusicTrackScopeEnabled ? t('pianoRoll.showActiveRegionOnly') : t('pianoRoll.showEntireTrack')}
             >
               <TbArrowBarToUp className="sheet-track-scope-icon" strokeWidth={2.5} />
             </button>
@@ -268,7 +292,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             options={sheetQuantizationOptions}
             value={sheetQuantization}
             onChange={(value) => onSheetQuantizationChange?.(value)}
-            label="Sheet Quant."
+            label={t('pianoRoll.sheetQuantization')}
             buttonClassName="sheet-quantization"
             showValueAsLabel={true}
           />
@@ -276,25 +300,25 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
         {showMidiControls && (
           <>
             <KGDropdown
-              options={KGPianoRollState.SNAP_OPTIONS}
+              options={snapOptions}
               value={snapping}
               onChange={(value) => onSnappingSelect(value)}
-              label="Snap"
+              label={t('pianoRoll.snap')}
               buttonClassName="snapping"
               showValueAsLabel={true}
             />
             <KGDropdown
-              options={KGPianoRollState.QUANT_POS_OPTIONS}
+              options={quantPositionOptions}
               value={quantPosition}
               onChange={(value) => onQuantSelect('position', value)}
-              label="Qua. Pos."
+              label={t('pianoRoll.quantizePositionCompact')}
               buttonClassName={`quant-position ${blinkButton === 'quant-position' ? 'button-blink' : ''}`}
             />
             <KGDropdown
-              options={KGPianoRollState.QUANT_LEN_OPTIONS}
+              options={quantLengthOptions}
               value={quantLength}
               onChange={(value) => onQuantSelect('length', value)}
-              label="Qua. Len."
+              label={t('pianoRoll.quantizeLengthCompact')}
               buttonClassName={`quant-length ${blinkButton === 'quant-length' ? 'button-blink' : ''}`}
             />
           </>
@@ -302,7 +326,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
 
         {showSpecControls && (
           <div className="spectrogram-toolbar-controls">
-            <span className="spectrogram-control-label">Floor</span>
+            <span className="spectrogram-control-label">{t('pianoRoll.floor')}</span>
             <input
               type="range"
               className="spectrogram-threshold-slider"
@@ -318,7 +342,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
               options={POWER_OPTIONS}
               value={power.toString()}
               onChange={v => onPowerChange?.(parseFloat(v))}
-              label="Curve"
+              label={t('pianoRoll.curve')}
               buttonClassName="curve-dropdown"
               showValueAsLabel={true}
             />
@@ -330,7 +354,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             <button
               className="quant-button"
               onClick={() => setShowZoomSlider(!showZoomSlider)}
-              title="Zoom"
+              title={t('pianoRoll.zoom')}
+              aria-label={t('pianoRoll.zoom')}
             >
               {zoom}x
             </button>
@@ -355,7 +380,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
             <button
               className="quant-button"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
-              title="More options"
+              title={t('pianoRoll.moreOptions')}
+              aria-label={t('pianoRoll.moreOptions')}
             >
               ...
             </button>
@@ -373,7 +399,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                     }}
                     aria-disabled={detectingChords}
                   >
-                    {detectingChords ? 'Detecting chords...' : 'Detect chords...'}
+                    {detectingChords ? t('pianoRoll.detectingChords') : t('pianoRoll.detectChords')}
                   </div>
                 )}
                 {onDetectTempo && (
@@ -388,7 +414,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                     }}
                     aria-disabled={detectingTempo}
                   >
-                    {detectingTempo ? 'Detecting tempo...' : 'Detect tempo...'}
+                    {detectingTempo ? t('pianoRoll.detectingTempo') : t('pianoRoll.detectTempo')}
                   </div>
                 )}
               </div>

@@ -19,6 +19,7 @@ import {
 import { parseChordSymbol } from '../../../util/chordUtil';
 import { showAlert } from '../../../util/dialogUtil';
 import { isModifierKeyPressed } from '../../../util/osUtil';
+import { useI18n } from '../../../i18n/useI18n';
 
 type FunctionType = 'T' | 'S' | 'D';
 type EditableColumn = 'name' | 'note';
@@ -35,16 +36,6 @@ const FUNCTION_BUTTONS: Array<{ value: FunctionType; label: string; title: strin
   { value: 'S', label: 'S', title: 'Subdominant' },
   { value: 'D', label: 'D', title: 'Dominant' },
 ];
-
-const GROUP_LABELS: Record<ChordGuideGroupKey, string> = {
-  major: 'Major Candidate Chords',
-  minor: 'Minor Candidate Chords',
-};
-
-const GROUP_HELP: Record<ChordGuideGroupKey, string> = {
-  major: 'Enter chords relative to C major. The app will transpose them automatically for other major key signatures.',
-  minor: 'Enter chords relative to A minor. The app will transpose them automatically for other minor key signatures.',
-};
 
 const CONFIG_KEY = 'chord_guide.custom_items';
 
@@ -86,6 +77,7 @@ async function loadBundledChordGuideData(): Promise<ChordGuideData> {
 }
 
 const ChordGuideSettings: React.FC = () => {
+  const { t } = useI18n();
   const configManager = ConfigManager.instance();
   const [defaultsData, setDefaultsData] = React.useState<ChordGuideData | null>(null);
   const [customConfig, setCustomConfig] = React.useState<ChordGuideCustomConfig | null>(null);
@@ -115,9 +107,9 @@ const ChordGuideSettings: React.FC = () => {
 
     void initialize().catch((error) => {
       console.error('Failed to initialize chord guide settings:', error);
-      void showAlert('Failed to load chord guide settings.');
+      void showAlert(t('settings.chordGuide.loadError'));
     });
-  }, [configManager]);
+  }, [configManager, t]);
 
   React.useEffect(() => {
     if (!editingCell) {
@@ -180,12 +172,12 @@ const ChordGuideSettings: React.FC = () => {
     const trimmedValue = editingCell.value.trim();
     if (column === 'name') {
       if (!trimmedValue || parseChordSymbol(trimmedValue) === null) {
-        await showAlert('Please enter a valid chord symbol. Example: Bm7b5');
+        await showAlert(t('settings.chordGuide.invalidChordSymbol'));
         return;
       }
       const derived = buildDerivedChordGuideItem(group, { name: trimmedValue, note: row.note });
       if (!derived) {
-        await showAlert('Unable to derive notes for this chord. Please use a supported chord symbol.');
+        await showAlert(t('settings.chordGuide.unsupportedChordSymbol'));
         return;
       }
       await updateGroupRows(group, functionType, (rows) => rows.map((candidate, index) => (
@@ -290,14 +282,16 @@ const ChordGuideSettings: React.FC = () => {
     const rows = getModeDefinition(customConfig, group)[functionType];
     const selection = selectedRows[group];
 
+    const groupLabel = t(`settings.chordGuide.group.${group}`);
+
     return (
       <div className="settings-group" key={group}>
         <div className="settings-group-header">
-          <h4>{GROUP_LABELS[group]}</h4>
+          <h4>{groupLabel}</h4>
         </div>
-        <div className="settings-description">{GROUP_HELP[group]}</div>
+        <div className="settings-description">{t(`settings.chordGuide.help.${group}`)}</div>
 
-        <div className="event-list-tabs" role="tablist" aria-label={`${GROUP_LABELS[group]} functions`}>
+        <div className="event-list-tabs" role="tablist" aria-label={t('settings.chordGuide.functionsAria', { group: groupLabel })}>
           {FUNCTION_BUTTONS.map((button) => (
             <button
               key={button.value}
@@ -319,7 +313,7 @@ const ChordGuideSettings: React.FC = () => {
           <div className="event-list-toolbar-group">
             <button
               className="event-list-add-button settings-chord-guide-add-button"
-              title={`Add ${GROUP_LABELS[group]} chord`}
+              title={t('settings.chordGuide.addTitle', { group: groupLabel })}
               type="button"
               onClick={() => { void handleAddRow(group); }}
             >
@@ -329,7 +323,7 @@ const ChordGuideSettings: React.FC = () => {
           <div className="event-list-toolbar-group event-list-toolbar-group-right">
             <button
               className="event-list-delete-button"
-              title="Delete selected rows"
+              title={t('settings.chordGuide.deleteSelectedRows')}
               type="button"
               onClick={() => { void handleDeleteRows(group); }}
               disabled={selection.size === 0}
@@ -343,10 +337,10 @@ const ChordGuideSettings: React.FC = () => {
           <table className="event-list-table">
             <thead>
               <tr>
-                <th>Chord</th>
-                <th>Notes</th>
-                <th>Source</th>
-                <th>Note</th>
+                <th>{t('settings.chordGuide.table.chord')}</th>
+                <th>{t('settings.chordGuide.table.notes')}</th>
+                <th>{t('settings.chordGuide.table.source')}</th>
+                <th>{t('settings.chordGuide.table.note')}</th>
               </tr>
             </thead>
             <tbody>
@@ -415,13 +409,13 @@ const ChordGuideSettings: React.FC = () => {
   return (
     <div className="settings-section">
       <div className="settings-section-header">
-        <h3>Chord Guide</h3>
+        <h3>{t('settings.chordGuide.title')}</h3>
       </div>
 
       <div className="settings-section-content">
         <div className="settings-help-links settings-chord-guide-reset-row">
           <button className="settings-help" type="button" onClick={() => { void handleResetToDefault(); }}>
-            Reset to Default
+            {t('settings.chordGuide.resetToDefault')}
           </button>
         </div>
         {renderGroup('major')}

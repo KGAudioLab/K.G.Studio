@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import './FileImportModal.css';
 import { FaTimes } from 'react-icons/fa';
 import { showAlert } from '../../util/dialogUtil';
+import { useI18n } from '../../i18n/useI18n';
 
 interface FileImportModalProps {
   isVisible: boolean;
@@ -17,9 +18,12 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
   onClose,
   onFileImport,
   acceptedTypes = ['.json'],
-  title = 'Import Project',
-  description = 'Drag and drop your project file here'
+  title,
+  description,
 }) => {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t('toolbar.importProject.title');
+  const resolvedDescription = description ?? t('toolbar.importProject.description');
   const [isDragOver, setIsDragOver] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const mouseDownOnOverlay = useRef(false);
@@ -65,7 +69,7 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
         onFileImport(file);
         startClose();
       } else {
-        await showAlert(`Invalid file type. Please select a file with one of these extensions: ${acceptedTypes.join(', ')}`);
+        await showAlert(t('fileImport.invalidType', { extensions: acceptedTypes.join(', ') }));
       }
     }
   }, [acceptedTypes, onFileImport, startClose]);
@@ -101,11 +105,11 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
     >
       <div className={`file-import-modal${isClosing ? ' file-import-modal-closing' : ''}`}>
         <div className="file-import-header">
-          <h3 className="file-import-title">{title}</h3>
+          <h3 className="file-import-title">{resolvedTitle}</h3>
           <button
             className="file-import-close-btn"
             onClick={startClose}
-            aria-label="Close import modal"
+            aria-label={t('fileImport.close')}
           >
             <FaTimes />
           </button>
@@ -120,17 +124,17 @@ const FileImportModal: React.FC<FileImportModalProps> = ({
         >
           <div className="file-import-drop-content">
             <div className="file-import-icon">📁</div>
-            <p className="file-import-description">{description}</p>
+            <p className="file-import-description">{resolvedDescription}</p>
             <p className="file-import-formats">
-              Supported formats: {acceptedTypes.join(', ')}
+              {t('fileImport.supportedFormats', { formats: acceptedTypes.join(', ') })}
             </p>
 
             <div className="file-import-divider">
-              <span>or</span>
+              <span>{t('fileImport.or')}</span>
             </div>
 
             <label className="file-import-browse-btn">
-              Browse Files
+              {t('fileImport.browse')}
               <input
                 type="file"
                 accept={acceptedTypes.join(',')}

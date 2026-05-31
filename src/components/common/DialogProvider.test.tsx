@@ -103,7 +103,7 @@ describe('DialogProvider chord detection dialog', () => {
     fireEvent.change(screen.getByLabelText('Stability'), { target: { value: '81' } });
     fireEvent.change(screen.getByLabelText('No-Chord Threshold'), { target: { value: '24' } });
     fireEvent.click(screen.getByLabelText('Chord Detail: Enable sevenths'));
-    fireEvent.click(screen.getByRole('button', { name: 'Detect' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     finishDialogCloseAnimation();
 
     await waitFor(() => expect(resolved).toEqual({
@@ -228,7 +228,7 @@ describe('DialogProvider tempo detection dialog', () => {
     fireEvent.change(screen.getByLabelText('Maximum BPM'), { target: { value: '154' } });
     expect(screen.getByText('96')).toBeInTheDocument();
     expect(screen.getByText('154')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Detect' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     finishDialogCloseAnimation();
 
     await waitFor(() => expect(resolved).toEqual({

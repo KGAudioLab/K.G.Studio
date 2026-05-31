@@ -12,6 +12,7 @@ import { ConfigManager } from './core/config/ConfigManager';
 import { KGMidiInput } from './core/midi-input/KGMidiInput';
 import { KGDebugger } from './core/KGDebugger';
 import { enumerateAudioDevices, validateConfiguredAudioDevices } from './util/audioDeviceUtil';
+import { I18nProvider } from './i18n/I18nProvider';
 
 const root = createRoot(document.getElementById('root')!);
 
@@ -169,9 +170,11 @@ window.addEventListener('beforeunload', (event) => {
 
   root.render(
     <StrictMode>
-      <DialogProvider>
-        <App />
-      </DialogProvider>
+      <I18nProvider>
+        <DialogProvider>
+          <App />
+        </DialogProvider>
+      </I18nProvider>
     </StrictMode>,
   );
 } // end isSecureContext else

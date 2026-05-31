@@ -59,6 +59,7 @@ describe('processUserMessage slash commands', () => {
     configState.set('general.claude_openrouter.api_key', '');
     configState.set('general.openai_compatible.base_url', '');
     configState.set('general.openai_compatible.model', '');
+    configState.set('general.language', 'en_us');
 
     configManagerMock.getIsInitialized.mockReturnValue(true);
     configManagerMock.initialize.mockClear();
@@ -99,6 +100,41 @@ describe('processUserMessage slash commands', () => {
     expect(result.pseudoAssistantResponse).toContain('welcome_local_llm.md');
   });
 
+  it('uses the localized welcome asset when zh-CN is selected', async () => {
+    configState.set('general.language', 'zh_cn');
+    configState.set('general.llm_provider', 'local_browser');
+
+    const result = await processUserMessage('/welcome');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/welcome_local_llm-zh_cn.md'));
+    expect(result.metadata).toMatchObject({ command: 'welcome', variant: 'local' });
+    expect(result.pseudoAssistantResponse).toContain('welcome_local_llm-zh_cn.md');
+  });
+
+  it('uses the localized welcome asset when fr-FR is selected', async () => {
+    configState.set('general.language', 'fr_fr');
+    configState.set('general.llm_provider', 'local_browser');
+
+    const result = await processUserMessage('/welcome');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/welcome_local_llm-fr_fr.md'));
+    expect(result.metadata).toMatchObject({ command: 'welcome', variant: 'local' });
+    expect(result.pseudoAssistantResponse).toContain('welcome_local_llm-fr_fr.md');
+  });
+
+  it('falls back to a localized welcome string when welcome markdown fetch fails', async () => {
+    configState.set('general.language', 'zh_cn');
+    configState.set('general.llm_provider', 'local_browser');
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('network down');
+    }));
+
+    const result = await processUserMessage('/welcome');
+
+    expect(result.metadata).toMatchObject({ command: 'welcome' });
+    expect(result.pseudoAssistantResponse).toBe('欢迎使用 K.G.Studio 音乐创作助手。');
+  });
+
   it('uses the new-user welcome for non-local providers without required config', async () => {
     configState.set('general.llm_provider', 'openai');
     configState.set('general.openai.api_key', '');
@@ -132,6 +168,81 @@ describe('processUserMessage slash commands', () => {
     expect(message?.content).toContain('welcome_local_llm.md');
   });
 
+  it('uses localized welcome assets for addWelcomeMessage under auto + Chinese locale', async () => {
+    configState.set('general.language', 'auto');
+    vi.stubGlobal('navigator', {
+      languages: ['zh-CN', 'en-US'],
+      language: 'zh-CN',
+    });
+
+    const message = await addWelcomeMessage();
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/welcome_local_llm-zh_cn.md'));
+    expect(message?.content).toContain('welcome_local_llm-zh_cn.md');
+  });
+
+  it('uses localized welcome assets for addWelcomeMessage under auto + French locale', async () => {
+    configState.set('general.language', 'auto');
+    vi.stubGlobal('navigator', {
+      languages: ['fr-FR', 'en-US'],
+      language: 'fr-FR',
+    });
+
+    const message = await addWelcomeMessage();
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/welcome_local_llm-fr_fr.md'));
+    expect(message?.content).toContain('welcome_local_llm-fr_fr.md');
+  });
+
+  it('fetches the localized help guide for /help under zh-CN', async () => {
+    configState.set('general.language', 'zh_cn');
+
+    const result = await processUserMessage('/help');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/help-zh_cn.md'));
+    expect(result).toMatchObject({
+      displayUserMessage: false,
+      sendToLLM: false,
+      finalMessageForLLM: null,
+      metadata: { command: 'help' },
+    });
+    expect(result.pseudoAssistantResponse).toContain('chat/help-zh_cn.md');
+  });
+
+  it('fetches the localized help guide for /help under fr-FR', async () => {
+    configState.set('general.language', 'fr_fr');
+
+    const result = await processUserMessage('/help');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/help-fr_fr.md'));
+    expect(result.pseudoAssistantResponse).toContain('chat/help-fr_fr.md');
+  });
+
+  it('falls back to the English help guide when the localized file is missing', async () => {
+    configState.set('general.language', 'zh_cn');
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('chat/help-zh_cn.md')) {
+        return {
+          ok: false,
+          status: 404,
+          text: async () => '',
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `content:${url}`,
+      };
+    }));
+
+    const result = await processUserMessage('/help');
+
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringContaining('chat/help-zh_cn.md'));
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringContaining('chat/help.md'));
+    expect(result.pseudoAssistantResponse).toContain('chat/help.md');
+  });
+
   it('fetches the hotkeys guide for /hotkeys', async () => {
     const result = await processUserMessage('/hotkeys');
 
@@ -143,6 +254,24 @@ describe('processUserMessage slash commands', () => {
       metadata: { command: 'hotkeys' },
     });
     expect(result.pseudoAssistantResponse).toContain('chat/hotkeys.md');
+  });
+
+  it('fetches the localized hotkeys guide for /hotkeys under fr-FR', async () => {
+    configState.set('general.language', 'fr_fr');
+
+    const result = await processUserMessage('/hotkeys');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/hotkeys-fr_fr.md'));
+    expect(result.pseudoAssistantResponse).toContain('chat/hotkeys-fr_fr.md');
+  });
+
+  it('fetches the localized hotkeys guide for /hotkeys under zh-CN', async () => {
+    configState.set('general.language', 'zh_cn');
+
+    const result = await processUserMessage('/hotkeys');
+
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('chat/hotkeys-zh_cn.md'));
+    expect(result.pseudoAssistantResponse).toContain('chat/hotkeys-zh_cn.md');
   });
 
   it('supports /hotkey as an alias of /hotkeys', async () => {

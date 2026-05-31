@@ -7,7 +7,7 @@ import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import type { MutableRefObject } from 'react';
 import { KGCore } from '../core/KGCore';
-import { KGPianoRollState } from '../core/state/KGPianoRollState';
+import { KGPianoRollState, PIANO_ROLL_NO_SNAP } from '../core/state/KGPianoRollState';
 import { KGAudioInterface } from '../core/audio-interface/KGAudioInterface';
 import { CreateNoteCommand, DeleteNotesCommand, ResizeNotesCommand, MoveNotesCommand } from '../core/commands';
 import { CreateNotesCommand } from '../core/commands/note/CreateNotesCommand';
@@ -171,7 +171,7 @@ export const useNoteOperations = ({
     // Calculate the beat number (0-indexed) and apply floor snapping for note creation
     const rawBeatNumber = x / beatWidth;
     const currentSnap = KGPianoRollState.instance().getCurrentSnap();
-    const beatNumber = currentSnap === 'NO SNAP' 
+    const beatNumber = currentSnap === PIANO_ROLL_NO_SNAP 
       ? Math.floor(rawBeatNumber)  // Snap to 1-beat grid when no snapping is selected
       : getSnappedBeatPosition(rawBeatNumber, currentSnap, true); // Use floor snapping for note creation
     

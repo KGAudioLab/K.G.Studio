@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import './DialogProvider.css';
 import { FaTimes } from 'react-icons/fa';
 import { ConfigManager } from '../../core/config/ConfigManager';
+import { useI18n } from '../../i18n/useI18n';
 import { registerDialogFns } from '../../util/dialogUtil';
 import type {
   ChoiceOption,
@@ -44,15 +45,8 @@ const DEFAULT_TEMPO_DETECTION_OPTIONS: TempoDetectionOptionsResult = {
   maxTempo: 180,
 };
 
-const DETECTION_HINT_TITLE = 'Experimental Feature';
-const CHORD_DETECTION_HINT_TEXT = 'Chord analysis is still experimental. Harmonic content, arrangement density, and transient-heavy material can affect accuracy. For more reliable results, start with the default settings, then refine sensitivity and stability until the detected harmony best matches the musical phrasing.';
-const MIDI_CHORD_DETECTION_HINT_TEXT = 'Chord analysis is still experimental. Voicing density, overlaps, and ornamental notes can influence the result. For more reliable chord labels, begin with the default settings, then adjust note suppression and harmonic focus to match the musical role of the passage.';
-const TEMPO_DETECTION_HINT_TEXT = 'Tempo analysis is still experimental. Rubato phrasing, sparse transients, and layered percussion can reduce accuracy. Start with the default BPM range, then narrow the analysis window to the most plausible tempo span for the material if the first pass is not musically convincing.';
-const AUDIO_CHORD_SOURCE_HINT_TITLE = 'Recommended Source Material';
-const AUDIO_CHORD_SOURCE_HINT_KGONE_TEXT = 'For the most dependable chord labels, analyze a stem with vocals and percussion reduced or removed. If K.G.One Music Studio server integration is available, run Separator with the "Vocal, Drums, Bass, Guitar, Piano, and Others" model and use the Piano or Others stem for analysis.';
-const AUDIO_CHORD_SOURCE_HINT_LOCAL_TEXT = 'For the most dependable chord labels, analyze a stem with vocals and percussion reduced or removed. If you are using the local separator, choose the "Vocal, Drums, Bass, and Others" model and use the Others stem for analysis.';
-
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -205,18 +199,18 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isKGOneEnabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
 
   const title = isAlert
-    ? 'Notice'
+    ? t('dialog.title.notice')
     : isTimeSig
-      ? 'Time Signature'
+      ? t('dialog.title.timeSignature')
       : isTempoDetection
-        ? 'Tempo Detection'
+        ? t('dialog.title.tempoDetection')
         : isTempoApply
-          ? 'Apply Tempo'
-        : (isChordDetection || isMidiChordDetection)
-        ? 'Chord Detection'
+          ? t('dialog.title.applyTempo')
+          : (isChordDetection || isMidiChordDetection)
+        ? t('dialog.title.chordDetection')
         : isPrompt
-          ? 'Input'
-          : 'Confirm';
+          ? t('dialog.title.input')
+          : t('dialog.title.confirm');
 
   const handleOverlayMouseDown = (e: React.MouseEvent) => {
     mouseDownOnOverlay.current = e.target === e.currentTarget;
@@ -281,11 +275,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   };
 
   const detectionHintText = isChordDetection
-    ? CHORD_DETECTION_HINT_TEXT
+    ? t('dialog.chordHint.audio')
     : isMidiChordDetection
-      ? MIDI_CHORD_DETECTION_HINT_TEXT
+      ? t('dialog.chordHint.midi')
       : isTempoDetection
-        ? TEMPO_DETECTION_HINT_TEXT
+        ? t('dialog.chordHint.tempo')
         : null;
 
   return (
@@ -298,7 +292,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
             <button
               className="dialog-close-btn"
               onClick={handleCancel}
-              aria-label="Close dialog"
+              aria-label={t('dialog.close')}
             >
               <FaTimes />
             </button>
@@ -307,7 +301,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
             <p className="dialog-message">{dialog.message}</p>
             {detectionHintText && (
               <div className="dialog-hint-card">
-                <div className="dialog-hint-card-title">{DETECTION_HINT_TITLE}</div>
+                <div className="dialog-hint-card-title">{t('dialog.experimentalFeature')}</div>
                 <div className="dialog-hint-card-text">{detectionHintText}</div>
               </div>
             )}
@@ -356,14 +350,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
             {isChordDetection && (
               <div className="dialog-chord-detection-form">
                 <div className="dialog-hint-card">
-                  <div className="dialog-hint-card-title">{AUDIO_CHORD_SOURCE_HINT_TITLE}</div>
+                  <div className="dialog-hint-card-title">{t('dialog.recommendedSource')}</div>
                   <div className="dialog-hint-card-text">
-                    {isKGOneEnabled ? AUDIO_CHORD_SOURCE_HINT_KGONE_TEXT : AUDIO_CHORD_SOURCE_HINT_LOCAL_TEXT}
+                    {isKGOneEnabled ? t('dialog.sourceHint.kgone') : t('dialog.sourceHint.local')}
                   </div>
                 </div>
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-chord-sensitivity">Sensitivity</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-chord-sensitivity">{t('dialog.label.sensitivity')}</label>
                     <span className="dialog-slider-value">{chordDetectionOptions.sensitivity}</span>
                   </div>
                   <input
@@ -380,7 +374,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 </div>
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-chord-stability">Stability</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-chord-stability">{t('dialog.label.stability')}</label>
                     <span className="dialog-slider-value">{chordDetectionOptions.stability}</span>
                   </div>
                   <input
@@ -396,7 +390,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 </div>
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-chord-no-chord-threshold">No-Chord Threshold</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-chord-no-chord-threshold">{t('dialog.label.noChordThreshold')}</label>
                     <span className="dialog-slider-value">{chordDetectionOptions.noChordThreshold}</span>
                   </div>
                   <input
@@ -417,7 +411,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     checked={chordDetectionOptions.enableSevenths}
                     onChange={(e) => updateChordDetectionOption('enableSevenths', e.target.checked)}
                   />
-                  <span>Chord Detail: Enable sevenths</span>
+                  <span>{t('dialog.label.enableSevenths')}</span>
                 </label>
               </div>
             )}
@@ -425,7 +419,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <div className="dialog-chord-detection-form">
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-midi-short-note-suppression">Short Notes</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-midi-short-note-suppression">{t('dialog.label.shortNotes')}</label>
                   </div>
                   <select
                     id="dialog-midi-short-note-suppression"
@@ -434,14 +428,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     onChange={(e) => updateMidiChordDetectionOption('shortNoteSuppression', e.target.value as MidiChordDetectionOptionsResult['shortNoteSuppression'])}
                     autoFocus
                   >
-                    <option value="low">Low suppression</option>
-                    <option value="medium">Medium suppression</option>
-                    <option value="high">High suppression</option>
+                    <option value="low">{t('dialog.option.suppressionLow')}</option>
+                    <option value="medium">{t('dialog.option.suppressionMedium')}</option>
+                    <option value="high">{t('dialog.option.suppressionHigh')}</option>
                   </select>
                 </div>
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-midi-harmonic-focus">Harmonic Focus</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-midi-harmonic-focus">{t('dialog.label.harmonicFocus')}</label>
                   </div>
                   <select
                     id="dialog-midi-harmonic-focus"
@@ -449,8 +443,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     value={midiChordDetectionOptions.harmonicFocus}
                     onChange={(e) => updateMidiChordDetectionOption('harmonicFocus', e.target.value as MidiChordDetectionOptionsResult['harmonicFocus'])}
                   >
-                    <option value="balanced">Balanced</option>
-                    <option value="favor-sustained-notes">Favor sustained notes</option>
+                    <option value="balanced">{t('dialog.option.harmonicBalanced')}</option>
+                    <option value="favor-sustained-notes">{t('dialog.option.harmonicSustained')}</option>
                   </select>
                 </div>
                 <label className="dialog-checkbox-row" htmlFor="dialog-midi-enable-sevenths">
@@ -460,7 +454,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     checked={midiChordDetectionOptions.enableSevenths}
                     onChange={(e) => updateMidiChordDetectionOption('enableSevenths', e.target.checked)}
                   />
-                  <span>Chord Detail: Enable sevenths</span>
+                  <span>{t('dialog.label.enableSevenths')}</span>
                 </label>
               </div>
             )}
@@ -468,7 +462,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <div className="dialog-chord-detection-form">
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-tempo-min-tempo">Minimum BPM</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-tempo-min-tempo">{t('dialog.label.minimumBpm')}</label>
                     <span className="dialog-slider-value">{tempoDetectionOptions.minTempo}</span>
                   </div>
                   <input
@@ -485,7 +479,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 </div>
                 <div className="dialog-slider-group">
                   <div className="dialog-slider-header">
-                    <label className="dialog-slider-label" htmlFor="dialog-tempo-max-tempo">Maximum BPM</label>
+                    <label className="dialog-slider-label" htmlFor="dialog-tempo-max-tempo">{t('dialog.label.maximumBpm')}</label>
                     <span className="dialog-slider-value">{tempoDetectionOptions.maxTempo}</span>
                   </div>
                   <input
@@ -511,7 +505,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     onChange={(e) => setAutoAlignRegionToBeat(e.target.checked)}
                     autoFocus
                   />
-                  <span>Auto-align region to beat</span>
+                  <span>{t('dialog.label.autoAlignRegionToBeat')}</span>
                 </label>
               </div>
             )}
@@ -522,7 +516,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 className="dialog-btn dialog-btn-cancel"
                 onClick={handleCancel}
               >
-                {(dialog.options as ConfirmOptions | PromptOptions | undefined)?.cancelLabel ?? 'Cancel'}
+                {(dialog.options as ConfirmOptions | PromptOptions | undefined)?.cancelLabel ?? t('dialog.cancel')}
               </button>
             )}
             {isChoice ? (
@@ -553,7 +547,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 onClick={handleConfirm}
                 autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply}
               >
-                {isAlert ? 'OK' : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel ?? (isPrompt || isTimeSig ? 'OK' : (isChordDetection || isMidiChordDetection || isTempoDetection) ? 'Detect' : 'Yes'))}
+                {isAlert
+                  ? t('dialog.ok')
+                  : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel
+                    ?? (isPrompt || isTimeSig
+                      ? t('dialog.ok')
+                      : (isChordDetection || isMidiChordDetection || isTempoDetection)
+                        ? t('dialog.ok')
+                        : t('settings.yes')))}
               </button>
             )}
           </div>

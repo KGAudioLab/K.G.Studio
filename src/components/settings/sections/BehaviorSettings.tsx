@@ -5,8 +5,10 @@ import {
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
 } from '../../../util/spectrogramUtil';
+import { useI18n } from '../../../i18n/useI18n';
 
 const BehaviorSettings: React.FC = () => {
+  const { t } = useI18n();
   const [playheadUpdateFrequency, setPlayheadUpdateFrequency] = useState<number>(30);
   const [spectrogramHeightResolution, setSpectrogramHeightResolution] = useState<SpectrogramHeightResolution>(3);
   const [chatboxDefaultOpen, setChatboxDefaultOpen] = useState<boolean>(true);
@@ -78,11 +80,11 @@ const BehaviorSettings: React.FC = () => {
 
     // Validate the input
     if (isNaN(numValueMs)) {
-      errors.push('Lookahead time must be a valid number');
+      errors.push(t('settings.behavior.validation.lookahead.invalidNumber'));
     } else if (numValueSeconds < 0) {
-      errors.push('Lookahead time must be between 0 and 0.5 seconds (0-500ms)');
+      errors.push(t('settings.behavior.validation.lookahead.range'));
     } else if (numValueSeconds > 0.5) {
-      errors.push('Lookahead time must be between 0 and 0.5 seconds (0-500ms)');
+      errors.push(t('settings.behavior.validation.lookahead.range'));
     }
 
     setLookaheadValidationErrors(errors);
@@ -108,11 +110,11 @@ const BehaviorSettings: React.FC = () => {
 
     // Validate the input
     if (isNaN(numValueMs)) {
-      errors.push('Playback delay must be a valid number');
+      errors.push(t('settings.behavior.validation.playbackDelay.invalidNumber'));
     } else if (numValueSeconds < 0) {
-      errors.push('Playback delay must be between 0 and 0.5 seconds (0-500ms)');
+      errors.push(t('settings.behavior.validation.playbackDelay.range'));
     } else if (numValueSeconds > 0.5) {
-      errors.push('Playback delay must be between 0 and 0.5 seconds (0-500ms)');
+      errors.push(t('settings.behavior.validation.playbackDelay.range'));
     }
 
     setPlaybackDelayValidationErrors(errors);
@@ -138,11 +140,11 @@ const BehaviorSettings: React.FC = () => {
     const errors: string[] = [];
 
     if (isNaN(numValueMs)) {
-      errors.push('MIDI input latency must be a valid number');
+      errors.push(t('settings.behavior.validation.recordingOffset.invalidNumber'));
     } else if (numValueSeconds < 0) {
-      errors.push('MIDI input latency must be between 0 and 0.5 seconds (0-500ms)');
+      errors.push(t('settings.behavior.validation.recordingOffset.range'));
     } else if (numValueSeconds > 0.5) {
-      errors.push('MIDI input latency must be between 0 and 0.5 seconds (0-500ms)');
+      errors.push(t('settings.behavior.validation.recordingOffset.range'));
     }
 
     setRecordingOffsetValidationErrors(errors);
@@ -169,16 +171,16 @@ const BehaviorSettings: React.FC = () => {
   return (
     <div className="settings-section">
       <div className="settings-section-header">
-        <h3>Behavior</h3>
+        <h3>{t('settings.behavior.title')}</h3>
       </div>
 
       <div className="settings-section-content">
         <div className="settings-group">
-          <h4>Editor</h4>
+          <h4>{t('settings.behavior.editor')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              Playhead Update Frequency (fps)
+              {t('settings.behavior.playheadUpdateFrequency')}
             </label>
             <select
               className="settings-select"
@@ -190,13 +192,13 @@ const BehaviorSettings: React.FC = () => {
               <option value="60">60</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Update frequency for the playhead animation during playback. Higher values (60 fps) provide smoother animation but use more CPU. Lower values (10 fps) are more efficient. Changes apply immediately without restart.
+              {t('settings.behavior.playheadUpdateFrequencyHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Spectrogram Height Resolution
+              {t('settings.behavior.spectrogramHeightResolution')}
             </label>
             <select
               className="settings-select"
@@ -208,35 +210,35 @@ const BehaviorSettings: React.FC = () => {
               <option value="5">5x</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Controls vertical spectrogram detail across the visible pitch range. Higher values sharpen pitch contours but use more CPU and memory while computing the spectrogram.
+              {t('settings.behavior.spectrogramHeightResolutionHelp')}
             </div>
           </div>
         </div>
 
         <div className="settings-group">
-          <h4>Chat Box</h4>
+          <h4>{t('settings.behavior.chatBox')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              Open at Start Up
+              {t('settings.behavior.openAtStartup')}
             </label>
             <select
               className="settings-select"
               value={chatboxDefaultOpen ? 'yes' : 'no'}
               onChange={(e) => handleChatboxDefaultOpenChange(e.target.value)}
             >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
+              <option value="no">{t('settings.no')}</option>
+              <option value="yes">{t('settings.yes')}</option>
             </select>
           </div>
         </div>
 
         <div className="settings-group">
-          <h4>Audio</h4>
+          <h4>{t('settings.behavior.audio')}</h4>
 
           <div className="settings-item">
             <label className="settings-label">
-              Lookahead Time (ms)
+              {t('settings.behavior.lookaheadTime')}
             </label>
             <input
               type="number"
@@ -257,13 +259,13 @@ const BehaviorSettings: React.FC = () => {
               </div>
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Audio scheduling lookahead time (0-500ms). Lower values (10-20ms) reduce MIDI input latency but may cause audio glitches on slower systems. Higher values (100ms+) are better for playback stability. Changes apply immediately without restart.
+              {t('settings.behavior.lookaheadTimeHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Playback Delay (ms)
+              {t('settings.behavior.playbackDelay')}
             </label>
             <input
               type="number"
@@ -284,31 +286,31 @@ const BehaviorSettings: React.FC = () => {
               </div>
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Playback will start with a short delay after pressing the start button (0-500ms). Increasing this value might help stabilize playback, especially for the first few ticks if the lookahead value is too low. Changes apply immediately without restart.
+              {t('settings.behavior.playbackDelayHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              MIDI Automation Interpolation
+              {t('settings.behavior.midiAutomationInterpolation')}
             </label>
             <select
               className="settings-select"
               value={midiAutomationInterpolationIntervalMs}
               onChange={(e) => handleMidiAutomationInterpolationIntervalChange(e.target.value)}
             >
-              <option value="20">Low-end (20 ms)</option>
-              <option value="10">Balanced (10 ms)</option>
-              <option value="5">High quality (5 ms)</option>
+              <option value="20">{t('settings.behavior.midiAutomationInterpolation.low')}</option>
+              <option value="10">{t('settings.behavior.midiAutomationInterpolation.balanced')}</option>
+              <option value="5">{t('settings.behavior.midiAutomationInterpolation.high')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Controls how densely MIDI automation are baked for playback and bounce. Smaller intervals sound smoother but schedule more events.
+              {t('settings.behavior.midiAutomationInterpolationHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              MIDI Input Latency (ms)
+              {t('settings.behavior.midiInputLatency')}
             </label>
             <input
               type="number"
@@ -329,43 +331,43 @@ const BehaviorSettings: React.FC = () => {
               </div>
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Timing correction for MIDI recording (0-500ms). If recorded notes appear slightly late compared to where you intended to play them, increase this value to match your MIDI device's input latency. Each note's position is shifted back by this amount when committed.
+              {t('settings.behavior.midiInputLatencyHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Bounce Starts From Beat 1
+              {t('settings.behavior.bounceStartsFromBeat1')}
             </label>
             <select
               className="settings-select"
               value={bounceStartsFromBeat1 ? 'yes' : 'no'}
               onChange={(e) => handleBounceStartsFromBeat1Change(e.target.value)}
             >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
+              <option value="no">{t('settings.no')}</option>
+              <option value="yes">{t('settings.yes')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Yes includes leading silence from the start of the song up to the first rendered region when bouncing WAV/MP3. No trims that leading silence and starts bounce at the first rendered note or audio region.
+              {t('settings.behavior.bounceStartsFromBeat1Help')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label">
-              Capture Audio for Screen Sharing
+              {t('settings.behavior.captureAudioForScreenSharing')}
             </label>
             <select
               className="settings-select"
               value={enableAudioCapture ? 'yes' : 'no'}
               onChange={(e) => handleEnableAudioCaptureChange(e.target.value)}
             >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
+              <option value="no">{t('settings.no')}</option>
+              <option value="yes">{t('settings.yes')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Restart KGStudio (refresh the page) to take effect. Enable this option when KGStudio's audio cannot be captured during screen sharing in video calls (e.g., Zoom, Teams). This creates an additional audio stream that screen capture applications can detect.
+              {t('settings.behavior.captureAudioForScreenSharingHelp')}
               <br />
-              <b>It is important to make sure when screen sharing in Zoom, the "Share Sound" option is enabled.</b>
+              <b>{t('settings.behavior.captureAudioForScreenSharingWarning')}</b>
             </div>
           </div>
         </div>

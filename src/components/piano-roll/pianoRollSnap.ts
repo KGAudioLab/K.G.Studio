@@ -1,7 +1,8 @@
+import { PIANO_ROLL_NO_SNAP, type PianoRollSnapValue } from '../../core/state/KGPianoRollState';
 import { DEBUG_MODE } from '../../constants';
 
-export function getSnapStep(currentSnap: string): number | null {
-  if (currentSnap === 'NO SNAP') {
+export function getSnapStep(currentSnap: PianoRollSnapValue): number | null {
+  if (currentSnap === PIANO_ROLL_NO_SNAP) {
     return null;
   }
 
@@ -15,7 +16,7 @@ export function getSnapStep(currentSnap: string): number | null {
 
 export function getSnappedBeatPosition(
   beatPosition: number,
-  currentSnap: string,
+  currentSnap: PianoRollSnapValue,
   useFloorSnapping: boolean = false,
 ): number {
   const snapStep = getSnapStep(currentSnap);
@@ -36,7 +37,7 @@ export function getSnappedBeatPosition(
   return snappedPosition;
 }
 
-export function getSnappedLength(length: number, currentSnap: string, minimumLength: number): number {
+export function getSnappedLength(length: number, currentSnap: PianoRollSnapValue, minimumLength: number): number {
   const snapStep = getSnapStep(currentSnap);
   if (snapStep === null) {
     return length;

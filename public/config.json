@@ -1,6 +1,6 @@
 {
     "general": {
-        "language": "en_us",
+        "language": "auto",
         "llm_provider": "local_browser",
         "persist_api_keys_non_localhost": false,
         "openai": {

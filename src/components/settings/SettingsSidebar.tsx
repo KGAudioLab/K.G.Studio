@@ -1,6 +1,7 @@
 import React from 'react';
 import { FaTimes } from 'react-icons/fa';
 import type { SettingsSection } from './SettingsPanel';
+import { useI18n } from '../../i18n/useI18n';
 
 interface SettingsSidebarProps {
   activeSection: SettingsSection;
@@ -13,22 +14,23 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   onSectionChange,
   onClose
 }) => {
+  const { t } = useI18n();
   const sections = [
-    { id: 'general' as SettingsSection, label: 'General' },
-    { id: 'audio_io' as SettingsSection, label: 'Audio I/O' },
-    { id: 'behavior' as SettingsSection, label: 'Behavior' },
-    { id: 'templates' as SettingsSection, label: 'Templates' },
-    { id: 'chord_guide' as SettingsSection, label: 'Chord Guide' }
+    { id: 'general' as SettingsSection, label: t('settings.sidebar.general') },
+    { id: 'audio_io' as SettingsSection, label: t('settings.sidebar.audioIo') },
+    { id: 'behavior' as SettingsSection, label: t('settings.sidebar.behavior') },
+    { id: 'templates' as SettingsSection, label: t('settings.sidebar.templates') },
+    { id: 'chord_guide' as SettingsSection, label: t('settings.sidebar.chordGuide') }
   ];
 
   return (
     <div className="settings-sidebar">
       <div className="settings-sidebar-header">
-        <h2>Settings</h2>
+        <h2>{t('settings.sidebar.title')}</h2>
         <button 
           className="settings-close-btn"
           onClick={onClose}
-          title="Close Settings"
+          title={t('settings.sidebar.close')}
         >
           <FaTimes />
         </button>

@@ -26,6 +26,7 @@ import {
   CHORD_REGION_IMPORT_REGION_NAME,
   resolveChordRegionImportSelection,
 } from '../util/chordRegionImportUtil';
+import { useI18n } from '../i18n/useI18n';
 
 interface MainContentProps {
   onTrackClick?: () => void;
@@ -34,6 +35,7 @@ interface MainContentProps {
 const MainContent: React.FC<MainContentProps> = ({
   onTrackClick = () => {},
 }) => {
+  const { t } = useI18n();
   const {
     tracks,
     globalTracks,
@@ -338,8 +340,8 @@ const MainContent: React.FC<MainContentProps> = ({
             <button
               type="button"
               className="track-header-button"
-              aria-label="Create track"
-              title="Create track"
+              aria-label={t('mainContent.createTrack')}
+              title={t('mainContent.createTrack')}
               onClick={openCreateTrackModal}
             >
               <FaPlus />
@@ -347,8 +349,8 @@ const MainContent: React.FC<MainContentProps> = ({
             <button
               type="button"
               className={`track-header-button${showGlobalTracksMock ? ' active' : ''}`}
-              aria-label="Show global tracks"
-              title="Show global tracks"
+              aria-label={t('mainContent.showGlobalTracks')}
+              title={t('mainContent.showGlobalTracks')}
               onClick={handleToggleGlobalTracksMock}
             >
               <FaSquareArrowUpRight />

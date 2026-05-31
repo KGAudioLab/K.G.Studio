@@ -29,6 +29,7 @@ import {
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { showAlert } from '../../util/dialogUtil';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
+import { useI18n } from '../../i18n/useI18n';
 
 interface TrackEventListTabProps {
   selectedTrack: KGMidiTrack | KGAudioTrack | null;
@@ -119,6 +120,7 @@ const findPreviousPanValue = (points: KGTrackAutomationPoint[], beat: number): n
 };
 
 const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) => {
+  const { t } = useI18n();
   const {
     tracks,
     playheadPosition,
@@ -164,12 +166,12 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
   const availableAddOptions = useMemo(() => {
     const options: Array<{ label: string; value: AddTrackItemType }> = [];
     if (selectedTrack instanceof KGMidiTrack) {
-      options.push({ label: 'MIDI Region', value: 'midi-region' });
+      options.push({ label: t('eventList.track.addType.midiRegion'), value: 'midi-region' });
     }
-    options.push({ label: 'Volume', value: 'volume' });
-    options.push({ label: 'Pan', value: 'pan' });
+    options.push({ label: t('eventList.track.filter.volume'), value: 'volume' });
+    options.push({ label: t('eventList.track.filter.pan'), value: 'pan' });
     return options;
-  }, [selectedTrack]);
+  }, [selectedTrack, t]);
 
   const liveSelectedTrack = useMemo(() => {
     if (!selectedTrack) {
@@ -659,15 +661,15 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
 
   return (
     <>
-      <div className="event-list-tabs" role="tablist" aria-label="Track list modes">
-        <button className={`event-list-tab${showRegions ? ' active' : ''}`} aria-pressed={showRegions} type="button" onClick={() => setShowRegions(value => !value)}>Regions</button>
-        <button className={`event-list-tab${showVolume ? ' active' : ''}`} aria-pressed={showVolume} type="button" onClick={() => setShowVolume(value => !value)}>Volume</button>
-        <button className={`event-list-tab${showPan ? ' active' : ''}`} aria-pressed={showPan} type="button" onClick={() => setShowPan(value => !value)}>Pan</button>
+      <div className="event-list-tabs" role="tablist" aria-label={t('eventList.track.filters')}>
+        <button className={`event-list-tab${showRegions ? ' active' : ''}`} aria-pressed={showRegions} type="button" onClick={() => setShowRegions(value => !value)}>{t('eventList.track.filter.regions')}</button>
+        <button className={`event-list-tab${showVolume ? ' active' : ''}`} aria-pressed={showVolume} type="button" onClick={() => setShowVolume(value => !value)}>{t('eventList.track.filter.volume')}</button>
+        <button className={`event-list-tab${showPan ? ' active' : ''}`} aria-pressed={showPan} type="button" onClick={() => setShowPan(value => !value)}>{t('eventList.track.filter.pan')}</button>
       </div>
 
       {!liveSelectedTrack ? (
         <div className="event-list-empty-state">
-          Please select a track to view regions and track automation.
+          {t('eventList.track.empty')}
         </div>
       ) : (
         <>
@@ -675,7 +677,13 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             <div className="event-list-toolbar-group">
               <button
                 className="event-list-add-button"
-                title={addTrackItemType === 'midi-region' ? 'Add MIDI region at playhead' : addTrackItemType === 'volume' ? 'Add volume automation point at playhead' : 'Add pan automation point at playhead'}
+                title={
+                  addTrackItemType === 'midi-region'
+                    ? t('eventList.track.add.midiRegionTitle')
+                    : addTrackItemType === 'volume'
+                      ? t('eventList.track.add.volumeTitle')
+                      : t('eventList.track.add.panTitle')
+                }
                 type="button"
                 onClick={handleAddTrackItem}
               >
@@ -685,7 +693,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
                 options={availableAddOptions}
                 value={addTrackItemType}
                 onChange={(value) => setAddTrackItemType(value as AddTrackItemType)}
-                label="Add"
+                label={t('eventList.track.add.label')}
                 buttonClassName="event-list-type-button"
                 showValueAsLabel
               />
@@ -694,7 +702,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             <div className="event-list-toolbar-group event-list-toolbar-group-right">
               <button
                 className="event-list-delete-button"
-                title="Delete visible selected rows"
+                title={t('eventList.deleteVisibleSelectedRows')}
                 type="button"
                 onClick={handleDeleteSelectedRows}
                 disabled={visibleSelectedRows.length === 0}
@@ -708,16 +716,20 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             <table className="event-list-table">
               <thead>
                 <tr>
-                  <th>Position</th>
-                  <th>Status</th>
-                  <th>Val</th>
-                  <th>Length/Info</th>
+                  <th>{t('eventList.table.position')}</th>
+                  <th>{t('eventList.table.status')}</th>
+                  <th>{t('eventList.table.val')}</th>
+                  <th>{t('eventList.table.lengthInfo')}</th>
                 </tr>
               </thead>
               <tbody>
                 {trackRows.map((row, index) => {
                   const positionText = formatMidiEventPosition(row.type === 'region' ? row.absoluteStartBeat : row.absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-                  const statusText = row.type === 'region' ? row.statusLabel : row.automationType === 'volume' ? 'Volume' : 'Pan';
+                  const statusText = row.type === 'region'
+                    ? (row.statusLabel === 'Audio' ? t('eventList.track.status.audio') : t('eventList.track.status.midi'))
+                    : row.automationType === 'volume'
+                      ? t('eventList.track.status.volume')
+                      : t('eventList.track.status.pan');
                   const valText = row.type === 'region' ? row.region.getName() : formatTrackAutomationValue(row.automationType, row.point.getValue());
                   const infoText = row.type === 'region' ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT) : formatTrackAutomationInfo(row.automationType, row.point.getValue());
                   const isEditingPosition = editingCell?.rowId === row.id && editingCell.column === 'position';

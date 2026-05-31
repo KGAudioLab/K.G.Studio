@@ -15,6 +15,8 @@ import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { showAlert, showConfirm } from '../../util/dialogUtil';
 import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoint';
 import { AUDIO_IMPORT_ACCEPTED_TYPES } from '../../util/audioImportUtil';
+import { useI18n } from '../../i18n/useI18n';
+import { getInstrumentDisplayName } from '../../i18n/instruments';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -69,6 +71,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDrop,
   onDragEnd
 }) => {
+  const { t } = useI18n();
   const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks } = useProjectStore();
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
@@ -407,7 +410,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             ) : (
               <img
                 src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`}
-                alt={String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.displayName || currentInstrument)}
+                alt={getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
                 width="64"
                 height="64"
               />
@@ -499,20 +502,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             <button
               className={`automation${automationActive ? ' active' : ''}`}
               onClick={handleAutomationButtonClick}
-              title="Track automation"
-              aria-label="Track automation"
+              title={t('track.controls.automationButton')}
+              aria-label={t('track.controls.automationButton')}
             >
               A
             </button>
             <div style={{ position: 'absolute', top: 0, left: 'calc(100% + 6px)', zIndex: 10000 }}>
               <KGDropdown
                 options={[
-                  { label: 'Volume', value: 'volume' },
-                  { label: 'Pan', value: 'pan' },
+                  { label: t('track.controls.automation.volume'), value: 'volume' },
+                  { label: t('track.controls.automation.pan'), value: 'pan' },
                 ]}
                 value={activeTrackAutomationType ?? ''}
                 onChange={handleAutomationTypeSelect}
-                label="Automation"
+                label={t('track.controls.automationDropdown')}
                 hideButton={true}
                 isOpen={showAutomationDropdown}
                 onToggle={setShowAutomationDropdown}
@@ -537,10 +540,10 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             </button>
             <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
               <KGDropdown
-                options={['Delete Track']}
+                options={[{ label: t('track.controls.settings.deleteTrack'), value: 'Delete Track' }]}
                 value={''}
                 onChange={handleSettingsAction}
-                label="Settings"
+                label={t('track.controls.settingsDropdown')}
                 hideButton={true}
                 isOpen={showSettingsDropdown}
                 onToggle={setShowSettingsDropdown}

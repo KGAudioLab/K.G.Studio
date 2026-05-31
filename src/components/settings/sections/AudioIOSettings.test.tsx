@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AudioIOSettings from './AudioIOSettings';
+import { translate } from '../../../i18n/translate';
 
 const configState = new Map<string, unknown>([
   ['audio.input_device_id', 'default'],
@@ -63,16 +64,16 @@ describe('AudioIOSettings', () => {
   it('renders input/output selectors and refresh action', async () => {
     render(<AudioIOSettings />);
 
-    expect(await screen.findByText('Audio I/O')).toBeTruthy();
-    expect(screen.getByLabelText('Audio Input Device')).toBeTruthy();
-    expect(screen.getByLabelText('Audio Output Device')).toBeTruthy();
-    expect(screen.getByText('Refresh Device List')).toBeTruthy();
+    expect(await screen.findByText(translate('settings.audioIo.title', undefined, 'en_us'))).toBeTruthy();
+    expect(screen.getByLabelText(translate('settings.audioIo.inputDevice', undefined, 'en_us'))).toBeTruthy();
+    expect(screen.getByLabelText(translate('settings.audioIo.outputDevice', undefined, 'en_us'))).toBeTruthy();
+    expect(screen.getByText(translate('settings.audioIo.refresh', undefined, 'en_us'))).toBeTruthy();
   });
 
   it('persists input device changes', async () => {
     render(<AudioIOSettings />);
 
-    const select = await screen.findByLabelText('Audio Input Device');
+    const select = await screen.findByLabelText(translate('settings.audioIo.inputDevice', undefined, 'en_us'));
     fireEvent.change(select, { target: { value: 'mic-1' } });
 
     await waitFor(() => {
