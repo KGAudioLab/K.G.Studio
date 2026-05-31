@@ -89,15 +89,15 @@ vi.mock('../../../util/local-separator/modelCache', () => ({
 }));
 
 describe('GeneralSettings', () => {
-  const renderSettings = () => render(
+  const renderSettings = (locale: 'en_us' | 'zh_cn' = 'en_us') => render(
     <I18nContext.Provider
       value={{
         languageSetting: 'auto',
-        resolvedLocale: 'en_us',
+        resolvedLocale: locale,
         setLanguageSetting: async (value) => {
           await configManagerMock.set('general.language', value);
         },
-        t: (key, params) => translate(key, params, 'en_us'),
+        t: (key, params) => translate(key, params, locale),
       }}
     >
       <GeneralSettings />
@@ -135,6 +135,24 @@ describe('GeneralSettings', () => {
     expect(await screen.findByText('Gemma 4 E4B Local Runtime')).toBeTruthy();
     expect(screen.getByLabelText('Context Length')).toBeTruthy();
     expect(screen.getByText(/require more VRAM/i)).toBeTruthy();
+  });
+
+  it('uses native language names in the language dropdown', async () => {
+    renderSettings();
+
+    const select = await screen.findByLabelText('Language');
+    const options = Array.from((select as HTMLSelectElement).options).map((option) => option.text);
+
+    expect(options).toEqual(['Auto', 'English', 'Français', '简体中文', '繁體中文']);
+  });
+
+  it('localizes the auto label while keeping language names native', async () => {
+    renderSettings('zh_cn');
+
+    const select = await screen.findByLabelText('语言');
+    const options = Array.from((select as HTMLSelectElement).options).map((option) => option.text);
+
+    expect(options).toEqual(['自动', 'English', 'Français', '简体中文', '繁體中文']);
   });
 
   it('initializes the local context length from config', async () => {
@@ -251,11 +269,12 @@ describe('GeneralSettings', () => {
     const languageSelect = await screen.findByLabelText('Language');
     expect(languageSelect).toBeTruthy();
     expect(screen.getAllByRole('combobox')[0]).toBe(languageSelect);
+    expect(screen.getByRole('option', { name: 'Français' })).toBeTruthy();
 
-    fireEvent.change(languageSelect, { target: { value: 'zh_cn' } });
+    fireEvent.change(languageSelect, { target: { value: 'fr_fr' } });
 
     await waitFor(() => {
-      expect(configManagerMock.set).toHaveBeenCalledWith('general.language', 'zh_cn');
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.language', 'fr_fr');
     });
   });
 });

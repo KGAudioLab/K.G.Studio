@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import InstrumentSelection from './InstrumentSelection';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { I18nContext } from '../i18n/I18nProvider';
+import type { ResolvedLocaleCode } from '../i18n/types';
 import { translate } from '../i18n/translate';
 
 const midiTrack = new KGMidiTrack('Lead Track', 1, 'acoustic_grand_piano');
@@ -19,7 +20,7 @@ vi.mock('../stores/projectStore', () => ({
   useProjectStore: () => storeState,
 }));
 
-function renderWithLocale(resolvedLocale: 'en_us' | 'zh_cn') {
+function renderWithLocale(resolvedLocale: ResolvedLocaleCode) {
   return render(
     <I18nContext.Provider
       value={{

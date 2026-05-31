@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { KGPianoRollState, PIANO_ROLL_NO_SNAP } from '../../core/state/KGPianoRollState';
 import { createMockMidiControllerEvent, createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 import { I18nContext } from '../../i18n/I18nProvider';
+import type { ResolvedLocaleCode } from '../../i18n/types';
 import { translate } from '../../i18n/translate';
 
 const coreMock = {
@@ -47,7 +48,7 @@ import PianoRollAutomationLane from './PianoRollAutomationLane';
 import { getControllerNumberForAutomationType } from './pianoRollAutomation';
 
 describe('PianoRollAutomationLane', () => {
-  const renderWithLocale = (ui: React.ReactElement, locale: 'en_us' | 'zh_cn' = 'en_us') => render(
+  const renderWithLocale = (ui: React.ReactElement, locale: ResolvedLocaleCode = 'en_us') => render(
     <I18nContext.Provider
       value={{
         languageSetting: locale,

@@ -5,13 +5,20 @@ describe('locale resolution', () => {
   it('normalizes supported language settings', () => {
     expect(normalizeLanguageSetting('auto')).toBe('auto');
     expect(normalizeLanguageSetting('en_us')).toBe('en_us');
+    expect(normalizeLanguageSetting('fr_fr')).toBe('fr_fr');
     expect(normalizeLanguageSetting('zh_cn')).toBe('zh_cn');
     expect(normalizeLanguageSetting('zh_hk')).toBe('zh_hk');
     expect(normalizeLanguageSetting('unknown')).toBe('auto');
   });
 
-  it('resolves auto to English for non-Chinese locales', () => {
+  it('resolves auto to English for non-Chinese and non-French locales', () => {
     expect(resolveLanguageSetting('auto', ['en-US'])).toBe('en_us');
+  });
+
+  it('resolves auto to French for French-speaking locales', () => {
+    expect(resolveLanguageSetting('auto', ['fr'])).toBe('fr_fr');
+    expect(resolveLanguageSetting('auto', ['fr-FR'])).toBe('fr_fr');
+    expect(resolveLanguageSetting('auto', ['fr-CA'])).toBe('fr_fr');
   });
 
   it('resolves auto to Simplified Chinese for Simplified Chinese locales', () => {
@@ -32,11 +39,12 @@ describe('locale resolution', () => {
 
   it('falls back to English when locale list is empty or unknown', () => {
     expect(resolveLanguageSetting('auto', [])).toBe('en_us');
-    expect(resolveLanguageSetting('auto', ['fr-FR'])).toBe('en_us');
+    expect(resolveLanguageSetting('auto', ['de-DE'])).toBe('en_us');
   });
 
   it('keeps explicit locale selections', () => {
     expect(resolveLanguageSetting('en_us', ['zh-CN'])).toBe('en_us');
+    expect(resolveLanguageSetting('fr_fr', ['en-US'])).toBe('fr_fr');
     expect(resolveLanguageSetting('zh_cn', ['en-US'])).toBe('zh_cn');
     expect(resolveLanguageSetting('zh_hk', ['en-US'])).toBe('zh_hk');
     expect(resolveLanguageSetting('zh_hk', ['zh-CN'])).toBe('zh_hk');

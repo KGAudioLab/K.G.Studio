@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import PianoRollToolbar from './PianoRollToolbar';
 import { I18nContext } from '../../i18n/I18nProvider';
+import type { ResolvedLocaleCode } from '../../i18n/types';
 import { translate } from '../../i18n/translate';
 
 vi.mock('../common', () => ({
@@ -42,7 +43,7 @@ vi.mock('../../core/KGCore', () => ({
 }));
 
 describe('PianoRollToolbar', () => {
-  const renderWithLocale = (ui: React.ReactElement, locale: 'en_us' | 'zh_cn' = 'en_us') => render(
+  const renderWithLocale = (ui: React.ReactElement, locale: ResolvedLocaleCode = 'en_us') => render(
     <I18nContext.Provider
       value={{
         languageSetting: locale,

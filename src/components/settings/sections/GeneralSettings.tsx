@@ -19,6 +19,13 @@ import {
   LOCAL_SEPARATOR_MODEL_IDS,
 } from '../../../util/local-separator/config';
 
+const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> = {
+  en_us: 'English',
+  fr_fr: 'Français',
+  zh_cn: '简体中文',
+  zh_hk: '繁體中文',
+};
+
 const GeneralSettings: React.FC = () => {
   const { t, setLanguageSetting } = useI18n();
   const [language, setLanguage] = useState<LanguageSetting>('auto');
@@ -352,9 +359,10 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => void handleLanguageChange(e.target.value as LanguageSetting)}
             >
               <option value="auto">{t('settings.general.language.auto')}</option>
-              <option value="en_us">{t('settings.general.language.en_us')}</option>
-              <option value="zh_cn">{t('settings.general.language.zh_cn')}</option>
-              <option value="zh_hk">{t('settings.general.language.zh_hk')}</option>
+              <option value="en_us">{LANGUAGE_OPTION_LABELS.en_us}</option>
+              <option value="fr_fr">{LANGUAGE_OPTION_LABELS.fr_fr}</option>
+              <option value="zh_cn">{LANGUAGE_OPTION_LABELS.zh_cn}</option>
+              <option value="zh_hk">{LANGUAGE_OPTION_LABELS.zh_hk}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {t('settings.general.language.help')}

@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import PianoKeys from './PianoKeys';
 import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 import { I18nContext } from '../../i18n/I18nProvider';
+import type { ResolvedLocaleCode } from '../../i18n/types';
 import { translate } from '../../i18n/translate';
 
 type TestLiveNoteActivityListener = (...args: [{ pitch: number; isNoteOn: boolean }]) => void;
@@ -52,7 +53,7 @@ vi.mock('../../core/midi-input/KGMidiInput', () => ({
 
 function renderWithLocale(
   ui: React.ReactElement,
-  resolvedLocale: 'en_us' | 'zh_cn' = 'en_us',
+  resolvedLocale: ResolvedLocaleCode = 'en_us',
 ) {
   return render(
     <I18nContext.Provider

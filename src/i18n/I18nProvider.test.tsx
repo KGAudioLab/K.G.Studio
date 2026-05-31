@@ -85,4 +85,23 @@ describe('I18nProvider', () => {
       expect(screen.getByText('Settings')).toBeTruthy();
     });
   });
+
+  it('resolves auto to French for browser French locales', async () => {
+    configState.set('general.language', 'auto');
+    Object.defineProperty(window.navigator, 'languages', {
+      configurable: true,
+      value: ['fr-FR'],
+    });
+
+    render(
+      <I18nProvider>
+        <TestComponent />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('locale').textContent).toBe('fr_fr');
+      expect(screen.getByText('Réglages')).toBeTruthy();
+    });
+  });
 });

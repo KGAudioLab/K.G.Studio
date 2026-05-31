@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ChatBox from './ChatBox';
 import { I18nContext } from '../i18n/I18nProvider';
+import type { ResolvedLocaleCode } from '../i18n/types';
 import { translate } from '../i18n/translate';
 
 vi.mock('./chat', () => ({
@@ -113,7 +114,7 @@ vi.mock('./common/KGDropdown', () => ({
   default: () => null,
 }));
 
-function renderWithLocale(resolvedLocale: 'en_us' | 'zh_cn') {
+function renderWithLocale(resolvedLocale: ResolvedLocaleCode) {
   return render(
     <I18nContext.Provider
       value={{
@@ -143,5 +144,11 @@ describe('ChatBox', () => {
     renderWithLocale('zh_cn');
 
     expect(screen.getByRole('heading', { level: 3, name: 'K.G.Studio 音乐创作助手' })).toBeTruthy();
+  });
+
+  it('renders the French assistant title under fr_fr', () => {
+    renderWithLocale('fr_fr');
+
+    expect(screen.getByRole('heading', { level: 3, name: 'Assistant musical K.G.Studio' })).toBeTruthy();
   });
 });

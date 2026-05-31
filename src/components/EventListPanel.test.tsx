@@ -27,6 +27,7 @@ import {
 } from '../test/utils/mock-data';
 import { showAlert } from '../util/dialogUtil';
 import { I18nContext } from '../i18n/I18nProvider';
+import type { ResolvedLocaleCode } from '../i18n/types';
 import { translate } from '../i18n/translate';
 
 const clickDropdownOption = (label: string) => {
@@ -187,7 +188,7 @@ vi.mock('../core/KGCore', () => ({
 }));
 
 describe('EventListPanel', () => {
-  const renderWithLocale = (locale: 'en_us' | 'zh_cn' = 'en_us') => render(
+  const renderWithLocale = (locale: ResolvedLocaleCode = 'en_us') => render(
     <I18nContext.Provider
       value={{
         languageSetting: locale,

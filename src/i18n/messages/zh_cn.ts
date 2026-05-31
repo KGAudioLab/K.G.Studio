@@ -1,6 +1,8 @@
 import type { TranslationMessages } from '../types';
+import { enUsMessages } from './en_us';
 
 export const zhCnMessages: TranslationMessages = {
+  ...enUsMessages,
   'app.loading': '加载中...',
   'assistant.displayName': 'K.G.Studio 音乐创作助手',
   'assistant.welcomeFallback': '欢迎使用 K.G.Studio 音乐创作助手。',
@@ -16,9 +18,6 @@ export const zhCnMessages: TranslationMessages = {
   'settings.general.language.label': '语言',
   'settings.general.language.help': '自动会使用你的系统语言。',
   'settings.general.language.auto': '自动',
-  'settings.general.language.en_us': 'English',
-  'settings.general.language.zh_cn': '简体中文',
-  'settings.general.language.zh_hk': '繁体中文',
   'settings.yes': '是',
   'settings.no': '否',
   'settings.restoreDefault': '恢复默认',
