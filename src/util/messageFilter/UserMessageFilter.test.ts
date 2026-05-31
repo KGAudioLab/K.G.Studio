@@ -111,6 +111,19 @@ describe('processUserMessage slash commands', () => {
     expect(result.pseudoAssistantResponse).toContain('welcome_local_llm-zh_cn.md');
   });
 
+  it('falls back to a localized welcome string when welcome markdown fetch fails', async () => {
+    configState.set('general.language', 'zh_cn');
+    configState.set('general.llm_provider', 'local_browser');
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('network down');
+    }));
+
+    const result = await processUserMessage('/welcome');
+
+    expect(result.metadata).toMatchObject({ command: 'welcome' });
+    expect(result.pseudoAssistantResponse).toBe('欢迎使用 K.G.Studio 音乐创作助手。');
+  });
+
   it('uses the new-user welcome for non-local providers without required config', async () => {
     configState.set('general.llm_provider', 'openai');
     configState.set('general.openai.api_key', '');

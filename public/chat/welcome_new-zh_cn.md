@@ -1,9 +1,9 @@
 ## 欢迎
 
-欢迎使用 **K.G.Studio Musician Assistant**。这是您在浏览器中的 AI 音乐创作与编曲助手。
+欢迎使用 **K.G.Studio 音乐创作助手**。这是您在浏览器中的 AI 音乐创作与编曲助手。
 
 ### 快速开始
-**配置 K.G.Studio Musician Assistant**
+**配置 K.G.Studio 音乐创作助手**
 - [点击这里获取免费的 OpenRouter API Key](https://openrouter.ai/keys)（您可能需要一个 OpenRouter 账号）。
 - 进入 **设置 ⚙️ → 通用 → LLM 提供方**，选择 **OpenAI 兼容服务**。
 - 在 **OpenAI 兼容服务 → 密钥** 中粘贴您的 Key。注意：在非 localhost 环境下，Key 默认不会持久化，刷新后需要重新输入，请妥善保管。

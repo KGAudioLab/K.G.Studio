@@ -5,6 +5,7 @@ import { SystemPrompts } from '../../agent/core/SystemPrompts';
 import { detectLocalLLMRuntimeSupport, LOCAL_LLM_PROVIDER_KEY } from '../localLLMConfig';
 import { normalizeLanguageSetting, resolveLanguageSetting } from '../../i18n/locale';
 import type { ResolvedLocaleCode } from '../../i18n/types';
+import { translate } from '../../i18n/translate';
 
 export interface UserMessageFilterResult {
   // Whether to render the user message bubble (div.message-user)
@@ -133,8 +134,8 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
       }
 
       case '/welcome': {
+        const configManager = ConfigManager.instance();
         try {
-          const configManager = ConfigManager.instance();
           if (!configManager.getIsInitialized()) {
             await configManager.initialize();
           }
@@ -150,7 +151,8 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
             metadata: { command: 'welcome', variant }
           };
         } catch (err) {
-          const fallback = 'Welcome to K.G.Studio Musician Assistant.';
+          const locale = resolveCurrentCommandLocale(configManager);
+          const fallback = translate('assistant.welcomeFallback', undefined, locale);
           return {
             displayUserMessage: false,
             sendToLLM: false,

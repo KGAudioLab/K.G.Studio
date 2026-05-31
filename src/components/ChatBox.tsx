@@ -17,6 +17,7 @@ import { downloadBlob, buildTimestampSuffix } from '../util/miscUtil';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../util/localLLMModelManager';
 import { LOCAL_LLM_DISPLAY_NAME, LOCAL_LLM_PROVIDER_KEY } from '../util/localLLMConfig';
 import KGDropdown from './common/KGDropdown';
+import { useI18n } from '../i18n/useI18n';
 
 import type { ChatMessage } from '../types/projectTypes';
 
@@ -63,6 +64,7 @@ interface ChatBoxProps {
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
+  const { t } = useI18n();
   const [inputValue, setInputValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -345,7 +347,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   return (
     <div className={`chatbox ${isVisible ? '' : 'is-hidden'}`}>
       <div className="chatbox-header">
-        <h3>K.G.Studio Musician Assistant</h3>
+        <h3>{t('assistant.displayName')}</h3>
         <div className="chatbox-actions">
           {isProcessing && (
             <button

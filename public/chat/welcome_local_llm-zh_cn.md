@@ -1,6 +1,6 @@
 ## 本地 LLM 模式
 
-欢迎使用 **K.G.Studio Musician Assistant** 的本地 LLM 模式。
+欢迎使用 **K.G.Studio 音乐创作助手** 的本地 LLM 模式。
 
 - 无需外部 API 调用。所有内容都直接在您的浏览器中运行，不会产生额外 API 成本。
 - 此模式通过 **LiteRT-LM** 和 **WebGPU** 加速运行 **Gemma 4 E4B**。
