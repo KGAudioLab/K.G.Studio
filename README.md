@@ -1,4 +1,4 @@
-English | [简体中文](./README-zh_cn.md)
+English | [简体中文](./README-zh_cn.md) | [繁體中文](./README-zh_hant.md) | [Français](./README-fr.md)
 
 <div align="center">
   <img src="./public/logo.png" alt="K.G.Studio Logo" width="160" />
@@ -28,6 +28,8 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 > Note: Full-Song Generation Feature and Audio Clip Generation Feature requires [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration.
 
 ## Latest Updates
+
+- **2026.05.30**: Added **internationalization (i18n) support** — K.G.Studio now ships in four languages: **English**, **Simplified Chinese (简体中文)**, **Traditional Chinese (繁體中文)**, and **French (Français)**. The active language can be configured under **Settings ⚙️ → General → Language**, with an `Auto` option that automatically detects your browser's locale.
 
 - **2026.05.27**: 
   - Added **Global Track System** — introduce four global tracks: **Marker**, **Tempo**, **Key Signature**, and **Chord** (chord-symbol span regions). 
