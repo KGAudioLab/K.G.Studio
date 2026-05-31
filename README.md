@@ -1,4 +1,4 @@
-English | [简体中文](./README-zh_cn.md) | [繁體中文](./README-zh_hant.md) | [Français](./README-fr.md)
+English | [Français](./README-fr.md) | [简体中文](./README-zh_cn.md) | [繁體中文](./README-zh_hk.md)
 
 <div align="center">
   <img src="./public/logo.png" alt="K.G.Studio Logo" width="160" />
