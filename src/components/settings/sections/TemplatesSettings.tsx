@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
+import { useI18n } from '../../../i18n/useI18n';
 
 const TemplatesSettings: React.FC = () => {
+  const { t } = useI18n();
   const [customInstructions, setCustomInstructions] = useState<string>('');
 
   const configManager = ConfigManager.instance();
@@ -42,17 +44,17 @@ const TemplatesSettings: React.FC = () => {
   return (
     <div className="settings-section">
       <div className="settings-section-header">
-        <h3>Templates</h3>
+        <h3>{t('settings.templates.title')}</h3>
       </div>
       
       <div className="settings-section-content">
         <div className="settings-group">
-          <h4>Custom Instructions</h4>
+          <h4>{t('settings.templates.customInstructions')}</h4>
           
           <div className="settings-item">
             <textarea 
               className="settings-textarea"
-              placeholder="Please input your custom instructions for the K.G.Studio Musician Assistant"
+              placeholder={t('settings.templates.placeholder')}
               rows={8}
               value={customInstructions}
               onChange={(e) => handleCustomInstructionsChange(e.target.value)}

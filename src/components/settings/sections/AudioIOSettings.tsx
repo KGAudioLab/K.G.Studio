@@ -7,8 +7,10 @@ import {
   supportsAudioContextSinkSelection,
   type AudioDeviceOption,
 } from '../../../util/audioDeviceUtil';
+import { useI18n } from '../../../i18n/useI18n';
 
 const AudioIOSettings: React.FC = () => {
+  const { t } = useI18n();
   const [inputDeviceId, setInputDeviceId] = useState<string>('default');
   const [outputDeviceId, setOutputDeviceId] = useState<string>('default');
   const [inputs, setInputs] = useState<AudioDeviceOption[]>([getDefaultAudioDeviceOption('audioinput')]);
@@ -67,7 +69,7 @@ const AudioIOSettings: React.FC = () => {
             ...snapshot.inputs,
             {
               deviceId: configuredInputId,
-              label: 'Previously Selected Input (permission required to verify)',
+              label: t('settings.audioIo.previousSelectedInput'),
               kind: 'audioinput' as const,
               isDefault: false,
             },
@@ -78,7 +80,7 @@ const AudioIOSettings: React.FC = () => {
             ...snapshot.outputs,
             {
               deviceId: configuredOutputId,
-              label: 'Previously Selected Output (permission required to verify)',
+              label: t('settings.audioIo.previousSelectedOutput'),
               kind: 'audiooutput' as const,
               isDefault: false,
             },
@@ -91,7 +93,7 @@ const AudioIOSettings: React.FC = () => {
       if (!hasInput && configuredInputId !== 'default' && snapshot.labelsAvailable) {
         setInputDeviceId('default');
         await configManager.set('audio.input_device_id', 'default');
-        setDeviceStatus('Previously selected audio input device is unavailable; using System Default.');
+        setDeviceStatus(t('settings.audioIo.status.inputUnavailable'));
       } else {
         setInputDeviceId(hasInput || !snapshot.labelsAvailable ? configuredInputId : 'default');
       }
@@ -99,17 +101,17 @@ const AudioIOSettings: React.FC = () => {
       if (!hasOutput && configuredOutputId !== 'default' && snapshot.labelsAvailable) {
         setOutputDeviceId('default');
         await configManager.set('audio.output_device_id', 'default');
-        setDeviceStatus('Previously selected audio output device is unavailable; using System Default.');
+        setDeviceStatus(t('settings.audioIo.status.outputUnavailable'));
       } else {
         setOutputDeviceId(hasOutput || !snapshot.labelsAvailable ? configuredOutputId : 'default');
       }
 
       if (showStatus) {
-        setDeviceStatus(current => current || 'Audio device list refreshed.');
+        setDeviceStatus(current => current || t('settings.audioIo.status.refreshed'));
       }
     } catch (error) {
       console.error('Unable to refresh audio devices:', error);
-      setDeviceStatus('Unable to read audio devices from the browser.');
+      setDeviceStatus(t('settings.audioIo.status.readFailed'));
     } finally {
       setRefreshing(false);
     }
@@ -119,63 +121,63 @@ const AudioIOSettings: React.FC = () => {
     setInputDeviceId(value);
     await configManager.set('audio.input_device_id', value);
     setDeviceStatus(value === 'default'
-      ? 'Audio input will use System Default on the next recording session.'
-      : 'Audio input will change on the next recording session.');
+      ? t('settings.audioIo.status.inputDefaultNextSession')
+      : t('settings.audioIo.status.inputChangedNextSession'));
   };
 
   const handleOutputDeviceChange = async (value: string) => {
     setOutputDeviceId(value);
     await configManager.set('audio.output_device_id', value);
     setDeviceStatus(value === 'default'
-      ? 'Audio output will use System Default after refresh.'
-      : 'Audio output device saved. Refresh the page to apply it in v1.');
+      ? t('settings.audioIo.status.outputDefaultAfterRefresh')
+      : t('settings.audioIo.status.outputSavedRefreshRequired'));
   };
 
   const handleChooseOutputDevice = async () => {
     try {
       const selectedDevice = await promptForAudioOutputDevice();
       if (!selectedDevice) {
-        setDeviceStatus('This browser does not support prompting for audio output devices.');
+        setDeviceStatus(t('settings.audioIo.status.outputPromptUnsupported'));
         return;
       }
 
       setOutputDeviceId(selectedDevice.deviceId);
       await configManager.set('audio.output_device_id', selectedDevice.deviceId);
       await refreshDevices(false);
-      setDeviceStatus('Output device selected. Refresh the page to apply it in v1.');
+      setDeviceStatus(t('settings.audioIo.status.outputSelectedRefreshRequired'));
     } catch (error) {
       console.error('Unable to choose audio output device:', error);
-      setDeviceStatus('The browser did not allow selecting a non-default output device.');
+      setDeviceStatus(t('settings.audioIo.status.outputSelectionDenied'));
     }
   };
 
   return (
     <div className="settings-section">
       <div className="settings-section-header">
-        <h3>Audio I/O</h3>
+        <h3>{t('settings.audioIo.title')}</h3>
       </div>
 
       <div className="settings-section-content">
         <div className="settings-group">
           <div className="settings-group-header">
-            <h4>Device Routing</h4>
+            <h4>{t('settings.audioIo.deviceRouting')}</h4>
             <button
               type="button"
               className="settings-btn"
               onClick={() => void refreshDevices()}
               disabled={refreshing}
             >
-              {refreshing ? 'Refreshing…' : 'Refresh Device List'}
+              {refreshing ? t('settings.audioIo.refreshing') : t('settings.audioIo.refresh')}
             </button>
           </div>
 
           <div className="settings-description">
-            Choose the devices KGStudio should use for recording and playback. Input changes apply to the next recording session. Output changes require a page refresh in v1.
+            {t('settings.audioIo.description')}
           </div>
 
           <div className="settings-item">
             <label className="settings-label" htmlFor="audio-input-device-select">
-              Audio Input Device
+              {t('settings.audioIo.inputDevice')}
             </label>
             <select
               id="audio-input-device-select"
@@ -191,13 +193,13 @@ const AudioIOSettings: React.FC = () => {
               ))}
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Changes apply to the next audio recording. If the selected device is removed, KGStudio will fall back to System Default.
+              {t('settings.audioIo.inputHelp')}
             </div>
           </div>
 
           <div className="settings-item">
             <label className="settings-label" htmlFor="audio-output-device-select">
-              Audio Output Device
+              {t('settings.audioIo.outputDevice')}
             </label>
             <select
               id="audio-output-device-select"
@@ -215,16 +217,16 @@ const AudioIOSettings: React.FC = () => {
             {supportsOutputPrompt && (
               <div style={{ marginTop: '10px' }}>
                 <button type="button" className="settings-btn" onClick={() => void handleChooseOutputDevice()}>
-                  Choose Output Device…
+                  {t('settings.audioIo.chooseOutputDevice')}
                 </button>
               </div>
             )}
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Output-device changes require refresh in v1. Browser support for non-default output routing is limited, so KGStudio will continue on System Default when unsupported.
+              {t('settings.audioIo.outputHelp')}
             </div>
             {!supportsOutputSink && (
               <div className="settings-help" style={{ fontSize: '12px', color: '#d0a56b', marginTop: '6px' }}>
-                This browser does not expose reliable live Web Audio sink switching. Non-default output selection is best-effort and may remain on System Default.
+                {t('settings.audioIo.outputSinkUnsupported')}
               </div>
             )}
           </div>
