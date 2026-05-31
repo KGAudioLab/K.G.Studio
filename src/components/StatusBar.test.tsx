@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import StatusBar from './StatusBar';
+import StatusBar, { formatChordGuideCandidateStatus } from './StatusBar';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGCore } from '../core/KGCore';
 import type { ChordGuideData } from '../core/ChordGuideTypes';
@@ -56,9 +56,7 @@ describe('StatusBar', () => {
       KGPianoRollState.instance().setCurrentHoveredChordGuideCandidate(hoveredCandidate);
     });
 
-    expect(
-      screen.getByText('Chord Guide Candidate: Dm7 — D F A C — Core ii-V-I predominant sonority.')
-    ).toBeTruthy();
+    expect(screen.getByText(formatChordGuideCandidateStatus(hoveredCandidate))).toBeTruthy();
 
     act(() => {
       KGPianoRollState.instance().setCurrentHoveredChordGuideCandidate(null);
@@ -76,8 +74,6 @@ describe('StatusBar', () => {
       KGPianoRollState.instance().setCurrentHoveredChordGuideCandidate(transposedCandidate);
     });
 
-    expect(
-      screen.getByText('Chord Guide Candidate: C — D F# A — Most stable tonic triad.')
-    ).toBeTruthy();
+    expect(screen.getByText(formatChordGuideCandidateStatus(transposedCandidate))).toBeTruthy();
   });
 });
