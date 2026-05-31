@@ -1,3 +1,5 @@
+English | [简体中文](./README-zh_cn.md)
+
 <div align="center">
   <img src="./public/logo.png" alt="K.G.Studio Logo" width="160" />
 </div>

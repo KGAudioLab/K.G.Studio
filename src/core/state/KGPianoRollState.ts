@@ -1,5 +1,16 @@
 import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
 
+export const PIANO_ROLL_NO_SNAP = 'none' as const;
+
+export interface PianoRollOptionDefinition<TValue extends string = string> {
+  value: TValue;
+  labelKey: string;
+}
+
+export type PianoRollSnapValue = typeof PIANO_ROLL_NO_SNAP | '1/3' | '1/4' | '1/6' | '1/8' | '1/12' | '1/16' | '1/24' | '1/32';
+export type PianoRollQuantizePositionValue = '1/3' | '1/4' | '1/6' | '1/8' | '1/12' | '1/16' | '1/24' | '1/32';
+export type PianoRollQuantizeLengthValue = '1/1' | '1/2' | '1/3' | '1/4' | '1/6' | '1/8' | '1/12' | '1/16' | '1/24' | '1/32';
+
 /**
  * KGPianoRollState - State management for the piano roll
  * Implements the singleton pattern for global access
@@ -7,12 +18,42 @@ import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
 export class KGPianoRollState {
   private static _instance: KGPianoRollState | null = null;
 
-  public static SNAP_OPTIONS: string[] = ['NO SNAP', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
-  public static QUANT_POS_OPTIONS: string[] = ['1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
-  public static QUANT_LEN_OPTIONS: string[] = ['1/1', '1/2', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32'];
+  public static SNAP_OPTIONS: PianoRollOptionDefinition<PianoRollSnapValue>[] = [
+    { value: PIANO_ROLL_NO_SNAP, labelKey: 'pianoRoll.snap.none' },
+    { value: '1/3', labelKey: 'pianoRoll.quantize.1/3' },
+    { value: '1/4', labelKey: 'pianoRoll.quantize.1/4' },
+    { value: '1/6', labelKey: 'pianoRoll.quantize.1/6' },
+    { value: '1/8', labelKey: 'pianoRoll.quantize.1/8' },
+    { value: '1/12', labelKey: 'pianoRoll.quantize.1/12' },
+    { value: '1/16', labelKey: 'pianoRoll.quantize.1/16' },
+    { value: '1/24', labelKey: 'pianoRoll.quantize.1/24' },
+    { value: '1/32', labelKey: 'pianoRoll.quantize.1/32' },
+  ];
+  public static QUANT_POS_OPTIONS: PianoRollOptionDefinition<PianoRollQuantizePositionValue>[] = [
+    { value: '1/3', labelKey: 'pianoRoll.quantize.1/3' },
+    { value: '1/4', labelKey: 'pianoRoll.quantize.1/4' },
+    { value: '1/6', labelKey: 'pianoRoll.quantize.1/6' },
+    { value: '1/8', labelKey: 'pianoRoll.quantize.1/8' },
+    { value: '1/12', labelKey: 'pianoRoll.quantize.1/12' },
+    { value: '1/16', labelKey: 'pianoRoll.quantize.1/16' },
+    { value: '1/24', labelKey: 'pianoRoll.quantize.1/24' },
+    { value: '1/32', labelKey: 'pianoRoll.quantize.1/32' },
+  ];
+  public static QUANT_LEN_OPTIONS: PianoRollOptionDefinition<PianoRollQuantizeLengthValue>[] = [
+    { value: '1/1', labelKey: 'pianoRoll.quantize.1/1' },
+    { value: '1/2', labelKey: 'pianoRoll.quantize.1/2' },
+    { value: '1/3', labelKey: 'pianoRoll.quantize.1/3' },
+    { value: '1/4', labelKey: 'pianoRoll.quantize.1/4' },
+    { value: '1/6', labelKey: 'pianoRoll.quantize.1/6' },
+    { value: '1/8', labelKey: 'pianoRoll.quantize.1/8' },
+    { value: '1/12', labelKey: 'pianoRoll.quantize.1/12' },
+    { value: '1/16', labelKey: 'pianoRoll.quantize.1/16' },
+    { value: '1/24', labelKey: 'pianoRoll.quantize.1/24' },
+    { value: '1/32', labelKey: 'pianoRoll.quantize.1/32' },
+  ];
 
   private activeTool: string = "pointer";
-  private currentSnap: string = "NO SNAP";
+  private currentSnap: PianoRollSnapValue = PIANO_ROLL_NO_SNAP;
   private lastEditedNoteLength: number = 1; // Default to 1 beat
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;
@@ -51,11 +92,11 @@ export class KGPianoRollState {
     this.activeTool = tool;
   }
 
-  public getCurrentSnap(): string {
+  public getCurrentSnap(): PianoRollSnapValue {
     return this.currentSnap;
   }
 
-  public setCurrentSnap(snap: string): void {
+  public setCurrentSnap(snap: PianoRollSnapValue): void {
     this.currentSnap = snap;
   }
 

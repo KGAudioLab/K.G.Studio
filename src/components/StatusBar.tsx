@@ -3,9 +3,14 @@ import './StatusBar.css';
 import { useProjectStore } from '../stores/projectStore';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import type { ResolvedChordGuideItem } from '../core/ChordGuideTypes';
+import { translate } from '../i18n/translate';
 
 function formatChordGuideCandidateStatus(candidate: ResolvedChordGuideItem): string {
-  return `Chord Guide Candidate: ${candidate.name} — ${candidate.resolvedNotes.join(' ')} — ${candidate.note}`;
+  return translate('status.chordGuideCandidate', {
+    name: candidate.name,
+    notes: candidate.resolvedNotes.join(' '),
+    note: candidate.note,
+  });
 }
 
 const StatusBar: React.FC = () => {

@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
-import { noteNameToPitch, midiPercussionKeyMap } from '../../util/midiUtil';
+import { noteNameToPitch } from '../../util/midiUtil';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiInput, type LiveMidiNoteActivityEvent } from '../../core/midi-input/KGMidiInput';
+import { useI18n } from '../../i18n/useI18n';
+import { getPercussionKeyShortLabel, isGmDrumKitInstrument } from '../../i18n/percussion';
 
 interface PianoKeysProps {
   activeRegion: KGMidiRegion | null;
@@ -30,6 +32,7 @@ function decrementPitchCount(source: Map<number, number>, pitch: number): Map<nu
 }
 
 const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
+  const { t } = useI18n();
   const [mouseActivePitches, setMouseActivePitches] = useState<Map<number, number>>(new Map());
   const [midiActivePitches, setMidiActivePitches] = useState<Map<number, number>>(new Map());
   const mouseActivePitchesRef = useRef<Map<number, number>>(new Map());
@@ -41,7 +44,7 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
   const isDrumTrack = useMemo(() => {
     if (!activeRegion) return false;
     const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
-    return track instanceof KGMidiTrack && track.getInstrument() === 'standard';
+    return track instanceof KGMidiTrack && isGmDrumKitInstrument(track.getInstrument());
   }, [activeRegion, tracks]);
 
   const playbackActivePitches = useMemo(() => {
@@ -198,9 +201,9 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
         // For drum tracks, show drum labels when available
         let labelContent = null;
         if (isDrumTrack) {
-          const drumInfo = midiPercussionKeyMap[pitch];
-          if (drumInfo) {
-            labelContent = <span className="key-label">{drumInfo.shortName}</span>;
+          const drumLabel = getPercussionKeyShortLabel(pitch, t);
+          if (drumLabel) {
+            labelContent = <span className="key-label">{drumLabel}</span>;
           }
         } else if (isC) {
           labelContent = <span className="key-label">C{octave}</span>;

@@ -26,6 +26,8 @@ import {
   createMockMidiTrack,
 } from '../test/utils/mock-data';
 import { showAlert } from '../util/dialogUtil';
+import { I18nContext } from '../i18n/I18nProvider';
+import { translate } from '../i18n/translate';
 
 const clickDropdownOption = (label: string) => {
   const option = Array.from(document.querySelectorAll('.quant-option'))
@@ -185,6 +187,19 @@ vi.mock('../core/KGCore', () => ({
 }));
 
 describe('EventListPanel', () => {
+  const renderWithLocale = (locale: 'en_us' | 'zh_cn' = 'en_us') => render(
+    <I18nContext.Provider
+      value={{
+        languageSetting: locale,
+        resolvedLocale: locale,
+        setLanguageSetting: async () => undefined,
+        t: (key, params) => translate(key, params, locale),
+      }}
+    >
+      <EventListPanel isVisible={true} />
+    </I18nContext.Provider>
+  );
+
   beforeEach(() => {
     project = new KGProject(
       'Test Project',
@@ -460,7 +475,7 @@ describe('EventListPanel', () => {
 
     expect(screen.getAllByRole('button', { name: 'Marker' })[0]).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Tempo' })[0]).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Key Signature' })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Key Sig.' })[0]).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Chord' })[0]).toBeInTheDocument();
     expect(screen.getByText('Intro')).toBeInTheDocument();
     expect(screen.getByText('120')).toBeInTheDocument();
@@ -553,5 +568,28 @@ describe('EventListPanel', () => {
       expect(tempoTrack.getRegions()[0].getId()).toBe('tempo-2');
       expect((tempoTrack.getRegions()[0] as KGTempoRegion).getStartBar()).toBe(0);
     });
+  });
+
+  it('renders translated event-list controls in zh-CN', () => {
+    renderWithLocale('zh_cn');
+
+    expect(screen.getAllByRole('button', { name: '音符' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: '弯音' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: '控制器' }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: '音轨' }));
+    expect(screen.getAllByRole('button', { name: '区域' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '音量' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '声像' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '全局' }));
+    expect(screen.getAllByRole('button', { name: '标记' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '速度' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '调号' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '和弦' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: '位置' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '状态' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '数值' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '长度/信息' })).toBeInTheDocument();
   });
 });

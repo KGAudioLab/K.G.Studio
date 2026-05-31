@@ -44,6 +44,7 @@ import { isModifierKeyPressed } from '../../util/osUtil';
 import { parseChordSymbol } from '../../util/chordUtil';
 import { showAlert } from '../../util/dialogUtil';
 import { getSortedKeySignatureRegions, getSortedTempoRegions } from '../../util/globalTrackUtil';
+import { useI18n } from '../../i18n/useI18n';
 
 interface GlobalEventListTabProps {
   globalTracks: KGGlobalTrack[];
@@ -97,13 +98,6 @@ interface GlobalEditingCell {
   value: string;
 }
 
-const ADD_GLOBAL_ITEM_OPTIONS: Array<{ label: string; value: AddGlobalItemType }> = [
-  { label: 'Marker', value: 'marker' },
-  { label: 'Tempo', value: 'tempo' },
-  { label: 'Key Signature', value: 'key-signature' },
-  { label: 'Chord', value: 'chord' },
-];
-
 const GLOBAL_TYPE_ORDER: Record<GlobalRowData['type'], number> = {
   marker: 0,
   tempo: 1,
@@ -113,16 +107,16 @@ const GLOBAL_TYPE_ORDER: Record<GlobalRowData['type'], number> = {
 
 const CANONICAL_KEY_SIGNATURES = Object.keys(KEY_SIGNATURE_MAP) as KeySignature[];
 
-const getRowStatus = (row: GlobalRowData): string => {
+const getRowStatus = (row: GlobalRowData, t: (key: string, params?: Record<string, string | number>) => string): string => {
   switch (row.type) {
     case 'marker':
-      return 'Marker';
+      return t('eventList.global.status.marker');
     case 'tempo':
-      return 'Tempo';
+      return t('eventList.global.status.tempo');
     case 'key-signature':
-      return 'Key Signature';
+      return t('eventList.global.status.keySignature');
     case 'chord':
-      return 'Chord';
+      return t('eventList.global.status.chord');
   }
 };
 
@@ -147,16 +141,22 @@ const findRegionRowType = (region: KGGlobalRegion): GlobalRowData['type'] | null
   return null;
 };
 
-const buildValueValidationMessage = (type: GlobalRowData['type']): string => {
+const buildValueValidationMessage = (
+  type: GlobalRowData['type'],
+  t: (key: string, params?: Record<string, string | number>) => string
+): string => {
   switch (type) {
     case 'marker':
-      return 'Please enter a marker label. Expected a non-empty text label. Example: Intro';
+      return t('eventList.global.validation.marker');
     case 'tempo':
-      return `Please enter a BPM value using digits only. Expected a whole number between ${TIME_CONSTANTS.MIN_BPM + 1} and ${TIME_CONSTANTS.MAX_BPM - 1}. Example: 128`;
+      return t('eventList.global.validation.tempo', {
+        min: TIME_CONSTANTS.MIN_BPM + 1,
+        max: TIME_CONSTANTS.MAX_BPM - 1,
+      });
     case 'key-signature':
-      return 'Please enter one exact key signature name. Expected a canonical value such as "C major" or "F# minor". Example: F# minor';
+      return t('eventList.global.validation.keySignature');
     case 'chord':
-      return 'Please enter a valid chord symbol. Expected a chord representation the app can parse. Example: Bm7b5';
+      return t('eventList.global.validation.chord');
   }
 };
 
@@ -167,6 +167,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
   playheadPosition,
   refreshProjectState,
 }) => {
+  const { t } = useI18n();
   const [showMarkers, setShowMarkers] = useState(true);
   const [showTempo, setShowTempo] = useState(true);
   const [showKeySignature, setShowKeySignature] = useState(true);
@@ -177,6 +178,13 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
   const editInputRef = useRef<HTMLInputElement | null>(null);
   const suppressBlurCommitRef = useRef(false);
   const pendingSingleClickSelectionRef = useRef<number | null>(null);
+
+  const addGlobalItemOptions = useMemo<Array<{ label: string; value: AddGlobalItemType }>>(() => ([
+    { label: t('eventList.global.addType.marker'), value: 'marker' },
+    { label: t('eventList.global.addType.tempo'), value: 'tempo' },
+    { label: t('eventList.global.addType.keySignature'), value: 'key-signature' },
+    { label: t('eventList.global.addType.chord'), value: 'chord' },
+  ]), [t]);
 
   const markerTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Marker) ?? null;
   const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
@@ -366,7 +374,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
     try {
       if (editingCell.column === 'position') {
         if (isDeltaEdit) {
-          const parsed = parseMidiEventPositionDelta(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+            const parsed = parseMidiEventPositionDelta(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
           if ('error' in parsed) {
             await showAlert(parsed.error);
             return;
@@ -375,7 +383,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           for (const targetRow of targetRows) {
             const nextBeat = targetRow.absoluteStartBeat + parsed.deltaBeats;
             if (nextBeat < 0) {
-              await showAlert('Please enter a position at or after the start of the project. Expected a non-negative location. Example: 1 1 0');
+              await showAlert(t('eventList.global.validation.position'));
               return;
             }
           }
@@ -404,7 +412,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             return;
           }
           if (parsed.absoluteBeat < 0) {
-            await showAlert('Please enter a position at or after the start of the project. Expected a non-negative location. Example: 1 1 0');
+            await showAlert(t('eventList.global.validation.position'));
             return;
           }
 
@@ -432,7 +440,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         if (row.type === 'marker') {
           const normalized = trimmedValue.replace(/\r?\n/g, ' ').trim();
           if (!normalized) {
-            await showAlert(buildValueValidationMessage('marker'));
+            await showAlert(buildValueValidationMessage('marker', t));
             return;
           }
 
@@ -443,7 +451,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           }
         } else if (row.type === 'tempo') {
           if (!/^\d+$/.test(trimmedValue)) {
-            await showAlert(buildValueValidationMessage('tempo'));
+            await showAlert(buildValueValidationMessage('tempo', t));
             return;
           }
           const nextBpm = parseInt(trimmedValue, 10);
@@ -452,7 +460,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             || nextBpm <= TIME_CONSTANTS.MIN_BPM
             || nextBpm >= TIME_CONSTANTS.MAX_BPM
           ) {
-            await showAlert(buildValueValidationMessage('tempo'));
+            await showAlert(buildValueValidationMessage('tempo', t));
             return;
           }
 
@@ -463,7 +471,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           }
         } else if (row.type === 'key-signature') {
           if (!CANONICAL_KEY_SIGNATURES.includes(trimmedValue as KeySignature)) {
-            await showAlert(buildValueValidationMessage('key-signature'));
+            await showAlert(buildValueValidationMessage('key-signature', t));
             return;
           }
           const keySignature = trimmedValue as KeySignature;
@@ -473,7 +481,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             }
           }
         } else if (parseChordSymbol(trimmedValue) === null) {
-          await showAlert(buildValueValidationMessage('chord'));
+          await showAlert(buildValueValidationMessage('chord', t));
           return;
         } else {
           for (const targetRow of targetRows) {
@@ -494,7 +502,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
 
           for (const targetRow of targetRows) {
             if (targetRow.durationBeats + parsed.deltaBeats <= 0) {
-              await showAlert('Please enter a positive length. Expected a duration greater than zero. Example: 4 0');
+              await showAlert(t('eventList.global.validation.length'));
               return;
             }
           }
@@ -527,7 +535,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             return;
           }
           if (parsed.duration <= 0) {
-            await showAlert('Please enter a positive length. Expected a duration greater than zero. Example: 4 0');
+            await showAlert(t('eventList.global.validation.length'));
             return;
           }
 
@@ -752,11 +760,11 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
 
   return (
     <>
-      <div className="event-list-tabs" role="tablist" aria-label="Global event filters">
-        <button className={`event-list-tab${showMarkers ? ' active' : ''}`} aria-pressed={showMarkers} type="button" onClick={() => setShowMarkers(value => !value)}>Marker</button>
-        <button className={`event-list-tab${showTempo ? ' active' : ''}`} aria-pressed={showTempo} type="button" onClick={() => setShowTempo(value => !value)}>Tempo</button>
-        <button className={`event-list-tab${showKeySignature ? ' active' : ''}`} aria-pressed={showKeySignature} type="button" onClick={() => setShowKeySignature(value => !value)}>Key Sig.</button>
-        <button className={`event-list-tab${showChords ? ' active' : ''}`} aria-pressed={showChords} type="button" onClick={() => setShowChords(value => !value)}>Chord</button>
+      <div className="event-list-tabs" role="tablist" aria-label={t('eventList.global.filters')}>
+        <button className={`event-list-tab${showMarkers ? ' active' : ''}`} aria-pressed={showMarkers} type="button" onClick={() => setShowMarkers(value => !value)}>{t('eventList.global.filter.marker')}</button>
+        <button className={`event-list-tab${showTempo ? ' active' : ''}`} aria-pressed={showTempo} type="button" onClick={() => setShowTempo(value => !value)}>{t('eventList.global.filter.tempo')}</button>
+        <button className={`event-list-tab${showKeySignature ? ' active' : ''}`} aria-pressed={showKeySignature} type="button" onClick={() => setShowKeySignature(value => !value)}>{t('eventList.global.filter.keySignature')}</button>
+        <button className={`event-list-tab${showChords ? ' active' : ''}`} aria-pressed={showChords} type="button" onClick={() => setShowChords(value => !value)}>{t('eventList.global.filter.chord')}</button>
       </div>
 
       <div className="event-list-toolbar">
@@ -765,12 +773,12 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             className="event-list-add-button"
             title={
               addGlobalItemType === 'marker'
-                ? 'Add marker region at playhead'
+                ? t('eventList.global.add.markerTitle')
                 : addGlobalItemType === 'tempo'
-                  ? 'Add tempo region at playhead'
+                  ? t('eventList.global.add.tempoTitle')
                   : addGlobalItemType === 'key-signature'
-                    ? 'Add key signature region at playhead'
-                    : 'Add chord region at playhead'
+                    ? t('eventList.global.add.keySignatureTitle')
+                    : t('eventList.global.add.chordTitle')
             }
             type="button"
             onClick={handleAddGlobalItem}
@@ -778,10 +786,10 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             <FaPlus />
           </button>
           <KGDropdown
-            options={ADD_GLOBAL_ITEM_OPTIONS}
+            options={addGlobalItemOptions}
             value={addGlobalItemType}
             onChange={(value) => setAddGlobalItemType(value as AddGlobalItemType)}
-            label="Add"
+            label={t('eventList.global.add.label')}
             buttonClassName="event-list-type-button"
             showValueAsLabel
           />
@@ -790,7 +798,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         <div className="event-list-toolbar-group event-list-toolbar-group-right">
           <button
             className="event-list-delete-button"
-            title="Delete visible selected rows"
+            title={t('eventList.deleteVisibleSelectedRows')}
             type="button"
             onClick={handleDeleteSelectedRows}
             disabled={visibleSelectedRows.length === 0}
@@ -804,16 +812,16 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         <table className="event-list-table">
           <thead>
             <tr>
-              <th>Position</th>
-              <th>Status</th>
-              <th>Val</th>
-              <th>Length/Info</th>
+              <th>{t('eventList.table.position')}</th>
+              <th>{t('eventList.table.status')}</th>
+              <th>{t('eventList.table.val')}</th>
+              <th>{t('eventList.table.lengthInfo')}</th>
             </tr>
           </thead>
           <tbody>
             {globalRows.map((row, index) => {
               const positionText = formatMidiEventPosition(row.absoluteStartBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
-              const statusText = getRowStatus(row);
+              const statusText = getRowStatus(row, t);
               const valText = getRowValue(row);
               const lengthText = formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT);
               const isEditingPosition = editingCell?.rowId === row.id && editingCell.column === 'position';

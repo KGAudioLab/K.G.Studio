@@ -1,8 +1,10 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { KGPianoRollState } from '../../core/state/KGPianoRollState';
+import { KGPianoRollState, PIANO_ROLL_NO_SNAP } from '../../core/state/KGPianoRollState';
 import { createMockMidiControllerEvent, createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
+import { I18nContext } from '../../i18n/I18nProvider';
+import { translate } from '../../i18n/translate';
 
 const coreMock = {
   selectedItems: [] as Array<{ getId(): string }>,
@@ -45,6 +47,19 @@ import PianoRollAutomationLane from './PianoRollAutomationLane';
 import { getControllerNumberForAutomationType } from './pianoRollAutomation';
 
 describe('PianoRollAutomationLane', () => {
+  const renderWithLocale = (ui: React.ReactElement, locale: 'en_us' | 'zh_cn' = 'en_us') => render(
+    <I18nContext.Provider
+      value={{
+        languageSetting: locale,
+        resolvedLocale: locale,
+        setLanguageSetting: async () => undefined,
+        t: (key, params) => translate(key, params, locale),
+      }}
+    >
+      {ui}
+    </I18nContext.Provider>
+  );
+
   beforeEach(() => {
     coreMock.selectedItems = [];
     coreMock.currentProjectTracks = [];
@@ -76,7 +91,7 @@ describe('PianoRollAutomationLane', () => {
     coreMock.currentProjectTracks = storeState.tracks;
     storeState.selectedPitchBendIds = ['bend-1'];
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="pitch-bend"
@@ -106,7 +121,7 @@ describe('PianoRollAutomationLane', () => {
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
     coreMock.currentProjectTracks = storeState.tracks;
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="pitch-bend"
@@ -144,9 +159,9 @@ describe('PianoRollAutomationLane', () => {
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
     coreMock.currentProjectTracks = storeState.tracks;
-    KGPianoRollState.instance().setCurrentSnap('NO SNAP');
+    KGPianoRollState.instance().setCurrentSnap(PIANO_ROLL_NO_SNAP);
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="pitch-bend"
@@ -188,7 +203,7 @@ describe('PianoRollAutomationLane', () => {
     coreMock.currentProjectTracks = storeState.tracks;
     storeState.selectedControllerEventIds = ['cc7-1'];
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="cc-7"
@@ -224,7 +239,7 @@ describe('PianoRollAutomationLane', () => {
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
     coreMock.currentProjectTracks = storeState.tracks;
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="cc-64"
@@ -253,7 +268,7 @@ describe('PianoRollAutomationLane', () => {
     coreMock.currentProjectTracks = storeState.tracks;
     storeState.selectedPitchBendIds = ['bend-2'];
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="pitch-bend"
@@ -286,7 +301,7 @@ describe('PianoRollAutomationLane', () => {
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
     coreMock.currentProjectTracks = storeState.tracks;
 
-    const { container } = render(
+    const { container } = renderWithLocale(
       <PianoRollAutomationLane
         activeRegion={region}
         automationType="pitch-bend"
@@ -307,5 +322,28 @@ describe('PianoRollAutomationLane', () => {
     await waitFor(() => {
       expect(getScrollLayer()?.classList.contains('pencil-cursor')).toBe(false);
     });
+  });
+
+  it('renders translated automation lane labels in zh-CN', () => {
+    const region = createMockMidiRegion({
+      trackId: '1',
+      trackIndex: 0,
+      startFromBeat: 4,
+      pitchBends: [createMockMidiPitchBend({ id: 'bend-1', beat: 0.5, value: 8192 })],
+    });
+    storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
+    coreMock.currentProjectTracks = storeState.tracks;
+
+    renderWithLocale(
+      <PianoRollAutomationLane
+        activeRegion={region}
+        automationType="pitch-bend"
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+      />,
+      'zh_cn',
+    );
+
+    expect(screen.getByLabelText('弯音 自动化轨')).toBeInTheDocument();
   });
 });

@@ -5,7 +5,7 @@ import { UpdateControllerEventPropertiesCommand } from '../../core/commands/note
 import { UpdatePitchBendPropertiesCommand } from '../../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { KGMidiControllerEvent } from '../../core/midi/KGMidiControllerEvent';
 import { KGMidiPitchBend } from '../../core/midi/KGMidiPitchBend';
-import { KGPianoRollState } from '../../core/state/KGPianoRollState';
+import { KGPianoRollState, PIANO_ROLL_NO_SNAP } from '../../core/state/KGPianoRollState';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import {
   MIDI_PITCH_BEND_MAX,
@@ -19,11 +19,12 @@ import { useProjectStore } from '../../stores/projectStore';
 import { PIANO_ROLL_CONSTANTS } from '../../constants';
 import { getSnappedBeatPosition } from './pianoRollSnap';
 import {
+  getAutomationLabel,
   getAutomationInterpolationMode,
   getControllerNumberForAutomationType,
-  PIANO_ROLL_AUTOMATION_OPTIONS,
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
+import { useI18n } from '../../i18n/useI18n';
 
 interface AutomationPoint {
   id: string;
@@ -73,6 +74,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   horizontalScrollLeft = 0,
   onHorizontalWheel,
 }) => {
+  const { t } = useI18n();
   const laneRef = useRef<HTMLDivElement | null>(null);
   const isLassoSelectingRef = useRef(false);
   const lassoShiftKeyRef = useRef(false);
@@ -237,8 +239,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     ? tracks.find(track => track.getId().toString() === activeRegion.getTrackId()) ?? null
     : null;
 
-  const selectedOption = PIANO_ROLL_AUTOMATION_OPTIONS.find(option => option.value === automationType);
-  const laneLabel = selectedOption?.label ?? automationType;
+  const laneLabel = getAutomationLabel(automationType, t);
   const interpolationMode = getAutomationInterpolationMode(automationType);
   const totalBeats = maxBars * timeSignature.numerator;
   const totalWidth = 'calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width))';
@@ -412,7 +413,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     }
 
     const rawAbsoluteBeat = (coordinates.x - keyWidth) / beatWidth;
-    const snappedAbsoluteBeat = KGPianoRollState.instance().getCurrentSnap() === 'NO SNAP'
+    const snappedAbsoluteBeat = KGPianoRollState.instance().getCurrentSnap() === PIANO_ROLL_NO_SNAP
       ? rawAbsoluteBeat
       : getSnappedBeatPosition(rawAbsoluteBeat, KGPianoRollState.instance().getCurrentSnap());
     const beatDelta = snappedAbsoluteBeat - dragState.originAbsoluteBeat;
@@ -673,7 +674,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
 
     const rawAbsoluteBeat = (coordinates.x - keyWidth) / beatWidth;
     const currentSnap = KGPianoRollState.instance().getCurrentSnap();
-    const absoluteBeat = currentSnap === 'NO SNAP'
+    const absoluteBeat = currentSnap === PIANO_ROLL_NO_SNAP
       ? rawAbsoluteBeat
       : getSnappedBeatPosition(rawAbsoluteBeat, currentSnap);
     const relativeBeat = absoluteBeat - activeRegion.getStartFromBeat();
@@ -770,7 +771,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     <div
       className="piano-roll-automation-lane"
       data-testid="piano-roll-automation-lane"
-      aria-label={`${laneLabel} automation lane`}
+      aria-label={t('pianoRoll.automationLane', { label: laneLabel })}
       ref={laneRef}
     >
       <div className="piano-roll-automation-track" style={{ width: totalWidth }}>

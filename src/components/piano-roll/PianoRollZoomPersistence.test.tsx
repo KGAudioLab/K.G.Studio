@@ -6,7 +6,7 @@ import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock
 
 const pianoRollState = {
   zoom: 1,
-  getCurrentSnap: vi.fn(() => 'NO SNAP'),
+  getCurrentSnap: vi.fn(() => 'none'),
   getActiveTool: vi.fn(() => 'pointer'),
   getAutomationViewEnabled: vi.fn(() => false),
   getCurrentAutomationType: vi.fn(() => 'pitch-bend'),
@@ -26,6 +26,7 @@ const pianoRollState = {
   setCurrentSnap: vi.fn(),
   setCurrentSuitableChords: vi.fn(),
   setCurrentSuitableChordsPitchClasses: vi.fn(),
+  setCurrentHoveredChordGuideCandidate: vi.fn(),
 };
 
 const mockProject = {
@@ -71,10 +72,11 @@ vi.mock('../../stores/projectStore', () => ({
 vi.mock('../../core/state/KGPianoRollState', () => ({
   KGPianoRollState: {
     instance: () => pianoRollState,
-    SNAP_OPTIONS: ['NO SNAP'],
-    QUANT_POS_OPTIONS: ['1/8'],
-    QUANT_LEN_OPTIONS: ['1/8'],
+    SNAP_OPTIONS: [{ value: 'none', labelKey: 'pianoRoll.snap.none' }],
+    QUANT_POS_OPTIONS: [{ value: '1/8', labelKey: 'pianoRoll.quantize.1/8' }],
+    QUANT_LEN_OPTIONS: [{ value: '1/8', labelKey: 'pianoRoll.quantize.1/8' }],
   },
+  PIANO_ROLL_NO_SNAP: 'none',
 }));
 
 vi.mock('../../core/KGCore', () => ({

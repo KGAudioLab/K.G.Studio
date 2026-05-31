@@ -3,6 +3,8 @@ import { useProjectStore } from '../../stores/projectStore';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { SystemPrompts } from '../../agent/core/SystemPrompts';
 import { detectLocalLLMRuntimeSupport, LOCAL_LLM_PROVIDER_KEY } from '../localLLMConfig';
+import { normalizeLanguageSetting, resolveLanguageSetting } from '../../i18n/locale';
+import type { ResolvedLocaleCode } from '../../i18n/types';
 
 export interface UserMessageFilterResult {
   // Whether to render the user message bubble (div.message-user)
@@ -59,6 +61,48 @@ function getWelcomeUrl(variant: 'local' | 'new' | 'again'): string {
   }
 }
 
+function resolveCurrentCommandLocale(configManager: ConfigManager): ResolvedLocaleCode {
+  const languageSetting = normalizeLanguageSetting(configManager.get('general.language'));
+  return resolveLanguageSetting(languageSetting);
+}
+
+function resolveLocalizedChatMarkdownUrl(baseFileName: string, locale: ResolvedLocaleCode): string {
+  if (locale === 'en_us') {
+    return `${import.meta.env.BASE_URL}chat/${baseFileName}`;
+  }
+
+  const extensionIndex = baseFileName.lastIndexOf('.');
+  const localizedFileName = extensionIndex >= 0
+    ? `${baseFileName.slice(0, extensionIndex)}-${locale}${baseFileName.slice(extensionIndex)}`
+    : `${baseFileName}-${locale}`;
+  return `${import.meta.env.BASE_URL}chat/${localizedFileName}`;
+}
+
+async function fetchLocalizedChatMarkdown(
+  configManager: ConfigManager,
+  baseFileName: string,
+): Promise<string> {
+  const locale = resolveCurrentCommandLocale(configManager);
+  const localizedUrl = resolveLocalizedChatMarkdownUrl(baseFileName, locale);
+  const fallbackUrl = `${import.meta.env.BASE_URL}chat/${baseFileName}`;
+
+  const urlsToTry = locale === 'en_us' || localizedUrl === fallbackUrl
+    ? [fallbackUrl]
+    : [localizedUrl, fallbackUrl];
+
+  let lastStatus = 'unknown';
+
+  for (const url of urlsToTry) {
+    const resp = await fetch(url);
+    if (resp.ok) {
+      return await resp.text();
+    }
+    lastStatus = String(resp.status);
+  }
+
+  throw new Error(`Failed to fetch chat markdown ${baseFileName}: ${lastStatus}`);
+}
+
 /**
  * Process a user message before it is displayed or sent to the LLM.
  * Handles slash-commands and returns a structured decision.
@@ -96,12 +140,8 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
           }
 
           const variant = getWelcomeVariant(configManager);
-          const url = getWelcomeUrl(variant);
-          const resp = await fetch(url);
-          if (!resp.ok) {
-            throw new Error(`Failed to fetch ${url}: ${resp.status}`);
-          }
-          const md = await resp.text();
+          const baseFileName = getWelcomeUrl(variant).split('/').pop() ?? 'welcome_new.md';
+          const md = await fetchLocalizedChatMarkdown(configManager, baseFileName);
           return {
             displayUserMessage: false,
             sendToLLM: false,
@@ -123,12 +163,12 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
 
       case '/help': {
         try {
-          const url = `${import.meta.env.BASE_URL}chat/help.md`;
-          const resp = await fetch(url);
-          if (!resp.ok) {
-            throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+          const configManager = ConfigManager.instance();
+          if (!configManager.getIsInitialized()) {
+            await configManager.initialize();
           }
-          const md = await resp.text();
+
+          const md = await fetchLocalizedChatMarkdown(configManager, 'help.md');
           return {
             displayUserMessage: false,
             sendToLLM: false,
@@ -151,12 +191,12 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
       case '/hotkeys':
       case '/hotkey': {
         try {
-          const url = `${import.meta.env.BASE_URL}chat/hotkeys.md`;
-          const resp = await fetch(url);
-          if (!resp.ok) {
-            throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+          const configManager = ConfigManager.instance();
+          if (!configManager.getIsInitialized()) {
+            await configManager.initialize();
           }
-          const md = await resp.text();
+
+          const md = await fetchLocalizedChatMarkdown(configManager, 'hotkeys.md');
           return {
             displayUserMessage: false,
             sendToLLM: false,

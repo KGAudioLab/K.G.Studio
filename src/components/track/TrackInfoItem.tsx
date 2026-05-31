@@ -15,6 +15,8 @@ import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { showAlert, showConfirm } from '../../util/dialogUtil';
 import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoint';
 import { AUDIO_IMPORT_ACCEPTED_TYPES } from '../../util/audioImportUtil';
+import { useI18n } from '../../i18n/useI18n';
+import { getInstrumentDisplayName } from '../../i18n/instruments';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -69,6 +71,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDrop,
   onDragEnd
 }) => {
+  const { t } = useI18n();
   const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks } = useProjectStore();
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
@@ -407,7 +410,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             ) : (
               <img
                 src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`}
-                alt={String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.displayName || currentInstrument)}
+                alt={getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
                 width="64"
                 height="64"
               />
