@@ -514,7 +514,7 @@ const ClipTab: React.FC<ClipTabProps> = ({ bpm, keySignature }) => {
       )}
 
       <button
-        className="kgone-btn-generate kgone-btn-generate-accent"
+        className="dialog-btn dialog-btn-primary kgone-btn-generate"
         disabled={isGenerating || !prompt.trim()}
         onClick={handleGenerate}
       >
@@ -2000,7 +2000,7 @@ const RemixTab: React.FC = () => {
           {genStatus === 'done' && audioUrl && (
             <>
               <button
-                className="kgone-btn-generate kgone-btn-generate-accent"
+                className="dialog-btn dialog-btn-primary kgone-btn-generate"
                 disabled={isImporting}
                 onClick={handleImportAligned}
                 style={{ marginTop: 0 }}
@@ -2523,7 +2523,7 @@ const RepaintTab: React.FC = () => {
           {genStatus === 'done' && audioUrl && (
             <>
               <button
-                className="kgone-btn-generate kgone-btn-generate-accent"
+                className="dialog-btn dialog-btn-primary kgone-btn-generate"
                 disabled={isImporting}
                 onClick={handleImportAligned}
                 style={{ marginTop: 0 }}

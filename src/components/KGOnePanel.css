@@ -304,24 +304,6 @@
   margin-top: 6px;
 }
 
-.kgone-btn-generate-accent {
-  background-color: #4a5fa0;
-  border: none;
-  color: #e0e0e0;
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.kgone-btn-generate-accent:hover:not(:disabled) {
-  background-color: #5a70b8;
-}
-
-.kgone-btn-generate-accent:disabled {
-  background-color: #3a3a3a;
-  color: #666;
-  cursor: not-allowed;
-}
-
 .kgone-btn-generate.dialog-btn {
   min-height: 32px;
 }
