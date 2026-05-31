@@ -1,3 +1,20 @@
+# [0.19.0-build.20260531] (2026-05-31)
+
+* Merge pull request #47 from KGAudioLab/feat/2026-05-30-i18n-v1 (4187711)
+* fix: minor UI issues (e3c609f)
+* chore(i18n): minor wording adjustments (a64ba42)
+* chore(i18n): unify Traditional Chinese wording across UI and docs (f58d9a8)
+* fix: few missed translations (e1f8e69)
+* fix: minor UI updates (5d070a5)
+* feat: added translations for 4 tabs in Settings screen (59dea65)
+* docs: added Traditional Chinese and French README files (9fb206c)
+* feat: added French support (e263b1c)
+* fixed: failed test cases (4c82f51)
+* feat: added Traditional Chinese support (9180a27)
+* feat: added i18n support for Open Project pop-up (4488fe8)
+* feat: added translation for Music Generator panel; provided `K.G.Studio Musician Assistant` a Chinese name (b5546aa)
+* feat: added i18n support; added Simplified Chinese support (957f6db)
+
 # [0.18.0-build.20260529] (2026-05-29)
 
 * Merge pull request #46 from KGAudioLab/feat/2026-05-23-global-track (227b1ed)
