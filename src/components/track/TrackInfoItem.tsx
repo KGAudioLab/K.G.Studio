@@ -502,20 +502,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             <button
               className={`automation${automationActive ? ' active' : ''}`}
               onClick={handleAutomationButtonClick}
-              title="Track automation"
-              aria-label="Track automation"
+              title={t('track.controls.automationButton')}
+              aria-label={t('track.controls.automationButton')}
             >
               A
             </button>
             <div style={{ position: 'absolute', top: 0, left: 'calc(100% + 6px)', zIndex: 10000 }}>
               <KGDropdown
                 options={[
-                  { label: 'Volume', value: 'volume' },
-                  { label: 'Pan', value: 'pan' },
+                  { label: t('track.controls.automation.volume'), value: 'volume' },
+                  { label: t('track.controls.automation.pan'), value: 'pan' },
                 ]}
                 value={activeTrackAutomationType ?? ''}
                 onChange={handleAutomationTypeSelect}
-                label="Automation"
+                label={t('track.controls.automationDropdown')}
                 hideButton={true}
                 isOpen={showAutomationDropdown}
                 onToggle={setShowAutomationDropdown}
@@ -540,10 +540,10 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             </button>
             <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
               <KGDropdown
-                options={['Delete Track']}
+                options={[{ label: t('track.controls.settings.deleteTrack'), value: 'Delete Track' }]}
                 value={''}
                 onChange={handleSettingsAction}
-                label="Settings"
+                label={t('track.controls.settingsDropdown')}
                 hideButton={true}
                 isOpen={showSettingsDropdown}
                 onToggle={setShowSettingsDropdown}
