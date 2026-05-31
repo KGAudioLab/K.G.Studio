@@ -69,6 +69,7 @@ import {
   type PendingModeSwitchRequest,
 } from './pianoRollViewport';
 import { getNextChordGuideSelection, resolveChordGuideContext, type ChordGuideFunction } from './chordGuideUtil';
+import { useI18n } from '../../i18n/useI18n';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -101,6 +102,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const isAudioOnly = isAudioWaveform || isSpectrogram;
   const isHybrid = currentMode === 'hybrid';
   const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
+  const { t } = useI18n();
 
   // Tool state for piano roll
   const [activeTool, setActiveTool] = useState<'pointer' | 'pencil'>('pointer');
@@ -510,7 +512,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     const detectionOptions = audioRegion
       ? await showChordDetectionOptions(
-        'Tune audio chord detection settings before processing.',
+        t('dialog.message.chordDetection'),
         DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS,
       )
       : await showMidiChordDetectionOptions(
@@ -628,7 +630,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
 
     const detectionOptions = await showTempoDetectionOptions(
-      'Tune audio tempo detection settings before processing.',
+      t('dialog.message.tempoDetection'),
       DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
     );
     if (!detectionOptions) {
@@ -659,8 +661,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       const applyResult = await showTempoApply(
         buildDetectedTempoChoiceMessage(result.bpm),
         [
-          { label: 'Update Current Tempo', value: DETECTED_TEMPO_ACTION_UPDATE_CURRENT },
-          { label: 'Insert Tempo Change', value: DETECTED_TEMPO_ACTION_INSERT_REGION },
+          { label: t('dialog.action.updateCurrentTempo'), value: DETECTED_TEMPO_ACTION_UPDATE_CURRENT },
+          { label: t('dialog.action.insertTempoChange'), value: DETECTED_TEMPO_ACTION_INSERT_REGION },
         ],
       );
       if (!applyResult) {

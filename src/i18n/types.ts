@@ -1,4 +1,4 @@
-export type LanguageSetting = 'auto' | 'en_us' | 'zh_cn';
+export type LanguageSetting = 'auto' | 'en_us' | 'zh_cn' | 'zh_hk';
 
 export type ResolvedLocaleCode = Exclude<LanguageSetting, 'auto'>;
 

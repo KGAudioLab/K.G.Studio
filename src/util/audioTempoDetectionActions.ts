@@ -7,6 +7,7 @@ import {
   findTempoRegionAtBar,
   findTempoRegionAtBeat,
 } from './globalTrackUtil';
+import { translate } from '../i18n/translate';
 
 export const DETECTED_TEMPO_ACTION_UPDATE_CURRENT = 'update-current-tempo';
 export const DETECTED_TEMPO_ACTION_INSERT_REGION = 'insert-tempo-change';
@@ -16,7 +17,7 @@ export type DetectedTempoAction =
   | typeof DETECTED_TEMPO_ACTION_INSERT_REGION;
 
 export function buildDetectedTempoChoiceMessage(bpm: number): string {
-  return `Detected tempo: ${bpm} BPM. Choose how to apply it.\n\nUpdate Current Tempo changes the active tempo at this clip location. Insert Tempo Change adds a new tempo region at the nearest bar before the clip starts.`;
+  return translate('dialog.message.tempoApply', { bpm });
 }
 
 const ALIGNMENT_EPSILON = 1e-6;

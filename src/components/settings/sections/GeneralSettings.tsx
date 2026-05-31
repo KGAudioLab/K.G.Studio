@@ -354,6 +354,7 @@ const GeneralSettings: React.FC = () => {
               <option value="auto">{t('settings.general.language.auto')}</option>
               <option value="en_us">{t('settings.general.language.en_us')}</option>
               <option value="zh_cn">{t('settings.general.language.zh_cn')}</option>
+              <option value="zh_hk">{t('settings.general.language.zh_hk')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {t('settings.general.language.help')}
