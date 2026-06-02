@@ -44,6 +44,9 @@ const formatTps = (value?: number): string | null => {
 
 const THINKING_LABEL = 'Thinking...';
 const PROCESSING_LABEL = 'Processing...';
+const COMPACTION_IN_PROGRESS_LABEL = 'Compacting Conversation';
+const COMPACTION_DONE_LABEL = 'Conversation Compacted';
+const COMPACTION_EMPTY_LABEL = 'Nothing to Compact Yet';
 
 const formatThinkingDuration = (elapsedSeconds: number): string => {
   if (elapsedSeconds < 60) {
@@ -62,6 +65,9 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   const [thinkingElapsedSeconds, setThinkingElapsedSeconds] = useState(0);
   const processingWaveLabels = [THINKING_LABEL, PROCESSING_LABEL];
   const isThinking = isStreaming && content.includes(`<span class="processing-wave">${THINKING_LABEL}</span>`);
+  const isCompactionBanner = content === COMPACTION_IN_PROGRESS_LABEL
+    || content === COMPACTION_DONE_LABEL
+    || content === COMPACTION_EMPTY_LABEL;
 
   useEffect(() => {
     if (!isThinking) {
@@ -83,6 +89,16 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   }, [isThinking]);
 
   const renderContent = () => {
+    if (isCompactionBanner) {
+      return (
+        <div className="message-divider-banner" aria-label={content}>
+          <span className="message-divider-banner-line" aria-hidden="true" />
+          <span className="message-divider-banner-label">{content}</span>
+          <span className="message-divider-banner-line" aria-hidden="true" />
+        </div>
+      );
+    }
+
     // Handle special abort link for streaming messages
     if (isStreaming && onAbort && content.includes('click here to abort')) {
       const processingWaveMarkup = processingWaveLabels

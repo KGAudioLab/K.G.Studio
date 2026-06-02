@@ -313,6 +313,28 @@
   color: #909090;
 }
 
+.message-divider-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 2px 0;
+}
+
+.message-divider-banner-line {
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(102, 102, 102, 0.2) 0%, rgba(112, 112, 112, 0.55) 50%, rgba(102, 102, 102, 0.2) 100%);
+}
+
+.message-divider-banner-label {
+  flex: 0 0 auto;
+  color: #8c8c8c;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 /* Abort link styling */
 .abort-link {
   background: none !important;
@@ -326,7 +348,7 @@
 }
 
 .abort-link:hover {
-  color: #9b88ff !important;
+  color: #5a9fd4 !important;
   text-decoration: none !important;
 }
 

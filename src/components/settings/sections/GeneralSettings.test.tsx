@@ -16,6 +16,7 @@ const configState = new Map<string, unknown>([
   ['general.language', 'auto'],
   ['general.llm_provider', 'local_browser'],
   ['general.persist_api_keys_non_localhost', false],
+  ['general.auto_compact_threshold_percent', 90],
   ['general.openai.api_key', ''],
   ['general.openai.model', 'gpt-5.4-mini'],
   ['general.openai.flex', false],
@@ -107,6 +108,7 @@ describe('GeneralSettings', () => {
   beforeEach(() => {
     configState.set('general.language', 'auto');
     configState.set('general.local_browser.context_length', 65536);
+    configState.set('general.auto_compact_threshold_percent', 90);
     configManagerMock.get.mockClear();
     configManagerMock.set.mockClear();
     localModelState.isCached = false;
@@ -170,6 +172,19 @@ describe('GeneralSettings', () => {
 
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.local_browser.context_length', 131072);
+    });
+  });
+
+  it('renders and persists the auto-compact threshold', async () => {
+    renderSettings();
+
+    const select = await screen.findByLabelText('Auto-Compact Threshold');
+    expect((select as HTMLSelectElement).value).toBe('90');
+
+    fireEvent.change(select, { target: { value: '80' } });
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.auto_compact_threshold_percent', 80);
     });
   });
 

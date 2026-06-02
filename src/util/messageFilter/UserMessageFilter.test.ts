@@ -287,14 +287,29 @@ describe('processUserMessage slash commands', () => {
     expect(result.pseudoAssistantResponse).toContain('chat/hotkeys.md');
   });
 
+  it('parses /compact and returns manual compaction metadata', async () => {
+    const result = await processUserMessage('/compact keep the current chord decisions');
+
+    expect(result).toMatchObject({
+      displayUserMessage: false,
+      sendToLLM: false,
+      finalMessageForLLM: null,
+      pseudoAssistantResponse: null,
+      metadata: {
+        command: 'compact',
+        focus: 'keep the current chord decisions',
+      },
+    });
+  });
+
   it('lists the new hotkeys commands for unknown slash commands', async () => {
     const result = await processUserMessage('/unknown foo');
 
     expect(storeState.setStatus).toHaveBeenCalledWith(
-      'Unknown command: /unknown. Available commands: /clear, /welcome, /help, /hotkeys, /hotkey'
+      'Unknown command: /unknown. Available commands: /clear, /welcome, /help, /hotkeys, /hotkey, /compact'
     );
     expect(result.pseudoAssistantResponse).toBe(
-      'Unknown command: /unknown foo.\nAvailable commands: /clear, /welcome, /help, /hotkeys, /hotkey'
+      'Unknown command: /unknown foo.\nAvailable commands: /clear, /welcome, /help, /hotkeys, /hotkey, /compact'
     );
     expect(result).toMatchObject({
       displayUserMessage: false,

@@ -218,9 +218,22 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
         }
       }
 
+      case '/compact': {
+        return {
+          displayUserMessage: false,
+          sendToLLM: false,
+          finalMessageForLLM: null,
+          pseudoAssistantResponse: null,
+          metadata: {
+            command: 'compact',
+            focus: argString.trim() || undefined,
+          }
+        };
+      }
+
       default: {
         const { setStatus } = useProjectStore.getState();
-        const help = 'Available commands: /clear, /welcome, /help, /hotkeys, /hotkey';
+        const help = 'Available commands: /clear, /welcome, /help, /hotkeys, /hotkey, /compact';
         setStatus(`Unknown command: ${command}. ${help}`);
         return {
           displayUserMessage: false,

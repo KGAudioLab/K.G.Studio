@@ -41,6 +41,7 @@ const GeneralSettings: React.FC = () => {
   const [claudeOpenRouterModel, setClaudeOpenRouterModel] = useState<string>('');
   const [openaiFlex, setOpenaiFlex] = useState<boolean>(false);
   const [persistApiKeysNonLocalhost, setPersistApiKeysNonLocalhost] = useState<boolean>(false);
+  const [autoCompactThresholdPercent, setAutoCompactThresholdPercent] = useState<80 | 90 | 95>(90);
   const [compatibleKey, setCompatibleKey] = useState<string>('');
   const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
   const [compatibleModel, setCompatibleModel] = useState<string>('');
@@ -107,6 +108,9 @@ const GeneralSettings: React.FC = () => {
       setOpenaiModel((configManager.get('general.openai.model') as string) || '');
       setOpenaiFlex((configManager.get('general.openai.flex') as boolean) ?? false);
       setPersistApiKeysNonLocalhost((configManager.get('general.persist_api_keys_non_localhost') as boolean) ?? false);
+      setAutoCompactThresholdPercent(
+        ((configManager.get('general.auto_compact_threshold_percent') as 80 | 90 | 95 | undefined) ?? 90),
+      );
       setGeminiKey((configManager.get('general.gemini.api_key') as string) || '');
       setGeminiModel((configManager.get('general.gemini.model') as string) || '');
       setClaudeKey((configManager.get('general.claude.api_key') as string) || '');
@@ -203,6 +207,18 @@ const GeneralSettings: React.FC = () => {
       console.log('Persist API Keys Non-Localhost changed to:', boolValue);
     } catch (error) {
       console.error('Failed to save Persist API Keys Non-Localhost:', error);
+    }
+  };
+
+  const handleAutoCompactThresholdChange = async (value: string) => {
+    const parsed = Number(value);
+    const normalized: 80 | 90 | 95 = parsed === 80 || parsed === 95 ? parsed : 90;
+    setAutoCompactThresholdPercent(normalized);
+    try {
+      await configManager.set('general.auto_compact_threshold_percent', normalized);
+      console.log('Auto-compact threshold changed to:', normalized);
+    } catch (error) {
+      console.error('Failed to save auto-compact threshold:', error);
     }
   };
 
@@ -405,6 +421,25 @@ const GeneralSettings: React.FC = () => {
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {t('settings.general.persistKeys.help')}
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="general-auto-compact-threshold">
+              Auto-Compact Threshold
+            </label>
+            <select
+              id="general-auto-compact-threshold"
+              className="settings-select"
+              value={autoCompactThresholdPercent}
+              onChange={(e) => void handleAutoCompactThresholdChange(e.target.value)}
+            >
+              <option value="95">Conservative (95%)</option>
+              <option value="90">Standard (90%)</option>
+              <option value="80">Early (80%)</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              Compact the conversation before the next request when estimated context usage reaches this level.
             </div>
           </div>
         </div>

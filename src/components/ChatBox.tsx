@@ -11,7 +11,7 @@ import { SystemPrompts } from '../agent/core/SystemPrompts';
 import { clearChatHistoryAndUI, registerClearChatUICallback } from '../util/chatUtil';
 import { processUserMessage } from '../util/messageFilter/UserMessageFilter';
 import { useStreamProcessor } from '../hooks/useStreamProcessor';
-import { createMessage, addWelcomeMessage } from '../utils/chatMessageUtils';
+import { createMessage, createStreamingMessage, addWelcomeMessage } from '../utils/chatMessageUtils';
 import { formatLocalDateTime } from '../util/timeUtil';
 import { downloadBlob, buildTimestampSuffix } from '../util/miscUtil';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../util/localLLMModelManager';
@@ -70,6 +70,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCompacting, setIsCompacting] = useState(false);
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
   const [activeProvider, setActiveProvider] = useState<string>('openai');
@@ -87,7 +88,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   const handleExportOptionSelect = (option: string) => {
     if (option === 'Export conversation as JSON') {
       try {
-        const agentMessages = AgentCore.instance().getAgentState().getMessages();
+        const agentMessages = AgentCore.instance().getAgentState().getFullMessages();
         const exportMessages = agentMessages.map((m) => ({
           id: m.id,
           role: m.role,
@@ -105,7 +106,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     } else if (option === 'Export conversation as Markdown') {
       (async () => {
         try {
-          const agentMessages = AgentCore.instance().getAgentState().getMessages();
+          const agentMessages = AgentCore.instance().getAgentState().getFullMessages();
           const templateUrl = `${import.meta.env.BASE_URL}chat/export_conversation_template.md`;
           const res = await fetch(templateUrl);
           const template = await res.text();
@@ -204,6 +205,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
           changedKeys.includes('general.llm_provider') ||
           changedKeys.includes('general.local_browser.context_length') ||
           changedKeys.some(k => k.startsWith('general.openai.')) ||
+          changedKeys.some(k => k.startsWith('general.claude_openrouter.')) ||
           changedKeys.some(k => k.startsWith('general.openai_compatible.'))
         ) {
           applyProviderFromConfig();
@@ -255,8 +257,78 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
     clearChatHistoryAndUI(setStatus);
   };
 
+  const runCompactionWithStatus = useCallback(async (
+    trigger: 'manual' | 'auto',
+    focus?: string,
+  ): Promise<boolean> => {
+    const agentCore = AgentCore.instance();
+    const statusMessage = createMessage('assistant', 'Compacting Conversation');
+    const progressMessage = createStreamingMessage();
+    let progressTokenCount = 0;
+
+    handleMessageAdd(statusMessage);
+    handleMessageAdd(progressMessage);
+    setIsCompacting(true);
+
+    try {
+      const result = await agentCore.compactConversation({
+        trigger,
+        focus,
+        onProgress: () => {
+          progressTokenCount += 1;
+          handleMessageUpdate(progressMessage.id, (msg) => ({
+            ...msg,
+            content: `<span class="processing-wave">Processing...</span>${progressTokenCount > 0 ? ` ${progressTokenCount} tokens received.` : ''} click here to abort.`,
+            tokenCount: progressTokenCount,
+          }));
+        },
+      });
+
+      handleMessageUpdate(statusMessage.id, (msg) => ({
+        ...msg,
+        content: result.changed ? 'Conversation Compacted' : 'Nothing to Compact Yet',
+      }));
+      handleMessageRemove(progressMessage.id);
+      return result.changed;
+    } catch (error) {
+      console.error('Conversation compaction failed:', error);
+      handleMessageUpdate(statusMessage.id, (msg) => ({
+        ...msg,
+        content: `Compaction failed: ${error instanceof Error ? error.message : 'Unable to compact the conversation.'}`,
+      }));
+      handleMessageRemove(progressMessage.id);
+      return false;
+    } finally {
+      setIsCompacting(false);
+    }
+  }, [handleMessageAdd, handleMessageRemove, handleMessageUpdate]);
+
+  const sendWithCompactionRecovery = useCallback(async (
+    llmInput: string,
+    originalUserMessage: string,
+  ): Promise<void> => {
+    try {
+      await streamProcessor.processStream(llmInput, 'USER');
+    } catch (error) {
+      const provider = AgentCore.instance().getLLMProvider();
+      if (provider?.isContextTooLongError?.(error)) {
+        const compacted = await runCompactionWithStatus('auto');
+        if (compacted) {
+          try {
+            await streamProcessor.processStream(llmInput, 'USER');
+          } catch (retryError) {
+            console.error('Retry after compaction failed:', retryError, originalUserMessage);
+          }
+          return;
+        }
+      }
+
+      console.error('Failed to process user message:', error, originalUserMessage);
+    }
+  }, [runCompactionWithStatus, streamProcessor]);
+
   const handleSend = async () => {
-    if (inputValue.trim() && !isProcessing) {
+    if (inputValue.trim() && !isProcessing && !isCompacting) {
       const userMessage = inputValue.trim();
       setLastUserMessage(userMessage);
       setInputValue('');
@@ -271,6 +343,14 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       if (filterResult.pseudoAssistantResponse) {
         const pseudoMessage = createMessage('assistant', filterResult.pseudoAssistantResponse);
         handleMessageAdd(pseudoMessage);
+      }
+
+      if (filterResult.metadata?.command === 'compact') {
+        await runCompactionWithStatus(
+          'manual',
+          typeof filterResult.metadata.focus === 'string' ? filterResult.metadata.focus : undefined,
+        );
+        return;
       }
 
       if (!filterResult.sendToLLM || !filterResult.finalMessageForLLM) {
@@ -294,7 +374,12 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       }
 
       // Process through stream processor — AgentCore handles the full agentic loop internally
-      await streamProcessor.processStream(filterResult.finalMessageForLLM, 'USER');
+      const agentCore = AgentCore.instance();
+      if (await agentCore.shouldCompactBeforeNextTurn(filterResult.finalMessageForLLM)) {
+        await runCompactionWithStatus('auto');
+      }
+
+      await sendWithCompactionRecovery(filterResult.finalMessageForLLM, userMessage);
     }
   };
 
@@ -333,13 +418,13 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
 
   // Auto-focus input when processing completes
   useEffect(() => {
-    if (!isProcessing && textareaRef.current) {
+    if (!isProcessing && !isCompacting && textareaRef.current) {
       setTimeout(() => {
         textareaRef.current?.focus();
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 0);
     }
-  }, [isProcessing]);
+  }, [isCompacting, isProcessing]);
 
   const localRuntimeMessage = localModelState.runtimeSupport.reason;
   const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
@@ -448,7 +533,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {!isProcessing && (
+      {!isProcessing && !isCompacting && (
         <div className="chatbox-input-area">
           <textarea
             ref={textareaRef}

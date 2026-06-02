@@ -6,6 +6,19 @@ import { useProjectStore } from '../../stores/projectStore';
 import type { StreamChunk } from '../llm/StreamingTypes';
 import type { ToolCall } from './AgentState';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
+import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
+import { ConfigManager } from '../../core/config/ConfigManager';
+
+export interface CompactConversationOptions {
+  trigger: 'manual' | 'auto';
+  focus?: string;
+  onProgress?: (progress: CompactProgress) => void;
+}
+
+export interface CompactConversationResult {
+  changed: boolean;
+  compactedConversation: string;
+}
 
 /**
  * Main orchestrator for the AI agent system.
@@ -50,6 +63,10 @@ export class AgentCore {
       const tool = new ToolClass();
       return tool.getDefinition();
     });
+  }
+
+  private async getSystemPrompt(templatePath?: string): Promise<string> {
+    return SystemPrompts.getSystemPromptWithContext(templatePath);
   }
 
   /**
@@ -207,11 +224,128 @@ export class AgentCore {
     this.agentState.clearMessages();
   }
 
+  async shouldCompactBeforeNextTurn(userInput: string): Promise<boolean> {
+    if (!this.llmProvider?.estimateHistoryTokens || !this.llmProvider.getContextWindow) {
+      return false;
+    }
+
+    const contextWindow = this.llmProvider.getContextWindow();
+    if (!contextWindow) {
+      return false;
+    }
+
+    const tools = this.getToolDefinitions();
+    const systemPrompt = await this.getSystemPrompt(
+      this.llmProvider.getPreferredSystemPromptPath?.(),
+    );
+    const thresholdPercent = await this.getAutoCompactThresholdPercent();
+    const reservedOutputTokens = this.llmProvider.getReservedOutputTokens?.() ?? 4096;
+    const hypotheticalMessages = [
+      ...this.agentState.getMessages(),
+      {
+        id: `preflight_${Date.now()}`,
+        role: 'user' as const,
+        content: userInput,
+        timestamp: Date.now(),
+      },
+    ];
+    const estimatedTokens = await this.llmProvider.estimateHistoryTokens(
+      hypotheticalMessages,
+      systemPrompt,
+      tools,
+    );
+    const thresholdTokens = Math.floor(contextWindow * (thresholdPercent / 100));
+
+    return (estimatedTokens + reservedOutputTokens) >= thresholdTokens;
+  }
+
+  async compactConversation(options: CompactConversationOptions): Promise<CompactConversationResult> {
+    if (!this.llmProvider) {
+      throw new Error('No LLM provider configured');
+    }
+
+    const messages = this.agentState.getMessages();
+    if (messages.length < 2) {
+      return {
+        changed: false,
+        compactedConversation: messages.map(message => message.content ?? '').join('\n\n'),
+      };
+    }
+
+    const tailStartIndex = this.agentState.findRecentTailStartIndex();
+    if (tailStartIndex <= 0 || tailStartIndex >= messages.length) {
+      return {
+        changed: false,
+        compactedConversation: messages.map(message => message.content ?? '').join('\n\n'),
+      };
+    }
+
+    const compactionPrompt = await this.getSystemPrompt('prompts/system_compaction.md');
+    const compactor = new ConversationCompactor({
+      provider: this.llmProvider,
+      systemPrompt: compactionPrompt,
+      tools: this.getToolDefinitions(),
+      focus: options.focus,
+      onProgress: options.onProgress,
+    });
+    const result = await compactor.compact(messages, tailStartIndex);
+    if (!result.changed) {
+      return {
+        changed: false,
+        compactedConversation: result.compactedConversation,
+      };
+    }
+
+    const nextMessages = this.agentState.createCompactedHistory(
+      result.summary,
+      result.tailStartIndex,
+      options.trigger,
+    );
+    this.agentState.replaceMessages(nextMessages);
+    console.log('------------ COMPACTED CONVERSATION ------------');
+    console.log(result.compactedConversation);
+    console.log('------------------------------------------------');
+
+    return {
+      changed: true,
+      compactedConversation: result.compactedConversation,
+    };
+  }
+
+  async retryAfterCompaction(
+    userInput: string,
+    options: Omit<CompactConversationOptions, 'trigger'> = {},
+  ): Promise<CompactConversationResult> {
+    return this.compactConversation({
+      trigger: 'auto',
+      focus: options.focus,
+      onProgress: options.onProgress,
+    });
+  }
+
   getIsWorkingOnTask(): boolean {
     return this.agentState.getIsWorkingOnTask();
   }
 
   setIsWorkingOnTask(isWorking: boolean): void {
     this.agentState.setIsWorkingOnTask(isWorking);
+  }
+
+  private async getAutoCompactThresholdPercent(): Promise<80 | 90 | 95> {
+    try {
+      const configManager = ConfigManager.instance();
+      if (!configManager.getIsInitialized()) {
+        await configManager.initialize();
+      }
+
+      const configured = Number(configManager.get('general.auto_compact_threshold_percent'));
+      if (configured === 80 || configured === 95) {
+        return configured;
+      }
+    } catch (error) {
+      console.warn('Failed to load auto-compact threshold, using default.', error);
+    }
+
+    return 90;
   }
 }

@@ -93,4 +93,21 @@ describe('AssistantMessage', () => {
     expect(codeElement).toBeInTheDocument();
     expect(codeElement).toHaveTextContent('const value = 1;');
   });
+
+  it('renders compacting and compacted messages as divider banners', () => {
+    const { rerender, container } = render(
+      <AssistantMessage content="Compacting Conversation" />
+    );
+
+    expect(container.querySelector('.message-divider-banner')).toBeInTheDocument();
+    expect(screen.getByLabelText('Compacting Conversation')).toBeInTheDocument();
+
+    rerender(<AssistantMessage content="Conversation Compacted" />);
+
+    expect(screen.getByLabelText('Conversation Compacted')).toBeInTheDocument();
+
+    rerender(<AssistantMessage content="Nothing to Compact Yet" />);
+
+    expect(screen.getByLabelText('Nothing to Compact Yet')).toBeInTheDocument();
+  });
 });

@@ -144,7 +144,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
         isStreaming: false,
         tokenCount: undefined
       }));
-      return '';
+      throw error;
     } finally {
       setAbortController(null);
       setIsProcessing(false);

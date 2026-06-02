@@ -1,10 +1,27 @@
 import React from 'react';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ChatBox from './ChatBox';
 import { I18nContext } from '../i18n/I18nProvider';
 import type { ResolvedLocaleCode } from '../i18n/types';
 import { translate } from '../i18n/translate';
+
+const {
+  agentCoreMock,
+  processUserMessageMock,
+  processStreamMock,
+} = vi.hoisted(() => ({
+  agentCoreMock: {
+    setLLMProvider: vi.fn(),
+    getLLMProvider: vi.fn(() => ({ getPreferredSystemPromptPath: vi.fn() })),
+    abortCurrentRequest: vi.fn(),
+    getAgentState: vi.fn(() => ({ getMessages: vi.fn(() => []) })),
+    compactConversation: vi.fn(async () => ({ changed: true, compactedConversation: 'summary' })),
+    shouldCompactBeforeNextTurn: vi.fn(async () => false),
+  },
+  processUserMessageMock: vi.fn(),
+  processStreamMock: vi.fn(async () => ''),
+}));
 
 vi.mock('./chat', () => ({
   UserMessage: ({ content }: { content: string }) => <div>{content}</div>,
@@ -13,12 +30,7 @@ vi.mock('./chat', () => ({
 
 vi.mock('../agent/core/AgentCore', () => ({
   AgentCore: {
-    instance: () => ({
-      setLLMProvider: vi.fn(),
-      getLLMProvider: vi.fn(),
-      abortCurrentRequest: vi.fn(),
-      getAgentState: vi.fn(() => ({ getMessages: vi.fn(() => []) })),
-    }),
+    instance: () => agentCoreMock,
   },
 }));
 
@@ -66,18 +78,29 @@ vi.mock('../util/chatUtil', () => ({
 }));
 
 vi.mock('../util/messageFilter/UserMessageFilter', () => ({
-  processUserMessage: vi.fn(),
+  processUserMessage: processUserMessageMock,
 }));
 
 vi.mock('../hooks/useStreamProcessor', () => ({
   useStreamProcessor: () => ({
     abortController: null,
-    processStream: vi.fn(),
+    processStream: processStreamMock,
   }),
 }));
 
 vi.mock('../utils/chatMessageUtils', () => ({
-  createMessage: vi.fn(),
+  createMessage: vi.fn((role: 'user' | 'assistant', content: string) => ({
+    id: `${role}-${content}`,
+    role,
+    content,
+  })),
+  createStreamingMessage: vi.fn(() => ({
+    id: 'streaming-message',
+    role: 'assistant',
+    content: '<span class="processing-wave">Thinking...</span> click here to abort.',
+    isStreaming: true,
+    tokenCount: 0,
+  })),
   addWelcomeMessage: vi.fn().mockResolvedValue(null),
 }));
 
@@ -134,6 +157,13 @@ describe('ChatBox', () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
+  beforeEach(() => {
+    processUserMessageMock.mockReset();
+    processStreamMock.mockClear();
+    agentCoreMock.compactConversation.mockClear();
+    agentCoreMock.shouldCompactBeforeNextTurn.mockResolvedValue(false);
+  });
+
   it('renders the English assistant title under en_us', () => {
     renderWithLocale('en_us');
 
@@ -150,5 +180,29 @@ describe('ChatBox', () => {
     renderWithLocale('fr_fr');
 
     expect(screen.getByRole('heading', { level: 3, name: 'Assistant musical K.G.Studio' })).toBeTruthy();
+  });
+
+  it('shows compacting status and completion for /compact', async () => {
+    processUserMessageMock.mockResolvedValue({
+      displayUserMessage: false,
+      sendToLLM: false,
+      finalMessageForLLM: null,
+      pseudoAssistantResponse: null,
+      metadata: {
+        command: 'compact',
+        focus: 'keep the latest work',
+      },
+    });
+
+    renderWithLocale('en_us');
+
+    const input = screen.getByPlaceholderText('Press Enter to send message, Shift + Enter for new line');
+    fireEvent.change(input, { target: { value: '/compact keep the latest work' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(agentCoreMock.compactConversation).toHaveBeenCalled();
+      expect(screen.getByText('Conversation Compacted')).toBeTruthy();
+    });
   });
 });

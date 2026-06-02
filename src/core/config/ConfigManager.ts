@@ -10,6 +10,7 @@ interface AppConfig {
     language: LanguageSetting;
     llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
+    auto_compact_threshold_percent: 80 | 90 | 95;
     local_browser: {
       context_length: 32768 | 65536 | 131072;
       model_url: string;
@@ -209,6 +210,7 @@ export class ConfigManager {
           language: 'auto',
           llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
+          auto_compact_threshold_percent: 90,
           openai: {
             api_key: '',
             flex: false,

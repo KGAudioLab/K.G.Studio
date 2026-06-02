@@ -21,10 +21,13 @@ export interface Message {
   timestamp: number;
   tool_calls?: ToolCall[];    // present on assistant messages when LLM invokes tools
   tool_call_id?: string;      // present on tool-result messages, links back to ToolCall.id
+  is_compacted_summary?: boolean;
+  compact_trigger?: 'manual' | 'auto';
 }
 
 export class AgentState {
   private messages: Message[] = [];
+  private fullMessages: Message[] = [];
   private conversationId: string;
   private isWorkingOnTask: boolean = false;
 
@@ -39,7 +42,12 @@ export class AgentState {
   addMessage(
     role: 'user' | 'assistant' | 'tool',
     content: string | null,
-    options?: { tool_calls?: ToolCall[]; tool_call_id?: string }
+    options?: {
+      tool_calls?: ToolCall[];
+      tool_call_id?: string;
+      is_compacted_summary?: boolean;
+      compact_trigger?: 'manual' | 'auto';
+    }
   ): string {
     const message: Message = {
       id: this.generateMessageId(),
@@ -48,9 +56,12 @@ export class AgentState {
       timestamp: Date.now(),
       ...(options?.tool_calls ? { tool_calls: options.tool_calls } : {}),
       ...(options?.tool_call_id ? { tool_call_id: options.tool_call_id } : {}),
+      ...(options?.is_compacted_summary ? { is_compacted_summary: true } : {}),
+      ...(options?.compact_trigger ? { compact_trigger: options.compact_trigger } : {}),
     };
 
     this.messages.push(message);
+    this.fullMessages.push({ ...message });
     return message.id;
   }
 
@@ -64,6 +75,17 @@ export class AgentState {
       if (options?.tool_calls) {
         this.messages[messageIndex].tool_calls = options.tool_calls;
       }
+    }
+
+    const fullMessageIndex = this.fullMessages.findIndex(msg => msg.id === messageId);
+    if (fullMessageIndex !== -1) {
+      this.fullMessages[fullMessageIndex].content = content;
+      if (options?.tool_calls) {
+        this.fullMessages[fullMessageIndex].tool_calls = options.tool_calls;
+      }
+    }
+
+    if (messageIndex !== -1 || fullMessageIndex !== -1) {
       return true;
     }
     return false;
@@ -76,6 +98,14 @@ export class AgentState {
     const messageIndex = this.messages.findIndex(msg => msg.id === messageId);
     if (messageIndex !== -1) {
       this.messages.splice(messageIndex, 1);
+    }
+
+    const fullMessageIndex = this.fullMessages.findIndex(msg => msg.id === messageId);
+    if (fullMessageIndex !== -1) {
+      this.fullMessages.splice(fullMessageIndex, 1);
+    }
+
+    if (messageIndex !== -1 || fullMessageIndex !== -1) {
       return true;
     }
     return false;
@@ -86,6 +116,7 @@ export class AgentState {
    */
   removeLastMessages(count: number): void {
     this.messages.splice(-count, count);
+    this.fullMessages.splice(-count, count);
   }
 
   /**
@@ -93,6 +124,10 @@ export class AgentState {
    */
   getMessages(): Message[] {
     return [...this.messages];
+  }
+
+  getFullMessages(): Message[] {
+    return [...this.fullMessages];
   }
 
   /**
@@ -107,6 +142,11 @@ export class AgentState {
    */
   clearMessages(): void {
     this.messages = [];
+    this.fullMessages = [];
+  }
+
+  replaceMessages(messages: Message[]): void {
+    this.messages = [...messages];
   }
 
   /**
@@ -114,6 +154,29 @@ export class AgentState {
    */
   getRecentMessages(count: number): Message[] {
     return this.messages.slice(-count);
+  }
+
+  findRecentTailStartIndex(): number {
+    for (let i = this.messages.length - 1; i >= 0; i -= 1) {
+      if (this.messages[i].role === 'user') {
+        return i;
+      }
+    }
+    return this.messages.length;
+  }
+
+  createCompactedHistory(summary: string, tailStartIndex: number, trigger: 'manual' | 'auto'): Message[] {
+    const preservedTail = this.messages.slice(Math.max(0, tailStartIndex));
+    const summaryMessage: Message = {
+      id: this.generateMessageId(),
+      role: 'assistant',
+      content: summary,
+      timestamp: Date.now(),
+      is_compacted_summary: true,
+      compact_trigger: trigger,
+    };
+
+    return [summaryMessage, ...preservedTail];
   }
 
   private generateConversationId(): string {

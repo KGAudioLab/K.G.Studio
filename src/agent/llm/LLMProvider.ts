@@ -2,14 +2,45 @@ import OpenAI from 'openai';
 import type { StreamChunk } from './StreamingTypes';
 import type { Message, ToolCall } from '../core/AgentState';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
+import { getModelTokenLimits } from './modelTokenLimits';
 
 export interface LLMProvider {
   getPreferredSystemPromptPath?(): string | undefined;
+  getContextWindow?(): number | undefined;
+  getReservedOutputTokens?(): number | undefined;
+  estimateHistoryTokens?(
+    messages: Message[],
+    systemPrompt?: string,
+    tools?: OpenAIToolDefinition[],
+  ): Promise<number> | number;
+  isContextTooLongError?(error: unknown): boolean;
   generateStream(
     messages: Message[],
     systemPrompt?: string,
     tools?: OpenAIToolDefinition[],
   ): AsyncIterableIterator<StreamChunk>;
+}
+
+function extractErrorDetails(error: unknown): { code?: string; message?: string } {
+  if (!error || typeof error !== 'object') {
+    return {};
+  }
+
+  const asRecord = error as Record<string, unknown>;
+  const nestedError = asRecord.error && typeof asRecord.error === 'object'
+    ? asRecord.error as Record<string, unknown>
+    : undefined;
+  const code = typeof asRecord.code === 'string'
+    ? asRecord.code
+    : typeof nestedError?.code === 'string'
+      ? nestedError.code
+      : undefined;
+  const message = typeof asRecord.message === 'string'
+    ? asRecord.message
+    : typeof nestedError?.message === 'string'
+      ? nestedError.message
+      : undefined;
+  return { code, message };
 }
 
 /**
@@ -29,6 +60,53 @@ export class OpenAICompatibleLLMProvider implements LLMProvider {
       dangerouslyAllowBrowser: true,
     });
     this.model = model;
+  }
+
+  getContextWindow(): number | undefined {
+    return getModelTokenLimits(this.model)?.contextWindow;
+  }
+
+  getReservedOutputTokens(): number | undefined {
+    const limits = getModelTokenLimits(this.model);
+    if (!limits) {
+      return undefined;
+    }
+
+    if (typeof limits.reservedOutputTokens === 'number') {
+      return limits.reservedOutputTokens;
+    }
+
+    if (typeof limits.maxOutputTokens === 'number') {
+      return Math.min(limits.maxOutputTokens, 8_192);
+    }
+
+    return undefined;
+  }
+
+  estimateHistoryTokens(
+    messages: Message[],
+    systemPrompt?: string,
+    tools?: OpenAIToolDefinition[],
+  ): number {
+    const openaiMessages = this.convertMessages(messages, systemPrompt);
+    const payload = JSON.stringify({
+      model: this.model,
+      messages: openaiMessages,
+      tools: tools ?? [],
+    });
+
+    // Conservative browser-side estimate for preflight checks.
+    return Math.ceil(payload.length / 3);
+  }
+
+  isContextTooLongError(error: unknown): boolean {
+    const { code, message } = extractErrorDetails(error);
+    if (code === 'context_length_exceeded') {
+      return true;
+    }
+
+    return typeof message === 'string'
+      && /context window|maximum context length|input exceeds the context window|context too long/i.test(message);
   }
 
   private convertMessages(
