@@ -8,6 +8,24 @@ vi.mock('../agent/core/AgentCore', () => ({
   }
 }));
 
+vi.mock('../core/KGCore', () => ({
+  KGCore: {
+    instance: vi.fn()
+  }
+}));
+
+vi.mock('../stores/projectStore', () => ({
+  useProjectStore: {
+    getState: vi.fn(() => ({
+      activeRegionId: null,
+      selectedRegionIds: [],
+      timeSignature: { numerator: 4, denominator: 4 },
+      tracks: [],
+      refreshProjectState: vi.fn(),
+    })),
+  },
+}));
+
 vi.mock('../utils/chatMessageUtils', () => ({
   createStreamingMessage: () => ({
     id: 'streaming-message',
@@ -24,6 +42,8 @@ vi.mock('../utils/chatMessageUtils', () => ({
 }));
 
 import { AgentCore } from '../agent/core/AgentCore';
+import { KGCore } from '../core/KGCore';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { useStreamProcessor } from './useStreamProcessor';
 import type { ChatMessage } from '../types/projectTypes';
 
@@ -215,6 +235,94 @@ describe('useStreamProcessor', () => {
 
     const addedMessages = [...messages.values()];
     expect(addedMessages.some(message => message.content.includes('Calling tool: read_music'))).toBe(true);
+    expect(addedMessages.some(message => message.isToolCallMessage)).toBe(true);
     expect(addedMessages.some(message => message.toolName === 'update_todo_list')).toBe(false);
+  });
+
+it('attaches add_notes summary metadata for chat-only rendering while preserving raw content', async () => {
+  const selectedRegion = new KGMidiRegion('region-1', '1', 0, 'Verse Melody');
+
+  vi.spyOn(AgentCore, 'instance').mockReturnValue({
+    getAgentState: () => ({
+      getTodos: () => [],
+    }),
+      processUserInput: async function* () {
+        yield {
+          type: 'tool_call',
+          content: '',
+        toolCall: {
+          id: 'add-notes-call-1',
+          type: 'function',
+          function: {
+            name: 'add_notes',
+            arguments: JSON.stringify({
+              notes: [
+                { pitch: 'C4', start: 16, length: 4 },
+                { pitch: 'E4', start: 20, length: 8 },
+              ],
+              }),
+            },
+          },
+        };
+        yield {
+          type: 'tool_result',
+          content: '',
+          toolResult: {
+            name: 'add_notes',
+            success: true,
+            result: 'Successfully created 2 notes: C4 (beat 16, length 4), E4 (beat 20, length 8)',
+          },
+        };
+        yield { type: 'done', content: '' };
+      },
+    } as unknown as AgentCore);
+
+  vi.spyOn(KGCore, 'instance').mockReturnValue({
+    getCurrentProject: () => ({
+      getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
+      getTracks: () => [
+        {
+          getId: () => '1',
+          getName: () => 'Lead',
+          getRegions: () => [selectedRegion],
+        },
+      ],
+    }),
+    getSelectedItems: () => [selectedRegion],
+  } as unknown as KGCore);
+
+    const messages = new Map<string, ChatMessage>();
+
+    const { result } = renderHook(() => useStreamProcessor({
+      onMessageAdd: (message) => {
+        messages.set(message.id, message);
+      },
+      onMessageUpdate: (messageId, updater) => {
+        const current = messages.get(messageId);
+        if (!current) {
+          throw new Error(`Missing message ${messageId}`);
+        }
+        messages.set(messageId, updater(current));
+      },
+      onMessageRemove: (messageId) => {
+        messages.delete(messageId);
+      },
+      onProcessingChange: () => undefined,
+    }));
+
+    await act(async () => {
+      await result.current.processStream('add notes prompt');
+    });
+
+    const addedMessages = [...messages.values()];
+    const toolCallMessage = addedMessages.find(message => message.isToolCallMessage);
+    const addNotesMessage = addedMessages.find(message => message.toolName === 'add_notes');
+
+    expect(toolCallMessage?.content).toContain('Calling tool: add_notes');
+    expect(addNotesMessage?.content).toContain('Successfully created 2 notes:');
+    expect(addNotesMessage?.toolRawResult).toBe('Successfully created 2 notes: C4 (beat 16, length 4), E4 (beat 20, length 8)');
+    expect(addNotesMessage?.toolResultDisplayContent).toBe(
+      'Successfully created 2 notes in region **Verse Melody** on track **Lead**, spanning bars 5 to 7.'
+    );
   });
 });

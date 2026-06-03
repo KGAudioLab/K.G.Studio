@@ -1,9 +1,148 @@
 import { useState, useCallback } from 'react';
 import { AgentCore } from '../agent/core/AgentCore';
+import { KGCore } from '../core/KGCore';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { createStreamingMessage, createMessage } from '../utils/chatMessageUtils';
+import { useProjectStore } from '../stores/projectStore';
 import type { ChatMessage } from '../types/projectTypes';
 
 const TODO_TOOL_NAME = 'update_todo_list';
+const ADD_NOTES_TOOL_NAME = 'add_notes';
+
+interface PendingToolCall {
+  name: string;
+  arguments: Record<string, unknown> | null;
+}
+
+interface AddNotesToolArguments {
+  notes: Array<{
+    pitch: string;
+    start: number;
+    length: number;
+    velocity?: number;
+  }>;
+  region_id?: string;
+}
+
+const getBarNumberFromStartBeat = (beat: number, beatsPerBar: number): number => (
+  Math.floor(beat / beatsPerBar) + 1
+);
+
+const getBarNumberFromEndBeat = (beat: number, beatsPerBar: number): number => (
+  Math.max(1, Math.ceil(beat / beatsPerBar))
+);
+
+interface AddNotesSummaryData {
+  noteCount: number;
+  regionName: string;
+  trackName: string;
+  earliestNoteStartBar: number;
+  latestNoteEndBar: number;
+}
+
+const resolveTargetMidiRegion = (
+  regionId: string | undefined,
+  storeState: ReturnType<typeof useProjectStore.getState>,
+): { region: KGMidiRegion; trackName: string } | undefined => {
+  const project = KGCore.instance().getCurrentProject();
+  const tracks = project.getTracks();
+
+  const findById = (candidateRegionId: string): { region: KGMidiRegion; trackName: string } | undefined => {
+    for (const track of tracks) {
+      const region = track.getRegions().find(candidate => candidate.getId() === candidateRegionId);
+      if (region instanceof KGMidiRegion) {
+        return {
+          region,
+          trackName: track.getName(),
+        };
+      }
+    }
+
+    return undefined;
+  };
+
+  if (regionId) {
+    return findById(regionId);
+  }
+
+  if (storeState.activeRegionId) {
+    const activeRegion = findById(storeState.activeRegionId);
+    if (activeRegion) {
+      return activeRegion;
+    }
+  }
+
+  const selectedRegionId = storeState.selectedRegionIds.at(-1);
+  if (selectedRegionId) {
+    const selectedRegion = findById(selectedRegionId);
+    if (selectedRegion) {
+      return selectedRegion;
+    }
+  }
+
+  const selectedItems = KGCore.instance().getSelectedItems();
+  for (const item of selectedItems) {
+    if (item instanceof KGMidiRegion) {
+      const track = tracks.find(candidate => candidate.getId() === item.getTrackId());
+      return {
+        region: item,
+        trackName: track?.getName() ?? `Track ${item.getTrackIndex() + 1}`,
+      };
+    }
+  }
+
+  return undefined;
+};
+
+const buildAddNotesSummary = (args: Record<string, unknown> | null): AddNotesSummaryData | undefined => {
+  if (!args) {
+    return undefined;
+  }
+
+  const typedArgs = args as AddNotesToolArguments;
+  if (!Array.isArray(typedArgs.notes) || typedArgs.notes.length === 0) {
+    return undefined;
+  }
+
+  const storeState = useProjectStore.getState();
+  const project = KGCore.instance().getCurrentProject();
+  const beatsPerBar = project.getTimeSignature().numerator ?? storeState.timeSignature.numerator;
+  const targetRegion = resolveTargetMidiRegion(typedArgs.region_id, storeState);
+  if (!targetRegion) {
+    return undefined;
+  }
+
+  const earliestNoteStartBeat = Math.min(...typedArgs.notes.map(note => note.start));
+  const latestNoteEndBeat = Math.max(...typedArgs.notes.map(note => note.start + note.length));
+
+  return {
+    noteCount: typedArgs.notes.length,
+    regionName: targetRegion.region.getName(),
+    trackName: targetRegion.trackName,
+    earliestNoteStartBar: getBarNumberFromStartBeat(earliestNoteStartBeat, beatsPerBar),
+    latestNoteEndBar: getBarNumberFromEndBeat(latestNoteEndBeat, beatsPerBar),
+  };
+};
+
+const buildToolResultDisplayContent = (
+  toolName: string,
+  success: boolean,
+  rawResult: string,
+  toolArgs: Record<string, unknown> | null,
+): string => {
+  if (!success) {
+    return rawResult;
+  }
+
+  if (toolName === ADD_NOTES_TOOL_NAME) {
+    const summary = buildAddNotesSummary(toolArgs);
+    if (summary) {
+      return `Successfully created ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+    }
+  }
+
+  return rawResult;
+};
 
 interface StreamProcessorOptions {
   onMessageUpdate: (messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void;
@@ -35,6 +174,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
     // Track the current streaming message ID (mutable)
     const initialStreamingMsg = createStreamingMessage();
     let currentStreamingId = initialStreamingMsg.id;
+    const pendingToolCalls: PendingToolCall[] = [];
     onMessageAdd(initialStreamingMsg);
 
     try {
@@ -91,14 +231,29 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           try {
             const args = JSON.parse(chunk.toolCall.function.arguments);
             argsDisplay = JSON.stringify(args, null, 2);
+            pendingToolCalls.push({ name: toolName, arguments: args });
           } catch {
             argsDisplay = chunk.toolCall.function.arguments;
+            pendingToolCalls.push({ name: toolName, arguments: null });
           }
-          const toolCallMsg = createMessage('assistant', `🔧 **Calling tool: ${toolName}**\n\n\`\`\`json\n${argsDisplay}\n\`\`\``);
+          const toolCallMsg = {
+            ...createMessage('assistant', `🔧 **Calling tool: ${toolName}**\n\n\`\`\`json\n${argsDisplay}\n\`\`\``),
+            isToolCallMessage: true,
+          };
           onMessageAdd(toolCallMsg);
         } else if (chunk.type === 'tool_result' && chunk.toolResult) {
           // Show tool result in UI
           const { name, success, result } = chunk.toolResult;
+          const pendingToolCallIndex = pendingToolCalls.findIndex(toolCall => toolCall.name === name);
+          const pendingToolCall = pendingToolCallIndex >= 0
+            ? pendingToolCalls.splice(pendingToolCallIndex, 1)[0]
+            : undefined;
+          const toolResultDisplayContent = buildToolResultDisplayContent(
+            name,
+            success,
+            result,
+            pendingToolCall?.arguments ?? null,
+          );
           const toolResultMsg = name === TODO_TOOL_NAME
             ? {
               ...createMessage('assistant', result),
@@ -106,7 +261,13 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
               toolSuccess: success,
               todoSnapshot: AgentCore.instance().getAgentState().getTodos().map(todo => ({ ...todo })),
             }
-            : createMessage('assistant', `${success ? '✅' : '❌'} **${name}**\n\n └── ${result}`);
+            : {
+              ...createMessage('assistant', `${success ? '✅' : '❌'} **${name}**\n\n └── ${result}`),
+              toolName: name,
+              toolSuccess: success,
+              toolRawResult: result,
+              toolResultDisplayContent,
+            };
           onMessageAdd(toolResultMsg);
 
           // Reset for the next LLM turn in the agentic loop

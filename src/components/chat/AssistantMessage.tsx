@@ -1,8 +1,9 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { FaCaretDown, FaCaretUp } from 'react-icons/fa';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { PerformanceInfo } from '../../agent/llm/StreamingTypes';
@@ -16,13 +17,109 @@ interface AssistantMessageProps {
   performanceInfo?: PerformanceInfo;
   toolName?: string;
   toolSuccess?: boolean;
+  toolRawResult?: string;
+  toolResultDisplayContent?: string;
   todoSnapshot?: TodoItem[];
+  isToolCallMessage?: boolean;
 }
 
-// Memoized code component to prevent SyntaxHighlighter re-renders
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const CodeComponent = memo(({ inline, className, children, ...props }: any) => {
+const COLLAPSED_TOOL_CALL_HEIGHT_PX = 200;
+const TOOL_CALL_FADE_HEIGHT_PX = 50;
+
+interface MarkdownCodeProps {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}
+
+const ToolCallCodeBlock = memo(({
+  className,
+  children,
+}: Omit<MarkdownCodeProps, 'inline'>) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isExpandable, setIsExpandable] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedHeight, setExpandedHeight] = useState(COLLAPSED_TOOL_CALL_HEIGHT_PX);
   const match = /language-(\w+)/.exec(className || '');
+  const codeText = String(children).replace(/\n$/, '');
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const measuredHeight = container.scrollHeight;
+    setExpandedHeight(measuredHeight);
+    setIsExpandable(measuredHeight > COLLAPSED_TOOL_CALL_HEIGHT_PX);
+  }, [codeText]);
+
+  const handleToggleExpanded = () => {
+    const scrollContainer = containerRef.current?.closest('.chatbox-messages') as HTMLDivElement | null;
+    const previousScrollTop = scrollContainer?.scrollTop ?? null;
+
+    setIsExpanded((current) => !current);
+
+    window.requestAnimationFrame(() => {
+      if (scrollContainer && previousScrollTop !== null) {
+        scrollContainer.scrollTop = previousScrollTop;
+      }
+    });
+  };
+
+  const maxHeight = isExpanded ? `${expandedHeight}px` : `${COLLAPSED_TOOL_CALL_HEIGHT_PX}px`;
+
+  return (
+    <div
+      className={`tool-call-code-block${isExpandable ? ' is-expandable' : ''}${isExpanded ? ' is-expanded' : ''}`}
+      data-testid="tool-call-code-block"
+    >
+      <div
+        ref={containerRef}
+        className="tool-call-code-block-inner"
+        style={{ maxHeight }}
+      >
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={match?.[1]}
+          PreTag="div"
+        >
+          {codeText}
+        </SyntaxHighlighter>
+      </div>
+      {isExpandable && (
+        <button
+          type="button"
+          className="tool-call-code-block-toggle"
+          onClick={handleToggleExpanded}
+        >
+          <span
+            className="tool-call-code-block-fade"
+            aria-hidden="true"
+            style={{ height: `${TOOL_CALL_FADE_HEIGHT_PX}px` }}
+          />
+          <span className="tool-call-code-block-toggle-content">
+            {isExpanded ? <FaCaretUp aria-hidden="true" /> : <FaCaretDown aria-hidden="true" />}
+            <span>{isExpanded ? 'Click to collapse' : 'Click to expand'}</span>
+            {isExpanded ? <FaCaretUp aria-hidden="true" /> : <FaCaretDown aria-hidden="true" />}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+});
+
+// Memoized code component to prevent SyntaxHighlighter re-renders
+const CodeComponent = memo(({ inline, className, children, isToolCallMessage, ...props }: MarkdownCodeProps & { isToolCallMessage: boolean }) => {
+  const match = /language-(\w+)/.exec(className || '');
+  if (!inline && match && isToolCallMessage) {
+    return (
+      <ToolCallCodeBlock className={className}>
+        {children}
+      </ToolCallCodeBlock>
+    );
+  }
+
   return !inline && match ? (
     <SyntaxHighlighter
       style={vscDarkPlus}
@@ -70,7 +167,10 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
   performanceInfo,
   toolName,
   toolSuccess,
+  toolRawResult,
+  toolResultDisplayContent,
   todoSnapshot,
+  isToolCallMessage = false,
 }) => {
   const prefillTps = formatTps(performanceInfo?.prefillTps);
   const generationTps = formatTps(performanceInfo?.generationTps);
@@ -82,6 +182,8 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
     || content === COMPACTION_DONE_LABEL
     || content === COMPACTION_EMPTY_LABEL;
   const isTodoSnapshotCard = toolName === 'update_todo_list' && Array.isArray(todoSnapshot);
+  const shouldRenderGenericToolResult = Boolean(toolName) && typeof toolSuccess === 'boolean' && !isTodoSnapshotCard;
+  const genericToolDisplayContent = toolResultDisplayContent ?? toolRawResult ?? content;
 
   useEffect(() => {
     if (!isThinking) {
@@ -184,12 +286,37 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
       }
     }
 
+    if (shouldRenderGenericToolResult && toolName) {
+      return (
+        <div className="message-tool-result">
+          <p className="message-tool-result-title">
+            <span aria-hidden="true">{toolSuccess ? '✅' : '❌'}</span>{' '}
+            <strong>{toolName}</strong>
+          </p>
+          <div className="message-tool-summary">
+            <span className="message-tool-summary-prefix" aria-hidden="true">└── </span>
+            <div className="message-tool-summary-content">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  code: (props) => <CodeComponent {...props} isToolCallMessage={false} />,
+                }}
+              >
+                {genericToolDisplayContent}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          code: CodeComponent,
+          code: (props) => <CodeComponent {...props} isToolCallMessage={isToolCallMessage} />,
         }}
       >
         {content}

@@ -527,7 +527,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               performanceInfo={message.performanceInfo}
               toolName={message.toolName}
               toolSuccess={message.toolSuccess}
+              toolRawResult={message.toolRawResult}
+              toolResultDisplayContent={message.toolResultDisplayContent}
               todoSnapshot={message.todoSnapshot}
+              isToolCallMessage={message.isToolCallMessage}
               onAbort={message.isStreaming ? handleAbort : undefined}
             />
           )

@@ -16,7 +16,10 @@ export interface ChatMessage {
     performanceInfo?: PerformanceInfo;
     toolName?: string;
     toolSuccess?: boolean;
+    toolRawResult?: string;
+    toolResultDisplayContent?: string;
     todoSnapshot?: TodoItem[];
+    isToolCallMessage?: boolean;
 }
 
 /**
