@@ -163,6 +163,20 @@ describe('KGProjectStorage', () => {
     expect(loaded!.getPianoRollZoom()).toBe(5);
   });
 
+  it('preserves persisted global-track visibility and metronome state when saving and loading', async () => {
+    const project = createTestProject('Toggle Song');
+    project.setShowGlobalTracks(true);
+    project.setIsMetronomeEnabled(true);
+
+    await storage.save('Toggle Song', project);
+
+    const loaded = await storage.load('Toggle Song');
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.getShowGlobalTracks()).toBe(true);
+    expect(loaded!.getIsMetronomeEnabled()).toBe(true);
+  });
+
   it('preserves global tracks and marker regions when saving and loading', async () => {
     const project = createTestProject('Marker Song');
     const markerTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Marker);

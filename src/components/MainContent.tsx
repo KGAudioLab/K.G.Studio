@@ -68,6 +68,8 @@ const MainContent: React.FC<MainContentProps> = ({
     addAudioTrack,
     projectName,
     savedProjectName,
+    showGlobalTracks,
+    setShowGlobalTracks,
     requestPianoRollScroll,
     mainContentScrollRequest,
     activeTrackAutomationTrackId,
@@ -84,7 +86,6 @@ const MainContent: React.FC<MainContentProps> = ({
   const [draggedTrackIndex, setDraggedTrackIndex] = useState<number | null>(null);
   const [dragOverTrackIndex, setDragOverTrackIndex] = useState<number | null>(null);
   const [showCreateTrackModal, setShowCreateTrackModal] = useState(false);
-  const [showGlobalTracksMock, setShowGlobalTracksMock] = useState(false);
 
   const mainContentRegions = useMainContentRegions({
     tracks,
@@ -252,10 +253,10 @@ const MainContent: React.FC<MainContentProps> = ({
     setShowCreateTrackModal(true);
   }, []);
 
-  const handleToggleGlobalTracksMock = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleToggleGlobalTracks = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    setShowGlobalTracksMock(previous => !previous);
-  }, []);
+    setShowGlobalTracks(!showGlobalTracks);
+  }, [setShowGlobalTracks, showGlobalTracks]);
 
   const handleGlobalChordDropToTrack = useCallback(async (draggedRegionId: string, trackIndex: number) => {
     const targetTrack = tracks[trackIndex];
@@ -348,10 +349,10 @@ const MainContent: React.FC<MainContentProps> = ({
             </button>
             <button
               type="button"
-              className={`track-header-button${showGlobalTracksMock ? ' active' : ''}`}
+              className={`track-header-button${showGlobalTracks ? ' active' : ''}`}
               aria-label={t('mainContent.showGlobalTracks')}
               title={t('mainContent.showGlobalTracks')}
-              onClick={handleToggleGlobalTracksMock}
+              onClick={handleToggleGlobalTracks}
             >
               <FaSquareArrowUpRight />
             </button>
@@ -385,7 +386,7 @@ const MainContent: React.FC<MainContentProps> = ({
         </div>
 
         <MainContentGlobalTracksSection
-          visible={showGlobalTracksMock}
+          visible={showGlobalTracks}
           {...mainContentGlobalTracks.sectionProps}
           chordLaneProps={{
             ...mainContentGlobalTracks.sectionProps.chordLaneProps,

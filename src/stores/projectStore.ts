@@ -92,6 +92,7 @@ interface ProjectState {
   selectedMode: string;
   isLooping: boolean;
   isMetronomeEnabled: boolean;
+  showGlobalTracks: boolean;
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
@@ -194,6 +195,7 @@ interface ProjectState {
   stopTransport: () => Promise<void>;
   toggleLoop: () => void;
   toggleMetronome: () => void;
+  setShowGlobalTracks: (show: boolean) => void;
   setBpm: (bpm: number) => void;
   setMaxBars: (maxBars: number) => void;
   setBarWidthMultiplier: (multiplier: number) => void;
@@ -432,7 +434,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     keySignature: currentProject.getKeySignature(),
     selectedMode: currentProject.getSelectedMode(),
     isLooping: currentProject.getIsLooping(),
-    isMetronomeEnabled: false,
+    isMetronomeEnabled: currentProject.getIsMetronomeEnabled(),
+    showGlobalTracks: currentProject.getShowGlobalTracks(),
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
@@ -870,6 +873,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Setup audio synths for all tracks
         const audioInterface = KGAudioInterface.instance();
+        audioInterface.setMetronomeEnabled(projectToLoad.getIsMetronomeEnabled());
 
         // Clear any existing synths/buses first
         tracks.forEach(track => {
@@ -949,6 +953,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           keySignature,
           selectedMode: projectToLoad.getSelectedMode(),
           isLooping: projectToLoad.getIsLooping(),
+          isMetronomeEnabled: projectToLoad.getIsMetronomeEnabled(),
+          showGlobalTracks: projectToLoad.getShowGlobalTracks(),
           loopingRange: projectToLoad.getLoopingRange(),
           activeTrackAutomationTrackId: null,
           activeTrackAutomationType: null,
@@ -1455,6 +1461,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     toggleMetronome: () => {
       const { isMetronomeEnabled, isPlaying, timeSignature } = get();
       const newValue = !isMetronomeEnabled;
+      const project = KGCore.instance().getCurrentProject();
+      project.setIsMetronomeEnabled(newValue);
       set({ isMetronomeEnabled: newValue });
 
       const audio = KGAudioInterface.instance();
@@ -1468,6 +1476,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           audio.stopMetronomeDuringPlayback();
         }
       }
+    },
+
+    setShowGlobalTracks: (show: boolean) => {
+      const project = KGCore.instance().getCurrentProject();
+      project.setShowGlobalTracks(show);
+      set({ showGlobalTracks: show });
     },
 
     setBpm: (bpm: number) => {
@@ -1886,6 +1900,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         bpm: project.getBpm(),
         keySignature: project.getKeySignature(),
         selectedMode: project.getSelectedMode(),
+        isMetronomeEnabled: project.getIsMetronomeEnabled(),
+        showGlobalTracks: project.getShowGlobalTracks(),
         currentTime: formatCurrentTime(project, core.getPlayheadPosition()),
       });
 

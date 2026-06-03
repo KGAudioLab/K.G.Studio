@@ -55,10 +55,18 @@ export class KGProject {
   private pianoRollZoom: number = 1;
 
   @Expose()
+  @WithDefault(false)
+  private showGlobalTracks: boolean = false;
+
+  @Expose()
+  @WithDefault(false)
+  private isMetronomeEnabled: boolean = false;
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 15;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 16;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -89,7 +97,7 @@ export class KGProject {
   private globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks();
 
   // Constructor
-  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = TIME_CONSTANTS.DEFAULT_BPM, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 2, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks()) {
+  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = TIME_CONSTANTS.DEFAULT_BPM, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 2, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks(), showGlobalTracks: boolean = false, isMetronomeEnabled: boolean = false) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
@@ -104,6 +112,8 @@ export class KGProject {
     this.projectStructureVersion = projectStructureVersion;
     this.pianoRollZoom = pianoRollZoom;
     this.globalTracks = globalTracks;
+    this.showGlobalTracks = showGlobalTracks;
+    this.isMetronomeEnabled = isMetronomeEnabled;
   }
 
   // Getters
@@ -186,6 +196,22 @@ export class KGProject {
 
   public getProjectStructureVersion(): number {
     return this.projectStructureVersion;
+  }
+
+  public getShowGlobalTracks(): boolean {
+    return this.showGlobalTracks;
+  }
+
+  public setShowGlobalTracks(showGlobalTracks: boolean): void {
+    this.showGlobalTracks = showGlobalTracks;
+  }
+
+  public getIsMetronomeEnabled(): boolean {
+    return this.isMetronomeEnabled;
+  }
+
+  public setIsMetronomeEnabled(isMetronomeEnabled: boolean): void {
+    this.isMetronomeEnabled = isMetronomeEnabled;
   }
 
   public getIsLooping(): boolean {
