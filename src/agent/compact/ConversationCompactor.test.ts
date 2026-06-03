@@ -67,4 +67,31 @@ describe('ConversationCompactor', () => {
 
     expect(onProgress).toHaveBeenCalled();
   });
+
+  it('prepends supplemental todo context to the summarization prompt', async () => {
+    const prompts: string[] = [];
+    const provider: LLMProvider = {
+      async *generateStream(messages) {
+        prompts.push(String(messages[0]?.content ?? ''));
+        yield { type: 'text', content: 'summary' };
+        yield { type: 'done', content: '', finishReason: 'stop' };
+      },
+    };
+    const compactor = new ConversationCompactor({
+      provider,
+      systemPrompt: 'compact prompt',
+      supplementalContext: 'Current todo state:\n[>] #1: Review melody',
+    });
+    const messages: Message[] = [
+      { id: '1', role: 'user', content: 'older user', timestamp: 1 },
+      { id: '2', role: 'assistant', content: 'older reply', timestamp: 2 },
+      { id: '3', role: 'user', content: 'recent user', timestamp: 3 },
+      { id: '4', role: 'assistant', content: 'recent reply', timestamp: 4 },
+    ];
+
+    await compactor.compact(messages, 2);
+
+    expect(prompts[0]).toContain('Current todo state:');
+    expect(prompts[0]).toContain('[>] #1: Review melody');
+  });
 });

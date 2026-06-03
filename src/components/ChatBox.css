@@ -166,6 +166,97 @@
   gap: 12px;
 }
 
+.chatbox-todo-card {
+  background: linear-gradient(180deg, #252525 0%, #202020 100%);
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chatbox-todo-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chatbox-todo-card-header h4 {
+  margin: 0;
+  color: #f0f0f0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chatbox-todo-count {
+  color: #8fb8da;
+  font-size: 11px;
+}
+
+.chatbox-todo-active {
+  color: #d7d7d7;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.chatbox-todo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chatbox-todo-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: #d8d8d8;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.chatbox-todo-item.is-completed .chatbox-todo-text {
+  color: #9ba39f;
+  text-decoration: line-through;
+}
+
+.chatbox-todo-item.is-in_progress .chatbox-todo-text {
+  color: #f0f0f0;
+}
+
+.chatbox-todo-marker {
+  width: 10px;
+  flex: 0 0 10px;
+  color: #7cc2f1;
+  text-align: center;
+}
+
+.chatbox-todo-item.is-completed .chatbox-todo-marker {
+  color: #67c18a;
+}
+
+.chatbox-todo-item.is-pending .chatbox-todo-marker {
+  color: #a7a7a7;
+}
+
+.chatbox-todo-status {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chatbox-todo-status.is-success {
+  color: #67c18a;
+}
+
+.chatbox-todo-status.is-error {
+  color: #d45a5a;
+}
+
 .message-container {
   width: 100%;
   word-wrap: break-word;

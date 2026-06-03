@@ -15,7 +15,11 @@ const {
     setLLMProvider: vi.fn(),
     getLLMProvider: vi.fn(() => ({ getPreferredSystemPromptPath: vi.fn() })),
     abortCurrentRequest: vi.fn(),
-    getAgentState: vi.fn(() => ({ getMessages: vi.fn(() => []) })),
+    getAgentState: vi.fn(() => ({
+      getMessages: vi.fn(() => []),
+      getTodos: vi.fn(() => []),
+      subscribeTodoChanges: vi.fn(() => () => undefined),
+    })),
     compactConversation: vi.fn(async () => ({ changed: true, compactedConversation: 'summary' })),
     shouldCompactBeforeNextTurn: vi.fn(async () => false),
   },
@@ -25,7 +29,17 @@ const {
 
 vi.mock('./chat', () => ({
   UserMessage: ({ content }: { content: string }) => <div>{content}</div>,
-  AssistantMessage: ({ content }: { content: string }) => <div>{content}</div>,
+  AssistantMessage: ({
+    content,
+    todoSnapshot,
+  }: {
+    content: string;
+    todoSnapshot?: Array<{ text: string }>;
+  }) => (
+    <div>
+      {todoSnapshot ? `TODO SNAPSHOT: ${todoSnapshot.map(todo => todo.text).join(', ')}` : content}
+    </div>
+  ),
 }));
 
 vi.mock('../agent/core/AgentCore', () => ({
@@ -203,6 +217,14 @@ describe('ChatBox', () => {
     await waitFor(() => {
       expect(agentCoreMock.compactConversation).toHaveBeenCalled();
       expect(screen.getByText('Conversation Compacted')).toBeTruthy();
+    });
+  });
+
+  it('does not render a pinned todo checklist from agent state', async () => {
+    renderWithLocale('en_us');
+
+    await waitFor(() => {
+      expect(screen.queryByText('Task Checklist')).toBeNull();
     });
   });
 });

@@ -7,11 +7,13 @@ import { AddNotesTool } from './AddNotesTool';
 import { RemoveNotesTool } from './RemoveNotesTool';
 import { ReadMusicTool } from './ReadMusicTool';
 import { ReadChordProgressionTool } from './ReadChordProgressionTool';
+import { UpdateTodoListTool } from './UpdateTodoListTool';
 
-export { AddNotesTool, RemoveNotesTool, ReadMusicTool, ReadChordProgressionTool };
+export { AddNotesTool, RemoveNotesTool, ReadMusicTool, ReadChordProgressionTool, UpdateTodoListTool };
 
 // Tool registry for easy access
 export const AVAILABLE_TOOLS = {
+  update_todo_list: UpdateTodoListTool,
   add_notes: AddNotesTool,
   remove_notes: RemoveNotesTool,
   read_music: ReadMusicTool,

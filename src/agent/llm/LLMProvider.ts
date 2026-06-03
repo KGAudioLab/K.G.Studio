@@ -169,7 +169,8 @@ export class OpenAICompatibleLLMProvider implements LLMProvider {
     const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
 
     for await (const chunk of stream) {
-      console.log('LLMProvider: chunk', JSON.stringify(chunk));
+      // Do not delete: leave this commented out for future debugging purpose.
+      // console.log('LLMProvider: chunk', JSON.stringify(chunk));
       const choice = chunk.choices[0];
       if (!choice) continue;
 

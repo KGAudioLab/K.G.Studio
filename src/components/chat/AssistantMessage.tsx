@@ -6,12 +6,17 @@ import remarkMath from 'remark-math';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { PerformanceInfo } from '../../agent/llm/StreamingTypes';
+import { summarizeTodoCounts } from '../../agent/core/todo';
+import type { TodoItem } from '../../agent/core/todo';
 
 interface AssistantMessageProps {
   content: string;
   isStreaming?: boolean;
   onAbort?: () => void;
   performanceInfo?: PerformanceInfo;
+  toolName?: string;
+  toolSuccess?: boolean;
+  todoSnapshot?: TodoItem[];
 }
 
 // Memoized code component to prevent SyntaxHighlighter re-renders
@@ -58,7 +63,15 @@ const formatThinkingDuration = (elapsedSeconds: number): string => {
   return `Thinking for ${minutes}m ${seconds.toString().padStart(2, '0')}s...`;
 };
 
-const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreaming, onAbort, performanceInfo }) => {
+const AssistantMessage: React.FC<AssistantMessageProps> = ({
+  content,
+  isStreaming,
+  onAbort,
+  performanceInfo,
+  toolName,
+  toolSuccess,
+  todoSnapshot,
+}) => {
   const prefillTps = formatTps(performanceInfo?.prefillTps);
   const generationTps = formatTps(performanceInfo?.generationTps);
   const hasPerformanceInfo = Boolean(prefillTps || generationTps);
@@ -68,6 +81,7 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   const isCompactionBanner = content === COMPACTION_IN_PROGRESS_LABEL
     || content === COMPACTION_DONE_LABEL
     || content === COMPACTION_EMPTY_LABEL;
+  const isTodoSnapshotCard = toolName === 'update_todo_list' && Array.isArray(todoSnapshot);
 
   useEffect(() => {
     if (!isThinking) {
@@ -89,6 +103,37 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({ content, isStreamin
   }, [isThinking]);
 
   const renderContent = () => {
+    if (isTodoSnapshotCard) {
+      const counts = summarizeTodoCounts(todoSnapshot);
+      const activeTodo = todoSnapshot.find(todo => todo.status === 'in_progress') ?? null;
+
+      return (
+        <section className="chatbox-todo-card" aria-label="Agent task checklist snapshot">
+          <div className="chatbox-todo-card-header">
+            <h4>Task Checklist</h4>
+            <span className="chatbox-todo-count">
+              {counts.completed}/{counts.total} completed
+            </span>
+          </div>
+          {activeTodo && (
+            <div className="chatbox-todo-active">
+              Working on: {activeTodo.activeText || activeTodo.text}
+            </div>
+          )}
+          <ul className="chatbox-todo-list">
+            {todoSnapshot.map((todo) => (
+              <li key={todo.id} className={`chatbox-todo-item is-${todo.status}`}>
+                <span className="chatbox-todo-marker" aria-hidden="true">
+                  {todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '→' : '•'}
+                </span>
+                <span className="chatbox-todo-text">{todo.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    }
+
     if (isCompactionBanner) {
       return (
         <div className="message-divider-banner" aria-label={content}>

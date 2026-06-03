@@ -1,6 +1,7 @@
 /**
  * Manages the state of an agent conversation
  */
+import type { TodoItem } from './todo';
 
 /**
  * Tool call info attached to assistant messages (OpenAI function calling format)
@@ -28,8 +29,10 @@ export interface Message {
 export class AgentState {
   private messages: Message[] = [];
   private fullMessages: Message[] = [];
+  private todos: TodoItem[] = [];
   private conversationId: string;
   private isWorkingOnTask: boolean = false;
+  private todoListeners: Set<() => void> = new Set();
 
   constructor(conversationId?: string, isWorkingOnTask: boolean = false) {
     this.conversationId = conversationId || this.generateConversationId();
@@ -143,6 +146,7 @@ export class AgentState {
   clearMessages(): void {
     this.messages = [];
     this.fullMessages = [];
+    this.clearTodos();
   }
 
   replaceMessages(messages: Message[]): void {
@@ -194,5 +198,35 @@ export class AgentState {
 
   setIsWorkingOnTask(isWorkingOnTask: boolean): void {
     this.isWorkingOnTask = isWorkingOnTask;
+  }
+
+  getTodos(): TodoItem[] {
+    return this.todos.map(todo => ({ ...todo }));
+  }
+
+  setTodos(todos: TodoItem[]): void {
+    this.todos = todos.map(todo => ({ ...todo }));
+    this.notifyTodoListeners();
+  }
+
+  clearTodos(): void {
+    if (this.todos.length === 0) {
+      return;
+    }
+    this.todos = [];
+    this.notifyTodoListeners();
+  }
+
+  subscribeTodoChanges(listener: () => void): () => void {
+    this.todoListeners.add(listener);
+    return () => {
+      this.todoListeners.delete(listener);
+    };
+  }
+
+  private notifyTodoListeners(): void {
+    for (const listener of this.todoListeners) {
+      listener();
+    }
   }
 }

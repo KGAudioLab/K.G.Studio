@@ -3,6 +3,8 @@ import { AgentCore } from '../agent/core/AgentCore';
 import { createStreamingMessage, createMessage } from '../utils/chatMessageUtils';
 import type { ChatMessage } from '../types/projectTypes';
 
+const TODO_TOOL_NAME = 'update_todo_list';
+
 interface StreamProcessorOptions {
   onMessageUpdate: (messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   onMessageAdd: (message: ChatMessage) => void;
@@ -82,6 +84,9 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
 
           // Show tool call in UI
           const toolName = chunk.toolCall.function.name;
+          if (toolName === TODO_TOOL_NAME) {
+            continue;
+          }
           let argsDisplay = '';
           try {
             const args = JSON.parse(chunk.toolCall.function.arguments);
@@ -94,8 +99,14 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
         } else if (chunk.type === 'tool_result' && chunk.toolResult) {
           // Show tool result in UI
           const { name, success, result } = chunk.toolResult;
-          const icon = success ? '✅' : '❌';
-          const toolResultMsg = createMessage('assistant', `${icon} **${name}**\n\n └── ${result}`);
+          const toolResultMsg = name === TODO_TOOL_NAME
+            ? {
+              ...createMessage('assistant', result),
+              toolName: name,
+              toolSuccess: success,
+              todoSnapshot: AgentCore.instance().getAgentState().getTodos().map(todo => ({ ...todo })),
+            }
+            : createMessage('assistant', `${success ? '✅' : '❌'} **${name}**\n\n └── ${result}`);
           onMessageAdd(toolResultMsg);
 
           // Reset for the next LLM turn in the agentic loop

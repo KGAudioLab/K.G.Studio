@@ -8,6 +8,7 @@ import type { ToolCall } from './AgentState';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
 import { ConfigManager } from '../../core/config/ConfigManager';
+import { buildTodoContext } from './todo';
 
 export interface CompactConversationOptions {
   trigger: 'manual' | 'auto';
@@ -26,11 +27,16 @@ export interface CompactConversationResult {
  */
 export class AgentCore {
   private static _instance: AgentCore | null = null;
+  private static readonly TODO_TOOL_NAME = 'update_todo_list';
+  private static readonly TODO_REMINDER = '<reminder>Keep the task list current. Use update_todo_list for multi-step work, mark one item in_progress before major tool work, and complete items as you finish them.</reminder>';
 
   private llmProvider: LLMProvider | null = null;
   private agentState: AgentState;
   private currentUserMessageId: string | null = null;
   private currentAssistantMessageId: string | null = null;
+  private todoToolCyclesSinceUpdate = 0;
+  private remindAboutTodosOnNextLoop = false;
+  private currentTurnLikelyMultiStep = false;
 
   private constructor() {
     this.agentState = new AgentState();
@@ -108,6 +114,7 @@ export class AgentCore {
 
     // Add user message to state
     this.currentUserMessageId = this.agentState.addMessage('user', userInput);
+    this.currentTurnLikelyMultiStep = this.isLikelyMultiStepTask(userInput);
 
     const systemPrompt = await SystemPrompts.getSystemPromptWithContext(
       this.llmProvider.getPreferredSystemPromptPath?.(),
@@ -120,6 +127,7 @@ export class AgentCore {
 
       while (continueLoop) {
         const conversationHistory = this.agentState.getMessages();
+        const turnMessages = this.buildLoopMessages(conversationHistory);
 
         // Pre-add an empty assistant message that we'll update as we stream
         this.currentAssistantMessageId = this.agentState.addMessage('assistant', '');
@@ -129,7 +137,7 @@ export class AgentCore {
         let finishReason = 'stop';
         let performanceInfo: StreamChunk['performanceInfo'];
 
-        for await (const chunk of this.llmProvider.generateStream(conversationHistory, systemPrompt, tools)) {
+        for await (const chunk of this.llmProvider.generateStream(turnMessages, systemPrompt, tools)) {
           if (chunk.type === 'text') {
             assistantTextContent += chunk.content;
             this.agentState.updateMessage(this.currentAssistantMessageId, assistantTextContent);
@@ -143,6 +151,8 @@ export class AgentCore {
         }
 
         if (finishReason === 'tool_calls' && accumulatedToolCalls.length > 0) {
+          this.updateTodoReminderState(accumulatedToolCalls);
+
           // Update assistant message with tool calls
           this.agentState.updateMessage(
             this.currentAssistantMessageId,
@@ -188,6 +198,10 @@ export class AgentCore {
     } finally {
       this.currentUserMessageId = null;
       this.currentAssistantMessageId = null;
+      this.currentTurnLikelyMultiStep = false;
+      if (this.agentState.getTodos().length === 0) {
+        this.remindAboutTodosOnNextLoop = false;
+      }
     }
   }
 
@@ -222,6 +236,9 @@ export class AgentCore {
 
   clearConversation(): void {
     this.agentState.clearMessages();
+    this.todoToolCyclesSinceUpdate = 0;
+    this.remindAboutTodosOnNextLoop = false;
+    this.currentTurnLikelyMultiStep = false;
   }
 
   async shouldCompactBeforeNextTurn(userInput: string): Promise<boolean> {
@@ -287,6 +304,7 @@ export class AgentCore {
       tools: this.getToolDefinitions(),
       focus: options.focus,
       onProgress: options.onProgress,
+      supplementalContext: buildTodoContext(this.agentState.getTodos()),
     });
     const result = await compactor.compact(messages, tailStartIndex);
     if (!result.changed) {
@@ -347,5 +365,79 @@ export class AgentCore {
     }
 
     return 90;
+  }
+
+  private buildLoopMessages(conversationHistory: ReturnType<AgentState['getMessages']>): ReturnType<AgentState['getMessages']> {
+    if (!this.shouldInjectTodoReminder()) {
+      return conversationHistory;
+    }
+
+    return [
+      ...conversationHistory,
+      {
+        id: `todo_reminder_${Date.now()}`,
+        role: 'user',
+        content: AgentCore.TODO_REMINDER,
+        timestamp: Date.now(),
+      },
+    ];
+  }
+
+  private shouldInjectTodoReminder(): boolean {
+    const hasTodos = this.agentState.getTodos().length > 0;
+    return (hasTodos && this.todoToolCyclesSinceUpdate >= 2)
+      || (!hasTodos && this.remindAboutTodosOnNextLoop && this.currentTurnLikelyMultiStep);
+  }
+
+  private updateTodoReminderState(toolCalls: ToolCall[]): void {
+    const usedTodoTool = toolCalls.some(toolCall => toolCall.function.name === AgentCore.TODO_TOOL_NAME);
+    const hasNonTodoToolCall = toolCalls.some(toolCall => toolCall.function.name !== AgentCore.TODO_TOOL_NAME);
+    const hasTodos = this.agentState.getTodos().length > 0;
+
+    if (usedTodoTool) {
+      this.todoToolCyclesSinceUpdate = 0;
+      this.remindAboutTodosOnNextLoop = false;
+      return;
+    }
+
+    if (!hasNonTodoToolCall) {
+      return;
+    }
+
+    if (hasTodos) {
+      this.todoToolCyclesSinceUpdate += 1;
+      return;
+    }
+
+    if (this.currentTurnLikelyMultiStep) {
+      this.remindAboutTodosOnNextLoop = true;
+    }
+  }
+
+  private isLikelyMultiStepTask(userInput: string): boolean {
+    const normalized = userInput.toLowerCase();
+    if (/\n\s*[-*]\s|\n\s*\d+\.\s/.test(userInput)) {
+      return true;
+    }
+
+    const coordinationKeywords = [
+      'plan',
+      'analyze',
+      'compare',
+      'design',
+      'implement',
+      'refactor',
+      'fix',
+      'update',
+      'multi-step',
+      'todo',
+      'checklist',
+    ];
+
+    if (coordinationKeywords.some(keyword => normalized.includes(keyword))) {
+      return true;
+    }
+
+    return userInput.length >= 120 && /\band\b/.test(normalized);
   }
 }

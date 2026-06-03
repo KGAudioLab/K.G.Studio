@@ -14,6 +14,7 @@ export interface ConversationCompactorOptions {
   tools?: OpenAIToolDefinition[];
   focus?: string;
   onProgress?: (progress: CompactProgress) => void;
+  supplementalContext?: string;
 }
 
 export interface ConversationCompactionResult {
@@ -76,12 +77,21 @@ function splitIntoChunks(serializedMessages: string[]): string[] {
   return chunks;
 }
 
-function buildCompactionUserPrompt(chunkText: string, chunkIndex: number, chunkCount: number, focus?: string): string {
+function buildCompactionUserPrompt(
+  chunkText: string,
+  chunkIndex: number,
+  chunkCount: number,
+  focus?: string,
+  supplementalContext?: string,
+): string {
   const focusSection = focus?.trim()
     ? `Focus instruction from the user: ${focus.trim()}\n\n`
     : '';
+  const contextSection = supplementalContext?.trim()
+    ? `${supplementalContext.trim()}\n\n`
+    : '';
 
-  return `${focusSection}Summarize this conversation history chunk for future continuation.
+  return `${focusSection}${contextSection}Summarize this conversation history chunk for future continuation.
 
 Preserve:
 - the active goal
@@ -103,6 +113,7 @@ export class ConversationCompactor {
   private readonly tools: OpenAIToolDefinition[];
   private readonly focus?: string;
   private readonly onProgress?: (progress: CompactProgress) => void;
+  private readonly supplementalContext?: string;
 
   constructor(options: ConversationCompactorOptions) {
     this.provider = options.provider;
@@ -110,6 +121,7 @@ export class ConversationCompactor {
     this.tools = options.tools ?? [];
     this.focus = options.focus;
     this.onProgress = options.onProgress;
+    this.supplementalContext = options.supplementalContext;
   }
 
   async compact(messages: Message[], tailStartIndex: number): Promise<ConversationCompactionResult> {
@@ -174,7 +186,13 @@ export class ConversationCompactor {
   }
 
   private async summarizeChunk(chunkText: string, chunkIndex: number, chunkCount: number): Promise<string> {
-    const prompt = buildCompactionUserPrompt(chunkText, chunkIndex, chunkCount, this.focus);
+    const prompt = buildCompactionUserPrompt(
+      chunkText,
+      chunkIndex,
+      chunkCount,
+      this.focus,
+      this.supplementalContext,
+    );
     const messages: Message[] = [
       {
         id: `compact_user_${chunkIndex}`,

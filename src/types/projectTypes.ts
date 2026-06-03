@@ -1,5 +1,6 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
 import type { PerformanceInfo } from '../agent/llm/StreamingTypes';
+import type { TodoItem } from '../agent/core/todo';
 
 export interface TimeSignature {
     numerator: number;
@@ -13,6 +14,9 @@ export interface ChatMessage {
     isStreaming?: boolean;
     tokenCount?: number;
     performanceInfo?: PerformanceInfo;
+    toolName?: string;
+    toolSuccess?: boolean;
+    todoSnapshot?: TodoItem[];
 }
 
 /**

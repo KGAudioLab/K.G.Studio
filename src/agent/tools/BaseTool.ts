@@ -16,6 +16,7 @@ export interface ToolParameter {
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
   required?: boolean;
+  enum?: string[];
   items?: ToolParameter; // For array types
   properties?: Record<string, ToolParameter>; // For object types
 }
@@ -112,6 +113,10 @@ export abstract class BaseTool {
 
     if (param.type === 'array' && param.items) {
       schema.items = this.convertParamToJsonSchema(param.items);
+    }
+
+    if (param.enum) {
+      schema.enum = param.enum;
     }
 
     if (param.type === 'object' && param.properties) {

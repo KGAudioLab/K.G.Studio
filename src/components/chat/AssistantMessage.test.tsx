@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AssistantMessage from './AssistantMessage';
+import type { TodoItem } from '../../agent/core/todo';
 
 describe('AssistantMessage', () => {
   afterEach(() => {
@@ -109,5 +110,27 @@ describe('AssistantMessage', () => {
     rerender(<AssistantMessage content="Nothing to Compact Yet" />);
 
     expect(screen.getByLabelText('Nothing to Compact Yet')).toBeInTheDocument();
+  });
+
+  it('renders a structured todo snapshot card instead of markdown content', () => {
+    const todoSnapshot: TodoItem[] = [
+      { id: '1', text: 'Inspect melody', status: 'completed', updatedAt: 1 },
+      { id: '2', text: 'Write harmony', status: 'in_progress', activeText: 'Writing harmony', updatedAt: 2 },
+    ];
+
+    render(
+      <AssistantMessage
+        content="fallback content"
+        toolName="update_todo_list"
+        toolSuccess={true}
+        todoSnapshot={todoSnapshot}
+      />
+    );
+
+    expect(screen.getByLabelText('Agent task checklist snapshot')).toBeInTheDocument();
+    expect(screen.getByText('Task Checklist')).toBeInTheDocument();
+    expect(screen.getByText('1/2 completed')).toBeInTheDocument();
+    expect(screen.getByText('Working on: Writing harmony')).toBeInTheDocument();
+    expect(screen.queryByText('fallback content')).not.toBeInTheDocument();
   });
 });

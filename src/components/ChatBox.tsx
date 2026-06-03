@@ -428,7 +428,6 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
 
   const localRuntimeMessage = localModelState.runtimeSupport.reason;
   const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
-
   return (
     <div className={`chatbox ${isVisible ? '' : 'is-hidden'}`}>
       <div className="chatbox-header">
@@ -526,6 +525,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               content={message.content}
               isStreaming={message.isStreaming}
               performanceInfo={message.performanceInfo}
+              toolName={message.toolName}
+              toolSuccess={message.toolSuccess}
+              todoSnapshot={message.todoSnapshot}
               onAbort={message.isStreaming ? handleAbort : undefined}
             />
           )
