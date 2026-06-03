@@ -6,6 +6,14 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGCore } from '../../core/KGCore';
 
+interface AddNotesSummaryData {
+  noteCount: number;
+  regionName: string;
+  trackName: string;
+  earliestNoteStartBar: number;
+  latestNoteEndBar: number;
+}
+
 /**
  * Tool for adding notes to MIDI regions
  * Integrates with the existing command system for undo/redo support
@@ -52,6 +60,19 @@ export class AddNotesTool extends BaseTool {
       required: false
     }
   };
+
+  buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!toolResult.success || !args) {
+      return undefined;
+    }
+
+    const summary = this.buildSummaryData(args);
+    if (!summary) {
+      return undefined;
+    }
+
+    return `Successfully created ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+  }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
@@ -149,46 +170,82 @@ export class AddNotesTool extends BaseTool {
    * Priority: 1) Specified regionId, 2) Active piano roll region, 3) Selected regions, 4) Error if none found
    */
   private findTargetRegion(regionId?: string): KGMidiRegion | null {
+    return this.findTargetRegionContext(regionId)?.region ?? null;
+  }
+
+  private findTargetRegionContext(regionId?: string): { region: KGMidiRegion; trackName: string } | null {
     const project = this.getCurrentProject();
     const tracks = project.getTracks();
-    
+
     if (regionId) {
-      // Find specific region by ID
       for (const track of tracks) {
         const regions = track.getRegions();
         const region = regions.find(r => r.getId() === regionId);
         if (region && region instanceof KGMidiRegion) {
-          return region;
+          return {
+            region,
+            trackName: track.getName() || `Track ${track.getTrackIndex() + 1}`,
+          };
         }
       }
       return null;
     } else {
-      // Smart region finding: try different sources in priority order
-      
-      // 1. Try active piano roll region
       const storeState = useProjectStore.getState();
       if (storeState.activeRegionId) {
         for (const track of tracks) {
           const regions = track.getRegions();
           const region = regions.find(r => r.getId() === storeState.activeRegionId);
           if (region && region instanceof KGMidiRegion) {
-            return region;
+            return {
+              region,
+              trackName: track.getName() || `Track ${track.getTrackIndex() + 1}`,
+            };
           }
         }
       }
-      
-      // 2. Try selected regions
+
       const core = this.getKGCore();
       const selectedItems = core.getSelectedItems();
       for (const item of selectedItems) {
         if (item instanceof KGMidiRegion) {
-          return item;
+          const track = tracks.find(candidate => candidate.getId().toString() === item.getTrackId());
+          return {
+            region: item,
+            trackName: track?.getName() || `Track ${item.getTrackIndex() + 1}`,
+          };
         }
       }
-      
-      // 3. No fallback - return null to trigger error
+
       return null;
     }
+  }
+
+  private buildSummaryData(args: Record<string, unknown>): AddNotesSummaryData | null {
+    const typedArgs = args as {
+      notes?: Array<{ start: number; length: number }>;
+      region_id?: string;
+    };
+
+    if (!Array.isArray(typedArgs.notes) || typedArgs.notes.length === 0) {
+      return null;
+    }
+
+    const targetRegion = this.findTargetRegionContext(typedArgs.region_id);
+    if (!targetRegion) {
+      return null;
+    }
+
+    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
+    const earliestNoteStartBeat = Math.min(...typedArgs.notes.map(note => note.start));
+    const latestNoteEndBeat = Math.max(...typedArgs.notes.map(note => note.start + note.length));
+
+    return {
+      noteCount: typedArgs.notes.length,
+      regionName: targetRegion.region.getName(),
+      trackName: targetRegion.trackName,
+      earliestNoteStartBar: Math.floor(earliestNoteStartBeat / beatsPerBar) + 1,
+      latestNoteEndBar: Math.max(1, Math.ceil(latestNoteEndBeat / beatsPerBar)),
+    };
   }
 
   /**

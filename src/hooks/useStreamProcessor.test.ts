@@ -138,6 +138,7 @@ describe('useStreamProcessor', () => {
           type: 'tool_result',
           content: '',
           toolResult: {
+            toolCallId: 'todo-call-1',
             name: 'update_todo_list',
             success: true,
             result: 'todo fallback content',
@@ -201,6 +202,7 @@ describe('useStreamProcessor', () => {
           type: 'tool_result',
           content: '',
           toolResult: {
+            toolCallId: 'read-call-1',
             name: 'read_music',
             success: true,
             result: 'music data',
@@ -239,7 +241,7 @@ describe('useStreamProcessor', () => {
     expect(addedMessages.some(message => message.toolName === 'update_todo_list')).toBe(false);
   });
 
-it('attaches add_notes summary metadata for chat-only rendering while preserving raw content', async () => {
+  it('uses tool-provided add_notes summary metadata for chat-only rendering while preserving raw content', async () => {
   const selectedRegion = new KGMidiRegion('region-1', '1', 0, 'Verse Melody');
 
   vi.spyOn(AgentCore, 'instance').mockReturnValue({
@@ -268,6 +270,7 @@ it('attaches add_notes summary metadata for chat-only rendering while preserving
           type: 'tool_result',
           content: '',
           toolResult: {
+            toolCallId: 'add-notes-call-1',
             name: 'add_notes',
             success: true,
             result: 'Successfully created 2 notes: C4 (beat 16, length 4), E4 (beat 20, length 8)',
@@ -324,5 +327,65 @@ it('attaches add_notes summary metadata for chat-only rendering while preserving
     expect(addNotesMessage?.toolResultDisplayContent).toBe(
       'Successfully created 2 notes in region **Verse Melody** on track **Lead**, spanning bars 5 to 7.'
     );
+  });
+
+  it('falls back to the raw tool result when tool summary generation cannot resolve context', async () => {
+    vi.spyOn(AgentCore, 'instance').mockReturnValue({
+      getAgentState: () => ({
+        getTodos: () => [],
+      }),
+      processUserInput: async function* () {
+        yield {
+          type: 'tool_call',
+          content: '',
+          toolCall: {
+            id: 'read-call-fallback',
+            type: 'function',
+            function: {
+              name: 'read_music',
+              arguments: JSON.stringify({}),
+            },
+          },
+        };
+        yield {
+          type: 'tool_result',
+          content: '',
+          toolResult: {
+            toolCallId: 'read-call-fallback',
+            name: 'read_music',
+            success: true,
+            result: 'raw music result',
+          },
+        };
+        yield { type: 'done', content: '' };
+      },
+    } as unknown as AgentCore);
+
+    const messages = new Map<string, ChatMessage>();
+
+    const { result } = renderHook(() => useStreamProcessor({
+      onMessageAdd: (message) => {
+        messages.set(message.id, message);
+      },
+      onMessageUpdate: (messageId, updater) => {
+        const current = messages.get(messageId);
+        if (!current) {
+          throw new Error(`Missing message ${messageId}`);
+        }
+        messages.set(messageId, updater(current));
+      },
+      onMessageRemove: (messageId) => {
+        messages.delete(messageId);
+      },
+      onProcessingChange: () => undefined,
+    }));
+
+    await act(async () => {
+      await result.current.processStream('read fallback prompt');
+    });
+
+    const toolResultMessage = [...messages.values()].find(message => message.toolName === 'read_music');
+    expect(toolResultMessage?.toolRawResult).toBe('raw music result');
+    expect(toolResultMessage?.toolResultDisplayContent).toBe('raw music result');
   });
 });

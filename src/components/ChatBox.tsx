@@ -3,6 +3,7 @@ import './ChatBox.css';
 import { FaPlus, FaBan, FaDownload } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
+import { summarizeTodoCounts } from '../agent/core/todo';
 import { OpenAICompatibleLLMProvider, type LLMProvider } from '../agent/llm/LLMProvider';
 import { LocalBrowserLLMProvider } from '../agent/llm/LocalBrowserLLMProvider';
 import { ConfigManager } from '../core/config/ConfigManager';
@@ -23,6 +24,16 @@ import type { ChatMessage } from '../types/projectTypes';
 
 // Module-level guard to avoid duplicate welcome in React StrictMode dev remounts
 let hasShownWelcomeOnceInRuntime = false;
+const TODO_TOOL_NAME = 'update_todo_list';
+
+const isCompletedTodoSnapshotMessage = (message: ChatMessage): boolean => {
+  if (message.toolName !== TODO_TOOL_NAME || !Array.isArray(message.todoSnapshot)) {
+    return false;
+  }
+
+  const counts = summarizeTodoCounts(message.todoSnapshot);
+  return counts.total > 0 && counts.completed === counts.total;
+};
 
 /**
  * Create the LLM provider from current configuration
@@ -151,7 +162,18 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   }, []);
 
   const handleMessageAdd = useCallback((message: ChatMessage) => {
-    setMessages(prev => [...prev, message]);
+    setMessages((prev) => {
+      if (message.toolName === TODO_TOOL_NAME && Array.isArray(message.todoSnapshot)) {
+        const preservedMessages = prev.filter((existingMessage) => (
+          existingMessage.toolName !== TODO_TOOL_NAME
+          || !Array.isArray(existingMessage.todoSnapshot)
+          || isCompletedTodoSnapshotMessage(existingMessage)
+        ));
+        return [...preservedMessages, message];
+      }
+
+      return [...prev, message];
+    });
   }, []);
 
   const handleMessageRemove = useCallback((messageId: string) => {

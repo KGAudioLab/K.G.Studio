@@ -108,4 +108,19 @@ describe('ReadChordProgressionTool', () => {
     expect(result.success).toBe(false);
     expect(result.result).toContain('No active or selected MIDI region found');
   });
+
+  it('builds a compact summary for the resolved region span', () => {
+    const { project, midiRegion } = buildProjectWithRegionAndOptionalChords(['Am']);
+    storeState.activeRegionId = midiRegion.getId();
+
+    vi.spyOn(KGCore, 'instance').mockReturnValue({
+      getCurrentProject: () => project,
+      getSelectedItems: () => [],
+    } as unknown as KGCore);
+
+    const tool = new ReadChordProgressionTool();
+    const summary = tool.buildToolResultDisplayContent({}, { success: true, result: 'raw result' });
+
+    expect(summary).toBe('Read the chord progression from bars 1 to 8.');
+  });
 });

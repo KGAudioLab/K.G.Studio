@@ -177,6 +177,7 @@ export class AgentCore {
               type: 'tool_result',
               content: '',
               toolResult: {
+                toolCallId: toolCall.id,
                 name: toolCall.function.name,
                 success: result.success,
                 result: result.result,

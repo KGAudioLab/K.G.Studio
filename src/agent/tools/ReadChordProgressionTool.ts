@@ -14,6 +14,25 @@ export class ReadChordProgressionTool extends BaseTool {
 
   readonly parameters: Record<string, ToolParameter> = {};
 
+  buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!toolResult.success) {
+      return undefined;
+    }
+
+    const targetRegion = this.findTargetRegion();
+    if (!targetRegion) {
+      return undefined;
+    }
+
+    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
+    const startBar = Math.floor(targetRegion.getStartFromBeat() / beatsPerBar) + 1;
+    const endBar = Math.max(1, Math.ceil((targetRegion.getStartFromBeat() + targetRegion.getLength()) / beatsPerBar));
+    const barRange = startBar === endBar ? `bar ${startBar}` : `bars ${startBar} to ${endBar}`;
+    void args;
+
+    return `Read the chord progression from ${barRange}.`;
+  }
+
   async execute(_params: Record<string, unknown>): Promise<ToolResult> {
     try {
       const targetRegion = this.findTargetRegion();

@@ -5,11 +5,13 @@ import ChatBox from './ChatBox';
 import { I18nContext } from '../i18n/I18nProvider';
 import type { ResolvedLocaleCode } from '../i18n/types';
 import { translate } from '../i18n/translate';
+import type { ChatMessage } from '../types/projectTypes';
 
 const {
   agentCoreMock,
   processUserMessageMock,
   processStreamMock,
+  streamProcessorCallbacks,
 } = vi.hoisted(() => ({
   agentCoreMock: {
     setLLMProvider: vi.fn(),
@@ -25,6 +27,12 @@ const {
   },
   processUserMessageMock: vi.fn(),
   processStreamMock: vi.fn(async () => ''),
+  streamProcessorCallbacks: {
+    onMessageAdd: undefined as ((message: ChatMessage) => void) | undefined,
+    onMessageUpdate: undefined as ((messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void) | undefined,
+    onMessageRemove: undefined as ((messageId: string) => void) | undefined,
+    onProcessingChange: undefined as ((isProcessing: boolean) => void) | undefined,
+  },
 }));
 
 vi.mock('./chat', () => ({
@@ -96,10 +104,17 @@ vi.mock('../util/messageFilter/UserMessageFilter', () => ({
 }));
 
 vi.mock('../hooks/useStreamProcessor', () => ({
-  useStreamProcessor: () => ({
-    abortController: null,
-    processStream: processStreamMock,
-  }),
+  useStreamProcessor: (options: typeof streamProcessorCallbacks) => {
+    streamProcessorCallbacks.onMessageAdd = options.onMessageAdd;
+    streamProcessorCallbacks.onMessageUpdate = options.onMessageUpdate;
+    streamProcessorCallbacks.onMessageRemove = options.onMessageRemove;
+    streamProcessorCallbacks.onProcessingChange = options.onProcessingChange;
+
+    return {
+      abortController: null,
+      processStream: processStreamMock,
+    };
+  },
 }));
 
 vi.mock('../utils/chatMessageUtils', () => ({
@@ -176,6 +191,10 @@ describe('ChatBox', () => {
     processStreamMock.mockClear();
     agentCoreMock.compactConversation.mockClear();
     agentCoreMock.shouldCompactBeforeNextTurn.mockResolvedValue(false);
+    streamProcessorCallbacks.onMessageAdd = undefined;
+    streamProcessorCallbacks.onMessageUpdate = undefined;
+    streamProcessorCallbacks.onMessageRemove = undefined;
+    streamProcessorCallbacks.onProcessingChange = undefined;
   });
 
   it('renders the English assistant title under en_us', () => {
@@ -225,6 +244,148 @@ describe('ChatBox', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Task Checklist')).toBeNull();
+    });
+  });
+
+  it('removes older incomplete todo snapshots before appending a new one', async () => {
+    processUserMessageMock.mockResolvedValue({
+      displayUserMessage: false,
+      sendToLLM: true,
+      finalMessageForLLM: 'todo prompt',
+      pseudoAssistantResponse: null,
+      metadata: null,
+    });
+    processStreamMock.mockImplementation(async () => {
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'todo-1',
+        role: 'assistant',
+        content: 'todo 1',
+        toolName: 'update_todo_list',
+        toolSuccess: true,
+        todoSnapshot: [
+          { id: '1', text: 'Inspect melody', status: 'completed', updatedAt: 1 },
+          { id: '2', text: 'Write harmony', status: 'in_progress', updatedAt: 2 },
+        ],
+      });
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'todo-2',
+        role: 'assistant',
+        content: 'todo 2',
+        toolName: 'update_todo_list',
+        toolSuccess: true,
+        todoSnapshot: [
+          { id: '1', text: 'Inspect melody', status: 'completed', updatedAt: 3 },
+          { id: '2', text: 'Write bass', status: 'pending', updatedAt: 4 },
+        ],
+      });
+      return '';
+    });
+
+    renderWithLocale('en_us');
+
+    const input = screen.getByPlaceholderText('Press Enter to send message, Shift + Enter for new line');
+    fireEvent.change(input, { target: { value: 'todo cleanup' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(screen.queryByText('TODO SNAPSHOT: Inspect melody, Write harmony')).toBeNull();
+      expect(screen.getByText('TODO SNAPSHOT: Inspect melody, Write bass')).toBeTruthy();
+    });
+  });
+
+  it('preserves completed todo snapshots when a new incomplete snapshot is added', async () => {
+    processUserMessageMock.mockResolvedValue({
+      displayUserMessage: false,
+      sendToLLM: true,
+      finalMessageForLLM: 'todo prompt',
+      pseudoAssistantResponse: null,
+      metadata: null,
+    });
+    processStreamMock.mockImplementation(async () => {
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'todo-complete',
+        role: 'assistant',
+        content: 'done snapshot',
+        toolName: 'update_todo_list',
+        toolSuccess: true,
+        todoSnapshot: [
+          { id: '1', text: 'Inspect melody', status: 'completed', updatedAt: 1 },
+          { id: '2', text: 'Write harmony', status: 'completed', updatedAt: 2 },
+        ],
+      });
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'todo-active',
+        role: 'assistant',
+        content: 'active snapshot',
+        toolName: 'update_todo_list',
+        toolSuccess: true,
+        todoSnapshot: [
+          { id: '1', text: 'Mix stems', status: 'completed', updatedAt: 3 },
+          { id: '2', text: 'Render bounce', status: 'in_progress', updatedAt: 4 },
+        ],
+      });
+      return '';
+    });
+
+    renderWithLocale('en_us');
+
+    const input = screen.getByPlaceholderText('Press Enter to send message, Shift + Enter for new line');
+    fireEvent.change(input, { target: { value: 'todo preserve' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(screen.getByText('TODO SNAPSHOT: Inspect melody, Write harmony')).toBeTruthy();
+      expect(screen.getByText('TODO SNAPSHOT: Mix stems, Render bounce')).toBeTruthy();
+    });
+  });
+
+  it('does not remove non-todo assistant messages during todo cleanup', async () => {
+    processUserMessageMock.mockResolvedValue({
+      displayUserMessage: false,
+      sendToLLM: true,
+      finalMessageForLLM: 'todo prompt',
+      pseudoAssistantResponse: null,
+      metadata: null,
+    });
+    processStreamMock.mockImplementation(async () => {
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'assistant-note',
+        role: 'assistant',
+        content: 'Normal assistant message',
+      });
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'todo-1',
+        role: 'assistant',
+        content: 'todo 1',
+        toolName: 'update_todo_list',
+        toolSuccess: true,
+        todoSnapshot: [
+          { id: '1', text: 'Inspect melody', status: 'pending', updatedAt: 1 },
+        ],
+      });
+      streamProcessorCallbacks.onMessageAdd?.({
+        id: 'todo-2',
+        role: 'assistant',
+        content: 'todo 2',
+        toolName: 'update_todo_list',
+        toolSuccess: true,
+        todoSnapshot: [
+          { id: '1', text: 'Render bounce', status: 'in_progress', updatedAt: 2 },
+        ],
+      });
+      return '';
+    });
+
+    renderWithLocale('en_us');
+
+    const input = screen.getByPlaceholderText('Press Enter to send message, Shift + Enter for new line');
+    fireEvent.change(input, { target: { value: 'todo cleanup keep assistant' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(screen.getByText('Normal assistant message')).toBeTruthy();
+      expect(screen.queryByText('TODO SNAPSHOT: Inspect melody')).toBeNull();
+      expect(screen.getByText('TODO SNAPSHOT: Render bounce')).toBeTruthy();
     });
   });
 });

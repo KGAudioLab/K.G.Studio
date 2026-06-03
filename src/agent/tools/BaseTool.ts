@@ -68,6 +68,17 @@ export abstract class BaseTool {
   abstract execute(params: Record<string, unknown>): Promise<ToolResult>;
 
   /**
+   * Optionally build a compact UI summary for a successful tool result.
+   * The raw tool result remains the canonical output stored in agent history.
+   */
+  buildToolResultDisplayContent(
+    _args: Record<string, unknown> | null,
+    _toolResult: ToolResult,
+  ): string | undefined {
+    return undefined;
+  }
+
+  /**
    * Get the tool definition in OpenAI function calling format
    */
   getDefinition(): OpenAIToolDefinition {

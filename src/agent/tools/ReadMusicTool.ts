@@ -1,5 +1,6 @@
 import { BaseTool } from './BaseTool';
 import type { ToolResult, ToolParameter } from './BaseTool';
+import type { KGTrack } from '../../core/track/KGTrack';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { convertRegionToABCNotation } from '../../util/abcNotationUtil';
@@ -31,6 +32,20 @@ export class ReadMusicTool extends BaseTool {
       required: false
     }
   };
+
+  buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!toolResult.success || !args) {
+      return undefined;
+    }
+
+    const summary = this.buildSummaryData(args);
+    if (!summary) {
+      return undefined;
+    }
+
+    const trackLabel = summary.trackNames.length === 1 ? 'track' : 'tracks';
+    return `Read ${trackLabel} ${this.formatTrackNameList(summary.trackNames)} from ${this.formatBarRange(summary.startBar, summary.endBar)}.`;
+  }
 
   /**
    * Get the display name for percussion instruments, or null if not percussion
@@ -120,6 +135,135 @@ export class ReadMusicTool extends BaseTool {
     }
   }
 
+  private buildSummaryData(args: Record<string, unknown>): {
+    trackNames: string[];
+    startBar: number;
+    endBar: number;
+  } | null {
+    const project = this.getCurrentProject();
+    const tracks = project.getTracks();
+    if (tracks.length === 0) {
+      return null;
+    }
+
+    const beatsPerBar = project.getTimeSignature().numerator;
+    const startBeat = (args.start as number) || 0;
+    const length = args.length as number | undefined;
+    if (startBeat < 0 || (length !== undefined && length <= 0)) {
+      return null;
+    }
+
+    const roundedStartBeat = Math.floor(startBeat / beatsPerBar) * beatsPerBar;
+    const rawEndBeat = length !== undefined ? startBeat + length : undefined;
+    const roundedEndBeat = rawEndBeat !== undefined
+      ? Math.ceil(rawEndBeat / beatsPerBar) * beatsPerBar
+      : this.getTrackReadEndBeat(args, tracks, roundedStartBeat);
+
+    const trackNames = this.resolveSummaryTrackNames(args, tracks);
+    if (trackNames.length === 0 || roundedEndBeat === undefined) {
+      return null;
+    }
+
+    return {
+      trackNames,
+      startBar: Math.floor(roundedStartBeat / beatsPerBar) + 1,
+      endBar: Math.max(1, Math.ceil(roundedEndBeat / beatsPerBar)),
+    };
+  }
+
+  private resolveSummaryTrackNames(
+    args: Record<string, unknown>,
+    tracks: KGTrack[],
+  ): string[] {
+    const trackId = args.track_id as string | undefined;
+
+    if (!trackId || trackId === '' || trackId === 'all') {
+      const midiTracks = tracks.filter(track => track instanceof KGMidiTrack) as KGMidiTrack[];
+      const tracksToSkip = this.findTracksToSkip(midiTracks);
+      return midiTracks
+        .filter(track => !tracksToSkip.includes(track))
+        .map((track, index) => track.getName() || `Track ${index + 1}`);
+    }
+
+    const targetTrack = tracks.find(track => track.getId().toString() === trackId);
+    if (!(targetTrack instanceof KGMidiTrack)) {
+      return [];
+    }
+
+    return [targetTrack.getName() || 'Unnamed Track'];
+  }
+
+  private getTrackReadEndBeat(
+    args: Record<string, unknown>,
+    tracks: KGTrack[],
+    roundedStartBeat: number,
+  ): number | undefined {
+    const trackId = args.track_id as string | undefined;
+
+    if (!trackId || trackId === '' || trackId === 'all') {
+      const midiTracks = tracks.filter(track => track instanceof KGMidiTrack) as KGMidiTrack[];
+      const tracksToSkip = this.findTracksToSkip(midiTracks);
+      const visibleTracks = midiTracks.filter(track => !tracksToSkip.includes(track));
+      const endBeats = visibleTracks.flatMap(track =>
+        track.getRegions()
+          .filter(region => region instanceof KGMidiRegion)
+          .map(region => region.getStartFromBeat() + region.getLength())
+      );
+      return endBeats.length > 0 ? Math.max(roundedStartBeat, ...endBeats) : roundedStartBeat;
+    }
+
+    const targetTrack = tracks.find(track => track.getId().toString() === trackId);
+    if (!(targetTrack instanceof KGMidiTrack)) {
+      return undefined;
+    }
+
+    const endBeats = targetTrack.getRegions()
+      .filter(region => region instanceof KGMidiRegion)
+      .map(region => region.getStartFromBeat() + region.getLength());
+    return endBeats.length > 0 ? Math.max(roundedStartBeat, ...endBeats) : roundedStartBeat;
+  }
+
+  private formatTrackNameList(trackNames: string[]): string {
+    if (trackNames.length === 1) {
+      return trackNames[0];
+    }
+    if (trackNames.length === 2) {
+      return `${trackNames[0]} and ${trackNames[1]}`;
+    }
+
+    return `${trackNames.slice(0, -1).join(', ')}, and ${trackNames.at(-1)}`;
+  }
+
+  private formatBarRange(startBar: number, endBar: number): string {
+    return startBar === endBar
+      ? `bar ${startBar}`
+      : `bars ${startBar} to ${endBar}`;
+  }
+
+  private hasMidiContentInRange(track: KGMidiTrack, startBeat: number, endBeat?: number): boolean {
+    const rangeEndBeat = endBeat ?? Infinity;
+
+    return track.getRegions().some(region => {
+      if (!(region instanceof KGMidiRegion)) {
+        return false;
+      }
+
+      const regionStart = region.getStartFromBeat();
+      const regionEnd = regionStart + region.getLength();
+      const overlapsRange = regionStart < rangeEndBeat && regionEnd > startBeat;
+
+      return overlapsRange && region.getNotes().length > 0;
+    });
+  }
+
+  private getEmptyProjectMessage(): string {
+    return 'No musical content is present in the project yet.';
+  }
+
+  private getEmptyRangeMessage(): string {
+    return 'No musical content was found in the selected range.';
+  }
+
   /**
    * Find tracks that should be skipped because they have no musical content
    * (no regions or regions with no notes)
@@ -166,11 +310,20 @@ export class ReadMusicTool extends BaseTool {
     const midiTracks = tracks.filter(track => track instanceof KGMidiTrack);
 
     if (midiTracks.length === 0) {
-      return 'No MIDI tracks found in the project.';
+      return this.getEmptyProjectMessage();
     }
 
     // Find tracks to skip (tracks with no content)
     const tracksToSkip = this.findTracksToSkip(midiTracks);
+    const visibleTracks = midiTracks.filter(track => !tracksToSkip.includes(track));
+    if (visibleTracks.length === 0) {
+      return this.getEmptyProjectMessage();
+    }
+
+    const hasContentInRange = visibleTracks.some(track => this.hasMidiContentInRange(track, startBeat, endBeat));
+    if (!hasContentInRange) {
+      return this.getEmptyRangeMessage();
+    }
 
     // Get project settings for proper notation
     const project = this.getCurrentProject();
@@ -250,6 +403,16 @@ export class ReadMusicTool extends BaseTool {
   private generateSingleTrackABC(track: KGMidiTrack, startBeat: number, endBeat?: number): string {
     if (!(track instanceof KGMidiTrack)) {
       return `Track is not a MIDI track.`;
+    }
+
+    if (track.getRegions().length === 0 || !track.getRegions().some(region => (
+      region instanceof KGMidiRegion && region.getNotes().length > 0
+    ))) {
+      return this.getEmptyProjectMessage();
+    }
+
+    if (!this.hasMidiContentInRange(track, startBeat, endBeat)) {
+      return this.getEmptyRangeMessage();
     }
 
     // Get project settings for proper notation
