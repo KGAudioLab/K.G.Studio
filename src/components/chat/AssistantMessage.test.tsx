@@ -190,7 +190,7 @@ describe('AssistantMessage', () => {
       />
     );
 
-    expect(screen.getByLabelText('Agent task checklist snapshot')).toBeInTheDocument();
+    expect(screen.getByLabelText('Agent task checklist')).toBeInTheDocument();
     expect(screen.getByText('Task Checklist')).toBeInTheDocument();
     expect(screen.getByText('1/2 completed')).toBeInTheDocument();
     expect(screen.getByText('Working on: Writing harmony')).toBeInTheDocument();

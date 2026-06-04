@@ -222,16 +222,16 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
       const activeTodo = todoSnapshot.find(todo => todo.status === 'in_progress') ?? null;
 
       return (
-        <section className="chatbox-todo-card" aria-label="Agent task checklist snapshot">
+        <section className="chatbox-todo-card" aria-label={t('chatbox.todo.ariaLabel')}>
           <div className="chatbox-todo-card-header">
-            <h4>Task Checklist</h4>
+            <h4>{t('chatbox.todo.title')}</h4>
             <span className="chatbox-todo-count">
-              {counts.completed}/{counts.total} completed
+              {t('chatbox.todo.count', { completed: counts.completed, total: counts.total })}
             </span>
           </div>
           {activeTodo && (
             <div className="chatbox-todo-active">
-              Working on: {activeTodo.activeText || activeTodo.text}
+              {t('chatbox.todo.active', { task: activeTodo.activeText || activeTodo.text })}
             </div>
           )}
           <ul className="chatbox-todo-list">
