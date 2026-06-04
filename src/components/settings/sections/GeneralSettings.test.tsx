@@ -178,7 +178,7 @@ describe('GeneralSettings', () => {
   it('renders and persists the auto-compact threshold', async () => {
     renderSettings();
 
-    const select = await screen.findByLabelText('Auto-Compact Threshold');
+    const select = await screen.findByLabelText(translate('settings.general.autoCompactThreshold.label', undefined, 'en_us'));
     expect((select as HTMLSelectElement).value).toBe('90');
 
     fireEvent.change(select, { target: { value: '80' } });
@@ -186,6 +186,14 @@ describe('GeneralSettings', () => {
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.auto_compact_threshold_percent', 80);
     });
+  });
+
+  it('renders the auto-compact threshold label from the zh_cn catalog', async () => {
+    renderSettings('zh_cn');
+
+    expect(
+      await screen.findByLabelText(translate('settings.general.autoCompactThreshold.label', undefined, 'zh_cn')),
+    ).toBeTruthy();
   });
 
   it('renders and persists local runtime download URLs', async () => {

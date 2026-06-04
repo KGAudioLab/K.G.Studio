@@ -426,7 +426,7 @@ const GeneralSettings: React.FC = () => {
 
           <div className="settings-item">
             <label className="settings-label" htmlFor="general-auto-compact-threshold">
-              Auto-Compact Threshold
+              {t('settings.general.autoCompactThreshold.label')}
             </label>
             <select
               id="general-auto-compact-threshold"
@@ -434,12 +434,12 @@ const GeneralSettings: React.FC = () => {
               value={autoCompactThresholdPercent}
               onChange={(e) => void handleAutoCompactThresholdChange(e.target.value)}
             >
-              <option value="95">Conservative (95%)</option>
-              <option value="90">Standard (90%)</option>
-              <option value="80">Early (80%)</option>
+              <option value="95">{t('settings.general.autoCompactThreshold.conservative')}</option>
+              <option value="90">{t('settings.general.autoCompactThreshold.standard')}</option>
+              <option value="80">{t('settings.general.autoCompactThreshold.early')}</option>
             </select>
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              Compact the conversation before the next request when estimated context usage reaches this level.
+              {t('settings.general.autoCompactThreshold.help')}
             </div>
           </div>
         </div>
