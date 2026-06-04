@@ -18,6 +18,13 @@ import {
   LOCAL_SEPARATOR_MODEL_CONFIGS,
   LOCAL_SEPARATOR_MODEL_IDS,
 } from '../../../util/local-separator/config';
+import {
+  DEFAULT_AGENT_MODE,
+  getEffectiveAgentMode,
+  isAgentModeForcedByProvider,
+  normalizeAgentMode,
+  type AgentMode,
+} from '../../../util/agentMode';
 
 const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> = {
   en_us: 'English',
@@ -29,6 +36,7 @@ const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> =
 const GeneralSettings: React.FC = () => {
   const { t, setLanguageSetting } = useI18n();
   const [language, setLanguage] = useState<LanguageSetting>('auto');
+  const [agentMode, setAgentMode] = useState<AgentMode>(DEFAULT_AGENT_MODE);
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
   const [openaiKey, setOpenaiKey] = useState<string>('');
   const [openaiModel, setOpenaiModel] = useState<string>('');
@@ -103,6 +111,7 @@ const GeneralSettings: React.FC = () => {
       }
 
       setLanguage(((configManager.get('general.language') as LanguageSetting | undefined) ?? 'auto'));
+      setAgentMode(normalizeAgentMode(configManager.get('general.agent_mode')));
       setLlmProvider((configManager.get('general.llm_provider') as string) || LOCAL_LLM_PROVIDER_KEY);
       setOpenaiKey((configManager.get('general.openai.api_key') as string) || '');
       setOpenaiModel((configManager.get('general.openai.model') as string) || '');
@@ -166,6 +175,16 @@ const GeneralSettings: React.FC = () => {
       console.log('LLM provider changed to:', value);
     } catch (error) {
       console.error('Failed to save LLM provider:', error);
+    }
+  };
+
+  const handleAgentModeChange = async (value: AgentMode) => {
+    setAgentMode(value);
+    try {
+      await configManager.set('general.agent_mode', value);
+      console.log('Agent mode changed to:', value);
+    } catch (error) {
+      console.error('Failed to save agent mode:', error);
     }
   };
 
@@ -354,6 +373,8 @@ const GeneralSettings: React.FC = () => {
 
   const localRuntimeMessage = localModelState.runtimeSupport.reason;
   const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
+  const isAgentModeOverriddenByLocalProvider = isAgentModeForcedByProvider(llmProvider);
+  const effectiveAgentMode = getEffectiveAgentMode(configManager);
 
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
@@ -441,6 +462,38 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {t('settings.general.autoCompactThreshold.help')}
             </div>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>{t('settings.general.musicAssistant.section')}</h4>
+
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="general-agent-mode-select">
+              {t('settings.general.musicAssistant.agentMode.label')}
+            </label>
+            <select
+              id="general-agent-mode-select"
+              className="settings-select"
+              value={agentMode}
+              onChange={(e) => void handleAgentModeChange(e.target.value as AgentMode)}
+              disabled={isAgentModeOverriddenByLocalProvider}
+            >
+              <option value="regular">{t('settings.general.musicAssistant.agentMode.regular')}</option>
+              <option value="efficient">{t('settings.general.musicAssistant.agentMode.efficient')}</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {isAgentModeOverriddenByLocalProvider
+                ? t('settings.general.musicAssistant.agentMode.localOverride')
+                : t('settings.general.musicAssistant.agentMode.help')}
+            </div>
+            {effectiveAgentMode !== agentMode && (
+              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                {t('settings.general.musicAssistant.agentMode.effectiveValue', {
+                  mode: t('settings.general.musicAssistant.agentMode.efficient'),
+                })}
+              </div>
+            )}
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { upgradeConfigToV1 } from './upgradeConfigToV1';
 import { upgradeConfigToV2 } from './upgradeConfigToV2';
 import { upgradeConfigToV3 } from './upgradeConfigToV3';
 import { upgradeConfigToV4 } from './upgradeConfigToV4';
+import { upgradeConfigToV5 } from './upgradeConfigToV5';
 
 /**
  * KGConfigUpgrader — Orchestrates app-level migrations (e.g., storage backend changes).
@@ -46,6 +47,10 @@ export class KGConfigUpgrader {
         }
         case 4: {
           await upgradeConfigToV4();
+          break;
+        }
+        case 5: {
+          await upgradeConfigToV5();
           break;
         }
         default: {

@@ -75,6 +75,20 @@ export abstract class BaseTool {
   }
 
   /**
+   * Whether the tool is available when the assistant runs in Regular Mode.
+   */
+  isAvailableInRegularMode(): boolean {
+    return true;
+  }
+
+  /**
+   * Whether the tool is available when the assistant runs in Efficient Mode.
+   */
+  isAvailableInEfficientMode(): boolean {
+    return true;
+  }
+
+  /**
    * Optionally build a compact UI summary for a successful tool result.
    * The raw tool result remains the canonical output stored in agent history.
    */

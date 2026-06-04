@@ -3,6 +3,14 @@ import { AgentCore } from './AgentCore';
 import type { LLMProvider } from '../llm/LLMProvider';
 import type { Message, ToolCall } from './AgentState';
 import type { StreamChunk } from '../llm/StreamingTypes';
+import type { OpenAIToolDefinition } from '../tools/BaseTool';
+import { ReadMusicTool } from '../tools/ReadMusicTool';
+
+const configState = new Map<string, unknown>([
+  ['general.agent_mode', 'regular'],
+  ['general.llm_provider', 'openai'],
+  ['general.auto_compact_threshold_percent', 90],
+]);
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: {
@@ -14,17 +22,35 @@ vi.mock('../../stores/projectStore', () => ({
 
 vi.mock('./SystemPrompts', () => ({
   SystemPrompts: {
-    getSystemPromptWithContext: vi.fn(async () => 'system prompt'),
+    getSystemPromptWithContext: vi.fn(async (templatePath?: string) => `system prompt:${templatePath ?? 'default'}`),
+  },
+}));
+
+vi.mock('../../core/config/ConfigManager', () => ({
+  ConfigManager: {
+    instance: () => ({
+      getIsInitialized: () => true,
+      initialize: vi.fn(async () => undefined),
+      get: (key: string) => configState.get(key),
+    }),
   },
 }));
 
 class ScriptedProvider implements LLMProvider {
   public calls: Message[][] = [];
+  public systemPrompts: Array<string | undefined> = [];
+  public tools: OpenAIToolDefinition[][] = [];
 
   constructor(private readonly scripts: StreamChunk[][]) {}
 
-  async *generateStream(messages: Message[]): AsyncIterableIterator<StreamChunk> {
+  async *generateStream(
+    messages: Message[],
+    systemPrompt?: string,
+    tools?: OpenAIToolDefinition[],
+  ): AsyncIterableIterator<StreamChunk> {
     this.calls.push(messages.map(message => ({ ...message })));
+    this.systemPrompts.push(systemPrompt);
+    this.tools.push(tools ?? []);
     const script = this.scripts.shift() ?? [{ type: 'done', content: '', finishReason: 'stop' }];
     for (const chunk of script) {
       yield chunk;
@@ -53,6 +79,9 @@ async function collectChunks(input: string): Promise<StreamChunk[]> {
 
 describe('AgentCore todo integration', () => {
   beforeEach(() => {
+    configState.set('general.agent_mode', 'regular');
+    configState.set('general.llm_provider', 'openai');
+    configState.set('general.auto_compact_threshold_percent', 90);
     AgentCore.instance().clearConversation();
     AgentCore.instance().setLLMProvider(new ScriptedProvider([
       [{ type: 'done', content: '', finishReason: 'stop' }],
@@ -210,5 +239,82 @@ describe('AgentCore todo integration', () => {
     expect(AgentCore.instance().getAgentState().getTodos()).toEqual([
       { id: 'todo-1', text: 'Continue work', status: 'in_progress', updatedAt: 3 },
     ]);
+  });
+
+  it('uses the regular system prompt in regular mode', async () => {
+    configState.set('general.agent_mode', 'regular');
+    const provider = new ScriptedProvider([
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    await collectChunks('Read the current region.');
+
+    expect(provider.systemPrompts[0]).toBe('system prompt:prompts/system.md');
+  });
+
+  it('uses the compact system prompt in efficient mode', async () => {
+    configState.set('general.agent_mode', 'efficient');
+    const provider = new ScriptedProvider([
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    await collectChunks('Read the current region.');
+
+    expect(provider.systemPrompts[0]).toBe('system prompt:prompts/system_compact.md');
+  });
+
+  it('forces efficient mode when the local browser provider is selected', async () => {
+    configState.set('general.agent_mode', 'regular');
+    configState.set('general.llm_provider', 'local_browser');
+    const provider = new ScriptedProvider([
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    await collectChunks('Read the current region.');
+
+    expect(provider.systemPrompts[0]).toBe('system prompt:prompts/system_compact.md');
+  });
+
+  it('filters tool definitions by the active agent mode', async () => {
+    configState.set('general.agent_mode', 'efficient');
+    const provider = new ScriptedProvider([
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    const spy = vi.spyOn(ReadMusicTool.prototype, 'isAvailableInEfficientMode')
+      .mockReturnValue(false);
+
+    await collectChunks('Read the current region.');
+
+    expect(provider.tools[0].map(tool => tool.function.name)).not.toContain('read_music');
+    spy.mockRestore();
+  });
+
+  it('rejects tool calls for tools unavailable in the active mode', async () => {
+    configState.set('general.agent_mode', 'efficient');
+    const availabilitySpy = vi.spyOn(ReadMusicTool.prototype, 'isAvailableInEfficientMode')
+      .mockReturnValue(false);
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('read_music', {}, 'tool_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'text', content: 'Done' },
+        { type: 'done', content: '', finishReason: 'stop' },
+      ],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    const chunks = await collectChunks('Read the current region.');
+    const toolResultChunk = chunks.find(chunk => chunk.type === 'tool_result' && chunk.toolResult?.name === 'read_music');
+
+    expect(toolResultChunk?.toolResult?.success).toBe(false);
+    expect(toolResultChunk?.toolResult?.result).toBe("Tool 'read_music' is not available in Efficient Mode.");
+    availabilitySpy.mockRestore();
   });
 });

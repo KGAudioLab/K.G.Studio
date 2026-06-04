@@ -1,6 +1,7 @@
 import type { ChordGuideCustomConfig } from '../ChordGuideTypes';
 import { KGConfigStorage } from '../io/KGConfigStorage';
 import type { LanguageSetting } from '../../i18n/types';
+import type { AgentMode } from '../../util/agentMode';
 
 /**
  * Application configuration interface
@@ -8,6 +9,7 @@ import type { LanguageSetting } from '../../i18n/types';
 interface AppConfig {
   general: {
     language: LanguageSetting;
+    agent_mode: AgentMode;
     llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
     auto_compact_threshold_percent: 80 | 90 | 95;
@@ -208,6 +210,7 @@ export class ConfigManager {
       this.defaultConfig = {
         general: {
           language: 'auto',
+          agent_mode: 'regular',
           llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           auto_compact_threshold_percent: 90,

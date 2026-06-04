@@ -5,11 +5,13 @@ import { AVAILABLE_TOOLS, createToolInstance } from '../tools';
 import { useProjectStore } from '../../stores/projectStore';
 import type { StreamChunk, ToolApprovalDecision } from '../llm/StreamingTypes';
 import type { ToolCall } from './AgentState';
-import type { OpenAIToolDefinition } from '../tools/BaseTool';
+import type { BaseTool, OpenAIToolDefinition } from '../tools/BaseTool';
 import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { buildTodoContext } from './todo';
 import type { SavedConversationDocument } from '../../types/conversationTypes';
+import type { AgentMode } from '../../util/agentMode';
+import { getEffectiveAgentMode, getSystemPromptPathForAgentMode } from '../../util/agentMode';
 
 export interface CompactConversationOptions {
   trigger: 'manual' | 'auto';
@@ -69,24 +71,52 @@ export class AgentCore {
   /**
    * Get OpenAI tool definitions for all available tools
    */
-  private getToolDefinitions(): OpenAIToolDefinition[] {
+  private getToolDefinitions(agentMode: AgentMode): OpenAIToolDefinition[] {
     return Object.values(AVAILABLE_TOOLS).map(ToolClass => {
       const tool = new ToolClass();
-      return tool.getDefinition();
-    });
+      return this.isToolAvailableInMode(tool, agentMode) ? tool.getDefinition() : null;
+    }).filter((tool): tool is OpenAIToolDefinition => tool !== null);
   }
 
   private async getSystemPrompt(templatePath?: string): Promise<string> {
     return SystemPrompts.getSystemPromptWithContext(templatePath);
   }
 
+  private getEffectiveAgentMode(): AgentMode {
+    return getEffectiveAgentMode(ConfigManager.instance());
+  }
+
+  private getSystemPromptTemplatePath(agentMode: AgentMode): string {
+    return getSystemPromptPathForAgentMode(agentMode);
+  }
+
+  private isToolAvailableInMode(toolInstance: BaseTool | null, agentMode: AgentMode): boolean {
+    if (!toolInstance) {
+      return false;
+    }
+
+    return agentMode === 'efficient'
+      ? toolInstance.isAvailableInEfficientMode()
+      : toolInstance.isAvailableInRegularMode();
+  }
+
   /**
    * Execute a single tool call and return the result
    */
-  private async executeTool(toolCall: ToolCall): Promise<{ success: boolean; result: string }> {
+  private async executeTool(
+    toolCall: ToolCall,
+    agentMode: AgentMode,
+  ): Promise<{ success: boolean; result: string }> {
     const toolInstance = createToolInstance(toolCall.function.name);
     if (!toolInstance) {
       return { success: false, result: `Unknown tool: ${toolCall.function.name}` };
+    }
+
+    if (!this.isToolAvailableInMode(toolInstance, agentMode)) {
+      return {
+        success: false,
+        result: `Tool '${toolCall.function.name}' is not available in ${agentMode === 'efficient' ? 'Efficient Mode' : 'Regular Mode'}.`,
+      };
     }
 
     try {
@@ -121,10 +151,11 @@ export class AgentCore {
     this.currentUserMessageId = this.agentState.addMessage('user', userInput);
     this.currentTurnLikelyMultiStep = this.isLikelyMultiStepTask(userInput);
 
+    const agentMode = this.getEffectiveAgentMode();
     const systemPrompt = await SystemPrompts.getSystemPromptWithContext(
-      this.llmProvider.getPreferredSystemPromptPath?.(),
+      this.getSystemPromptTemplatePath(agentMode),
     );
-    const tools = this.getToolDefinitions();
+    const tools = this.getToolDefinitions(agentMode);
 
     try {
       // Agentic loop: stream → check for tool calls → execute → repeat
@@ -179,7 +210,7 @@ export class AgentCore {
 
             const result = denied
               ? { success: false, result: 'Execution was denied by the user.' }
-              : await this.executeTool(toolCall);
+              : await this.executeTool(toolCall, agentMode);
 
             // Add tool result message to conversation history
             this.agentState.addMessage('tool', JSON.stringify(result), {
@@ -295,9 +326,10 @@ export class AgentCore {
       return false;
     }
 
-    const tools = this.getToolDefinitions();
+    const agentMode = this.getEffectiveAgentMode();
+    const tools = this.getToolDefinitions(agentMode);
     const systemPrompt = await this.getSystemPrompt(
-      this.llmProvider.getPreferredSystemPromptPath?.(),
+      this.getSystemPromptTemplatePath(agentMode),
     );
     const thresholdPercent = await this.getAutoCompactThresholdPercent();
     const reservedOutputTokens = this.llmProvider.getReservedOutputTokens?.() ?? 4096;
@@ -345,7 +377,7 @@ export class AgentCore {
     const compactor = new ConversationCompactor({
       provider: this.llmProvider,
       systemPrompt: compactionPrompt,
-      tools: this.getToolDefinitions(),
+      tools: this.getToolDefinitions(this.getEffectiveAgentMode()),
       focus: options.focus,
       onProgress: options.onProgress,
       supplementalContext: buildTodoContext(this.agentState.getTodos()),

@@ -56,10 +56,6 @@ async function importMediaPipe(): Promise<MediaPipeGenAI> {
 export class LocalBrowserLLMProvider implements LLMProvider {
   private inference: GemmaInference | null = null;
 
-  getPreferredSystemPromptPath(): string | undefined {
-    return 'prompts/system_compact.md';
-  }
-
   getContextWindow(): number {
     return this.getConfiguredContextLength();
   }

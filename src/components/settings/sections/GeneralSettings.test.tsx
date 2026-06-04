@@ -14,6 +14,7 @@ const { localSeparatorModelCacheMock } = vi.hoisted(() => ({
 
 const configState = new Map<string, unknown>([
   ['general.language', 'auto'],
+  ['general.agent_mode', 'regular'],
   ['general.llm_provider', 'local_browser'],
   ['general.persist_api_keys_non_localhost', false],
   ['general.auto_compact_threshold_percent', 90],
@@ -107,6 +108,8 @@ describe('GeneralSettings', () => {
 
   beforeEach(() => {
     configState.set('general.language', 'auto');
+    configState.set('general.agent_mode', 'regular');
+    configState.set('general.llm_provider', 'local_browser');
     configState.set('general.local_browser.context_length', 65536);
     configState.set('general.auto_compact_threshold_percent', 90);
     configManagerMock.get.mockClear();
@@ -194,6 +197,41 @@ describe('GeneralSettings', () => {
     expect(
       await screen.findByLabelText(translate('settings.general.autoCompactThreshold.label', undefined, 'zh_cn')),
     ).toBeTruthy();
+  });
+
+  it('renders the music assistant section and initializes the agent mode selector', async () => {
+    configState.set('general.llm_provider', 'openai');
+    configState.set('general.agent_mode', 'efficient');
+
+    renderSettings();
+
+    expect(await screen.findByText('K.G.Studio Music Assistant')).toBeTruthy();
+    const select = screen.getByLabelText('Agent Mode');
+    expect((select as HTMLSelectElement).value).toBe('efficient');
+  });
+
+  it('persists agent mode changes for non-local providers', async () => {
+    configState.set('general.llm_provider', 'openai');
+
+    renderSettings();
+
+    const select = await screen.findByLabelText('Agent Mode');
+    fireEvent.change(select, { target: { value: 'efficient' } });
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.agent_mode', 'efficient');
+    });
+  });
+
+  it('disables the agent mode selector for the local browser provider and shows override help', async () => {
+    configState.set('general.llm_provider', 'local_browser');
+    configState.set('general.agent_mode', 'regular');
+
+    renderSettings();
+
+    const select = await screen.findByLabelText('Agent Mode');
+    expect(select).toBeDisabled();
+    expect(screen.getByText('Local LLM (Browser) always runs the assistant in Efficient Mode.')).toBeTruthy();
   });
 
   it('renders and persists local runtime download URLs', async () => {

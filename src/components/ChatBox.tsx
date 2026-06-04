@@ -23,6 +23,7 @@ import { KGConversationStorage } from '../core/io/KGConversationStorage';
 import { SAVED_CONVERSATION_VERSION, type SavedConversationDocument, type SavedConversationMeta } from '../types/conversationTypes';
 import type { Message } from '../agent/core/AgentState';
 import { showConfirm } from '../util/dialogUtil';
+import { getEffectiveAgentMode, getSystemPromptPathForAgentMode } from '../util/agentMode';
 
 import type { ChatMessage } from '../types/projectTypes';
 
@@ -631,9 +632,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       // Log system prompt only for first message
       if (isFirstMessage) {
         try {
-          const provider = AgentCore.instance().getLLMProvider();
+          const agentMode = getEffectiveAgentMode(ConfigManager.instance());
           const systemPrompt = await SystemPrompts.getSystemPromptWithContext(
-            provider?.getPreferredSystemPromptPath?.(),
+            getSystemPromptPathForAgentMode(agentMode),
           );
           console.log('------------ SYSTEM ------------');
           console.log(systemPrompt);
