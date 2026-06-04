@@ -14,6 +14,8 @@ const {
   streamProcessorCallbacks,
   clearChatHistoryAndUIMock,
   projectStoreState,
+  conversationStorageMock,
+  showConfirmMock,
 } = vi.hoisted(() => ({
   agentCoreMock: {
     setLLMProvider: vi.fn(),
@@ -21,9 +23,12 @@ const {
     abortCurrentRequest: vi.fn(),
     getAgentState: vi.fn(() => ({
       getMessages: vi.fn(() => []),
+      getFullMessages: vi.fn(() => []),
+      getConversationId: vi.fn(() => 'conv_test'),
       getTodos: vi.fn(() => []),
       subscribeTodoChanges: vi.fn(() => () => undefined),
     })),
+    restoreConversation: vi.fn(),
     compactConversation: vi.fn(async () => ({ changed: true, compactedConversation: 'summary' })),
     shouldCompactBeforeNextTurn: vi.fn(async () => false),
   },
@@ -31,11 +36,20 @@ const {
   processStreamMock: vi.fn(async () => ''),
   clearChatHistoryAndUIMock: vi.fn(),
   projectStoreState: {
+    projectName: 'Test Project',
     toolFastForwardEnabled: false,
     setStatus: vi.fn(),
     setToolFastForwardEnabled: vi.fn(),
     toggleToolFastForwardEnabled: vi.fn(),
   },
+  conversationStorageMock: {
+    initialize: vi.fn(async () => undefined),
+    saveConversation: vi.fn(async () => undefined),
+    loadConversation: vi.fn(async () => null),
+    listConversations: vi.fn(async () => []),
+    deleteConversation: vi.fn(async () => undefined),
+  },
+  showConfirmMock: vi.fn(async () => true),
   streamProcessorCallbacks: {
     onMessageAdd: undefined as ((message: ChatMessage) => void) | undefined,
     onMessageUpdate: undefined as ((messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void) | undefined,
@@ -181,6 +195,20 @@ vi.mock('../util/localLLMConfig', () => ({
   LOCAL_LLM_PROVIDER_KEY: 'local_browser',
 }));
 
+vi.mock('../core/io/KGConversationStorage', () => ({
+  KGConversationStorage: {
+    getInstance: () => conversationStorageMock,
+  },
+}));
+
+vi.mock('../util/dialogUtil', async () => {
+  const actual = await vi.importActual('../util/dialogUtil');
+  return {
+    ...actual,
+    showConfirm: showConfirmMock,
+  };
+});
+
 vi.mock('./common/KGDropdown', () => ({
   default: () => null,
 }));
@@ -209,16 +237,32 @@ describe('ChatBox', () => {
     processUserMessageMock.mockReset();
     processStreamMock.mockClear();
     clearChatHistoryAndUIMock.mockClear();
+    conversationStorageMock.initialize.mockClear();
+    conversationStorageMock.saveConversation.mockClear();
+    conversationStorageMock.loadConversation.mockClear();
+    conversationStorageMock.listConversations.mockClear();
+    conversationStorageMock.deleteConversation.mockClear();
+    showConfirmMock.mockClear();
+    showConfirmMock.mockResolvedValue(true);
     agentCoreMock.compactConversation.mockClear();
     agentCoreMock.shouldCompactBeforeNextTurn.mockResolvedValue(false);
+    agentCoreMock.restoreConversation.mockClear();
     streamProcessorCallbacks.onMessageAdd = undefined;
     streamProcessorCallbacks.onMessageUpdate = undefined;
     streamProcessorCallbacks.onMessageRemove = undefined;
     streamProcessorCallbacks.onProcessingChange = undefined;
+    projectStoreState.projectName = 'Test Project';
     projectStoreState.toolFastForwardEnabled = false;
     projectStoreState.setStatus.mockClear();
     projectStoreState.setToolFastForwardEnabled.mockClear();
     projectStoreState.toggleToolFastForwardEnabled.mockClear();
+    agentCoreMock.getAgentState.mockReturnValue({
+      getMessages: vi.fn(() => []),
+      getFullMessages: vi.fn(() => []),
+      getConversationId: vi.fn(() => 'conv_test'),
+      getTodos: vi.fn(() => []),
+      subscribeTodoChanges: vi.fn(() => () => undefined),
+    });
   });
 
   it('renders the English assistant title under en_us', () => {
@@ -436,7 +480,7 @@ describe('ChatBox', () => {
     expect(screen.getByTitle('Fast forward tool execution approvals')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('resets fast-forward through the shared new chat clear path', () => {
+  it('resets fast-forward through the shared new chat clear path', async () => {
     projectStoreState.toolFastForwardEnabled = true;
     clearChatHistoryAndUIMock.mockImplementation(() => {
       projectStoreState.setToolFastForwardEnabled(false);
@@ -458,7 +502,151 @@ describe('ChatBox', () => {
       </I18nContext.Provider>,
     );
 
-    expect(clearChatHistoryAndUIMock).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(clearChatHistoryAndUIMock).toHaveBeenCalled();
+    });
+
+    rerender(
+      <I18nContext.Provider
+        value={{
+          languageSetting: 'en_us',
+          resolvedLocale: 'en_us',
+          setLanguageSetting: async () => undefined,
+          t: (key, params) => translate(key, params, 'en_us'),
+        }}
+      >
+        <ChatBox isVisible={true} />
+      </I18nContext.Provider>,
+    );
+
     expect(screen.getByTitle('Fast forward tool execution approvals')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('autosaves a completed conversation after sending', async () => {
+    agentCoreMock.getAgentState.mockReturnValue({
+      getMessages: vi.fn(() => [{ id: 'm1', role: 'user', content: 'hello', timestamp: 1 }]),
+      getFullMessages: vi.fn(() => [
+        { id: 'm1', role: 'user', content: 'hello', timestamp: 1 },
+        { id: 'm2', role: 'assistant', content: 'world', timestamp: 2 },
+      ]),
+      getConversationId: vi.fn(() => 'conv_saved'),
+      getTodos: vi.fn(() => []),
+      subscribeTodoChanges: vi.fn(() => () => undefined),
+    });
+    processUserMessageMock.mockResolvedValue({
+      displayUserMessage: true,
+      sendToLLM: true,
+      finalMessageForLLM: 'hello',
+      pseudoAssistantResponse: null,
+      metadata: null,
+    });
+    processStreamMock.mockImplementation(async () => {
+      streamProcessorCallbacks.onMessageAdd?.({ id: 'assistant-1', role: 'assistant', content: 'world' });
+      return 'world';
+    });
+
+    renderWithLocale('en_us');
+
+    const input = screen.getByPlaceholderText('Press Enter to send message, Shift + Enter for new line');
+    fireEvent.change(input, { target: { value: 'hello' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
+
+    await waitFor(() => {
+      expect(conversationStorageMock.saveConversation).toHaveBeenCalledTimes(1);
+    });
+    const persistedDocument = ((conversationStorageMock.saveConversation.mock.calls[0] as unknown) as [string, { displayTranscript: ChatMessage[] }])[1];
+    expect(persistedDocument.displayTranscript).toEqual([
+      expect.objectContaining({ role: 'user', content: 'hello' }),
+      expect.objectContaining({ role: 'assistant', content: 'world' }),
+    ]);
+  });
+
+  it('loads and restores a selected saved conversation from history', async () => {
+    conversationStorageMock.listConversations.mockResolvedValue([
+      {
+        conversationId: 'conv_old',
+        title: 'Earlier conversation',
+        createdAt: 1,
+        updatedAt: 2,
+        lastTurnAt: 2,
+        messageCount: 2,
+        preview: 'Preview',
+      },
+    ] as never);
+    conversationStorageMock.loadConversation.mockResolvedValue({
+      meta: {
+        conversationId: 'conv_old',
+        title: 'Earlier conversation',
+        createdAt: 1,
+        updatedAt: 2,
+        lastTurnAt: 2,
+        messageCount: 2,
+        preview: 'Preview',
+      },
+      document: {
+        version: 1,
+        conversationId: 'conv_old',
+        continuationState: {
+          messages: [{ id: 'a', role: 'user', content: 'prompt', timestamp: 1 }],
+          todos: [],
+        },
+        fullHistory: {
+          messages: [
+            { id: 'a', role: 'user', content: 'prompt', timestamp: 1 },
+            { id: 'b', role: 'assistant', content: 'reply', timestamp: 2 },
+          ],
+        },
+        displayTranscript: [
+          { id: 'display-a', role: 'user', content: 'prompt' },
+          { id: 'display-b', role: 'assistant', content: 'reply' },
+        ],
+      },
+    } as never);
+
+    renderWithLocale('en_us');
+
+    fireEvent.click(screen.getByTitle('Conversation history'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Earlier conversation')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('Earlier conversation'));
+
+    await waitFor(() => {
+      expect(agentCoreMock.restoreConversation).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('prompt')).toBeTruthy();
+      expect(screen.getByText('reply')).toBeTruthy();
+    });
+  });
+
+  it('deletes a saved conversation after confirmation', async () => {
+    conversationStorageMock.listConversations.mockResolvedValue([
+      {
+        conversationId: 'conv_old',
+        title: 'Earlier conversation',
+        createdAt: 1,
+        updatedAt: 2,
+        lastTurnAt: 2,
+        messageCount: 2,
+        preview: 'Preview',
+      },
+    ] as never);
+
+    renderWithLocale('en_us');
+
+    fireEvent.click(screen.getByTitle('Conversation history'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Earlier conversation')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByLabelText('Delete'));
+
+    await waitFor(() => {
+      expect(showConfirmMock).toHaveBeenCalledTimes(1);
+      expect(conversationStorageMock.deleteConversation).toHaveBeenCalledWith('Test Project', 'conv_old');
+      expect(screen.queryByText('Earlier conversation')).toBeNull();
+    });
   });
 });

@@ -182,4 +182,33 @@ describe('AgentCore todo integration', () => {
     expect(provider.calls).toHaveLength(1);
     expect(AgentCore.instance().getAgentState().getMessages().at(-1)?.role).toBe('tool');
   });
+
+  it('restores a saved conversation document into the agent state', () => {
+    AgentCore.instance().restoreConversation({
+      version: 1,
+      conversationId: 'conv_saved',
+      continuationState: {
+        messages: [
+          { id: 'm2', role: 'assistant', content: 'summary', timestamp: 2 },
+        ],
+        todos: [
+          { id: 'todo-1', text: 'Continue work', status: 'in_progress', updatedAt: 3 },
+        ],
+      },
+      fullHistory: {
+        messages: [
+          { id: 'm1', role: 'user', content: 'prompt', timestamp: 1 },
+          { id: 'm2', role: 'assistant', content: 'summary', timestamp: 2 },
+        ],
+      },
+      displayTranscript: [],
+    });
+
+    expect(AgentCore.instance().getAgentState().getConversationId()).toBe('conv_saved');
+    expect(AgentCore.instance().getAgentState().getMessages()).toHaveLength(1);
+    expect(AgentCore.instance().getAgentState().getFullMessages()).toHaveLength(2);
+    expect(AgentCore.instance().getAgentState().getTodos()).toEqual([
+      { id: 'todo-1', text: 'Continue work', status: 'in_progress', updatedAt: 3 },
+    ]);
+  });
 });

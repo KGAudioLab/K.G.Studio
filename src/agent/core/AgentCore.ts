@@ -9,6 +9,7 @@ import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { buildTodoContext } from './todo';
+import type { SavedConversationDocument } from '../../types/conversationTypes';
 
 export interface CompactConversationOptions {
   trigger: 'manual' | 'auto';
@@ -259,6 +260,29 @@ export class AgentCore {
     this.todoToolCyclesSinceUpdate = 0;
     this.remindAboutTodosOnNextLoop = false;
     this.currentTurnLikelyMultiStep = false;
+  }
+
+  startNewConversation(): void {
+    this.agentState.resetConversation();
+    this.todoToolCyclesSinceUpdate = 0;
+    this.remindAboutTodosOnNextLoop = false;
+    this.currentTurnLikelyMultiStep = false;
+    this.currentUserMessageId = null;
+    this.currentAssistantMessageId = null;
+  }
+
+  restoreConversation(document: SavedConversationDocument): void {
+    this.agentState.replaceConversationState({
+      conversationId: document.conversationId,
+      messages: document.continuationState.messages,
+      fullMessages: document.fullHistory.messages,
+      todos: document.continuationState.todos,
+    });
+    this.todoToolCyclesSinceUpdate = 0;
+    this.remindAboutTodosOnNextLoop = false;
+    this.currentTurnLikelyMultiStep = false;
+    this.currentUserMessageId = null;
+    this.currentAssistantMessageId = null;
   }
 
   async shouldCompactBeforeNextTurn(userInput: string): Promise<boolean> {

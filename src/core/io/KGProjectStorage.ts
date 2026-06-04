@@ -232,8 +232,8 @@ export class KGProjectStorage {
     project.setName(targetName);
     await this.save(targetName, project, false);
 
-    // Copy media files
-    await this.copyMediaFiles(sourceName, targetName);
+    // Copy project-scoped auxiliary artifacts such as media and conversation history
+    await this.copyProjectArtifacts(sourceName, targetName);
   }
 
   /**
@@ -346,8 +346,8 @@ export class KGProjectStorage {
     project.setName(newName);
     await this.save(newName, project, false);
 
-    // Copy media files from old to new location
-    await this.copyMediaFiles(oldName, newName);
+    // Copy project-scoped auxiliary artifacts such as media and conversation history
+    await this.copyProjectArtifacts(oldName, newName);
 
     // Delete old location
     await this.delete(oldName);
@@ -366,7 +366,7 @@ export class KGProjectStorage {
 
     // Migrate media files only if the old folder exists
     if (await this.exists(oldName)) {
-      await this.copyMediaFiles(oldName, newName);
+      await this.copyProjectArtifacts(oldName, newName);
       await this.delete(oldName);
     }
   }
@@ -381,7 +381,7 @@ export class KGProjectStorage {
     await this.save(targetName, data, false);
 
     if (await this.exists(sourceName)) {
-      await this.copyMediaFiles(sourceName, targetName);
+      await this.copyProjectArtifacts(sourceName, targetName);
     }
   }
 
@@ -414,7 +414,7 @@ export class KGProjectStorage {
       if (entry.kind === 'file') {
         const fileHandle = entry as FileSystemFileHandle;
         const file = await fileHandle.getFile();
-        zip.file(entryPath, file.arrayBuffer());
+        zip.file(entryPath, new Uint8Array(await this.readBlobLikeAsArrayBuffer(file)));
       } else {
         const subDir = entry as FileSystemDirectoryHandle;
         await this.addDirectoryToZip(zip, subDir, entryPath);
@@ -551,37 +551,50 @@ export class KGProjectStorage {
 
   // --- Media migration ---
 
-  /**
-   * Copy all files from projects/<fromName>/media/ to projects/<toName>/media/.
-   * If the source media directory doesn't exist, returns without error.
-   */
-  private async copyMediaFiles(fromName: string, toName: string): Promise<void> {
+  private async copyProjectArtifacts(fromName: string, toName: string): Promise<void> {
     try {
       const fromDir = await this.projectsDirHandle!.getDirectoryHandle(fromName);
-      let fromMedia: FileSystemDirectoryHandle;
-      try {
-        fromMedia = await fromDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR);
-      } catch {
-        // No media directory in source — nothing to copy
-        return;
-      }
-
       const toDir = await this.projectsDirHandle!.getDirectoryHandle(toName);
-      const toMedia = await toDir.getDirectoryHandle(OPFS_CONSTANTS.MEDIA_DIR, { create: true });
-
-      for await (const entry of fromMedia.values()) {
+      for await (const entry of fromDir.values()) {
+        if (entry.name === OPFS_CONSTANTS.PROJECT_FILE || entry.name === OPFS_CONSTANTS.METADATA_FILE) {
+          continue;
+        }
         if (entry.kind === 'file') {
           const fileHandle = entry as FileSystemFileHandle;
           const file = await fileHandle.getFile();
-          const newHandle = await toMedia.getFileHandle(entry.name, { create: true });
+          const newHandle = await toDir.getFileHandle(entry.name, { create: true });
           const writable = await newHandle.createWritable();
           await writable.write(await file.arrayBuffer());
           await writable.close();
+        } else {
+          await this.copyDirectoryContents(
+            entry as FileSystemDirectoryHandle,
+            await toDir.getDirectoryHandle(entry.name, { create: true }),
+          );
         }
       }
     } catch (error) {
-      console.error(`Error copying media files from "${fromName}" to "${toName}":`, error);
+      console.error(`Error copying project artifacts from "${fromName}" to "${toName}":`, error);
       throw error;
+    }
+  }
+
+  private async copyDirectoryContents(
+    fromDir: FileSystemDirectoryHandle,
+    toDir: FileSystemDirectoryHandle,
+  ): Promise<void> {
+    for await (const entry of fromDir.values()) {
+      if (entry.kind === 'file') {
+        const fileHandle = entry as FileSystemFileHandle;
+        const file = await fileHandle.getFile();
+        const newHandle = await toDir.getFileHandle(entry.name, { create: true });
+        const writable = await newHandle.createWritable();
+        await writable.write(await this.readBlobLikeAsArrayBuffer(file));
+        await writable.close();
+      } else {
+        const newSubDir = await toDir.getDirectoryHandle(entry.name, { create: true });
+        await this.copyDirectoryContents(entry as FileSystemDirectoryHandle, newSubDir);
+      }
     }
   }
 
@@ -617,5 +630,17 @@ export class KGProjectStorage {
     } catch {
       return { name, createdAt: 0, updatedAt: 0 };
     }
+  }
+
+  private async readBlobLikeAsArrayBuffer(
+    file: { arrayBuffer?: () => Promise<ArrayBuffer>; text?: () => Promise<string> },
+  ): Promise<ArrayBuffer> {
+    if (typeof file.arrayBuffer === 'function') {
+      return file.arrayBuffer();
+    }
+    if (typeof file.text === 'function') {
+      return new TextEncoder().encode(await file.text()).buffer;
+    }
+    throw new Error('Unsupported file object: expected arrayBuffer() or text().');
   }
 }

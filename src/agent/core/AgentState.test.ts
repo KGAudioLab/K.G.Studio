@@ -109,4 +109,40 @@ describe('AgentState compaction helpers', () => {
 
     expect(state.getTodos()).toEqual([]);
   });
+
+  it('restores full conversation state including full history and todos', () => {
+    const state = new AgentState('conv_original');
+
+    state.replaceConversationState({
+      conversationId: 'conv_restored',
+      messages: [
+        { id: 'm2', role: 'assistant', content: 'summary', timestamp: 2, is_compacted_summary: true },
+      ],
+      fullMessages: [
+        { id: 'm1', role: 'user', content: 'prompt', timestamp: 1 },
+        { id: 'm2', role: 'assistant', content: 'summary', timestamp: 2, is_compacted_summary: true },
+      ],
+      todos: [
+        { id: 'todo-1', text: 'Resume work', status: 'in_progress', updatedAt: 3 },
+      ],
+    });
+
+    expect(state.getConversationId()).toBe('conv_restored');
+    expect(state.getMessages()).toHaveLength(1);
+    expect(state.getFullMessages()).toHaveLength(2);
+    expect(state.getTodos()).toEqual([
+      { id: 'todo-1', text: 'Resume work', status: 'in_progress', updatedAt: 3 },
+    ]);
+  });
+
+  it('starts a fresh conversation with a new id when reset', () => {
+    const state = new AgentState('conv_test');
+    state.addMessage('user', 'first');
+
+    state.resetConversation('conv_new');
+
+    expect(state.getConversationId()).toBe('conv_new');
+    expect(state.getMessages()).toEqual([]);
+    expect(state.getFullMessages()).toEqual([]);
+  });
 });

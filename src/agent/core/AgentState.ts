@@ -153,6 +153,25 @@ export class AgentState {
     this.messages = [...messages];
   }
 
+  replaceConversationState(state: {
+    conversationId: string;
+    messages: Message[];
+    fullMessages: Message[];
+    todos: TodoItem[];
+  }): void {
+    this.conversationId = state.conversationId;
+    this.messages = state.messages.map(message => ({ ...message }));
+    this.fullMessages = state.fullMessages.map(message => ({ ...message }));
+    this.setTodos(state.todos);
+  }
+
+  resetConversation(conversationId?: string): void {
+    this.conversationId = conversationId || this.generateConversationId();
+    this.messages = [];
+    this.fullMessages = [];
+    this.clearTodos();
+  }
+
   /**
    * Get the last N messages
    */

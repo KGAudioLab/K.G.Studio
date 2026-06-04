@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KGProjectStorage, DuplicateEntryError } from './KGProjectStorage';
+import { KGConversationStorage } from './KGConversationStorage';
 import { KGProject } from '../KGProject';
 import { GlobalTrackType } from '../global-track';
 import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
@@ -10,16 +11,23 @@ import { KGTrack } from '../track/KGTrack';
 // --- OPFS mock infrastructure ---
 
 class MockFileSystemWritableFileStream {
-  public data = '';
-  async write(content: string) { this.data = content; }
+  public data: string | ArrayBuffer = '';
+  async write(content: string | ArrayBuffer) { this.data = content; }
   async close() {}
 }
 
 class MockFileSystemFileHandle {
   kind = 'file' as const;
-  constructor(public name: string, private _content: string = '') {}
+  constructor(public name: string, private _content: string | ArrayBuffer = '') {}
   async getFile() {
-    return { text: () => Promise.resolve(this._content) };
+    return {
+      text: () => Promise.resolve(typeof this._content === 'string' ? this._content : new TextDecoder().decode(this._content)),
+      arrayBuffer: () => Promise.resolve(
+        typeof this._content === 'string'
+          ? new TextEncoder().encode(this._content).buffer
+          : this._content
+      ),
+    };
   }
   async createWritable() {
     const stream = new MockFileSystemWritableFileStream();
@@ -93,6 +101,7 @@ vi.stubGlobal('navigator', {
 
 describe('KGProjectStorage', () => {
   let storage: KGProjectStorage;
+  let conversationStorage: KGConversationStorage;
 
   beforeEach(async () => {
     // Reset singleton and mock filesystem
@@ -103,6 +112,9 @@ describe('KGProjectStorage', () => {
 
     storage = KGProjectStorage.getInstance();
     await storage.initialize();
+    ;(KGConversationStorage as unknown as { _instance: undefined })._instance = undefined;
+    conversationStorage = KGConversationStorage.getInstance();
+    await conversationStorage.initialize();
   });
 
   function createTestProject(name = 'Test Project'): KGProject {
@@ -336,5 +348,66 @@ describe('KGProjectStorage', () => {
 
     const loaded = await storage.load('New Name');
     expect(loaded!.getName()).toBe('New Name');
+  });
+
+  it('copies conversation history when saving under a new project name', async () => {
+    await storage.save('Source Song', createTestProject('Source Song'));
+    await conversationStorage.saveConversation('Source Song', {
+      version: 1,
+      conversationId: 'conv_1',
+      continuationState: {
+        messages: [{ id: 'm1', role: 'user', content: 'hello', timestamp: 1 }],
+        todos: [],
+      },
+      fullHistory: {
+        messages: [{ id: 'm1', role: 'user', content: 'hello', timestamp: 1 }],
+      },
+      displayTranscript: [{ id: 'display_1', role: 'user', content: 'hello' }],
+    }, {
+      conversationId: 'conv_1',
+      title: 'hello',
+      createdAt: 1,
+      updatedAt: 1,
+      lastTurnAt: 1,
+      messageCount: 1,
+      preview: 'hello',
+    });
+
+    await storage.saveAs('Source Song', 'Copied Song', createTestProject('Copied Song'));
+
+    const loadedConversation = await conversationStorage.loadConversation('Copied Song', 'conv_1');
+    expect(loadedConversation?.document.conversationId).toBe('conv_1');
+  });
+
+  it('includes conversation history in project bundle export and import', async () => {
+    await storage.save('Bundle Song', createTestProject('Bundle Song'));
+    await conversationStorage.saveConversation('Bundle Song', {
+      version: 1,
+      conversationId: 'conv_bundle',
+      continuationState: {
+        messages: [{ id: 'm1', role: 'user', content: 'bundle', timestamp: 1 }],
+        todos: [],
+      },
+      fullHistory: {
+        messages: [{ id: 'm1', role: 'user', content: 'bundle', timestamp: 1 }],
+      },
+      displayTranscript: [{ id: 'display_1', role: 'user', content: 'bundle' }],
+    }, {
+      conversationId: 'conv_bundle',
+      title: 'bundle',
+      createdAt: 1,
+      updatedAt: 1,
+      lastTurnAt: 1,
+      messageCount: 1,
+      preview: 'bundle',
+    });
+
+    const bundle = await storage.exportAsZip('Bundle Song');
+    const importedName = await storage.importFromZip(bundle);
+    const loadedConversation = await conversationStorage.loadConversation(importedName, 'conv_bundle');
+
+    expect(loadedConversation?.document.displayTranscript).toEqual([
+      { id: 'display_1', role: 'user', content: 'bundle' },
+    ]);
   });
 });

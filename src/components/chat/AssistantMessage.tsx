@@ -279,14 +279,14 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
             </button>
             <button
               type="button"
-              className="message-tool-confirmation-btn message-tool-confirmation-btn-always dialog-btn dialog-btn-primary kgone-btn-generate"
+              className="message-tool-confirmation-btn dialog-btn dialog-btn-primary kgone-btn-generate"
               onClick={() => onToolConfirmationDecision('always_allow')}
             >
               {t('chatbox.tool.confirmation.alwaysAllow')}
             </button>
             <button
               type="button"
-              className="message-tool-confirmation-btn message-tool-confirmation-btn-deny dialog-btn dialog-btn-primary kgone-btn-generate"
+              className="message-tool-confirmation-btn dialog-btn dialog-btn-cancel kgone-btn-generate"
               onClick={() => onToolConfirmationDecision('deny')}
             >
               {t('chatbox.tool.confirmation.deny')}

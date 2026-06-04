@@ -9,7 +9,7 @@ import { useProjectStore } from '../stores/projectStore';
 export const clearChatHistory = () => {
   // Clear agent state
   const agentCore = AgentCore.instance();
-  agentCore.clearConversation();
+  agentCore.startNewConversation();
   useProjectStore.getState().setToolFastForwardEnabled(false);
   
   console.log('Chat history cleared programmatically');
