@@ -22,6 +22,10 @@ export class AddNotesTool extends BaseTool {
   readonly name = 'add_notes';
   readonly description = 'Add one or more MIDI notes to the current region. Use this to create melodies, chords, or any musical content. Notes use absolute beat positions on the project timeline — not relative to the region start.';
 
+  override isReadOnlyTool(): boolean {
+    return false;
+  }
+
   readonly parameters: Record<string, ToolParameter> = {
     notes: {
       type: 'array',
@@ -72,6 +76,19 @@ export class AddNotesTool extends BaseTool {
     }
 
     return `Successfully created ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+  }
+
+  override buildConfirmationContent(args: Record<string, unknown> | null): string | undefined {
+    if (!args) {
+      return undefined;
+    }
+
+    const summary = this.buildSummaryData(args);
+    if (!summary) {
+      return undefined;
+    }
+
+    return `Allow creating ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}?`;
   }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {

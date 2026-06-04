@@ -123,6 +123,7 @@ interface ProjectState {
 
   // ChatBox state
   showChatBox: boolean;
+  toolFastForwardEnabled: boolean;
 
   // K.G.One panel state
   showKGOnePanel: boolean;
@@ -227,6 +228,8 @@ interface ProjectState {
   // ChatBox actions
   setShowChatBox: (show: boolean) => void;
   toggleChatBox: () => void;
+  setToolFastForwardEnabled: (enabled: boolean) => void;
+  toggleToolFastForwardEnabled: () => void;
 
   // K.G.One panel actions
   toggleKGOnePanel: () => void;
@@ -466,6 +469,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial ChatBox state
     showChatBox: initialChatBoxState,
+    toolFastForwardEnabled: false,
 
     // Initial K.G.One panel state
     showKGOnePanel: false,
@@ -1738,6 +1742,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       set({ showChatBox: false });
+    },
+
+    setToolFastForwardEnabled: (enabled: boolean) => {
+      set({ toolFastForwardEnabled: enabled });
+    },
+
+    toggleToolFastForwardEnabled: () => {
+      set((state) => ({ toolFastForwardEnabled: !state.toolFastForwardEnabled }));
     },
 
     toggleKGOnePanel: () => {

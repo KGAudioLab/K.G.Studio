@@ -9,11 +9,19 @@ export interface PerformanceInfo {
   generationTps?: number;
 }
 
+export type ToolApprovalDecision = 'allow' | 'always_allow' | 'deny';
+
 export interface StreamChunk {
   type: 'text' | 'tool_call' | 'tool_result' | 'done';
   content: string;
   toolCall?: ToolCall;
-  toolResult?: { toolCallId?: string; name: string; success: boolean; result: string };
+  toolResult?: {
+    toolCallId?: string;
+    name: string;
+    success: boolean;
+    result: string;
+    denied?: boolean;
+  };
   performanceInfo?: PerformanceInfo;
   finishReason?: string;
 }

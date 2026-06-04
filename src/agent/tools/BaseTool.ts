@@ -68,12 +68,29 @@ export abstract class BaseTool {
   abstract execute(params: Record<string, unknown>): Promise<ToolResult>;
 
   /**
+   * Whether the tool only reads state and can execute without user approval.
+   */
+  isReadOnlyTool(): boolean {
+    return true;
+  }
+
+  /**
    * Optionally build a compact UI summary for a successful tool result.
    * The raw tool result remains the canonical output stored in agent history.
    */
   buildToolResultDisplayContent(
     _args: Record<string, unknown> | null,
     _toolResult: ToolResult,
+  ): string | undefined {
+    return undefined;
+  }
+
+  /**
+   * Optionally build a user-facing confirmation summary before execution.
+   * Non-read-only tools should override this with a concise approval prompt.
+   */
+  buildConfirmationContent(
+    _args: Record<string, unknown> | null,
   ): string | undefined {
     return undefined;
   }

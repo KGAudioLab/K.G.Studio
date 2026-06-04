@@ -230,4 +230,40 @@ describe('AssistantMessage', () => {
     expect(screen.getByText(/└──/)).toBeInTheDocument();
     expect(screen.getByText('C D E F')).toBeInTheDocument();
   });
+
+  it('renders tool confirmation buttons and fires the selected action', () => {
+    const onToolConfirmationDecision = vi.fn();
+
+    render(
+      <AssistantMessage
+        content="confirmation fallback"
+        toolConfirmation={{
+          toolCallId: 'tool-1',
+          toolName: 'add_notes',
+          message: 'Allow creating 2 notes in region **Verse Melody** on track **Lead**, spanning bars 5 to 7?',
+        }}
+        onToolConfirmationDecision={onToolConfirmationDecision}
+      />
+    );
+
+    expect(screen.getByText('add_notes')).toBeInTheDocument();
+    expect(screen.getByText(/Allow creating 2 notes/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Always allow' }));
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith('always_allow');
+  });
+
+  it('renders denied tool results with the denied result text', () => {
+    render(
+      <AssistantMessage
+        content="❌ **add_notes**\n\n └── Execution was denied by the user."
+        toolName="add_notes"
+        toolSuccess={false}
+        toolRawResult="Execution was denied by the user."
+        toolDenied={true}
+      />
+    );
+
+    expect(screen.getByText('add_notes')).toBeInTheDocument();
+    expect(screen.getByText('Execution was denied by the user.')).toBeInTheDocument();
+  });
 });

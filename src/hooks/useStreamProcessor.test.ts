@@ -1,6 +1,22 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TodoItem } from '../agent/core/todo';
+
+const { mockedStoreState } = vi.hoisted(() => {
+  const state = {
+    activeRegionId: null as string | null,
+    selectedRegionIds: [] as string[],
+    timeSignature: { numerator: 4, denominator: 4 },
+    tracks: [] as unknown[],
+    refreshProjectState: vi.fn(),
+    toolFastForwardEnabled: false,
+    setToolFastForwardEnabled: vi.fn(),
+  };
+  state.setToolFastForwardEnabled.mockImplementation((enabled: boolean) => {
+    state.toolFastForwardEnabled = enabled;
+  });
+  return { mockedStoreState: state };
+});
 
 vi.mock('../agent/core/AgentCore', () => ({
   AgentCore: {
@@ -16,13 +32,7 @@ vi.mock('../core/KGCore', () => ({
 
 vi.mock('../stores/projectStore', () => ({
   useProjectStore: {
-    getState: vi.fn(() => ({
-      activeRegionId: null,
-      selectedRegionIds: [],
-      timeSignature: { numerator: 4, denominator: 4 },
-      tracks: [],
-      refreshProjectState: vi.fn(),
-    })),
+    getState: vi.fn(() => mockedStoreState),
   },
 }));
 
@@ -53,6 +63,13 @@ const flushMicrotasks = async (): Promise<void> => {
 };
 
 describe('useStreamProcessor', () => {
+  beforeEach(() => {
+    mockedStoreState.activeRegionId = null;
+    mockedStoreState.toolFastForwardEnabled = false;
+    mockedStoreState.setToolFastForwardEnabled.mockClear();
+    mockedStoreState.refreshProjectState.mockClear();
+  });
+
   it('switches from Thinking to Processing after the first text token arrives', async () => {
     let releaseDone!: () => void;
     const doneGate = new Promise<void>((resolve) => {
@@ -387,5 +404,173 @@ describe('useStreamProcessor', () => {
     const toolResultMessage = [...messages.values()].find(message => message.toolName === 'read_music');
     expect(toolResultMessage?.toolRawResult).toBe('raw music result');
     expect(toolResultMessage?.toolResultDisplayContent).toBe('raw music result');
+  });
+
+  it('shows a confirmation card and replaces it with a denied result when the user denies execution', async () => {
+    vi.spyOn(AgentCore, 'instance').mockReturnValue({
+      getAgentState: () => ({
+        getTodos: () => [],
+      }),
+      processUserInput: async function* (_input: string, options?: { requestToolApproval?: (toolCall: { id: string; type: 'function'; function: { name: string; arguments: string } }) => Promise<'allow' | 'always_allow' | 'deny'> }) {
+        const toolCall = {
+          id: 'add-notes-call-confirm',
+          type: 'function' as const,
+          function: {
+            name: 'add_notes',
+            arguments: JSON.stringify({
+              notes: [{ pitch: 'C4', start: 16, length: 4 }],
+            }),
+          },
+        };
+
+        yield { type: 'tool_call', content: '', toolCall };
+        const decision = await options?.requestToolApproval?.(toolCall);
+        yield {
+          type: 'tool_result',
+          content: '',
+          toolResult: {
+            toolCallId: toolCall.id,
+            name: 'add_notes',
+            success: false,
+            result: 'Execution was denied by the user.',
+            denied: decision === 'deny',
+          },
+        };
+      },
+    } as unknown as AgentCore);
+
+    const selectedRegion = new KGMidiRegion('region-1', '1', 0, 'Verse Melody');
+    vi.spyOn(KGCore, 'instance').mockReturnValue({
+      getCurrentProject: () => ({
+        getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
+        getTracks: () => [
+          {
+            getId: () => '1',
+            getName: () => 'Lead',
+            getRegions: () => [selectedRegion],
+          },
+        ],
+      }),
+      getSelectedItems: () => [selectedRegion],
+    } as unknown as KGCore);
+    mockedStoreState.activeRegionId = selectedRegion.getId();
+
+    const messages = new Map<string, ChatMessage>();
+    const { result } = renderHook(() => useStreamProcessor({
+      onMessageAdd: (message) => {
+        messages.set(message.id, message);
+      },
+      onMessageUpdate: (messageId, updater) => {
+        const current = messages.get(messageId);
+        if (!current) {
+          throw new Error(`Missing message ${messageId}`);
+        }
+        messages.set(messageId, updater(current));
+      },
+      onMessageRemove: (messageId) => {
+        messages.delete(messageId);
+      },
+      onProcessingChange: () => undefined,
+    }));
+
+    let responsePromise!: Promise<string>;
+    await act(async () => {
+      responsePromise = result.current.processStream('confirm prompt');
+      await flushMicrotasks();
+    });
+
+    const confirmationMessage = [...messages.values()].find(message => message.toolConfirmation);
+    expect(confirmationMessage?.toolConfirmation?.toolName).toBe('add_notes');
+    expect(confirmationMessage?.toolConfirmation?.message).toContain('Allow creating 1 note in region **Verse Melody**');
+
+    act(() => {
+      confirmationMessage?.onToolConfirmationDecision?.('deny');
+    });
+
+    await act(async () => {
+      await responsePromise;
+    });
+
+    expect([...messages.values()].some(message => message.toolConfirmation)).toBe(false);
+    const deniedResult = [...messages.values()].find(message => message.toolName === 'add_notes');
+    expect(deniedResult?.toolDenied).toBe(true);
+    expect(deniedResult?.toolRawResult).toBe('Execution was denied by the user.');
+  });
+
+  it('skips the confirmation card when fast-forward mode is enabled', async () => {
+    mockedStoreState.toolFastForwardEnabled = true;
+    let capturedDecision: string | undefined;
+
+    vi.spyOn(AgentCore, 'instance').mockReturnValue({
+      getAgentState: () => ({
+        getTodos: () => [],
+      }),
+      processUserInput: async function* (_input: string, options?: { requestToolApproval?: (toolCall: { id: string; type: 'function'; function: { name: string; arguments: string } }) => Promise<'allow' | 'always_allow' | 'deny'> }) {
+        const toolCall = {
+          id: 'add-notes-call-auto',
+          type: 'function' as const,
+          function: {
+            name: 'add_notes',
+            arguments: JSON.stringify({
+              notes: [{ pitch: 'C4', start: 0, length: 4 }],
+            }),
+          },
+        };
+
+        yield { type: 'tool_call', content: '', toolCall };
+        capturedDecision = await options?.requestToolApproval?.(toolCall);
+        yield {
+          type: 'tool_result',
+          content: '',
+          toolResult: {
+            toolCallId: toolCall.id,
+            name: 'add_notes',
+            success: true,
+            result: 'Successfully created 1 note: C4 (beat 0, length 4)',
+          },
+        };
+      },
+    } as unknown as AgentCore);
+
+    const selectedRegion = new KGMidiRegion('region-1', '1', 0, 'Intro');
+    vi.spyOn(KGCore, 'instance').mockReturnValue({
+      getCurrentProject: () => ({
+        getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
+        getTracks: () => [
+          {
+            getId: () => '1',
+            getName: () => 'Lead',
+            getRegions: () => [selectedRegion],
+          },
+        ],
+      }),
+      getSelectedItems: () => [selectedRegion],
+    } as unknown as KGCore);
+    mockedStoreState.activeRegionId = selectedRegion.getId();
+
+    const messages = new Map<string, ChatMessage>();
+    const { result } = renderHook(() => useStreamProcessor({
+      onMessageAdd: (message) => {
+        messages.set(message.id, message);
+      },
+      onMessageUpdate: (messageId, updater) => {
+        const current = messages.get(messageId);
+        if (!current) {
+          throw new Error(`Missing message ${messageId}`);
+        }
+        messages.set(messageId, updater(current));
+      },
+      onMessageRemove: (messageId) => {
+        messages.delete(messageId);
+      },
+      onProcessingChange: () => undefined,
+    }));
+
+    await act(async () => {
+      await result.current.processStream('auto allow prompt');
+    });
+
+    expect(capturedDecision).toBe('allow');
+    expect([...messages.values()].some(message => message.toolConfirmation)).toBe(false);
   });
 });

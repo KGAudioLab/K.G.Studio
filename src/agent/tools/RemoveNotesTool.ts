@@ -5,6 +5,16 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGCore } from '../../core/KGCore';
 
+interface RemoveNotesSummaryData {
+  noteCount: number;
+  startBeat: number;
+  endBeat: number;
+  regionName: string;
+  trackName: string;
+  earliestNoteStartBar: number;
+  latestNoteEndBar: number;
+}
+
 /**
  * Tool for removing notes from MIDI regions within a specified beat range
  * Integrates with the existing command system for undo/redo support
@@ -12,6 +22,10 @@ import { KGCore } from '../../core/KGCore';
 export class RemoveNotesTool extends BaseTool {
   readonly name = 'remove_notes';
   readonly description = 'Remove all MIDI notes whose start position falls within the specified beat range. Use this to clear a section before rewriting it, or to delete unwanted notes. Beat positions are absolute on the project timeline.';
+
+  override isReadOnlyTool(): boolean {
+    return false;
+  }
 
   readonly parameters: Record<string, ToolParameter> = {
     start: {
@@ -30,6 +44,32 @@ export class RemoveNotesTool extends BaseTool {
       required: false
     }
   };
+
+  override buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!toolResult.success || !args) {
+      return undefined;
+    }
+
+    const summary = this.buildSummaryData(args);
+    if (!summary || summary.noteCount === 0) {
+      return undefined;
+    }
+
+    return `Successfully removed ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} from beats ${summary.startBeat}-${summary.endBeat}, in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+  }
+
+  override buildConfirmationContent(args: Record<string, unknown> | null): string | undefined {
+    if (!args) {
+      return undefined;
+    }
+
+    const summary = this.buildSummaryData(args);
+    if (!summary) {
+      return undefined;
+    }
+
+    return `Allow removing ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} from beats ${summary.startBeat}-${summary.endBeat}, in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}?`;
+  }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
@@ -105,6 +145,10 @@ export class RemoveNotesTool extends BaseTool {
    * Priority: 1) Specified regionId, 2) Active piano roll region, 3) Selected regions, 4) Error if none found
    */
   private findTargetRegion(regionId?: string): KGMidiRegion | null {
+    return this.findTargetRegionContext(regionId)?.region ?? null;
+  }
+
+  private findTargetRegionContext(regionId?: string): { region: KGMidiRegion; trackName: string } | null {
     const project = this.getCurrentProject();
     const tracks = project.getTracks();
     
@@ -114,7 +158,10 @@ export class RemoveNotesTool extends BaseTool {
         const regions = track.getRegions();
         const region = regions.find(r => r.getId() === regionId);
         if (region && region instanceof KGMidiRegion) {
-          return region;
+          return {
+            region,
+            trackName: track.getName() || `Track ${track.getTrackIndex() + 1}`,
+          };
         }
       }
       return null;
@@ -128,7 +175,10 @@ export class RemoveNotesTool extends BaseTool {
           const regions = track.getRegions();
           const region = regions.find(r => r.getId() === storeState.activeRegionId);
           if (region && region instanceof KGMidiRegion) {
-            return region;
+            return {
+              region,
+              trackName: track.getName() || `Track ${track.getTrackIndex() + 1}`,
+            };
           }
         }
       }
@@ -138,13 +188,58 @@ export class RemoveNotesTool extends BaseTool {
       const selectedItems = core.getSelectedItems();
       for (const item of selectedItems) {
         if (item instanceof KGMidiRegion) {
-          return item;
+          const track = tracks.find(candidate => candidate.getId().toString() === item.getTrackId());
+          return {
+            region: item,
+            trackName: track?.getName() || `Track ${item.getTrackIndex() + 1}`,
+          };
         }
       }
       
       // 3. No fallback - return null to trigger error
       return null;
     }
+  }
+
+  private buildSummaryData(args: Record<string, unknown>): RemoveNotesSummaryData | null {
+    const typedArgs = args as {
+      start?: number;
+      end?: number;
+      region_id?: string;
+    };
+
+    if (typeof typedArgs.start !== 'number' || typeof typedArgs.end !== 'number' || typedArgs.end <= typedArgs.start) {
+      return null;
+    }
+
+    const targetRegion = this.findTargetRegionContext(typedArgs.region_id);
+    if (!targetRegion) {
+      return null;
+    }
+
+    const regionStartBeat = targetRegion.region.getStartFromBeat();
+    const adjustedStartBeat = typedArgs.start - regionStartBeat;
+    const adjustedEndBeat = typedArgs.end - regionStartBeat;
+    const notesToRemove = this.findNotesInRange(targetRegion.region, adjustedStartBeat, adjustedEndBeat);
+    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
+
+    let earliestBeat = typedArgs.start;
+    let latestBeat = typedArgs.end;
+
+    if (notesToRemove.length > 0) {
+      earliestBeat = Math.min(...notesToRemove.map(note => note.getStartBeat() + regionStartBeat));
+      latestBeat = Math.max(...notesToRemove.map(note => note.getEndBeat() + regionStartBeat));
+    }
+
+    return {
+      noteCount: notesToRemove.length,
+      startBeat: typedArgs.start,
+      endBeat: typedArgs.end,
+      regionName: targetRegion.region.getName(),
+      trackName: targetRegion.trackName,
+      earliestNoteStartBar: Math.floor(earliestBeat / beatsPerBar) + 1,
+      latestNoteEndBar: Math.max(1, Math.ceil(latestBeat / beatsPerBar)),
+    };
   }
 
   /**

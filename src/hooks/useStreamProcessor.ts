@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
 import { AgentCore } from '../agent/core/AgentCore';
-import { AVAILABLE_TOOLS } from '../agent/tools';
+import { createToolInstance } from '../agent/tools';
 import { createStreamingMessage, createMessage } from '../utils/chatMessageUtils';
 import type { ChatMessage } from '../types/projectTypes';
+import type { ToolApprovalDecision } from '../agent/llm/StreamingTypes';
+import { useProjectStore } from '../stores/projectStore';
 
 const TODO_TOOL_NAME = 'update_todo_list';
 
@@ -11,29 +13,6 @@ interface PendingToolCall {
   name: string;
   arguments: Record<string, unknown> | null;
 }
-
-const buildToolResultDisplayContent = (
-  toolName: string,
-  success: boolean,
-  rawResult: string,
-  toolArgs: Record<string, unknown> | null,
-): string => {
-  if (!success) {
-    return rawResult;
-  }
-
-  const ToolClass = AVAILABLE_TOOLS[toolName as keyof typeof AVAILABLE_TOOLS];
-  if (!ToolClass) {
-    return rawResult;
-  }
-
-  try {
-    const toolInstance = new ToolClass();
-    return toolInstance.buildToolResultDisplayContent(toolArgs, { success, result: rawResult }) ?? rawResult;
-  } catch {
-    return rawResult;
-  }
-};
 
 interface StreamProcessorOptions {
   onMessageUpdate: (messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void;
@@ -79,7 +58,55 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       console.log(input);
       console.log('------------------------------');
 
-      for await (const chunk of agentCore.processUserInput(input)) {
+      const requestToolApproval = async (toolCall: PendingToolCall): Promise<ToolApprovalDecision> => {
+        const { toolFastForwardEnabled, setToolFastForwardEnabled } = useProjectStore.getState();
+        if (toolFastForwardEnabled) {
+          return 'allow';
+        }
+
+        const toolInstance = createToolInstance(toolCall.name);
+        const confirmationContent = toolInstance?.buildConfirmationContent(toolCall.arguments) ?? undefined;
+        if (!confirmationContent) {
+          return 'allow';
+        }
+
+        return await new Promise<ToolApprovalDecision>((resolve) => {
+          const confirmationMessage = {
+            ...createMessage('assistant', confirmationContent),
+            toolConfirmation: {
+              toolCallId: toolCall.id,
+              toolName: toolCall.name,
+              message: confirmationContent,
+            },
+            onToolConfirmationDecision: (decision: ToolApprovalDecision) => {
+              onMessageRemove(confirmationMessage.id);
+              if (decision === 'always_allow') {
+                setToolFastForwardEnabled(true);
+              }
+              resolve(decision);
+            },
+          };
+
+          onMessageAdd(confirmationMessage);
+        });
+      };
+
+      for await (const chunk of agentCore.processUserInput(input, {
+        requestToolApproval: async (toolCall) => {
+          let parsedArguments: Record<string, unknown> | null;
+          try {
+            parsedArguments = JSON.parse(toolCall.function.arguments);
+          } catch {
+            parsedArguments = null;
+          }
+
+          return requestToolApproval({
+            id: toolCall.id,
+            name: toolCall.function.name,
+            arguments: parsedArguments,
+          });
+        },
+      })) {
         if (controller.signal.aborted) {
           return '';
         }
@@ -142,17 +169,23 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           console.log('-------------------------------------');
 
           // Show tool result in UI
-          const { toolCallId, name, success, result } = chunk.toolResult;
+          const { toolCallId, name, success, result, denied } = chunk.toolResult;
           const pendingToolCallIndex = pendingToolCalls.findIndex(toolCall => toolCall.id === toolCallId);
           const pendingToolCall = pendingToolCallIndex >= 0
             ? pendingToolCalls.splice(pendingToolCallIndex, 1)[0]
             : undefined;
-          const toolResultDisplayContent = buildToolResultDisplayContent(
-            name,
-            success,
-            result,
-            pendingToolCall?.arguments ?? null,
-          );
+          let toolResultDisplayContent = result;
+          if (success) {
+            try {
+              const toolInstance = createToolInstance(name);
+              toolResultDisplayContent = toolInstance?.buildToolResultDisplayContent(
+                pendingToolCall?.arguments ?? null,
+                { success, result },
+              ) ?? result;
+            } catch {
+              toolResultDisplayContent = result;
+            }
+          }
           const toolResultMsg = name === TODO_TOOL_NAME
             ? {
               ...createMessage('assistant', result),
@@ -166,6 +199,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
               toolSuccess: success,
               toolRawResult: result,
               toolResultDisplayContent,
+              toolDenied: denied,
             };
           onMessageAdd(toolResultMsg);
 
@@ -176,9 +210,11 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           performanceInfo = undefined;
 
           // Create a fresh streaming placeholder for the next LLM response
-          const nextMsg = createStreamingMessage();
-          currentStreamingId = nextMsg.id;
-          onMessageAdd(nextMsg);
+          if (!denied) {
+            const nextMsg = createStreamingMessage();
+            currentStreamingId = nextMsg.id;
+            onMessageAdd(nextMsg);
+          }
         } else if (chunk.type === 'done') {
           performanceInfo = chunk.performanceInfo;
           // Finalize the streaming message
@@ -209,12 +245,17 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       }
 
       console.error('Error processing stream:', error);
-      onMessageUpdate(currentStreamingId, (msg) => ({
-        ...msg,
-        content: `Error: ${error instanceof Error ? error.message : 'Failed to process message'}`,
-        isStreaming: false,
-        tokenCount: undefined
-      }));
+      const errorContent = `Error: ${error instanceof Error ? error.message : 'Failed to process message'}`;
+      try {
+        onMessageUpdate(currentStreamingId, (msg) => ({
+          ...msg,
+          content: errorContent,
+          isStreaming: false,
+          tokenCount: undefined
+        }));
+      } catch {
+        onMessageAdd(createMessage('assistant', errorContent));
+      }
       throw error;
     } finally {
       setAbortController(null);

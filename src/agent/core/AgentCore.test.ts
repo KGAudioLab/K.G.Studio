@@ -131,4 +131,55 @@ describe('AgentCore todo integration', () => {
 
     expect(provider.calls[1][provider.calls[1].length - 1]?.content).not.toContain('Keep the task list current');
   });
+
+  it('requests approval for non-read-only tools and continues after allow', async () => {
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('add_notes', { notes: [{ pitch: 'C4', start: 0, length: 1 }] }, 'tool_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'text', content: 'Completed' },
+        { type: 'done', content: '', finishReason: 'stop' },
+      ],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    const requestToolApproval = vi.fn(async () => 'allow' as const);
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of AgentCore.instance().processUserInput('Write notes', { requestToolApproval })) {
+      chunks.push(chunk);
+    }
+
+    expect(requestToolApproval).toHaveBeenCalledTimes(1);
+    expect(chunks.some(chunk => chunk.type === 'tool_result' && chunk.toolResult?.name === 'add_notes')).toBe(true);
+    expect(chunks.at(-1)?.type).toBe('done');
+  });
+
+  it('records denied tool execution and stops the turn after deny', async () => {
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('add_notes', { notes: [{ pitch: 'C4', start: 0, length: 1 }] }, 'tool_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'text', content: 'Should not run' },
+        { type: 'done', content: '', finishReason: 'stop' },
+      ],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of AgentCore.instance().processUserInput('Write notes', {
+      requestToolApproval: async () => 'deny',
+    })) {
+      chunks.push(chunk);
+    }
+
+    const deniedChunk = chunks.find(chunk => chunk.type === 'tool_result' && chunk.toolResult?.name === 'add_notes');
+    expect(deniedChunk?.toolResult?.denied).toBe(true);
+    expect(deniedChunk?.toolResult?.result).toBe('Execution was denied by the user.');
+    expect(provider.calls).toHaveLength(1);
+    expect(AgentCore.instance().getAgentState().getMessages().at(-1)?.role).toBe('tool');
+  });
 });

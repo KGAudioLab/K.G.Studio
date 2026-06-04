@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import './ChatBox.css';
-import { FaPlus, FaBan, FaDownload } from 'react-icons/fa';
+import { FaPlus, FaDownload, FaForward } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
 import { summarizeTodoCounts } from '../agent/core/todo';
@@ -76,6 +76,8 @@ interface ChatBoxProps {
 
 const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
   const { t } = useI18n();
+  const toolFastForwardEnabled = useProjectStore((state) => state.toolFastForwardEnabled);
+  const toggleToolFastForwardEnabled = useProjectStore((state) => state.toggleToolFastForwardEnabled);
   const [inputValue, setInputValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -455,16 +457,15 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
       <div className="chatbox-header">
         <h3>{t('assistant.displayName')}</h3>
         <div className="chatbox-actions">
-          {isProcessing && (
-            <button
-              type="button"
-              title="Abort"
-              onClick={handleAbort}
-              className="chatbox-action-btn"
-            >
-              <FaBan />
-            </button>
-          )}
+          <button
+            type="button"
+            title={t('chatbox.fastForward.title')}
+            aria-pressed={toolFastForwardEnabled}
+            onClick={toggleToolFastForwardEnabled}
+            className={`chatbox-action-btn chatbox-toggle-btn ${toolFastForwardEnabled ? 'is-active' : ''}`}
+          >
+            <FaForward />
+          </button>
           <div className="chatbox-export-wrapper">
             <button
               type="button"
@@ -551,6 +552,9 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
               toolSuccess={message.toolSuccess}
               toolRawResult={message.toolRawResult}
               toolResultDisplayContent={message.toolResultDisplayContent}
+              toolConfirmation={message.toolConfirmation}
+              toolDenied={message.toolDenied}
+              onToolConfirmationDecision={message.onToolConfirmationDecision}
               todoSnapshot={message.todoSnapshot}
               isToolCallMessage={message.isToolCallMessage}
               onAbort={message.isStreaming ? handleAbort : undefined}

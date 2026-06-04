@@ -6,9 +6,10 @@ import remarkMath from 'remark-math';
 import { FaCaretDown, FaCaretUp } from 'react-icons/fa';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import type { PerformanceInfo } from '../../agent/llm/StreamingTypes';
+import type { PerformanceInfo, ToolApprovalDecision } from '../../agent/llm/StreamingTypes';
 import { summarizeTodoCounts } from '../../agent/core/todo';
 import type { TodoItem } from '../../agent/core/todo';
+import { useI18n } from '../../i18n/useI18n';
 
 interface AssistantMessageProps {
   content: string;
@@ -19,6 +20,13 @@ interface AssistantMessageProps {
   toolSuccess?: boolean;
   toolRawResult?: string;
   toolResultDisplayContent?: string;
+  toolConfirmation?: {
+    toolCallId: string;
+    toolName: string;
+    message: string;
+  };
+  toolDenied?: boolean;
+  onToolConfirmationDecision?: (decision: ToolApprovalDecision) => void;
   todoSnapshot?: TodoItem[];
   isToolCallMessage?: boolean;
 }
@@ -169,9 +177,12 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
   toolSuccess,
   toolRawResult,
   toolResultDisplayContent,
+  toolConfirmation,
+  onToolConfirmationDecision,
   todoSnapshot,
   isToolCallMessage = false,
 }) => {
+  const { t } = useI18n();
   const prefillTps = formatTps(performanceInfo?.prefillTps);
   const generationTps = formatTps(performanceInfo?.generationTps);
   const hasPerformanceInfo = Boolean(prefillTps || generationTps);
@@ -182,6 +193,7 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
     || content === COMPACTION_DONE_LABEL
     || content === COMPACTION_EMPTY_LABEL;
   const isTodoSnapshotCard = toolName === 'update_todo_list' && Array.isArray(todoSnapshot);
+  const isToolConfirmationCard = Boolean(toolConfirmation) && Boolean(onToolConfirmationDecision);
   const shouldRenderGenericToolResult = Boolean(toolName) && typeof toolSuccess === 'boolean' && !isTodoSnapshotCard;
   const genericToolDisplayContent = toolResultDisplayContent ?? toolRawResult ?? content;
 
@@ -233,6 +245,54 @@ const AssistantMessage: React.FC<AssistantMessageProps> = ({
             ))}
           </ul>
         </section>
+      );
+    }
+
+    if (isToolConfirmationCard && toolConfirmation && onToolConfirmationDecision) {
+      return (
+        <div className="message-tool-result">
+          <p className="message-tool-result-title">
+            <span aria-hidden="true">?</span>{' '}
+            <strong>{toolConfirmation.toolName}</strong>
+          </p>
+          <div className="message-tool-summary">
+            <span className="message-tool-summary-prefix" aria-hidden="true">└── </span>
+            <div className="message-tool-summary-content">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  code: (props) => <CodeComponent {...props} isToolCallMessage={false} />,
+                }}
+              >
+                {toolConfirmation.message}
+              </ReactMarkdown>
+            </div>
+          </div>
+          <div className="message-tool-confirmation-actions" aria-label={t('chatbox.tool.confirmation.ariaLabel')}>
+            <button
+              type="button"
+              className="message-tool-confirmation-btn dialog-btn dialog-btn-primary kgone-btn-generate"
+              onClick={() => onToolConfirmationDecision('allow')}
+            >
+              {t('chatbox.tool.confirmation.allow')}
+            </button>
+            <button
+              type="button"
+              className="message-tool-confirmation-btn message-tool-confirmation-btn-always dialog-btn dialog-btn-primary kgone-btn-generate"
+              onClick={() => onToolConfirmationDecision('always_allow')}
+            >
+              {t('chatbox.tool.confirmation.alwaysAllow')}
+            </button>
+            <button
+              type="button"
+              className="message-tool-confirmation-btn message-tool-confirmation-btn-deny dialog-btn dialog-btn-primary kgone-btn-generate"
+              onClick={() => onToolConfirmationDecision('deny')}
+            >
+              {t('chatbox.tool.confirmation.deny')}
+            </button>
+          </div>
+        </div>
       );
     }
 

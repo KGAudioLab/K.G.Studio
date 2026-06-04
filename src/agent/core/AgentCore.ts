@@ -1,9 +1,9 @@
 import type { LLMProvider } from '../llm/LLMProvider';
 import { AgentState } from './AgentState';
 import { SystemPrompts } from './SystemPrompts';
-import { AVAILABLE_TOOLS } from '../tools';
+import { AVAILABLE_TOOLS, createToolInstance } from '../tools';
 import { useProjectStore } from '../../stores/projectStore';
-import type { StreamChunk } from '../llm/StreamingTypes';
+import type { StreamChunk, ToolApprovalDecision } from '../llm/StreamingTypes';
 import type { ToolCall } from './AgentState';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
@@ -19,6 +19,10 @@ export interface CompactConversationOptions {
 export interface CompactConversationResult {
   changed: boolean;
   compactedConversation: string;
+}
+
+export interface ProcessUserInputOptions {
+  requestToolApproval?: (toolCall: ToolCall) => Promise<ToolApprovalDecision>;
 }
 
 /**
@@ -79,16 +83,13 @@ export class AgentCore {
    * Execute a single tool call and return the result
    */
   private async executeTool(toolCall: ToolCall): Promise<{ success: boolean; result: string }> {
-    const toolName = toolCall.function.name;
-    const ToolClass = AVAILABLE_TOOLS[toolName as keyof typeof AVAILABLE_TOOLS];
-
-    if (!ToolClass) {
-      return { success: false, result: `Unknown tool: ${toolName}` };
+    const toolInstance = createToolInstance(toolCall.function.name);
+    if (!toolInstance) {
+      return { success: false, result: `Unknown tool: ${toolCall.function.name}` };
     }
 
     try {
       const params = JSON.parse(toolCall.function.arguments);
-      const toolInstance = new ToolClass();
       const result = await toolInstance.execute(params);
 
       // Sync UI state after successful tool execution
@@ -107,7 +108,10 @@ export class AgentCore {
    * Handles the full agentic loop internally: if the LLM returns tool_calls,
    * execute them and feed results back until the LLM produces a final text response.
    */
-  async *processUserInput(userInput: string): AsyncIterableIterator<StreamChunk> {
+  async *processUserInput(
+    userInput: string,
+    options?: ProcessUserInputOptions,
+  ): AsyncIterableIterator<StreamChunk> {
     if (!this.llmProvider) {
       throw new Error('No LLM provider configured');
     }
@@ -165,7 +169,16 @@ export class AgentCore {
             // Notify UI about the tool call
             yield { type: 'tool_call', content: '', toolCall };
 
-            const result = await this.executeTool(toolCall);
+            let denied = false;
+            const toolInstance = createToolInstance(toolCall.function.name);
+            if (toolInstance && !toolInstance.isReadOnlyTool() && options?.requestToolApproval) {
+              const approvalDecision = await options.requestToolApproval(toolCall);
+              denied = approvalDecision === 'deny';
+            }
+
+            const result = denied
+              ? { success: false, result: 'Execution was denied by the user.' }
+              : await this.executeTool(toolCall);
 
             // Add tool result message to conversation history
             this.agentState.addMessage('tool', JSON.stringify(result), {
@@ -181,8 +194,14 @@ export class AgentCore {
                 name: toolCall.function.name,
                 success: result.success,
                 result: result.result,
+                denied,
               },
             };
+
+            if (denied) {
+              continueLoop = false;
+              break;
+            }
           }
 
           // Clear assistant message ID before next iteration creates a new one

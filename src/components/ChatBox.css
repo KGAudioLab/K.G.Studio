@@ -46,6 +46,16 @@
   border-radius: 3px;
 }
 
+.chatbox-toggle-btn.is-active {
+  background-color: #e0e0e0;
+  color: #2d2d2d;
+  border-radius: 3px;
+}
+
+.chatbox-toggle-btn.is-active:hover {
+  background-color: #f0f0f0;
+}
+
 /* ChatBox export button wrapper and dropdown positioning */
 .chatbox-export-wrapper {
   position: relative;
@@ -416,6 +426,37 @@
 
 .message-tool-summary-content {
   flex: 1 1 auto;
+}
+
+.message-tool-confirmation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.message-tool-confirmation-btn {
+  width: 100%;
+  margin-top: 0;
+  min-height: 32px;
+}
+
+.message-tool-confirmation-btn-always.dialog-btn-primary {
+  background-color: #5aa36a;
+}
+
+.message-tool-confirmation-btn-always.dialog-btn-primary:hover {
+  background-color: #4a935a;
+  box-shadow: 0 4px 12px rgba(90, 163, 106, 0.3);
+}
+
+.message-tool-confirmation-btn-deny.dialog-btn-primary {
+  background-color: #c96a6a;
+}
+
+.message-tool-confirmation-btn-deny.dialog-btn-primary:hover {
+  background-color: #b85b5b;
+  box-shadow: 0 4px 12px rgba(201, 106, 106, 0.3);
 }
 
 .message-tool-summary-content > :first-child {

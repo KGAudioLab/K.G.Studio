@@ -1,4 +1,5 @@
 // Base tool system
+import { BaseTool } from './BaseTool';
 export { BaseTool } from './BaseTool';
 export type { ToolResult, ToolParameter, ToolDefinition, OpenAIToolDefinition, OpenAIFunctionParameters } from './BaseTool';
 
@@ -21,3 +22,8 @@ export const AVAILABLE_TOOLS = {
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;
+
+export const createToolInstance = (toolName: string): BaseTool | null => {
+  const ToolClass = AVAILABLE_TOOLS[toolName as ToolName];
+  return ToolClass ? new ToolClass() : null;
+};

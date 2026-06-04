@@ -12,6 +12,8 @@ const {
   processUserMessageMock,
   processStreamMock,
   streamProcessorCallbacks,
+  clearChatHistoryAndUIMock,
+  projectStoreState,
 } = vi.hoisted(() => ({
   agentCoreMock: {
     setLLMProvider: vi.fn(),
@@ -27,6 +29,13 @@ const {
   },
   processUserMessageMock: vi.fn(),
   processStreamMock: vi.fn(async () => ''),
+  clearChatHistoryAndUIMock: vi.fn(),
+  projectStoreState: {
+    toolFastForwardEnabled: false,
+    setStatus: vi.fn(),
+    setToolFastForwardEnabled: vi.fn(),
+    toggleToolFastForwardEnabled: vi.fn(),
+  },
   streamProcessorCallbacks: {
     onMessageAdd: undefined as ((message: ChatMessage) => void) | undefined,
     onMessageUpdate: undefined as ((messageId: string, updater: (msg: ChatMessage) => ChatMessage) => void) | undefined,
@@ -34,6 +43,13 @@ const {
     onProcessingChange: undefined as ((isProcessing: boolean) => void) | undefined,
   },
 }));
+
+projectStoreState.setToolFastForwardEnabled.mockImplementation((enabled: boolean) => {
+  projectStoreState.toolFastForwardEnabled = enabled;
+});
+projectStoreState.toggleToolFastForwardEnabled.mockImplementation(() => {
+  projectStoreState.toolFastForwardEnabled = !projectStoreState.toolFastForwardEnabled;
+});
 
 vi.mock('./chat', () => ({
   UserMessage: ({ content }: { content: string }) => <div>{content}</div>,
@@ -81,11 +97,14 @@ vi.mock('../core/config/ConfigManager', () => ({
 }));
 
 vi.mock('../stores/projectStore', () => ({
-  useProjectStore: {
-    getState: () => ({
-      setStatus: vi.fn(),
-    }),
-  },
+  useProjectStore: Object.assign(
+    ((selector?: (state: typeof projectStoreState) => unknown) => (
+      selector ? selector(projectStoreState) : projectStoreState
+    )) as never,
+    {
+      getState: () => projectStoreState,
+    }
+  ),
 }));
 
 vi.mock('../agent/core/SystemPrompts', () => ({
@@ -95,7 +114,7 @@ vi.mock('../agent/core/SystemPrompts', () => ({
 }));
 
 vi.mock('../util/chatUtil', () => ({
-  clearChatHistoryAndUI: vi.fn(),
+  clearChatHistoryAndUI: clearChatHistoryAndUIMock,
   registerClearChatUICallback: vi.fn(),
 }));
 
@@ -189,12 +208,17 @@ describe('ChatBox', () => {
   beforeEach(() => {
     processUserMessageMock.mockReset();
     processStreamMock.mockClear();
+    clearChatHistoryAndUIMock.mockClear();
     agentCoreMock.compactConversation.mockClear();
     agentCoreMock.shouldCompactBeforeNextTurn.mockResolvedValue(false);
     streamProcessorCallbacks.onMessageAdd = undefined;
     streamProcessorCallbacks.onMessageUpdate = undefined;
     streamProcessorCallbacks.onMessageRemove = undefined;
     streamProcessorCallbacks.onProcessingChange = undefined;
+    projectStoreState.toolFastForwardEnabled = false;
+    projectStoreState.setStatus.mockClear();
+    projectStoreState.setToolFastForwardEnabled.mockClear();
+    projectStoreState.toggleToolFastForwardEnabled.mockClear();
   });
 
   it('renders the English assistant title under en_us', () => {
@@ -387,5 +411,54 @@ describe('ChatBox', () => {
       expect(screen.queryByText('TODO SNAPSHOT: Inspect melody')).toBeNull();
       expect(screen.getByText('TODO SNAPSHOT: Render bounce')).toBeTruthy();
     });
+  });
+
+  it('renders and toggles the fast-forward button state', () => {
+    const { rerender } = renderWithLocale('en_us');
+
+    const button = screen.getByTitle('Fast forward tool execution approvals');
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(button);
+    rerender(
+      <I18nContext.Provider
+        value={{
+          languageSetting: 'en_us',
+          resolvedLocale: 'en_us',
+          setLanguageSetting: async () => undefined,
+          t: (key, params) => translate(key, params, 'en_us'),
+        }}
+      >
+        <ChatBox isVisible={true} />
+      </I18nContext.Provider>,
+    );
+
+    expect(screen.getByTitle('Fast forward tool execution approvals')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('resets fast-forward through the shared new chat clear path', () => {
+    projectStoreState.toolFastForwardEnabled = true;
+    clearChatHistoryAndUIMock.mockImplementation(() => {
+      projectStoreState.setToolFastForwardEnabled(false);
+    });
+
+    const { rerender } = renderWithLocale('en_us');
+    fireEvent.click(screen.getByTitle('New Chat'));
+
+    rerender(
+      <I18nContext.Provider
+        value={{
+          languageSetting: 'en_us',
+          resolvedLocale: 'en_us',
+          setLanguageSetting: async () => undefined,
+          t: (key, params) => translate(key, params, 'en_us'),
+        }}
+      >
+        <ChatBox isVisible={true} />
+      </I18nContext.Provider>,
+    );
+
+    expect(clearChatHistoryAndUIMock).toHaveBeenCalled();
+    expect(screen.getByTitle('Fast forward tool execution approvals')).toHaveAttribute('aria-pressed', 'false');
   });
 });
