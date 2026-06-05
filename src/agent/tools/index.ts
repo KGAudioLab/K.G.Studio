@@ -14,6 +14,7 @@ import { ListAllTracksTool } from './ListAllTracksTool';
 import { ListAllAvailableInstrumentsTool } from './ListAllAvailableInstrumentsTool';
 import { CreateNewTrackTool } from './CreateNewTrackTool';
 import { UpdateTrackTool } from './UpdateTrackTool';
+import { DeleteTrackTool } from './DeleteTrackTool';
 
 export {
   AddNotesTool,
@@ -26,6 +27,7 @@ export {
   ListAllAvailableInstrumentsTool,
   CreateNewTrackTool,
   UpdateTrackTool,
+  DeleteTrackTool,
 };
 
 // Tool registry for easy access
@@ -40,6 +42,7 @@ export const AVAILABLE_TOOLS = {
   list_all_available_instruments: ListAllAvailableInstrumentsTool,
   create_new_track: CreateNewTrackTool,
   update_track: UpdateTrackTool,
+  delete_track: DeleteTrackTool,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;
