@@ -253,6 +253,21 @@ describe('AgentCore todo integration', () => {
     expect(provider.systemPrompts[0]).toBe('system prompt:prompts/system.md');
   });
 
+  it('exposes the new track management tools in regular mode', async () => {
+    configState.set('general.agent_mode', 'regular');
+    const provider = new ScriptedProvider([
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    await collectChunks('Inspect available tools.');
+
+    const toolNames = provider.tools[0].map(tool => tool.function.name);
+    expect(toolNames).toContain('list_all_available_instruments');
+    expect(toolNames).toContain('create_new_track');
+    expect(toolNames).toContain('update_track');
+  });
+
   it('uses the compact system prompt in efficient mode', async () => {
     configState.set('general.agent_mode', 'efficient');
     const provider = new ScriptedProvider([
@@ -290,7 +305,11 @@ describe('AgentCore todo integration', () => {
 
     await collectChunks('Read the current region.');
 
-    expect(provider.tools[0].map(tool => tool.function.name)).not.toContain('read_music');
+    const toolNames = provider.tools[0].map(tool => tool.function.name);
+    expect(toolNames).not.toContain('read_music');
+    expect(toolNames).not.toContain('list_all_available_instruments');
+    expect(toolNames).not.toContain('create_new_track');
+    expect(toolNames).not.toContain('update_track');
     spy.mockRestore();
   });
 

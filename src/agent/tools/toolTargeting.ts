@@ -4,7 +4,9 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGGlobalRegion } from '../../core/region/KGGlobalRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGTrack } from '../../core/track/KGTrack';
+import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import { useProjectStore } from '../../stores/projectStore';
+import { FLUIDR3_INSTRUMENT_MAP, INSTRUMENT_GROUPS } from '../../constants/generalMidiConstants';
 
 export const NO_MIDI_TARGET_RAW_MESSAGE =
   'No MIDI target could be resolved. Select the MIDI region you want me to edit and retry, or tell me which MIDI track to operate on by providing its track_id.';
@@ -55,6 +57,48 @@ export function resolveMidiTrackByIdOrName(
   }
 
   return null;
+}
+
+export function resolveMidiTrackByExactName(trackName: string): KGMidiTrack[] {
+  const project = KGCore.instance().getCurrentProject();
+  return project.getTracks().filter((track): track is KGMidiTrack => (
+    track instanceof KGMidiTrack && track.getName() === trackName
+  ));
+}
+
+export function resolveInstrumentKeyByEnglishName(instrumentName: string): InstrumentType | null {
+  for (const [instrumentKey, instrumentInfo] of Object.entries(FLUIDR3_INSTRUMENT_MAP)) {
+    if (instrumentInfo.displayName === instrumentName) {
+      return instrumentKey as InstrumentType;
+    }
+  }
+
+  return null;
+}
+
+export function getEnglishInstrumentName(instrumentKey: InstrumentType): string {
+  return FLUIDR3_INSTRUMENT_MAP[instrumentKey]?.displayName ?? String(instrumentKey);
+}
+
+export function listAvailableInstrumentsByGroup(): Array<{ groupName: string; instruments: string[] }> {
+  const groupedInstruments = new Map<string, string[]>();
+
+  for (const groupName of Object.values(INSTRUMENT_GROUPS)) {
+    groupedInstruments.set(groupName, []);
+  }
+
+  for (const instrumentInfo of Object.values(FLUIDR3_INSTRUMENT_MAP)) {
+    const groupName = INSTRUMENT_GROUPS[instrumentInfo.group as keyof typeof INSTRUMENT_GROUPS];
+    if (!groupedInstruments.has(groupName)) {
+      groupedInstruments.set(groupName, []);
+    }
+    groupedInstruments.get(groupName)!.push(instrumentInfo.displayName);
+  }
+
+  return Array.from(groupedInstruments.entries()).map(([groupName, instruments]) => ({
+    groupName,
+    instruments,
+  }));
 }
 
 export function findRegionById(regionId: string): KGRegion | null {

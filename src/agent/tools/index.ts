@@ -11,6 +11,9 @@ import { ReadChordProgressionTool } from './ReadChordProgressionTool';
 import { UpdateTodoListTool } from './UpdateTodoListTool';
 import { GetUserSelectedMusicRangeAndTrackTool } from './GetUserSelectedMusicRangeAndTrackTool';
 import { ListAllTracksTool } from './ListAllTracksTool';
+import { ListAllAvailableInstrumentsTool } from './ListAllAvailableInstrumentsTool';
+import { CreateNewTrackTool } from './CreateNewTrackTool';
+import { UpdateTrackTool } from './UpdateTrackTool';
 
 export {
   AddNotesTool,
@@ -20,6 +23,9 @@ export {
   UpdateTodoListTool,
   GetUserSelectedMusicRangeAndTrackTool,
   ListAllTracksTool,
+  ListAllAvailableInstrumentsTool,
+  CreateNewTrackTool,
+  UpdateTrackTool,
 };
 
 // Tool registry for easy access
@@ -31,6 +37,9 @@ export const AVAILABLE_TOOLS = {
   read_chord_progression: ReadChordProgressionTool,
   get_user_selected_music_range_and_track: GetUserSelectedMusicRangeAndTrackTool,
   list_all_tracks: ListAllTracksTool,
+  list_all_available_instruments: ListAllAvailableInstrumentsTool,
+  create_new_track: CreateNewTrackTool,
+  update_track: UpdateTrackTool,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;
