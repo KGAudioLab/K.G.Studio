@@ -43,6 +43,10 @@ export {
   ReplaceChordRegionsInRangeCommand,
   type ChordRegionReplacementData,
 } from './global-region/ReplaceChordRegionsInRangeCommand';
+export {
+  WriteChordProgressionCommand,
+  type WriteChordProgressionEntry,
+} from './global-region/WriteChordProgressionCommand';
 export { CreateKeySignatureRegionCommand } from './global-region/CreateKeySignatureRegionCommand';
 export { CreateTempoRegionCommand } from './global-region/CreateTempoRegionCommand';
 export { MoveGlobalRegionCommand } from './global-region/MoveGlobalRegionCommand';

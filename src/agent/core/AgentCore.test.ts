@@ -266,6 +266,7 @@ describe('AgentCore todo integration', () => {
     expect(toolNames).toContain('list_all_available_instruments');
     expect(toolNames).toContain('create_new_track');
     expect(toolNames).toContain('update_track');
+    expect(toolNames).toContain('write_chord_progression');
   });
 
   it('uses the compact system prompt in efficient mode', async () => {
@@ -310,6 +311,7 @@ describe('AgentCore todo integration', () => {
     expect(toolNames).not.toContain('list_all_available_instruments');
     expect(toolNames).not.toContain('create_new_track');
     expect(toolNames).not.toContain('update_track');
+    expect(toolNames).not.toContain('write_chord_progression');
     spy.mockRestore();
   });
 
