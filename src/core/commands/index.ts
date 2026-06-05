@@ -47,6 +47,18 @@ export {
   WriteChordProgressionCommand,
   type WriteChordProgressionEntry,
 } from './global-region/WriteChordProgressionCommand';
+export {
+  WriteMarkersCommand,
+  type WriteMarkerEntry,
+} from './global-region/WriteMarkersCommand';
+export {
+  WriteKeySignatureTrackCommand,
+  type WriteKeySignatureEntry,
+} from './global-region/WriteKeySignatureTrackCommand';
+export {
+  WriteTempoTrackCommand,
+  type WriteTempoEntry,
+} from './global-region/WriteTempoTrackCommand';
 export { CreateKeySignatureRegionCommand } from './global-region/CreateKeySignatureRegionCommand';
 export { CreateTempoRegionCommand } from './global-region/CreateTempoRegionCommand';
 export { MoveGlobalRegionCommand } from './global-region/MoveGlobalRegionCommand';

@@ -6,9 +6,19 @@ export type { ToolResult, ToolParameter, ToolDefinition, OpenAIToolDefinition, O
 // Specific tools
 import { AddNotesTool } from './AddNotesTool';
 import { RemoveNotesTool } from './RemoveNotesTool';
+import { RemoveChordProgressionTool } from './RemoveChordProgressionTool';
+import { RemoveMarkersTool } from './RemoveMarkersTool';
+import { RemoveKeySignatureTool } from './RemoveKeySignatureTool';
+import { RemoveBpmTool } from './RemoveBpmTool';
 import { ReadMusicTool } from './ReadMusicTool';
+import { ReadMarkersTool } from './ReadMarkersTool';
 import { ReadChordProgressionTool } from './ReadChordProgressionTool';
 import { WriteChordProgressionTool } from './WriteChordProgressionTool';
+import { WriteMarkersTool } from './WriteMarkersTool';
+import { ReadKeySignatureTool } from './ReadKeySignatureTool';
+import { ReadBpmTool } from './ReadBpmTool';
+import { WriteKeySignatureTool } from './WriteKeySignatureTool';
+import { WriteBpmTool } from './WriteBpmTool';
 import { UpdateTodoListTool } from './UpdateTodoListTool';
 import { GetUserSelectedMusicRangeAndTrackTool } from './GetUserSelectedMusicRangeAndTrackTool';
 import { ListAllTracksTool } from './ListAllTracksTool';
@@ -20,9 +30,19 @@ import { DeleteTrackTool } from './DeleteTrackTool';
 export {
   AddNotesTool,
   RemoveNotesTool,
+  RemoveChordProgressionTool,
+  RemoveMarkersTool,
+  RemoveKeySignatureTool,
+  RemoveBpmTool,
   ReadMusicTool,
+  ReadMarkersTool,
   ReadChordProgressionTool,
   WriteChordProgressionTool,
+  WriteMarkersTool,
+  ReadKeySignatureTool,
+  ReadBpmTool,
+  WriteKeySignatureTool,
+  WriteBpmTool,
   UpdateTodoListTool,
   GetUserSelectedMusicRangeAndTrackTool,
   ListAllTracksTool,
@@ -37,9 +57,19 @@ export const AVAILABLE_TOOLS = {
   update_todo_list: UpdateTodoListTool,
   add_notes: AddNotesTool,
   remove_notes: RemoveNotesTool,
+  remove_chord_progression: RemoveChordProgressionTool,
+  remove_markers: RemoveMarkersTool,
+  remove_key_signature: RemoveKeySignatureTool,
+  remove_bpm: RemoveBpmTool,
   read_music: ReadMusicTool,
+  read_markers: ReadMarkersTool,
   read_chord_progression: ReadChordProgressionTool,
   write_chord_progression: WriteChordProgressionTool,
+  write_markers: WriteMarkersTool,
+  read_key_signature: ReadKeySignatureTool,
+  read_bpm: ReadBpmTool,
+  write_key_signature: WriteKeySignatureTool,
+  write_bpm: WriteBpmTool,
   get_user_selected_music_range_and_track: GetUserSelectedMusicRangeAndTrackTool,
   list_all_tracks: ListAllTracksTool,
   list_all_available_instruments: ListAllAvailableInstrumentsTool,
