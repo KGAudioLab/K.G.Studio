@@ -174,17 +174,21 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           const pendingToolCall = pendingToolCallIndex >= 0
             ? pendingToolCalls.splice(pendingToolCallIndex, 1)[0]
             : undefined;
+          let toolHistoryContent = result;
           let toolResultDisplayContent = result;
-          if (success) {
-            try {
-              const toolInstance = createToolInstance(name);
-              toolResultDisplayContent = toolInstance?.buildToolResultDisplayContent(
-                pendingToolCall?.arguments ?? null,
-                { success, result },
-              ) ?? result;
-            } catch {
-              toolResultDisplayContent = result;
-            }
+          try {
+            const toolInstance = createToolInstance(name);
+            toolHistoryContent = toolInstance?.buildToolHistoryContent(
+              pendingToolCall?.arguments ?? null,
+              { success, result },
+            ) ?? result;
+            toolResultDisplayContent = toolInstance?.buildToolResultDisplayContent(
+              pendingToolCall?.arguments ?? null,
+              { success, result },
+            ) ?? result;
+          } catch {
+            toolHistoryContent = result;
+            toolResultDisplayContent = result;
           }
           const toolResultMsg = name === TODO_TOOL_NAME
             ? {
@@ -194,7 +198,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
               todoSnapshot: AgentCore.instance().getAgentState().getTodos().map(todo => ({ ...todo })),
             }
             : {
-              ...createMessage('assistant', `${success ? '✅' : '❌'} **${name}**\n\n └── ${result}`),
+              ...createMessage('assistant', `${success ? '✅' : '❌'} **${name}**\n\n └── ${toolHistoryContent}`),
               toolName: name,
               toolSuccess: success,
               toolRawResult: result,

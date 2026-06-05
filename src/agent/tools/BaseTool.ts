@@ -100,6 +100,17 @@ export abstract class BaseTool {
   }
 
   /**
+   * Optionally build the user-visible tool result text stored in chat history.
+   * Raw tool results remain the canonical result returned to the LLM.
+   */
+  buildToolHistoryContent(
+    _args: Record<string, unknown> | null,
+    _toolResult: ToolResult,
+  ): string | undefined {
+    return undefined;
+  }
+
+  /**
    * Optionally build a user-facing confirmation summary before execution.
    * Non-read-only tools should override this with a concise approval prompt.
    */

@@ -1,10 +1,28 @@
 import { BaseTool } from './BaseTool';
 import type { ToolResult, ToolParameter } from './BaseTool';
+import {
+  NO_MIDI_TARGET_HISTORY_MESSAGE,
+  NO_MIDI_TARGET_RAW_MESSAGE,
+  NO_MIDI_TARGET_UI_MESSAGE,
+  getTrackDisplayName,
+  resolveMidiTrackByIdOrName,
+  resolveActiveOrSelectedMidiRegionContext,
+} from './toolTargeting';
 import { CreateNotesCommand } from '../../core/commands/note/CreateNotesCommand';
 import type { NoteCreationData } from '../../core/commands/note/CreateNotesCommand';
-import { KGMidiRegion } from '../../core/region/KGMidiRegion';
-import { useProjectStore } from '../../stores/projectStore';
+import { KGCommand } from '../../core/commands/KGCommand';
+import { CreateRegionCommand } from '../../core/commands/region/CreateRegionCommand';
+import { ResizeRegionCommand } from '../../core/commands/region/ResizeRegionCommand';
 import { KGCore } from '../../core/KGCore';
+import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+
+interface RequestedNote {
+  pitch: string;
+  start: number;
+  length: number;
+  velocity?: number;
+}
 
 interface AddNotesSummaryData {
   noteCount: number;
@@ -12,15 +30,109 @@ interface AddNotesSummaryData {
   trackName: string;
   earliestNoteStartBar: number;
   latestNoteEndBar: number;
+  createdRegion: boolean;
 }
 
-/**
- * Tool for adding notes to MIDI regions
- * Integrates with the existing command system for undo/redo support
- */
+interface NoteSpan {
+  startBeat: number;
+  endBeat: number;
+}
+
+interface ResolvedRegionContext {
+  track: KGMidiTrack;
+  trackName: string;
+  regionName: string;
+  regionId?: string;
+  finalRegionStartBeat: number;
+  finalRegionLength: number;
+  createdRegion: boolean;
+}
+
+class AddNotesToResolvedRegionCommand extends KGCommand {
+  private readonly resolvedRegion: ResolvedRegionContext;
+  private readonly notes: Array<RequestedNote & { midiPitch: number; velocity: number }>;
+  private createRegionCommand: CreateRegionCommand | null = null;
+  private resizeRegionCommand: ResizeRegionCommand | null = null;
+  private createNotesCommand: CreateNotesCommand | null = null;
+
+  constructor(
+    resolvedRegion: ResolvedRegionContext,
+    notes: Array<RequestedNote & { midiPitch: number; velocity: number }>,
+  ) {
+    super();
+    this.resolvedRegion = resolvedRegion;
+    this.notes = notes;
+  }
+
+  execute(): void {
+    let regionId = this.resolvedRegion.regionId;
+
+    if (this.resolvedRegion.createdRegion) {
+      this.createRegionCommand = new CreateRegionCommand(
+        this.resolvedRegion.track.getId().toString(),
+        this.resolvedRegion.track.getTrackIndex(),
+        this.resolvedRegion.finalRegionStartBeat,
+        this.resolvedRegion.finalRegionLength,
+        this.resolvedRegion.regionName,
+      );
+      this.createRegionCommand.execute();
+      regionId = this.createRegionCommand.getRegionId();
+    } else if (regionId) {
+      const existingRegion = this.findMidiRegion(regionId);
+      if (
+        existingRegion.getStartFromBeat() !== this.resolvedRegion.finalRegionStartBeat
+        || existingRegion.getLength() !== this.resolvedRegion.finalRegionLength
+      ) {
+        this.resizeRegionCommand = new ResizeRegionCommand(
+          regionId,
+          this.resolvedRegion.finalRegionStartBeat,
+          this.resolvedRegion.finalRegionLength,
+        );
+        this.resizeRegionCommand.execute();
+      }
+    }
+
+    if (!regionId) {
+      throw new Error('Unable to resolve the MIDI region for note creation.');
+    }
+
+    const noteCreationData: NoteCreationData[] = this.notes.map(note => ({
+      regionId,
+      startBeat: note.start - this.resolvedRegion.finalRegionStartBeat,
+      endBeat: note.start - this.resolvedRegion.finalRegionStartBeat + note.length,
+      pitch: note.midiPitch,
+      velocity: note.velocity,
+    }));
+    this.createNotesCommand = new CreateNotesCommand(noteCreationData);
+    this.createNotesCommand.execute();
+  }
+
+  undo(): void {
+    this.createNotesCommand?.undo();
+    this.resizeRegionCommand?.undo();
+    this.createRegionCommand?.undo();
+  }
+
+  getDescription(): string {
+    return `Add ${this.notes.length} note${this.notes.length === 1 ? '' : 's'}`;
+  }
+
+  private findMidiRegion(regionId: string): KGMidiRegion {
+    const tracks = KGCore.instance().getCurrentProject().getTracks();
+    for (const track of tracks) {
+      const region = track.getRegions().find(candidate => candidate.getId() === regionId);
+      if (region instanceof KGMidiRegion) {
+        return region;
+      }
+    }
+
+    throw new Error(`MIDI region with ID "${regionId}" not found.`);
+  }
+}
+
 export class AddNotesTool extends BaseTool {
   readonly name = 'add_notes';
-  readonly description = 'Add one or more MIDI notes to the current region. Use this to create melodies, chords, or any musical content. Notes use absolute beat positions on the project timeline — not relative to the region start.';
+  readonly description = 'Add one or more MIDI notes to a target track or the currently active MIDI region. Use track_id when the user identifies a track. Regions are resolved or created automatically, so you should think in terms of tracks rather than clips. Notes use absolute beat positions on the project timeline.';
 
   override isReadOnlyTool(): boolean {
     return false;
@@ -38,36 +150,45 @@ export class AddNotesTool extends BaseTool {
           pitch: {
             type: 'string',
             description: 'Pitch in scientific notation: note name, optional accidental (# or b), and octave number. Examples: "C4" (middle C), "F#3" (F-sharp 3rd octave), "Bb2" (B-flat 2nd octave).',
-            required: true
+            required: true,
           },
           start: {
             type: 'number',
-            description: 'Start beat — the absolute beat position on the project timeline where the note begins. This is NOT relative to the region — beat 6 means beat 6 in the project regardless of where the region begins. Fractional values are supported (e.g., 0.5 = half a beat after beat 0).',
-            required: true
+            description: 'Start beat — the absolute beat position on the project timeline where the note begins. This is NOT relative to the region or clip — beat 6 means beat 6 in the project regardless of where any MIDI region begins. Fractional values are supported (e.g., 0.5 = half a beat after beat 0).',
+            required: true,
           },
           length: {
             type: 'number',
             description: 'Duration of the note in beats. In 4/4 time: 4 = whole note, 2 = half note, 1 = quarter note, 0.5 = eighth note, 0.25 = sixteenth note.',
-            required: true
+            required: true,
           },
           velocity: {
             type: 'number',
             description: 'Note velocity / loudness from 1 (softest) to 127 (loudest). Defaults to 127 if omitted.',
-            required: false
-          }
-        }
-      }
+            required: false,
+          },
+        },
+      },
     },
-    region_id: {
+    track_id: {
       type: 'string',
-      description: 'Target region ID. If omitted, uses the currently active piano roll region or selected region.',
-      required: false
-    }
+      description: 'Optional target MIDI track ID. If provided, the app automatically resolves the best overlapping MIDI region on that track for the requested note span, expands it if needed, or creates a new MIDI region when no overlap exists.',
+      required: false,
+    },
+    track_name: {
+      type: 'string',
+      description: 'Optional target MIDI track name. Used only when track_id is omitted. If multiple MIDI tracks share the same name, the first matching track is used.',
+      required: false,
+    },
   };
 
-  buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
-    if (!toolResult.success || !args) {
+  override buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!args) {
       return undefined;
+    }
+
+    if (!toolResult.success) {
+      return toolResult.result === NO_MIDI_TARGET_RAW_MESSAGE ? NO_MIDI_TARGET_UI_MESSAGE : undefined;
     }
 
     const summary = this.buildSummaryData(args);
@@ -75,7 +196,18 @@ export class AddNotesTool extends BaseTool {
       return undefined;
     }
 
-    return `Successfully created ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+    const regionLabel = summary.createdRegion
+      ? `new region **${summary.regionName}**`
+      : `region **${summary.regionName}**`;
+    return `Successfully created ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in ${regionLabel} on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+  }
+
+  override buildToolHistoryContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!args || toolResult.success) {
+      return undefined;
+    }
+
+    return toolResult.result === NO_MIDI_TARGET_RAW_MESSAGE ? NO_MIDI_TARGET_HISTORY_MESSAGE : undefined;
   }
 
   override buildConfirmationContent(args: Record<string, unknown> | null): string | undefined {
@@ -88,222 +220,234 @@ export class AddNotesTool extends BaseTool {
       return undefined;
     }
 
-    return `Allow creating ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} in region **${summary.regionName}** on track **${summary.trackName}**, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}?`;
+    const regionVerb = summary.createdRegion ? 'a new region' : `region **${summary.regionName}**`;
+    return `Allow creating ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} on track **${summary.trackName}** in ${regionVerb}, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}?`;
   }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      // Validate parameters
       this.validateParameters(params);
-      
-      const notes = params.notes as Array<{
-        pitch: string;
-        start: number;
-        length: number;
-        velocity?: number;
-      }>;
-      
-      const regionId = params.region_id as string | undefined;
-      
-      // Find the target region
-      const targetRegion = this.findTargetRegion(regionId);
-      if (!targetRegion) {
-        return this.createErrorResult(
-          regionId 
-            ? `Region with ID "${regionId}" not found or is not a MIDI region`
-            : 'No active or selected MIDI region found. Please open the piano roll with a region or select a MIDI region first.'
-        );
+
+      const notes = params.notes as RequestedNote[];
+      if (notes.length === 0) {
+        return this.createErrorResult('No notes were provided.');
       }
 
-      // Validate and convert notes to creation data
-      const noteCreationData: NoteCreationData[] = [];
-      const createdNotes: Array<{ pitch: string; start: number; length: number }> = [];
-      
+      const validatedNotes: Array<RequestedNote & { midiPitch: number; velocity: number }> = [];
       for (const note of notes) {
         try {
           const midiPitch = this.convertPitchToMidi(note.pitch);
           const velocity = note.velocity ?? 127;
-          
-          // Validate velocity range
+
           if (velocity < 1 || velocity > 127) {
             return this.createErrorResult(`Invalid velocity ${velocity}. Must be between 1 and 127.`);
           }
-          
-          // Validate beat positions
           if (note.start < 0) {
             return this.createErrorResult(`Invalid start ${note.start}. Must be >= 0.`);
           }
-          
           if (note.length <= 0) {
             return this.createErrorResult(`Invalid length ${note.length}. Must be > 0.`);
           }
-          
-          // Adjust note position relative to region's start beat
-          const regionStartBeat = targetRegion.getStartFromBeat();
-          const adjustedStartBeat = note.start - regionStartBeat;
-          const adjustedEndBeat = adjustedStartBeat + note.length;
-          
-          // Create note creation data
-          noteCreationData.push({
-            regionId: targetRegion.getId(),
-            startBeat: adjustedStartBeat,
-            endBeat: adjustedEndBeat,
-            pitch: midiPitch,
-            velocity
-          });
-          
-          createdNotes.push({
-            pitch: note.pitch,
-            start: note.start,
-            length: note.length
-          });
-          
+
+          validatedNotes.push({ ...note, midiPitch, velocity });
         } catch (error) {
           return this.createErrorResult(`Invalid note pitch "${note.pitch}": ${error}`);
         }
       }
-      
-      // Execute the bulk note creation command
-      const command = new CreateNotesCommand(noteCreationData);
+
+      const trackId = params.track_id as string | undefined;
+      const trackName = params.track_name as string | undefined;
+      if (trackId || trackName) {
+        const explicitTrack = resolveMidiTrackByIdOrName(trackId, trackName);
+        if (!explicitTrack) {
+          return this.createErrorResult(
+            trackId
+              ? `Track with ID "${trackId}" not found or is not a MIDI track.`
+              : `Track with name "${trackName}" not found or is not a MIDI track.`,
+          );
+        }
+      }
+
+      const resolvedRegion = this.resolveTargetRegion(trackId, trackName, this.getNoteSpan(validatedNotes));
+      if (!resolvedRegion) {
+        return this.createErrorResult(NO_MIDI_TARGET_RAW_MESSAGE);
+      }
+
+      const command = new AddNotesToResolvedRegionCommand(resolvedRegion, validatedNotes);
       await this.executeCommand(command);
-      
-      // Create success message
-      const noteCount = createdNotes.length;
-      const noteList = createdNotes
+
+      const noteList = validatedNotes
         .map(note => `${note.pitch} (beat ${note.start}, length ${note.length})`)
         .join(', ');
-      
-      return this.createSuccessResult(
-        `Successfully created ${noteCount} note${noteCount > 1 ? 's' : ''}: ${noteList}`
-      );
-      
+
+      const actionPrefix = resolvedRegion.createdRegion
+        ? `Successfully created ${validatedNotes.length} note${validatedNotes.length > 1 ? 's' : ''} on track "${resolvedRegion.trackName}" by creating MIDI region "${resolvedRegion.regionName}"`
+        : `Successfully created ${validatedNotes.length} note${validatedNotes.length > 1 ? 's' : ''} in MIDI region "${resolvedRegion.regionName}" on track "${resolvedRegion.trackName}"`;
+
+      return this.createSuccessResult(`${actionPrefix}: ${noteList}`);
     } catch (error) {
       return this.createErrorResult(`Failed to create notes: ${error}`);
-    }
-  }
-
-  /**
-   * Find the target region for note creation
-   * Priority: 1) Specified regionId, 2) Active piano roll region, 3) Selected regions, 4) Error if none found
-   */
-  private findTargetRegion(regionId?: string): KGMidiRegion | null {
-    return this.findTargetRegionContext(regionId)?.region ?? null;
-  }
-
-  private findTargetRegionContext(regionId?: string): { region: KGMidiRegion; trackName: string } | null {
-    const project = this.getCurrentProject();
-    const tracks = project.getTracks();
-
-    if (regionId) {
-      for (const track of tracks) {
-        const regions = track.getRegions();
-        const region = regions.find(r => r.getId() === regionId);
-        if (region && region instanceof KGMidiRegion) {
-          return {
-            region,
-            trackName: track.getName() || `Track ${track.getTrackIndex() + 1}`,
-          };
-        }
-      }
-      return null;
-    } else {
-      const storeState = useProjectStore.getState();
-      if (storeState.activeRegionId) {
-        for (const track of tracks) {
-          const regions = track.getRegions();
-          const region = regions.find(r => r.getId() === storeState.activeRegionId);
-          if (region && region instanceof KGMidiRegion) {
-            return {
-              region,
-              trackName: track.getName() || `Track ${track.getTrackIndex() + 1}`,
-            };
-          }
-        }
-      }
-
-      const core = this.getKGCore();
-      const selectedItems = core.getSelectedItems();
-      for (const item of selectedItems) {
-        if (item instanceof KGMidiRegion) {
-          const track = tracks.find(candidate => candidate.getId().toString() === item.getTrackId());
-          return {
-            region: item,
-            trackName: track?.getName() || `Track ${item.getTrackIndex() + 1}`,
-          };
-        }
-      }
-
-      return null;
     }
   }
 
   private buildSummaryData(args: Record<string, unknown>): AddNotesSummaryData | null {
     const typedArgs = args as {
       notes?: Array<{ start: number; length: number }>;
-      region_id?: string;
+      track_id?: string;
+      track_name?: string;
     };
 
     if (!Array.isArray(typedArgs.notes) || typedArgs.notes.length === 0) {
       return null;
     }
 
-    const targetRegion = this.findTargetRegionContext(typedArgs.region_id);
-    if (!targetRegion) {
+    const span = this.getNoteSpan(typedArgs.notes);
+    const resolvedRegion = this.resolveTargetRegion(typedArgs.track_id, typedArgs.track_name, span);
+    if (!resolvedRegion) {
       return null;
     }
 
     const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    const earliestNoteStartBeat = Math.min(...typedArgs.notes.map(note => note.start));
-    const latestNoteEndBeat = Math.max(...typedArgs.notes.map(note => note.start + note.length));
 
     return {
       noteCount: typedArgs.notes.length,
-      regionName: targetRegion.region.getName(),
-      trackName: targetRegion.trackName,
-      earliestNoteStartBar: Math.floor(earliestNoteStartBeat / beatsPerBar) + 1,
-      latestNoteEndBar: Math.max(1, Math.ceil(latestNoteEndBeat / beatsPerBar)),
+      regionName: resolvedRegion.regionName,
+      trackName: resolvedRegion.trackName,
+      earliestNoteStartBar: Math.floor(span.startBeat / beatsPerBar) + 1,
+      latestNoteEndBar: Math.max(1, Math.ceil(span.endBeat / beatsPerBar)),
+      createdRegion: resolvedRegion.createdRegion,
     };
   }
 
-  /**
-   * Get KGCore instance for selection access
-   */
-  private getKGCore() {
-    return KGCore.instance();
+  private resolveTargetRegion(
+    trackId: string | undefined,
+    trackName: string | undefined,
+    span: NoteSpan,
+  ): ResolvedRegionContext | null {
+    if (trackId || trackName) {
+      return this.resolveTrackTarget(trackId, trackName, span);
+    }
+
+    const activeRegion = resolveActiveOrSelectedMidiRegionContext();
+    if (!activeRegion) {
+      return null;
+    }
+
+    const region = activeRegion.region;
+    const regionStartBeat = region.getStartFromBeat();
+    const regionEndBeat = regionStartBeat + region.getLength();
+    return {
+      track: activeRegion.track,
+      trackName: activeRegion.trackName,
+      regionId: region.getId(),
+      regionName: region.getName(),
+      finalRegionStartBeat: Math.min(regionStartBeat, span.startBeat),
+      finalRegionLength: Math.max(regionEndBeat, span.endBeat) - Math.min(regionStartBeat, span.startBeat),
+      createdRegion: false,
+    };
   }
 
-  /**
-   * Convert pitch string to MIDI note number
-   * Supports formats like: C4, F#3, Bb2, C#5
-   */
+  private resolveTrackTarget(
+    trackId: string | undefined,
+    trackName: string | undefined,
+    span: NoteSpan,
+  ): ResolvedRegionContext | null {
+    const track = resolveMidiTrackByIdOrName(trackId, trackName);
+    if (!track) {
+      return null;
+    }
+
+    const resolvedTrackName = getTrackDisplayName(track);
+    const midiRegions = track.getRegions().filter(region => region instanceof KGMidiRegion) as KGMidiRegion[];
+    const selectedRegion = this.pickBestOverlappingRegion(midiRegions, span);
+
+    if (!selectedRegion) {
+      return {
+        track,
+        trackName: resolvedTrackName,
+        regionName: `${resolvedTrackName} Region`,
+        finalRegionStartBeat: span.startBeat,
+        finalRegionLength: span.endBeat - span.startBeat,
+        createdRegion: true,
+      };
+    }
+
+    const regionStartBeat = selectedRegion.getStartFromBeat();
+    const regionEndBeat = regionStartBeat + selectedRegion.getLength();
+    const finalRegionStartBeat = Math.min(regionStartBeat, span.startBeat);
+    const finalRegionEndBeat = Math.max(regionEndBeat, span.endBeat);
+
+    return {
+      track,
+      trackName: resolvedTrackName,
+      regionId: selectedRegion.getId(),
+      regionName: selectedRegion.getName(),
+      finalRegionStartBeat,
+      finalRegionLength: finalRegionEndBeat - finalRegionStartBeat,
+      createdRegion: false,
+    };
+  }
+
+  private pickBestOverlappingRegion(regions: KGMidiRegion[], span: NoteSpan): KGMidiRegion | null {
+    let bestRegion: KGMidiRegion | null = null;
+    let bestOverlap = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const region of regions) {
+      const regionStart = region.getStartFromBeat();
+      const regionEnd = regionStart + region.getLength();
+      const overlap = Math.min(regionEnd, span.endBeat) - Math.max(regionStart, span.startBeat);
+      if (overlap <= 0) {
+        continue;
+      }
+
+      const distance = Math.abs(regionStart - span.startBeat);
+      if (overlap > bestOverlap || (overlap === bestOverlap && distance < bestDistance)) {
+        bestRegion = region;
+        bestOverlap = overlap;
+        bestDistance = distance;
+      }
+    }
+
+    return bestRegion;
+  }
+
+  private getNoteSpan(notes: Array<{ start: number; length: number }>): NoteSpan {
+    return {
+      startBeat: Math.min(...notes.map(note => note.start)),
+      endBeat: Math.max(...notes.map(note => note.start + note.length)),
+    };
+  }
+
   private convertPitchToMidi(pitch: string): number {
     const match = pitch.match(/^([A-G])([#b]?)(\d+)$/);
     if (!match) {
       throw new Error(`Invalid pitch format "${pitch}". Use format like "C4", "F#3", "Bb2"`);
     }
-    
+
     const [, noteName, accidental, octaveStr] = match;
-    const octave = parseInt(octaveStr);
-    
-    // Base MIDI notes for C octave (C4 = 60)
+    const octave = parseInt(octaveStr, 10);
     const noteOffsets: Record<string, number> = {
-      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11
+      C: 0,
+      D: 2,
+      E: 4,
+      F: 5,
+      G: 7,
+      A: 9,
+      B: 11,
     };
-    
+
     let midiNote = (octave + 1) * 12 + noteOffsets[noteName];
-    
-    // Apply accidentals
     if (accidental === '#') {
       midiNote += 1;
     } else if (accidental === 'b') {
       midiNote -= 1;
     }
-    
-    // Validate MIDI range
+
     if (midiNote < 0 || midiNote > 127) {
       throw new Error(`Note "${pitch}" is out of MIDI range (0-127)`);
     }
-    
+
     return midiNote;
   }
 }

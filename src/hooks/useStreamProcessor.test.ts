@@ -54,6 +54,7 @@ vi.mock('../utils/chatMessageUtils', () => ({
 import { AgentCore } from '../agent/core/AgentCore';
 import { KGCore } from '../core/KGCore';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { useStreamProcessor } from './useStreamProcessor';
 import type { ChatMessage } from '../types/projectTypes';
 
@@ -64,6 +65,7 @@ const flushMicrotasks = async (): Promise<void> => {
 
 describe('useStreamProcessor', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     mockedStoreState.activeRegionId = null;
     mockedStoreState.toolFastForwardEnabled = false;
     mockedStoreState.setToolFastForwardEnabled.mockClear();
@@ -297,16 +299,12 @@ describe('useStreamProcessor', () => {
       },
     } as unknown as AgentCore);
 
+  const leadTrack = new KGMidiTrack('Lead', 1);
+  leadTrack.setRegions([selectedRegion]);
   vi.spyOn(KGCore, 'instance').mockReturnValue({
     getCurrentProject: () => ({
       getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
-      getTracks: () => [
-        {
-          getId: () => '1',
-          getName: () => 'Lead',
-          getRegions: () => [selectedRegion],
-        },
-      ],
+      getTracks: () => [leadTrack],
     }),
     getSelectedItems: () => [selectedRegion],
   } as unknown as KGCore);
@@ -406,6 +404,71 @@ describe('useStreamProcessor', () => {
     expect(toolResultMessage?.toolResultDisplayContent).toBe('raw music result');
   });
 
+  it('uses tool-specific history and UI strings for error results when provided', async () => {
+    vi.spyOn(AgentCore, 'instance').mockReturnValue({
+      getAgentState: () => ({
+        getTodos: () => [],
+      }),
+      processUserInput: async function* () {
+        yield {
+          type: 'tool_call',
+          content: '',
+          toolCall: {
+            id: 'add-call-no-target',
+            type: 'function',
+            function: {
+              name: 'add_notes',
+              arguments: JSON.stringify({
+                notes: [{ pitch: 'C4', start: 0, length: 1 }],
+              }),
+            },
+          },
+        };
+        yield {
+          type: 'tool_result',
+          content: '',
+          toolResult: {
+            toolCallId: 'add-call-no-target',
+            name: 'add_notes',
+            success: false,
+            result: 'No MIDI target could be resolved. Select the MIDI region you want me to edit and retry, or tell me which MIDI track to operate on by providing its track_id.',
+          },
+        };
+        yield { type: 'done', content: '' };
+      },
+    } as unknown as AgentCore);
+
+    const messages = new Map<string, ChatMessage>();
+
+    const { result } = renderHook(() => useStreamProcessor({
+      onMessageAdd: (message) => {
+        messages.set(message.id, message);
+      },
+      onMessageUpdate: (messageId, updater) => {
+        const current = messages.get(messageId);
+        if (!current) {
+          throw new Error(`Missing message ${messageId}`);
+        }
+        messages.set(messageId, updater(current));
+      },
+      onMessageRemove: (messageId) => {
+        messages.delete(messageId);
+      },
+      onProcessingChange: () => undefined,
+    }));
+
+    await act(async () => {
+      await result.current.processStream('add notes prompt');
+    });
+
+    const addNotesMessage = [...messages.values()].find(message => message.toolName === 'add_notes');
+    expect(addNotesMessage?.toolRawResult).toBe(
+      'No MIDI target could be resolved. Select the MIDI region you want me to edit and retry, or tell me which MIDI track to operate on by providing its track_id.',
+    );
+    expect(addNotesMessage?.content).toContain('I could not tell which MIDI content to edit.');
+    expect(addNotesMessage?.toolResultDisplayContent).toBe('Select a MIDI region, or specify a track.');
+  });
+
   it('shows a confirmation card and replaces it with a denied result when the user denies execution', async () => {
     vi.spyOn(AgentCore, 'instance').mockReturnValue({
       getAgentState: () => ({
@@ -440,16 +503,12 @@ describe('useStreamProcessor', () => {
     } as unknown as AgentCore);
 
     const selectedRegion = new KGMidiRegion('region-1', '1', 0, 'Verse Melody');
+    const leadTrack = new KGMidiTrack('Lead', 1);
+    leadTrack.setRegions([selectedRegion]);
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => ({
         getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
-        getTracks: () => [
-          {
-            getId: () => '1',
-            getName: () => 'Lead',
-            getRegions: () => [selectedRegion],
-          },
-        ],
+        getTracks: () => [leadTrack],
       }),
       getSelectedItems: () => [selectedRegion],
     } as unknown as KGCore);
@@ -481,7 +540,7 @@ describe('useStreamProcessor', () => {
 
     const confirmationMessage = [...messages.values()].find(message => message.toolConfirmation);
     expect(confirmationMessage?.toolConfirmation?.toolName).toBe('add_notes');
-    expect(confirmationMessage?.toolConfirmation?.message).toContain('Allow creating 1 note in region **Verse Melody**');
+    expect(confirmationMessage?.toolConfirmation?.message).toContain('Allow creating 1 note on track **Lead** in region **Verse Melody**');
 
     act(() => {
       confirmationMessage?.onToolConfirmationDecision?.('deny');
@@ -533,16 +592,12 @@ describe('useStreamProcessor', () => {
     } as unknown as AgentCore);
 
     const selectedRegion = new KGMidiRegion('region-1', '1', 0, 'Intro');
+    const leadTrack = new KGMidiTrack('Lead', 1);
+    leadTrack.setRegions([selectedRegion]);
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => ({
         getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
-        getTracks: () => [
-          {
-            getId: () => '1',
-            getName: () => 'Lead',
-            getRegions: () => [selectedRegion],
-          },
-        ],
+        getTracks: () => [leadTrack],
       }),
       getSelectedItems: () => [selectedRegion],
     } as unknown as KGCore);

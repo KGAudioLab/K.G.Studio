@@ -9,8 +9,18 @@ import { RemoveNotesTool } from './RemoveNotesTool';
 import { ReadMusicTool } from './ReadMusicTool';
 import { ReadChordProgressionTool } from './ReadChordProgressionTool';
 import { UpdateTodoListTool } from './UpdateTodoListTool';
+import { GetUserSelectedMusicRangeAndTrackTool } from './GetUserSelectedMusicRangeAndTrackTool';
+import { ListAllTracksTool } from './ListAllTracksTool';
 
-export { AddNotesTool, RemoveNotesTool, ReadMusicTool, ReadChordProgressionTool, UpdateTodoListTool };
+export {
+  AddNotesTool,
+  RemoveNotesTool,
+  ReadMusicTool,
+  ReadChordProgressionTool,
+  UpdateTodoListTool,
+  GetUserSelectedMusicRangeAndTrackTool,
+  ListAllTracksTool,
+};
 
 // Tool registry for easy access
 export const AVAILABLE_TOOLS = {
@@ -19,6 +29,8 @@ export const AVAILABLE_TOOLS = {
   remove_notes: RemoveNotesTool,
   read_music: ReadMusicTool,
   read_chord_progression: ReadChordProgressionTool,
+  get_user_selected_music_range_and_track: GetUserSelectedMusicRangeAndTrackTool,
+  list_all_tracks: ListAllTracksTool,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;

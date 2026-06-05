@@ -1,79 +1,105 @@
 import { BaseTool } from './BaseTool';
 import type { ToolResult, ToolParameter } from './BaseTool';
-import { KGMidiRegion } from '../../core/region/KGMidiRegion';
-import { useProjectStore } from '../../stores/projectStore';
-import { KGCore } from '../../core/KGCore';
+import { resolveActiveOrSelectedMidiRegionContext } from './toolTargeting';
 import { convertBeatRangeChordProgressionToABCNotation } from '../../util/abcNotationUtil';
+import { GlobalTrackType } from '../../core/global-track';
+import { KGChordRegion } from '../../core/region/KGChordRegion';
+import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 
-/**
- * Tool for reading user-defined chord progression content from the global chord track.
- */
+interface ChordProgressionRange {
+  startBeat: number;
+  endBeat: number;
+  scope: 'region' | 'song';
+}
+
+const NO_CHORD_PROGRESSION_RAW_MESSAGE =
+  'No chord progression is defined for the requested range on the global chord track. Use read_music to inspect the notes directly.';
+
+const NO_CHORD_PROGRESSION_HISTORY_MESSAGE =
+  'No chord progression is defined for that range on the global chord track. Use read_music to inspect the notes directly.';
+
+const NO_CHORD_PROGRESSION_UI_MESSAGE =
+  'No chord progression is defined for that range.';
+
 export class ReadChordProgressionTool extends BaseTool {
   readonly name = 'read_chord_progression';
-  readonly description = 'Read the user-defined chord progression for the currently active or selected MIDI region. The output has two representations of the same progression: first symbolic chord names such as Em7b5, then note-based ABC chord tokens. Chord progression data comes only from chord regions the user defined on the global chord track, so it may be empty. If no chord progression is defined for this range, read the notes directly with read_music.';
+  readonly description = 'Read the user-defined chord progression from the global chord track. If a MIDI region is active or selected, read the progression for that region. Otherwise, read the full song progression from bar 1 through the last chord region on the chord track.';
 
   readonly parameters: Record<string, ToolParameter> = {};
 
-  buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+  override buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    void args;
+
     if (!toolResult.success) {
       return undefined;
     }
 
-    const targetRegion = this.findTargetRegion();
-    if (!targetRegion) {
+    if (toolResult.result === NO_CHORD_PROGRESSION_RAW_MESSAGE) {
+      return NO_CHORD_PROGRESSION_UI_MESSAGE;
+    }
+
+    const range = this.resolveReadRange();
+    if (!range) {
       return undefined;
     }
 
     const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    const startBar = Math.floor(targetRegion.getStartFromBeat() / beatsPerBar) + 1;
-    const endBar = Math.max(1, Math.ceil((targetRegion.getStartFromBeat() + targetRegion.getLength()) / beatsPerBar));
-    const barRange = startBar === endBar ? `bar ${startBar}` : `bars ${startBar} to ${endBar}`;
-    void args;
+    const startBar = Math.floor(range.startBeat / beatsPerBar) + 1;
+    const endBar = Math.max(1, Math.ceil(range.endBeat / beatsPerBar));
+    return `Read the chord progression from ${startBar === endBar ? `bar ${startBar}` : `bars ${startBar} to ${endBar}`}.`;
+  }
 
-    return `Read the chord progression from ${barRange}.`;
+  override buildToolHistoryContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    void args;
+    if (toolResult.result === NO_CHORD_PROGRESSION_RAW_MESSAGE) {
+      return NO_CHORD_PROGRESSION_HISTORY_MESSAGE;
+    }
+
+    return undefined;
   }
 
   async execute(_params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      const targetRegion = this.findTargetRegion();
-      if (!targetRegion) {
-        return this.createErrorResult(
-          'No active or selected MIDI region found. Please open the piano roll with a region or select a MIDI region first.'
-        );
+      const range = this.resolveReadRange();
+      if (!range) {
+        return this.createSuccessResult(NO_CHORD_PROGRESSION_RAW_MESSAGE);
       }
 
-      const project = this.getCurrentProject();
-      const startBeat = targetRegion.getStartFromBeat();
-      const endBeat = startBeat + targetRegion.getLength();
-      const result = convertBeatRangeChordProgressionToABCNotation(project, startBeat, endBeat);
-
+      const result = convertBeatRangeChordProgressionToABCNotation(
+        this.getCurrentProject(),
+        range.startBeat,
+        range.endBeat,
+      );
       return this.createSuccessResult(result);
     } catch (error) {
       return this.createErrorResult(`Failed to read chord progression: ${error}`);
     }
   }
 
-  private findTargetRegion(): KGMidiRegion | null {
-    const project = this.getCurrentProject();
-    const tracks = project.getTracks();
-    const storeState = useProjectStore.getState();
-
-    if (storeState.activeRegionId) {
-      for (const track of tracks) {
-        const region = track.getRegions().find(candidate => candidate.getId() === storeState.activeRegionId);
-        if (region instanceof KGMidiRegion) {
-          return region;
-        }
-      }
+  private resolveReadRange(): ChordProgressionRange | null {
+    const resolvedRegion = resolveActiveOrSelectedMidiRegionContext();
+    if (resolvedRegion) {
+      return {
+        startBeat: resolvedRegion.region.getStartFromBeat(),
+        endBeat: resolvedRegion.region.getStartFromBeat() + resolvedRegion.region.getLength(),
+        scope: 'region',
+      };
     }
 
-    const selectedItems = KGCore.instance().getSelectedItems();
-    for (const item of selectedItems) {
-      if (item instanceof KGMidiRegion) {
-        return item;
-      }
+    const chordTrack = findGlobalTrackByType(this.getCurrentProject(), GlobalTrackType.Chord);
+    if (!chordTrack) {
+      return null;
     }
 
-    return null;
+    const chordRegions = chordTrack.getRegions().filter((region): region is KGChordRegion => region instanceof KGChordRegion);
+    if (chordRegions.length === 0) {
+      return null;
+    }
+
+    return {
+      startBeat: 0,
+      endBeat: Math.max(...chordRegions.map(region => region.getStartFromBeat() + region.getLength())),
+      scope: 'song',
+    };
   }
 }

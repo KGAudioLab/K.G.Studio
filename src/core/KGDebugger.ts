@@ -341,13 +341,13 @@ export class KGDebugger {
    * Usage examples in browser console:
    *
    *   // Single tool call:
-   *   await KGStudio.KGDebugger.testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}')
+   *   await KGDebugger.testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}')
    *
    *   // Multiple tool calls:
-   *   await KGStudio.KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start":0,"end_beat":4}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start":0,"length":1}]}}]')
+   *   await KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start":0,"end_beat":4}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start":0,"length":1}]}}]')
    *
    *   // Can also pass a JS object directly (no need to stringify):
-   *   await KGStudio.KGDebugger.testToolCall({name:"read_music",arguments:{start:0}})
+   *   await KGDebugger.testToolCall({name:"read_music",arguments:{start:0}})
    *
    * @param input - JSON string, object, or array of tool call(s).
    *   Each tool call should have: { name: string, arguments: object }
@@ -430,13 +430,15 @@ export class KGDebugger {
     console.log("  - Use browser developer tools for best experience");
     console.log("");
     console.log("💡 testToolCall examples:");
-    console.log('  await KGStudio.KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":8}}\')');
-    console.log('  await KGStudio.KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:1}]}})');
-    console.log('  await KGStudio.KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end_beat:4}},{name:"read_music",arguments:{}}])');
+    console.log('  await KGDebugger.testToolCall(\'{"name":"get_user_selected_music_range_and_track","arguments":{}}\')');
+    console.log('  await KGDebugger.testToolCall(\'{"name":"list_all_tracks","arguments":{}}\')');
+    console.log('  await KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":8}}\')');
+    console.log('  await KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:1}]}})');
+    console.log('  await KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end_beat:4}},{name:"read_music",arguments:{}}])');
     console.log("");
     console.log("💡 KGOne input examples:");
-    console.log('  await KGStudio.KGDebugger.inputKGOneCaption("Genre: Eurodance, 90s dance-pop, upbeat electronic...", 30)');
-    console.log('  await KGStudio.KGDebugger.inputKGOneLyrics("[Verse 1]\\nYour lyrics here...\\n\\n[Chorus]\\n...", 30)');
+    console.log('  await KGDebugger.inputKGOneCaption("Genre: Eurodance, 90s dance-pop, upbeat electronic...", 30)');
+    console.log('  await KGDebugger.inputKGOneLyrics("[Verse 1]\\nYour lyrics here...\\n\\n[Chorus]\\n...", 30)');
   }
 
   /**

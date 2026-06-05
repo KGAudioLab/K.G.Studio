@@ -35,12 +35,6 @@ vi.mock('../../stores/projectStore', () => ({
   },
 }));
 
-vi.mock('../../agent/core/SystemPrompts', () => ({
-  SystemPrompts: {
-    getPromptWithContext: vi.fn(async (value: string) => value),
-  },
-}));
-
 vi.mock('../localLLMConfig', async () => {
   const actual = await vi.importActual<typeof import('../localLLMConfig')>('../localLLMConfig');
   return {
@@ -336,6 +330,17 @@ describe('processUserMessage slash commands', () => {
     expect(result.metadata).toMatchObject({ error: 'local_browser_unsupported' });
   });
 
+  it('passes non-command messages through to the LLM even when no region is selected', async () => {
+    const result = await processUserMessage('hello');
+
+    expect(result.sendToLLM).toBe(true);
+    expect(result.finalMessageForLLM).toBe('hello');
+    expect(result.pseudoAssistantResponse).toBeNull();
+    expect(result.metadata).toMatchObject({
+      mode: 'pass_through_plain_user_message',
+    });
+  });
+
   it('allows local-browser messages when only SharedArrayBuffer isolation support is missing', async () => {
     detectLocalLLMRuntimeSupportMock.mockReturnValue({
       supported: true,
@@ -345,12 +350,11 @@ describe('processUserMessage slash commands', () => {
       secureContext: true,
       reason: 'This host may not support the local browser runtime reliably because cross-origin isolation or SharedArrayBuffer is unavailable. COOP/COEP headers may be missing.',
     });
-    storeState.activeRegionId = 'region-1';
 
     const result = await processUserMessage('hello');
 
     expect(result.sendToLLM).toBe(true);
-    expect(result.finalMessageForLLM).toContain('hello');
+    expect(result.finalMessageForLLM).toBe('hello');
     expect(result.pseudoAssistantResponse).toBeNull();
   });
 });

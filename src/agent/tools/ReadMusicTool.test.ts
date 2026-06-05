@@ -19,33 +19,11 @@ describe('ReadMusicTool', () => {
     vi.restoreAllMocks();
   });
 
-  it('builds a compact summary for a single track read', () => {
+  it('builds a compact summary for reading multiple tracks including empty ones', () => {
     const project = new KGProject('read-music-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const leadTrack = buildTrack('Lead', 1, 0, 16);
-    project.setTracks([leadTrack]);
-
-    vi.spyOn(KGCore, 'instance').mockReturnValue({
-      getCurrentProject: () => project,
-    } as unknown as KGCore);
-
-    const tool = new ReadMusicTool();
-    const summary = tool.buildToolResultDisplayContent(
-      {
-        track_id: leadTrack.getId().toString(),
-        start: 5,
-        length: 6,
-      },
-      { success: true, result: 'raw result' },
-    );
-
-    expect(summary).toBe('Read track Lead from bars 2 to 3.');
-  });
-
-  it('builds a compact summary for reading multiple tracks', () => {
-    const project = new KGProject('read-music-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
-    const leadTrack = buildTrack('Lead', 1, 0, 16);
-    const bassTrack = buildTrack('Bass', 2, 0, 12);
-    project.setTracks([leadTrack, bassTrack]);
+    const emptyTrack = new KGMidiTrack('Pads', 2);
+    project.setTracks([leadTrack, emptyTrack]);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => project,
@@ -61,28 +39,33 @@ describe('ReadMusicTool', () => {
       { success: true, result: 'raw result' },
     );
 
-    expect(summary).toBe('Read tracks Lead and Bass from bars 1 to 4.');
+    expect(summary).toBe('Read tracks Lead and Pads from bars 1 to 4.');
   });
 
-  it('returns no compact summary when the requested track cannot be resolved', () => {
+  it('includes empty MIDI tracks as rest-only ABC sections in all-track reads', async () => {
     const project = new KGProject('read-music-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
-    project.setTracks([buildTrack('Lead', 1, 0, 16)]);
+    const leadTrack = buildTrack('Lead', 1, 0, 8);
+    const emptyTrack = new KGMidiTrack('Pads', 2);
+    project.setTracks([leadTrack, emptyTrack]);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => project,
     } as unknown as KGCore);
 
     const tool = new ReadMusicTool();
-    const summary = tool.buildToolResultDisplayContent(
-      {
-        track_id: 'missing-track',
-        start: 0,
-        length: 4,
-      },
-      { success: true, result: 'raw result' },
-    );
+    const result = await tool.execute({ track_id: 'all', start: 0, length: 8 });
 
-    expect(summary).toBeUndefined();
+    expect(result.success).toBe(true);
+    expect(result.result).toContain('track_id: 1');
+    expect(result.result).toContain('track_name: Lead');
+    expect(result.result).toContain('Instrument: Acoustic Grand Piano');
+    expect(result.result).toContain('track_id: 2');
+    expect(result.result).toContain('track_name: Pads');
+    expect(result.result).toContain('Instrument: Acoustic Grand Piano');
+    expect(result.result).not.toContain('Track 1 - Melody:');
+    expect(result.result).not.toContain('Track 2 - Pads:');
+    expect(result.result).not.toContain('\nT:');
+    expect(result.result).toContain('z4 | z4 | // No regions found');
   });
 
   it('returns a professional empty-project message when all MIDI tracks are empty', async () => {
@@ -107,7 +90,8 @@ describe('ReadMusicTool', () => {
   it('returns a professional empty-range message when the selected range has no MIDI notes', async () => {
     const project = new KGProject('read-music-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const leadTrack = buildTrack('Lead', 1, 0, 8);
-    project.setTracks([leadTrack]);
+    const emptyTrack = new KGMidiTrack('Pads', 2);
+    project.setTracks([leadTrack, emptyTrack]);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => project,
