@@ -165,14 +165,19 @@ export class OpenAICompatibleLLMProvider implements LLMProvider {
       requestParams.tool_choice = 'auto';
     }
 
-    const stream = this.client.chat.completions.stream(requestParams);
+    const stream = await this.client.chat.completions.create(requestParams);
     const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
+    let finishReason = 'stop';
 
     for await (const chunk of stream) {
       // Do not delete: leave this commented out for future debugging purpose.
       // console.log('LLMProvider: chunk', JSON.stringify(chunk));
       const choice = chunk.choices[0];
       if (!choice) continue;
+
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
 
       const delta = choice.delta;
       if (delta.content) {
@@ -196,9 +201,6 @@ export class OpenAICompatibleLLMProvider implements LLMProvider {
         }
       }
     }
-
-    const finalCompletion = await stream.finalChatCompletion();
-    const finishReason = finalCompletion.choices[0]?.finish_reason ?? 'stop';
 
     if (toolCallAccumulator.size > 0) {
       for (const [, tc] of toolCallAccumulator) {

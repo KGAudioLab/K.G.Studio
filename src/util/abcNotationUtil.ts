@@ -8,6 +8,7 @@ import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGCore } from '../core/KGCore';
 import { KGProject } from '../core/KGProject';
 import { KGChordRegion } from '../core/region/KGChordRegion';
+import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { pitchToNoteName } from './midiUtil';
 import { beatsToTicks, getTicksPerBar, reduceFraction } from './mathUtil';
@@ -174,14 +175,15 @@ function resolveRegionTrackMetadata(region: KGMidiRegion, project: KGProject): {
   trackName: string;
   instrumentName: string;
 } {
-  const trackId = region.getTrackId();
+  const trackId = String(region.getTrackId());
   const track = project.getTracks().find(candidate => candidate.getId().toString() === trackId);
-  const trackName = track?.getName() || 'Unnamed Track';
-  const instrumentKey = 'getInstrument' in (track ?? {}) && typeof track.getInstrument === 'function'
-    ? track.getInstrument()
+  const midiTrack = track?.getCurrentType() === 'KGMidiTrack'
+    ? track as KGMidiTrack
     : null;
+  const trackName = track?.getName() || 'Unnamed Track';
+  const instrumentKey = midiTrack?.getInstrument() ?? null;
   const instrumentName = instrumentKey
-    ? FLUIDR3_INSTRUMENT_MAP[instrumentKey]?.displayName || instrumentKey
+    ? FLUIDR3_INSTRUMENT_MAP[instrumentKey]?.displayName || String(instrumentKey)
     : 'Unknown Instrument';
 
   return { trackId, trackName, instrumentName };
