@@ -9,6 +9,7 @@ import { MoveGlobalRegionCommand } from './MoveGlobalRegionCommand';
 import { ReplaceChordRegionsInRangeCommand } from './ReplaceChordRegionsInRangeCommand';
 import { ResizeGlobalRegionCommand } from './ResizeGlobalRegionCommand';
 import { UpdateChordRegionCommand } from './UpdateChordRegionCommand';
+import { WriteChordProgressionCommand } from './WriteChordProgressionCommand';
 
 describe('global chord region commands', () => {
   beforeEach(() => {
@@ -145,6 +146,88 @@ describe('global chord region commands', () => {
       { symbol: 'C', start: 0, length: 4 },
       { symbol: 'Am', start: 4, length: 4 },
       { symbol: 'F', start: 8, length: 4 },
+    ]);
+  });
+
+  it('writes a chord into the middle of an existing region and preserves both sides', () => {
+    const chordTrack = getChordTrack();
+    chordTrack.setRegions([
+      new KGChordRegion('base', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8),
+    ]);
+
+    const command = new WriteChordProgressionCommand([
+      { startBeat: 3, length: 2, symbol: 'C' },
+    ]);
+
+    command.execute();
+
+    expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
+      symbol: region.getSymbol(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { symbol: 'Am', start: 0, length: 3 },
+      { symbol: 'C', start: 3, length: 2 },
+      { symbol: 'Am', start: 5, length: 3 },
+    ]);
+
+    command.undo();
+
+    expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
+      symbol: region.getSymbol(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { symbol: 'Am', start: 0, length: 8 },
+    ]);
+  });
+
+  it('writes multiple non-contiguous chord spans while preserving untouched gaps', () => {
+    const chordTrack = getChordTrack();
+    chordTrack.setRegions([
+      new KGChordRegion('left', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 12),
+    ]);
+
+    const command = new WriteChordProgressionCommand([
+      { startBeat: 2, length: 2, symbol: 'C' },
+      { startBeat: 8, length: 2, symbol: 'G' },
+    ]);
+
+    command.execute();
+
+    expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
+      symbol: region.getSymbol(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { symbol: 'Am', start: 0, length: 2 },
+      { symbol: 'C', start: 2, length: 2 },
+      { symbol: 'Am', start: 4, length: 4 },
+      { symbol: 'G', start: 8, length: 2 },
+      { symbol: 'Am', start: 10, length: 2 },
+    ]);
+  });
+
+  it('writes adjacent chord spans without introducing overlap', () => {
+    const chordTrack = getChordTrack();
+    chordTrack.setRegions([
+      new KGChordRegion('base', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8),
+    ]);
+
+    const command = new WriteChordProgressionCommand([
+      { startBeat: 0, length: 4, symbol: 'C' },
+      { startBeat: 4, length: 4, symbol: 'F' },
+    ]);
+
+    command.execute();
+
+    expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
+      symbol: region.getSymbol(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { symbol: 'C', start: 0, length: 4 },
+      { symbol: 'F', start: 4, length: 4 },
     ]);
   });
 });

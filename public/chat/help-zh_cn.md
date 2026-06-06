@@ -48,9 +48,14 @@ OpenRouter 提供统一接口，可访问多个语言模型提供方的模型，
    **注意：** 各模型提供方的数据保留与隐私策略可能不同，使用前请自行查看。
 5. 在 **OpenAI 兼容服务 → 模型** 中填入模型名。推荐系列包括：
    - `Anthropic: Claude Sonnet 4.6`（`anthropic/claude-sonnet-4.6`）—— Claude 系列里质量和成本平衡较好
-   - `Qwen: Qwen3.5-35B-A3B`（`qwen/qwen3.5-35b-a3b`）—— 推荐开源模型
-   - `Qwen: Qwen3-Next-80B-A3B`（免费：`qwen/qwen3-next-80b-a3b-instruct:free`）—— 推荐免费模型
-   - `OpenAI: GPT-OSS 120B`（免费：`openai/gpt-oss-120b:free`）—— 推荐免费模型
+   - 免费模型：
+     - `OpenAI: GPT-OSS 120B`（免费：`openai/gpt-oss-120b:free`）
+     - `Google: Gemma 4 26B A4B IT`（免费：`google/gemma-4-26b-a4b-it:free`）
+     - `Google: Gemma 4 31B IT`（免费：`google/gemma-4-31b-it:free`）
+   - 对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐：
+     - `Qwen: Qwen3.6 35B A3B`（`qwen/qwen3.6-35b-a3b`）
+     - `Google: Gemma 4 26B A4B IT`（`google/gemma-4-26b-a4b-it`）
+     - `Google: Gemma 4 31B IT`（`google/gemma-4-31b-it`）
    - 注意：免费模型会经常变化，请以 OpenRouter 模型页中的 **Prompt Pricing** 过滤结果为准
    - 注意：免费模型提供方可能会收集您的数据，使用前请先查看模型页面说明
 6. 在 **OpenAI 兼容服务 → 基础 URL** 中填写 `https://openrouter.ai/api/v1`。

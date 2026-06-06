@@ -100,11 +100,13 @@ export const OPFS_CONSTANTS = {
   PROJECT_FILE: 'project.json',
   METADATA_FILE: 'meta.json',
   MEDIA_DIR: 'media',
+  CONVERSATIONS_DIR: 'conversations',
+  CONVERSATION_FILE: 'conversation.json',
 };
 
 export const CONFIG_UPGRADER_CONSTANTS = {
   VERSION_KEY: '__config_version',
-  CURRENT_VERSION: 4,
+  CURRENT_VERSION: 5,
 };
 
 export const URL_CONSTANTS = {

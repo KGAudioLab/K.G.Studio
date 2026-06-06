@@ -8,6 +8,7 @@ import { MoveGlobalRegionCommand } from './MoveGlobalRegionCommand';
 import { ResizeGlobalRegionCommand } from './ResizeGlobalRegionCommand';
 import { DeleteGlobalRegionCommand } from './DeleteGlobalRegionCommand';
 import { UpdateGlobalRegionTextCommand } from './UpdateGlobalRegionTextCommand';
+import { WriteMarkersCommand } from './WriteMarkersCommand';
 
 describe('global marker region commands', () => {
   beforeEach(() => {
@@ -105,5 +106,64 @@ describe('global marker region commands', () => {
     deleteCommand.undo();
     expect(markerTrack.getRegions()).toHaveLength(1);
     expect(markerTrack.getRegions()[0].getId()).toBe('marker');
+  });
+
+  it('writes a marker into the middle of an existing region and preserves both sides', () => {
+    const markerTrack = getMarkerTrack();
+    markerTrack.setRegions([
+      new KGMarkerRegion('base', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, 8),
+    ]);
+
+    const command = new WriteMarkersCommand([
+      { startBeat: 3, length: 2, name: 'Hit' },
+    ]);
+
+    command.execute();
+
+    expect((getMarkerTrack().getRegions() as KGMarkerRegion[]).map(region => ({
+      name: region.getName(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { name: 'Intro', start: 0, length: 3 },
+      { name: 'Hit', start: 3, length: 2 },
+      { name: 'Intro', start: 5, length: 3 },
+    ]);
+
+    command.undo();
+
+    expect((getMarkerTrack().getRegions() as KGMarkerRegion[]).map(region => ({
+      name: region.getName(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { name: 'Intro', start: 0, length: 8 },
+    ]);
+  });
+
+  it('writes multiple non-contiguous marker spans while preserving untouched gaps', () => {
+    const markerTrack = getMarkerTrack();
+    markerTrack.setRegions([
+      new KGMarkerRegion('left', markerTrack.getId(), markerTrack.getTrackIndex(), 'Scene', 0, 12),
+    ]);
+
+    const command = new WriteMarkersCommand([
+      { startBeat: 2, length: 2, name: 'Rise' },
+      { startBeat: 8, length: 2, name: 'Drop' },
+    ]);
+
+    command.execute();
+
+    expect((getMarkerTrack().getRegions() as KGMarkerRegion[]).map(region => ({
+      name: region.getName(),
+      start: region.getStartFromBeat(),
+      length: region.getLength(),
+    }))).toEqual([
+      { name: 'Scene', start: 0, length: 2 },
+      { name: 'Rise', start: 2, length: 2 },
+      { name: 'Scene', start: 4, length: 4 },
+      { name: 'Drop', start: 8, length: 2 },
+      { name: 'Scene', start: 10, length: 2 },
+    ]);
   });
 });

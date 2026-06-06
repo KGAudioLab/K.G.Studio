@@ -16,6 +16,7 @@ export interface ToolParameter {
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
   required?: boolean;
+  enum?: string[];
   items?: ToolParameter; // For array types
   properties?: Record<string, ToolParameter>; // For object types
 }
@@ -67,6 +68,59 @@ export abstract class BaseTool {
   abstract execute(params: Record<string, unknown>): Promise<ToolResult>;
 
   /**
+   * Whether the tool only reads state and can execute without user approval.
+   */
+  isReadOnlyTool(): boolean {
+    return true;
+  }
+
+  /**
+   * Whether the tool is available when the assistant runs in Regular Mode.
+   */
+  isAvailableInRegularMode(): boolean {
+    return true;
+  }
+
+  /**
+   * Whether the tool is available when the assistant runs in Efficient Mode.
+   */
+  isAvailableInEfficientMode(): boolean {
+    return true;
+  }
+
+  /**
+   * Optionally build a compact UI summary for a successful tool result.
+   * The raw tool result remains the canonical output stored in agent history.
+   */
+  buildToolResultDisplayContent(
+    _args: Record<string, unknown> | null,
+    _toolResult: ToolResult,
+  ): string | undefined {
+    return undefined;
+  }
+
+  /**
+   * Optionally build the user-visible tool result text stored in chat history.
+   * Raw tool results remain the canonical result returned to the LLM.
+   */
+  buildToolHistoryContent(
+    _args: Record<string, unknown> | null,
+    _toolResult: ToolResult,
+  ): string | undefined {
+    return undefined;
+  }
+
+  /**
+   * Optionally build a user-facing confirmation summary before execution.
+   * Non-read-only tools should override this with a concise approval prompt.
+   */
+  buildConfirmationContent(
+    _args: Record<string, unknown> | null,
+  ): string | undefined {
+    return undefined;
+  }
+
+  /**
    * Get the tool definition in OpenAI function calling format
    */
   getDefinition(): OpenAIToolDefinition {
@@ -112,6 +166,10 @@ export abstract class BaseTool {
 
     if (param.type === 'array' && param.items) {
       schema.items = this.convertParamToJsonSchema(param.items);
+    }
+
+    if (param.enum) {
+      schema.enum = param.enum;
     }
 
     if (param.type === 'object' && param.properties) {

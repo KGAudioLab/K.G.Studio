@@ -1,4 +1,5 @@
 import { AgentCore } from '../agent/core/AgentCore';
+import { useProjectStore } from '../stores/projectStore';
 
 /**
  * Clear chat history and reset chat state
@@ -8,7 +9,8 @@ import { AgentCore } from '../agent/core/AgentCore';
 export const clearChatHistory = () => {
   // Clear agent state
   const agentCore = AgentCore.instance();
-  agentCore.clearConversation();
+  agentCore.startNewConversation();
+  useProjectStore.getState().setToolFastForwardEnabled(false);
   
   console.log('Chat history cleared programmatically');
 };

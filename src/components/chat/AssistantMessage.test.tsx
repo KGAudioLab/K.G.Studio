@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AssistantMessage from './AssistantMessage';
+import type { TodoItem } from '../../agent/core/todo';
 
 describe('AssistantMessage', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -92,5 +94,176 @@ describe('AssistantMessage', () => {
     const codeElement = container.querySelector('code.language-ts');
     expect(codeElement).toBeInTheDocument();
     expect(codeElement).toHaveTextContent('const value = 1;');
+  });
+
+  it('keeps non-tool-call code blocks rendered without the expander', () => {
+    const { container } = render(
+      <AssistantMessage content={'```json\n{"foo": 1}\n```'} />
+    );
+
+    expect(container.querySelector('[data-testid="tool-call-code-block"]')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Click to expand' })).not.toBeInTheDocument();
+  });
+
+  it('collapses long tool-call code blocks and expands them in place', () => {
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(280);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
+
+    const { container } = render(
+      <div className="chatbox-messages">
+        <AssistantMessage
+          content={'🔧 **Calling tool: add_notes**\n\n```json\n{\n  "notes": []\n}\n```'}
+          isToolCallMessage={true}
+        />
+      </div>
+    );
+
+    const toolCallBlock = screen.getByTestId('tool-call-code-block');
+    const toolCallInner = container.querySelector('.tool-call-code-block-inner') as HTMLDivElement;
+
+    expect(toolCallBlock).toBeInTheDocument();
+    expect(toolCallInner.style.maxHeight).toBe('200px');
+    expect(screen.getByRole('button', { name: 'Click to expand' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Click to expand' }));
+
+    expect(screen.getByRole('button', { name: 'Click to collapse' })).toBeInTheDocument();
+    expect(toolCallInner.style.maxHeight).toBe('280px');
+  });
+
+  it('preserves chat scroll position when expanding a tool-call block', () => {
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(320);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
+
+    render(
+      <div className="chatbox-messages">
+        <AssistantMessage
+          content={'🔧 **Calling tool: add_notes**\n\n```json\n{\n  "notes": []\n}\n```'}
+          isToolCallMessage={true}
+        />
+      </div>
+    );
+
+    const scrollContainer = document.querySelector('.chatbox-messages') as HTMLDivElement;
+    scrollContainer.scrollTop = 96;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Click to expand' }));
+
+    expect(scrollContainer.scrollTop).toBe(96);
+  });
+
+  it('renders compacting and compacted messages as divider banners', () => {
+    const { rerender, container } = render(
+      <AssistantMessage content="Compacting Conversation" />
+    );
+
+    expect(container.querySelector('.message-divider-banner')).toBeInTheDocument();
+    expect(screen.getByLabelText('Compacting Conversation')).toBeInTheDocument();
+
+    rerender(<AssistantMessage content="Conversation Compacted" />);
+
+    expect(screen.getByLabelText('Conversation Compacted')).toBeInTheDocument();
+
+    rerender(<AssistantMessage content="Nothing to Compact Yet" />);
+
+    expect(screen.getByLabelText('Nothing to Compact Yet')).toBeInTheDocument();
+  });
+
+  it('renders a structured todo snapshot card instead of markdown content', () => {
+    const todoSnapshot: TodoItem[] = [
+      { id: '1', text: 'Inspect melody', status: 'completed', updatedAt: 1 },
+      { id: '2', text: 'Write harmony', status: 'in_progress', activeText: 'Writing harmony', updatedAt: 2 },
+    ];
+
+    render(
+      <AssistantMessage
+        content="fallback content"
+        toolName="update_todo_list"
+        toolSuccess={true}
+        todoSnapshot={todoSnapshot}
+      />
+    );
+
+    expect(screen.getByLabelText('Agent task checklist')).toBeInTheDocument();
+    expect(screen.getByText('Task Checklist')).toBeInTheDocument();
+    expect(screen.getByText('1/2 completed')).toBeInTheDocument();
+    expect(screen.getByText('Working on: Writing harmony')).toBeInTheDocument();
+    expect(screen.queryByText('fallback content')).not.toBeInTheDocument();
+  });
+
+  it('renders the add_notes summary instead of the raw tool result text', () => {
+    render(
+      <AssistantMessage
+        content="✅ **add_notes**\n\n └── Successfully created 81 notes: C4..."
+        toolName="add_notes"
+        toolSuccess={true}
+        toolRawResult="Successfully created 81 notes: C4..."
+        toolResultDisplayContent="Successfully created 81 notes in region **Verse Melody** on track **Lead Vox**, spanning bars 5 to 12."
+      />
+    );
+
+    expect(screen.getByText('add_notes')).toBeInTheDocument();
+    expect(screen.getByText(/└──/)).toBeInTheDocument();
+    expect(screen.getByText(/Successfully created 81 notes in region/i)).toBeInTheDocument();
+    expect(screen.getByText('Verse Melody')).toBeInTheDocument();
+    expect(screen.getByText('Lead Vox')).toBeInTheDocument();
+    expect(screen.queryByText(/Successfully created 81 notes: C4/)).not.toBeInTheDocument();
+  });
+
+  it('renders generic tool results with the stable shell and raw body by default', () => {
+    render(
+      <AssistantMessage
+        content="✅ **read_music**\n\n └── raw fallback"
+        toolName="read_music"
+        toolSuccess={true}
+        toolRawResult="C D E F"
+      />
+    );
+
+    expect(screen.getByText('read_music')).toBeInTheDocument();
+    expect(screen.getByText(/└──/)).toBeInTheDocument();
+    expect(screen.getByText('C D E F')).toBeInTheDocument();
+  });
+
+  it('renders tool confirmation buttons and fires the selected action', () => {
+    const onToolConfirmationDecision = vi.fn();
+
+    render(
+      <AssistantMessage
+        content="confirmation fallback"
+        toolConfirmation={{
+          toolCallId: 'tool-1',
+          toolName: 'add_notes',
+          message: 'Allow creating 2 notes in region **Verse Melody** on track **Lead**, spanning bars 5 to 7?',
+        }}
+        onToolConfirmationDecision={onToolConfirmationDecision}
+      />
+    );
+
+    expect(screen.getByText('add_notes')).toBeInTheDocument();
+    expect(screen.getByText(/Allow creating 2 notes/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Always allow' }));
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith('always_allow');
+  });
+
+  it('renders denied tool results with the denied result text', () => {
+    render(
+      <AssistantMessage
+        content="❌ **add_notes**\n\n └── Execution was denied by the user."
+        toolName="add_notes"
+        toolSuccess={false}
+        toolRawResult="Execution was denied by the user."
+        toolDenied={true}
+      />
+    );
+
+    expect(screen.getByText('add_notes')).toBeInTheDocument();
+    expect(screen.getByText('Execution was denied by the user.')).toBeInTheDocument();
   });
 });

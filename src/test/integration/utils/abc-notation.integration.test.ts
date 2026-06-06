@@ -68,8 +68,10 @@ describe('abcNotationUtil - Integration Tests with Real Project Data', () => {
       const result = convertRegionToABCNotation(melodyRegion, 0, 32);
 
       // Expected ABC notation output (exactly as provided)
-      const expectedABCNotation = `X:1
-T:Melody Region 1
+      const expectedABCNotation = `track_id: 1
+track_name: Melody
+Instrument: Acoustic Grand Piano
+X:1
 M:4/4
 L:1/4
 Q:1/4=125
@@ -95,10 +97,13 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
 
       // Verify it contains rest notation and proper headers
       expect(result).toBeDefined();
-      expect(result).toContain('T:Pad Chord Region 1');
+      expect(result).toContain('track_id: 2');
+      expect(result).toContain('track_name: Pad Chord');
+      expect(result).toContain('Instrument: Pad 1 (new age)');
       expect(result).toContain('M:4/4');
       expect(result).toContain('Q:1/4=125');
       expect(result).toContain('K:C');
+      expect(result).not.toContain('\nT:');
       expect(result).toContain('z'); // Should contain rest notation
     });
 
@@ -167,8 +172,12 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const melodyABC = convertRegionToABCNotation(melodyRegion, 0, 32);
       const padABC = convertRegionToABCNotation(padRegion, 0, 32);
 
-      expect(melodyABC).toContain('T:Melody Region 1');
-      expect(padABC).toContain('T:Pad Chord Region 1');
+      expect(melodyABC).toContain('track_name: Melody');
+      expect(padABC).toContain('track_name: Pad Chord');
+      expect(melodyABC).toContain('Instrument: Acoustic Grand Piano');
+      expect(padABC).toContain('Instrument: Pad 1 (new age)');
+      expect(melodyABC).not.toContain('\nT:');
+      expect(padABC).not.toContain('\nT:');
     });
 
     it('should verify complete deserialization hierarchy', () => {
@@ -211,7 +220,8 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const result = convertRegionToABCNotation(melodyRegion, 0, 8);
       
       expect(result).toBeDefined();
-      expect(result).toContain('T:Melody Region 1');
+      expect(result).toContain('track_name: Melody');
+      expect(result).not.toContain('\nT:');
       // Should only contain the first 2 bars of music
       expect(result).not.toContain('D3/2 C1/2 C2'); // This appears later in the song
     });
@@ -224,7 +234,8 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const result = convertRegionToABCNotation(melodyRegion, 16, 24);
       
       expect(result).toBeDefined();
-      expect(result).toContain('T:Melody Region 1');
+      expect(result).toContain('track_name: Melody');
+      expect(result).not.toContain('\nT:');
       // Should start from the second repetition
       const lines = result.split('\n');
       const musicLine = lines[lines.length - 1]; // Last line contains the music

@@ -1,11 +1,32 @@
 import type { LLMProvider } from '../llm/LLMProvider';
 import { AgentState } from './AgentState';
 import { SystemPrompts } from './SystemPrompts';
-import { AVAILABLE_TOOLS } from '../tools';
+import { AVAILABLE_TOOLS, createToolInstance } from '../tools';
 import { useProjectStore } from '../../stores/projectStore';
-import type { StreamChunk } from '../llm/StreamingTypes';
+import type { StreamChunk, ToolApprovalDecision } from '../llm/StreamingTypes';
 import type { ToolCall } from './AgentState';
-import type { OpenAIToolDefinition } from '../tools/BaseTool';
+import type { BaseTool, OpenAIToolDefinition } from '../tools/BaseTool';
+import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
+import { ConfigManager } from '../../core/config/ConfigManager';
+import { buildTodoContext } from './todo';
+import type { SavedConversationDocument } from '../../types/conversationTypes';
+import type { AgentMode } from '../../util/agentMode';
+import { getEffectiveAgentMode, getSystemPromptPathForAgentMode } from '../../util/agentMode';
+
+export interface CompactConversationOptions {
+  trigger: 'manual' | 'auto';
+  focus?: string;
+  onProgress?: (progress: CompactProgress) => void;
+}
+
+export interface CompactConversationResult {
+  changed: boolean;
+  compactedConversation: string;
+}
+
+export interface ProcessUserInputOptions {
+  requestToolApproval?: (toolCall: ToolCall) => Promise<ToolApprovalDecision>;
+}
 
 /**
  * Main orchestrator for the AI agent system.
@@ -13,11 +34,16 @@ import type { OpenAIToolDefinition } from '../tools/BaseTool';
  */
 export class AgentCore {
   private static _instance: AgentCore | null = null;
+  private static readonly TODO_TOOL_NAME = 'update_todo_list';
+  private static readonly TODO_REMINDER = '<reminder>Keep the task list current. Use update_todo_list for multi-step work, mark one item in_progress before major tool work, and complete items as you finish them.</reminder>';
 
   private llmProvider: LLMProvider | null = null;
   private agentState: AgentState;
   private currentUserMessageId: string | null = null;
   private currentAssistantMessageId: string | null = null;
+  private todoToolCyclesSinceUpdate = 0;
+  private remindAboutTodosOnNextLoop = false;
+  private currentTurnLikelyMultiStep = false;
 
   private constructor() {
     this.agentState = new AgentState();
@@ -45,27 +71,56 @@ export class AgentCore {
   /**
    * Get OpenAI tool definitions for all available tools
    */
-  private getToolDefinitions(): OpenAIToolDefinition[] {
+  private getToolDefinitions(agentMode: AgentMode): OpenAIToolDefinition[] {
     return Object.values(AVAILABLE_TOOLS).map(ToolClass => {
       const tool = new ToolClass();
-      return tool.getDefinition();
-    });
+      return this.isToolAvailableInMode(tool, agentMode) ? tool.getDefinition() : null;
+    }).filter((tool): tool is OpenAIToolDefinition => tool !== null);
+  }
+
+  private async getSystemPrompt(templatePath?: string): Promise<string> {
+    return SystemPrompts.getSystemPromptWithContext(templatePath);
+  }
+
+  private getEffectiveAgentMode(): AgentMode {
+    return getEffectiveAgentMode(ConfigManager.instance());
+  }
+
+  private getSystemPromptTemplatePath(agentMode: AgentMode): string {
+    return getSystemPromptPathForAgentMode(agentMode);
+  }
+
+  private isToolAvailableInMode(toolInstance: BaseTool | null, agentMode: AgentMode): boolean {
+    if (!toolInstance) {
+      return false;
+    }
+
+    return agentMode === 'efficient'
+      ? toolInstance.isAvailableInEfficientMode()
+      : toolInstance.isAvailableInRegularMode();
   }
 
   /**
    * Execute a single tool call and return the result
    */
-  private async executeTool(toolCall: ToolCall): Promise<{ success: boolean; result: string }> {
-    const toolName = toolCall.function.name;
-    const ToolClass = AVAILABLE_TOOLS[toolName as keyof typeof AVAILABLE_TOOLS];
+  private async executeTool(
+    toolCall: ToolCall,
+    agentMode: AgentMode,
+  ): Promise<{ success: boolean; result: string }> {
+    const toolInstance = createToolInstance(toolCall.function.name);
+    if (!toolInstance) {
+      return { success: false, result: `Unknown tool: ${toolCall.function.name}` };
+    }
 
-    if (!ToolClass) {
-      return { success: false, result: `Unknown tool: ${toolName}` };
+    if (!this.isToolAvailableInMode(toolInstance, agentMode)) {
+      return {
+        success: false,
+        result: `Tool '${toolCall.function.name}' is not available in ${agentMode === 'efficient' ? 'Efficient Mode' : 'Regular Mode'}.`,
+      };
     }
 
     try {
       const params = JSON.parse(toolCall.function.arguments);
-      const toolInstance = new ToolClass();
       const result = await toolInstance.execute(params);
 
       // Sync UI state after successful tool execution
@@ -84,18 +139,23 @@ export class AgentCore {
    * Handles the full agentic loop internally: if the LLM returns tool_calls,
    * execute them and feed results back until the LLM produces a final text response.
    */
-  async *processUserInput(userInput: string): AsyncIterableIterator<StreamChunk> {
+  async *processUserInput(
+    userInput: string,
+    options?: ProcessUserInputOptions,
+  ): AsyncIterableIterator<StreamChunk> {
     if (!this.llmProvider) {
       throw new Error('No LLM provider configured');
     }
 
     // Add user message to state
     this.currentUserMessageId = this.agentState.addMessage('user', userInput);
+    this.currentTurnLikelyMultiStep = this.isLikelyMultiStepTask(userInput);
 
+    const agentMode = this.getEffectiveAgentMode();
     const systemPrompt = await SystemPrompts.getSystemPromptWithContext(
-      this.llmProvider.getPreferredSystemPromptPath?.(),
+      this.getSystemPromptTemplatePath(agentMode),
     );
-    const tools = this.getToolDefinitions();
+    const tools = this.getToolDefinitions(agentMode);
 
     try {
       // Agentic loop: stream → check for tool calls → execute → repeat
@@ -103,6 +163,7 @@ export class AgentCore {
 
       while (continueLoop) {
         const conversationHistory = this.agentState.getMessages();
+        const turnMessages = this.buildLoopMessages(conversationHistory);
 
         // Pre-add an empty assistant message that we'll update as we stream
         this.currentAssistantMessageId = this.agentState.addMessage('assistant', '');
@@ -112,7 +173,7 @@ export class AgentCore {
         let finishReason = 'stop';
         let performanceInfo: StreamChunk['performanceInfo'];
 
-        for await (const chunk of this.llmProvider.generateStream(conversationHistory, systemPrompt, tools)) {
+        for await (const chunk of this.llmProvider.generateStream(turnMessages, systemPrompt, tools)) {
           if (chunk.type === 'text') {
             assistantTextContent += chunk.content;
             this.agentState.updateMessage(this.currentAssistantMessageId, assistantTextContent);
@@ -126,6 +187,8 @@ export class AgentCore {
         }
 
         if (finishReason === 'tool_calls' && accumulatedToolCalls.length > 0) {
+          this.updateTodoReminderState(accumulatedToolCalls);
+
           // Update assistant message with tool calls
           this.agentState.updateMessage(
             this.currentAssistantMessageId,
@@ -138,7 +201,16 @@ export class AgentCore {
             // Notify UI about the tool call
             yield { type: 'tool_call', content: '', toolCall };
 
-            const result = await this.executeTool(toolCall);
+            let denied = false;
+            const toolInstance = createToolInstance(toolCall.function.name);
+            if (toolInstance && !toolInstance.isReadOnlyTool() && options?.requestToolApproval) {
+              const approvalDecision = await options.requestToolApproval(toolCall);
+              denied = approvalDecision === 'deny';
+            }
+
+            const result = denied
+              ? { success: false, result: 'Execution was denied by the user.' }
+              : await this.executeTool(toolCall, agentMode);
 
             // Add tool result message to conversation history
             this.agentState.addMessage('tool', JSON.stringify(result), {
@@ -150,11 +222,18 @@ export class AgentCore {
               type: 'tool_result',
               content: '',
               toolResult: {
+                toolCallId: toolCall.id,
                 name: toolCall.function.name,
                 success: result.success,
                 result: result.result,
+                denied,
               },
             };
+
+            if (denied) {
+              continueLoop = false;
+              break;
+            }
           }
 
           // Clear assistant message ID before next iteration creates a new one
@@ -171,6 +250,10 @@ export class AgentCore {
     } finally {
       this.currentUserMessageId = null;
       this.currentAssistantMessageId = null;
+      this.currentTurnLikelyMultiStep = false;
+      if (this.agentState.getTodos().length === 0) {
+        this.remindAboutTodosOnNextLoop = false;
+      }
     }
   }
 
@@ -205,6 +288,133 @@ export class AgentCore {
 
   clearConversation(): void {
     this.agentState.clearMessages();
+    this.todoToolCyclesSinceUpdate = 0;
+    this.remindAboutTodosOnNextLoop = false;
+    this.currentTurnLikelyMultiStep = false;
+  }
+
+  startNewConversation(): void {
+    this.agentState.resetConversation();
+    this.todoToolCyclesSinceUpdate = 0;
+    this.remindAboutTodosOnNextLoop = false;
+    this.currentTurnLikelyMultiStep = false;
+    this.currentUserMessageId = null;
+    this.currentAssistantMessageId = null;
+  }
+
+  restoreConversation(document: SavedConversationDocument): void {
+    this.agentState.replaceConversationState({
+      conversationId: document.conversationId,
+      messages: document.continuationState.messages,
+      fullMessages: document.fullHistory.messages,
+      todos: document.continuationState.todos,
+    });
+    this.todoToolCyclesSinceUpdate = 0;
+    this.remindAboutTodosOnNextLoop = false;
+    this.currentTurnLikelyMultiStep = false;
+    this.currentUserMessageId = null;
+    this.currentAssistantMessageId = null;
+  }
+
+  async shouldCompactBeforeNextTurn(userInput: string): Promise<boolean> {
+    if (!this.llmProvider?.estimateHistoryTokens || !this.llmProvider.getContextWindow) {
+      return false;
+    }
+
+    const contextWindow = this.llmProvider.getContextWindow();
+    if (!contextWindow) {
+      return false;
+    }
+
+    const agentMode = this.getEffectiveAgentMode();
+    const tools = this.getToolDefinitions(agentMode);
+    const systemPrompt = await this.getSystemPrompt(
+      this.getSystemPromptTemplatePath(agentMode),
+    );
+    const thresholdPercent = await this.getAutoCompactThresholdPercent();
+    const reservedOutputTokens = this.llmProvider.getReservedOutputTokens?.() ?? 4096;
+    const hypotheticalMessages = [
+      ...this.agentState.getMessages(),
+      {
+        id: `preflight_${Date.now()}`,
+        role: 'user' as const,
+        content: userInput,
+        timestamp: Date.now(),
+      },
+    ];
+    const estimatedTokens = await this.llmProvider.estimateHistoryTokens(
+      hypotheticalMessages,
+      systemPrompt,
+      tools,
+    );
+    const thresholdTokens = Math.floor(contextWindow * (thresholdPercent / 100));
+
+    return (estimatedTokens + reservedOutputTokens) >= thresholdTokens;
+  }
+
+  async compactConversation(options: CompactConversationOptions): Promise<CompactConversationResult> {
+    if (!this.llmProvider) {
+      throw new Error('No LLM provider configured');
+    }
+
+    const messages = this.agentState.getMessages();
+    if (messages.length < 2) {
+      return {
+        changed: false,
+        compactedConversation: messages.map(message => message.content ?? '').join('\n\n'),
+      };
+    }
+
+    const tailStartIndex = this.agentState.findRecentTailStartIndex();
+    if (tailStartIndex <= 0 || tailStartIndex >= messages.length) {
+      return {
+        changed: false,
+        compactedConversation: messages.map(message => message.content ?? '').join('\n\n'),
+      };
+    }
+
+    const compactionPrompt = await this.getSystemPrompt('prompts/system_compaction.md');
+    const compactor = new ConversationCompactor({
+      provider: this.llmProvider,
+      systemPrompt: compactionPrompt,
+      tools: this.getToolDefinitions(this.getEffectiveAgentMode()),
+      focus: options.focus,
+      onProgress: options.onProgress,
+      supplementalContext: buildTodoContext(this.agentState.getTodos()),
+    });
+    const result = await compactor.compact(messages, tailStartIndex);
+    if (!result.changed) {
+      return {
+        changed: false,
+        compactedConversation: result.compactedConversation,
+      };
+    }
+
+    const nextMessages = this.agentState.createCompactedHistory(
+      result.summary,
+      result.tailStartIndex,
+      options.trigger,
+    );
+    this.agentState.replaceMessages(nextMessages);
+    console.log('------------ COMPACTED CONVERSATION ------------');
+    console.log(result.compactedConversation);
+    console.log('------------------------------------------------');
+
+    return {
+      changed: true,
+      compactedConversation: result.compactedConversation,
+    };
+  }
+
+  async retryAfterCompaction(
+    userInput: string,
+    options: Omit<CompactConversationOptions, 'trigger'> = {},
+  ): Promise<CompactConversationResult> {
+    return this.compactConversation({
+      trigger: 'auto',
+      focus: options.focus,
+      onProgress: options.onProgress,
+    });
   }
 
   getIsWorkingOnTask(): boolean {
@@ -213,5 +423,97 @@ export class AgentCore {
 
   setIsWorkingOnTask(isWorking: boolean): void {
     this.agentState.setIsWorkingOnTask(isWorking);
+  }
+
+  private async getAutoCompactThresholdPercent(): Promise<80 | 90 | 95> {
+    try {
+      const configManager = ConfigManager.instance();
+      if (!configManager.getIsInitialized()) {
+        await configManager.initialize();
+      }
+
+      const configured = Number(configManager.get('general.auto_compact_threshold_percent'));
+      if (configured === 80 || configured === 95) {
+        return configured;
+      }
+    } catch (error) {
+      console.warn('Failed to load auto-compact threshold, using default.', error);
+    }
+
+    return 90;
+  }
+
+  private buildLoopMessages(conversationHistory: ReturnType<AgentState['getMessages']>): ReturnType<AgentState['getMessages']> {
+    if (!this.shouldInjectTodoReminder()) {
+      return conversationHistory;
+    }
+
+    return [
+      ...conversationHistory,
+      {
+        id: `todo_reminder_${Date.now()}`,
+        role: 'user',
+        content: AgentCore.TODO_REMINDER,
+        timestamp: Date.now(),
+      },
+    ];
+  }
+
+  private shouldInjectTodoReminder(): boolean {
+    const hasTodos = this.agentState.getTodos().length > 0;
+    return (hasTodos && this.todoToolCyclesSinceUpdate >= 2)
+      || (!hasTodos && this.remindAboutTodosOnNextLoop && this.currentTurnLikelyMultiStep);
+  }
+
+  private updateTodoReminderState(toolCalls: ToolCall[]): void {
+    const usedTodoTool = toolCalls.some(toolCall => toolCall.function.name === AgentCore.TODO_TOOL_NAME);
+    const hasNonTodoToolCall = toolCalls.some(toolCall => toolCall.function.name !== AgentCore.TODO_TOOL_NAME);
+    const hasTodos = this.agentState.getTodos().length > 0;
+
+    if (usedTodoTool) {
+      this.todoToolCyclesSinceUpdate = 0;
+      this.remindAboutTodosOnNextLoop = false;
+      return;
+    }
+
+    if (!hasNonTodoToolCall) {
+      return;
+    }
+
+    if (hasTodos) {
+      this.todoToolCyclesSinceUpdate += 1;
+      return;
+    }
+
+    if (this.currentTurnLikelyMultiStep) {
+      this.remindAboutTodosOnNextLoop = true;
+    }
+  }
+
+  private isLikelyMultiStepTask(userInput: string): boolean {
+    const normalized = userInput.toLowerCase();
+    if (/\n\s*[-*]\s|\n\s*\d+\.\s/.test(userInput)) {
+      return true;
+    }
+
+    const coordinationKeywords = [
+      'plan',
+      'analyze',
+      'compare',
+      'design',
+      'implement',
+      'refactor',
+      'fix',
+      'update',
+      'multi-step',
+      'todo',
+      'checklist',
+    ];
+
+    if (coordinationKeywords.some(keyword => normalized.includes(keyword))) {
+      return true;
+    }
+
+    return userInput.length >= 120 && /\band\b/.test(normalized);
   }
 }

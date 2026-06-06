@@ -1,10 +1,14 @@
 import { KGCore } from '../../core/KGCore';
 import { KGRegion } from '../../core/region/KGRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
-import { KGTrack } from '../../core/track/KGTrack';
 import { useProjectStore } from '../../stores/projectStore';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import {
+  findRegionById,
+  findRegularTrackByRegion,
+  resolveSelectedMusicRangeContext,
+} from '../tools/toolTargeting';
 
 /**
  * Context data structure for system prompt template replacement
@@ -14,8 +18,7 @@ interface SystemPromptContext {
   time_signature: string;
   key_signature: string;
   track_instrument: string;
-  current_region_start: number;
-  current_region_end: number;
+  selected_music_range_section: string;
 }
 
 /**
@@ -28,7 +31,10 @@ export class SystemPrompts {
   /**
    * Load the system prompt template from the public folder
    */
-  private static async loadTemplate(templatePath: string = 'prompts/system.md'): Promise<string> {
+  private static async loadTemplate(
+    templatePath: string = 'prompts/system.md',
+    fallbackContent: string = this.FALLBACK_PROMPT,
+  ): Promise<string> {
     if (this.cachedTemplates.has(templatePath)) {
       return this.cachedTemplates.get(templatePath)!;
     }
@@ -44,38 +50,8 @@ export class SystemPrompts {
       return template;
     } catch (error) {
       console.error('Failed to load system prompt template:', error);
-      return this.FALLBACK_PROMPT;
+      return fallbackContent;
     }
-  }
-  
-  /**
-   * Find a region by ID across all tracks
-   */
-  private static findRegionById(regionId: string): KGRegion | null {
-    const core = KGCore.instance();
-    const project = core.getCurrentProject();
-    const tracks = project.getTracks();
-    
-    for (const track of tracks) {
-      const regions = track.getRegions();
-      const region = regions.find(r => r.getId() === regionId);
-      if (region) {
-        return region;
-      }
-    }
-    
-    return null;
-  }
-  
-  /**
-   * Find track that contains the given region
-   */
-  private static findTrackByRegion(region: KGRegion): KGTrack | null {
-    const core = KGCore.instance();
-    const project = core.getCurrentProject();
-    const tracks = project.getTracks();
-    
-    return tracks.find(track => track.getRegions().includes(region)) || null;
   }
   
   /**
@@ -98,9 +74,9 @@ export class SystemPrompts {
     // Step 1: Check if there's an active piano roll region
     const activeRegionId = this.getActiveRegionId();
     if (activeRegionId) {
-      const activeRegion = this.findRegionById(activeRegionId);
+      const activeRegion = findRegionById(activeRegionId);
       if (activeRegion) {
-        const track = this.findTrackByRegion(activeRegion);
+        const track = findRegularTrackByRegion(activeRegion);
         if (track && track instanceof KGMidiTrack) {
           trackInstrument = FLUIDR3_INSTRUMENT_MAP[track.getInstrument()].displayName;
         }
@@ -108,10 +84,12 @@ export class SystemPrompts {
     } else {
       // Step 2: Check if user has selected region(s)
       const selectedItems = core.getSelectedItems();
-      const selectedRegion = selectedItems.find(item => item instanceof KGRegion) as KGRegion;
+      const selectedRegion = selectedItems.find((item): item is KGRegion => (
+        item instanceof KGRegion && findRegularTrackByRegion(item) !== null
+      )) ?? null;
       
       if (selectedRegion) {
-        const track = this.findTrackByRegion(selectedRegion);
+        const track = findRegularTrackByRegion(selectedRegion);
         if (track && track instanceof KGMidiTrack) {
           trackInstrument = FLUIDR3_INSTRUMENT_MAP[track.getInstrument()].displayName;
         }
@@ -132,54 +110,26 @@ export class SystemPrompts {
   /**
    * Get active region ID from project store
    */
-  private static getActiveRegionId(): string | null {
+  private static getStoreState(): ReturnType<typeof useProjectStore.getState> | null {
     try {
-      const store = useProjectStore.getState();
-      return store.activeRegionId;
+      return useProjectStore.getState();
     } catch {
       return null;
     }
   }
   
   /**
-   * Extract current region context with fallback logic
+   * Get active region ID from project store
    */
-  private static extractRegionContext(): Partial<SystemPromptContext> {
-    const core = KGCore.instance();
-    const project = core.getCurrentProject();
-    
-    // Step 1: Try active piano roll region
-    const activeRegionId = this.getActiveRegionId();
-    if (activeRegionId) {
-      const activeRegion = this.findRegionById(activeRegionId);
-      if (activeRegion) {
-        return {
-          current_region_start: activeRegion.getStartFromBeat(),
-          current_region_end: activeRegion.getStartFromBeat() + activeRegion.getLength(),
-        };
-      }
-    }
-    
-    // Step 2: Try selected region
-    const selectedItems = core.getSelectedItems();
-    const selectedRegion = selectedItems.find(item => item instanceof KGRegion) as KGRegion;
-    
-    if (selectedRegion) {
-      return {
-        current_region_start: selectedRegion.getStartFromBeat(),
-        current_region_end: selectedRegion.getStartFromBeat() + selectedRegion.getLength(),
-      };
-    }
-    
-    // Step 3: Fallback to project bounds
-    const timeSignature = project.getTimeSignature();
-    const beatsPerBar = timeSignature.numerator;
-    const maxBars = project.getMaxBars();
-    
-    return {
-      current_region_start: 0,
-      current_region_end: maxBars * beatsPerBar,
-    };
+  private static getActiveRegionId(): string | null {
+    return this.getStoreState()?.activeRegionId ?? null;
+  }
+
+  /**
+   * Build the selected music range section for prompt templates.
+   */
+  private static buildSelectedMusicRangeSection(): string {
+    return resolveSelectedMusicRangeContext().section;
   }
   
   /**
@@ -187,15 +137,13 @@ export class SystemPrompts {
    */
   private static getFullContext(): SystemPromptContext {
     const projectContext = this.extractProjectContext();
-    const regionContext = this.extractRegionContext();
     
     return {
-      bpm: projectContext.bpm || 120,
-      time_signature: projectContext.time_signature || '4/4',
-      key_signature: projectContext.key_signature || 'C major',
-      track_instrument: projectContext.track_instrument || 'Piano',
-      current_region_start: regionContext.current_region_start || 0,
-      current_region_end: regionContext.current_region_end || 32,
+      bpm: projectContext.bpm ?? 120,
+      time_signature: projectContext.time_signature ?? '4/4',
+      key_signature: projectContext.key_signature ?? 'C major',
+      track_instrument: projectContext.track_instrument ?? 'Piano',
+      selected_music_range_section: this.buildSelectedMusicRangeSection(),
     };
   }
   
@@ -210,8 +158,7 @@ export class SystemPrompts {
     result = result.replace(/{time_signature}/g, context.time_signature);
     result = result.replace(/{key_signature}/g, context.key_signature);
     result = result.replace(/{track_instrument}/g, context.track_instrument);
-    result = result.replace(/{current_region_start}/g, context.current_region_start.toString());
-    result = result.replace(/{current_region_end}/g, context.current_region_end.toString());
+    result = result.replace(/{selected_music_range_section}/g, context.selected_music_range_section);
     
     return result;
   }
@@ -234,8 +181,17 @@ export class SystemPrompts {
    */
   static async getSystemPromptWithContext(templatePath?: string): Promise<string> {
     try {
-      const template = await this.loadTemplate(templatePath);
-      let promptWithContext = await this.getPromptWithContext(template);
+      const context = this.getFullContext();
+      const [template, appendixTemplate] = await Promise.all([
+        this.loadTemplate(templatePath),
+        this.loadTemplate('prompts/user_msg_appendix.md', ''),
+      ]);
+      let promptWithContext = this.replaceTemplateVariables(template, context);
+      const appendixWithContext = this.replaceTemplateVariables(appendixTemplate, context);
+
+      if (appendixWithContext.trim().length > 0) {
+        promptWithContext += `\n\n${appendixWithContext}`;
+      }
 
       // Append custom instructions from config if provided
       try {

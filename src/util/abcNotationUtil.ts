@@ -8,6 +8,7 @@ import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGCore } from '../core/KGCore';
 import { KGProject } from '../core/KGProject';
 import { KGChordRegion } from '../core/region/KGChordRegion';
+import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { pitchToNoteName } from './midiUtil';
 import { beatsToTicks, getTicksPerBar, reduceFraction } from './mathUtil';
 import type { TimeSignature } from '../types/projectTypes';
@@ -168,18 +169,38 @@ function convertTicksToABCLength(ticks: number, timeSignature: TimeSignature): s
  * @param project - Project containing tempo and time signature info
  * @returns ABC header string
  */
+function resolveRegionTrackMetadata(region: KGMidiRegion, project: KGProject): {
+  trackId: string;
+  trackName: string;
+  instrumentName: string;
+} {
+  const trackId = region.getTrackId();
+  const track = project.getTracks().find(candidate => candidate.getId().toString() === trackId);
+  const trackName = track?.getName() || 'Unnamed Track';
+  const instrumentKey = 'getInstrument' in (track ?? {}) && typeof track.getInstrument === 'function'
+    ? track.getInstrument()
+    : null;
+  const instrumentName = instrumentKey
+    ? FLUIDR3_INSTRUMENT_MAP[instrumentKey]?.displayName || instrumentKey
+    : 'Unknown Instrument';
+
+  return { trackId, trackName, instrumentName };
+}
+
 function formatABCHeader(region: KGMidiRegion, project: KGProject): string {
   const timeSignature = project.getTimeSignature();
   const bpm = project.getBpm();
   const keySignature = project.getKeySignature();
-  const regionName = region.getName();
+  const { trackId, trackName, instrumentName } = resolveRegionTrackMetadata(region, project);
   
   // Get ABC notation key signature from the key signature map
   const abcKeySignature = KEY_SIGNATURE_MAP[keySignature]?.abcNotationKeySignature || 'C';
   
   const header = [
+    `track_id: ${trackId}`,
+    `track_name: ${trackName}`,
+    `Instrument: ${instrumentName}`,
     'X:1', // Reference number
-    `T:${regionName}`, // Title
     `M:${timeSignature.numerator}/${timeSignature.denominator}`, // Time signature
     `L:1/${timeSignature.denominator}`, // note length unit should be aligned with time signature
     `Q:1/${timeSignature.denominator}=${bpm}`, // Tempo (quarter note = BPM)
@@ -353,12 +374,12 @@ export function convertBeatRangeChordProgressionToABCNotation(
 
   if (segments.length === 0) {
     return [
-      'Selected Region Chord Progression',
+      'Chord Progression',
       'This progression comes only from user-defined chord regions on the global chord track. If no chord progression is defined for this range, read the notes directly with `read_music`.',
       '',
       header,
       '',
-      'No chord progression is defined for the selected MIDI region range. Use `read_music` to inspect the notes directly.'
+      'No chord progression is defined for the requested range on the global chord track. Use `read_music` to inspect the notes directly.'
     ].join('\n');
   }
 
@@ -367,7 +388,7 @@ export function convertBeatRangeChordProgressionToABCNotation(
   const chordNotes = formatChordProgressionNoteLine(segments, timeSignature);
 
   return [
-    'Selected Region Chord Progression',
+    'Chord Progression',
     'This progression comes only from user-defined chord regions on the global chord track. Representation 1 uses symbolic chord names such as `Em7b5`. Representation 2 rewrites the same progression as note-based ABC chord tokens.',
     '',
     header,

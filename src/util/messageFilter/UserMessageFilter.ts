@@ -1,7 +1,6 @@
 import { clearChatHistoryAndUI } from '../chatUtil';
 import { useProjectStore } from '../../stores/projectStore';
 import { ConfigManager } from '../../core/config/ConfigManager';
-import { SystemPrompts } from '../../agent/core/SystemPrompts';
 import { detectLocalLLMRuntimeSupport, LOCAL_LLM_PROVIDER_KEY } from '../localLLMConfig';
 import { normalizeLanguageSetting, resolveLanguageSetting } from '../../i18n/locale';
 import type { ResolvedLocaleCode } from '../../i18n/types';
@@ -218,9 +217,22 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
         }
       }
 
+      case '/compact': {
+        return {
+          displayUserMessage: false,
+          sendToLLM: false,
+          finalMessageForLLM: null,
+          pseudoAssistantResponse: null,
+          metadata: {
+            command: 'compact',
+            focus: argString.trim() || undefined,
+          }
+        };
+      }
+
       default: {
         const { setStatus } = useProjectStore.getState();
-        const help = 'Available commands: /clear, /welcome, /help, /hotkeys, /hotkey';
+        const help = 'Available commands: /clear, /welcome, /help, /hotkeys, /hotkey, /compact';
         setStatus(`Unknown command: ${command}. ${help}`);
         return {
           displayUserMessage: false,
@@ -233,7 +245,7 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
     }
   }
 
-  // Non-command message: require an active or selected region
+  // Non-command message: pass through to the LLM unchanged.
   try {
     // Provider-specific configuration checks before sending to LLM
     try {
@@ -316,53 +328,12 @@ export async function processUserMessage(originalMessage: string): Promise<UserM
       console.warn('Provider config check failed; proceeding with defaults', e);
     }
 
-    const { activeRegionId, selectedRegionIds } = useProjectStore.getState();
-    const hasContextRegion = !!activeRegionId || (Array.isArray(selectedRegionIds) && selectedRegionIds.length > 0);
-
-    if (!hasContextRegion) {
-      // No region context: show guidance and do not send to LLM
-      const url = `${import.meta.env.BASE_URL}chat/error_no_selected_region.md`;
-      let md = 'Please select a region or open a MIDI region in the piano roll before asking for editing.';
-      try {
-        const resp = await fetch(url);
-        if (resp.ok) {
-          md = await resp.text();
-        }
-      } catch (e) {
-        console.warn('Failed to fetch error_no_selected_region.md', e);
-        // ignore fetch failure, use fallback text
-      }
-
-      return {
-        displayUserMessage: true,
-        sendToLLM: false,
-        finalMessageForLLM: null,
-        pseudoAssistantResponse: md,
-        metadata: { error: 'no_selected_region' }
-      };
-    }
-
-    // Has region context: pass through, but append processed appendix to the LLM-bound message
-    let appendix = '';
-    try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}prompts/user_msg_appendix.md`);
-      if (resp.ok) {
-        const rawAppendix = await resp.text();
-        appendix = await SystemPrompts.getPromptWithContext(rawAppendix);
-      }
-    } catch (e) {
-      // If appendix fetch fails, proceed without it
-      console.warn('Failed to fetch user_msg_appendix.md', e);
-    }
-
-    const finalForLLM = appendix ? `${trimmed}${appendix}` : trimmed;
-
     return {
       displayUserMessage: true,
       sendToLLM: true,
-      finalMessageForLLM: finalForLLM,
+      finalMessageForLLM: trimmed,
       pseudoAssistantResponse: null,
-      metadata: { mode: 'pass_through_with_region', appendixIncluded: appendix.length > 0 }
+      metadata: { mode: 'pass_through_plain_user_message' }
     };
   } catch {
     // Fallback: if store access fails, pass through unchanged

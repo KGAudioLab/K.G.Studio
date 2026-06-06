@@ -30,7 +30,6 @@ function buildProjectWithRegionAndOptionalChords(chords: string[] = []): {
 
   const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
   expect(chordTrack).not.toBeNull();
-
   chords.forEach((symbol, index) => {
     chordTrack!.addRegion(new KGChordRegion(`chord-${index}`, chordTrack!.getId(), chordTrack!.getTrackIndex(), symbol, index * 4, 4));
   });
@@ -59,27 +58,10 @@ describe('ReadChordProgressionTool', () => {
     expect(result.success).toBe(true);
     expect(result.result).toContain('Chord-symbol representation:');
     expect(result.result).toContain('[Am]4 | [F]4 | [Dm]4 | [E7]4 | [Am]4 | [C]4 | [Dm]4 | [E7]4 |');
-    expect(result.result).toContain('[A, C E]4 | [F, A, C]4 | [D F A]4 | [E ^G B d]4 | [A, C E]4 | [C E G]4 | [D F A]4 | [E ^G B d]4 |');
   });
 
-  it('falls back to the selected MIDI region when no active region exists', async () => {
-    const { project, midiRegion } = buildProjectWithRegionAndOptionalChords(['Am']);
-
-    vi.spyOn(KGCore, 'instance').mockReturnValue({
-      getCurrentProject: () => project,
-      getSelectedItems: () => [midiRegion],
-    } as unknown as KGCore);
-
-    const tool = new ReadChordProgressionTool();
-    const result = await tool.execute({});
-
-    expect(result.success).toBe(true);
-    expect(result.result).toContain('[Am]4 |');
-  });
-
-  it('returns guidance when no chord progression is defined for the region range', async () => {
-    const { project, midiRegion } = buildProjectWithRegionAndOptionalChords();
-    storeState.activeRegionId = midiRegion.getId();
+  it('reads the full chord track when no MIDI region is selected', async () => {
+    const { project } = buildProjectWithRegionAndOptionalChords(['Am', 'F', 'Dm']);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => project,
@@ -90,12 +72,12 @@ describe('ReadChordProgressionTool', () => {
     const result = await tool.execute({});
 
     expect(result.success).toBe(true);
-    expect(result.result).toContain('No chord progression is defined for the selected MIDI region range.');
-    expect(result.result).toContain('read_music');
+    expect(result.result).toContain('[Am]4 | [F]4 | [Dm]4 |');
+    expect(tool.buildToolResultDisplayContent({}, result)).toBe('Read the chord progression from bars 1 to 3.');
   });
 
-  it('returns a clear error when no active or selected MIDI region exists', async () => {
-    const { project } = buildProjectWithRegionAndOptionalChords(['Am']);
+  it('returns no-chord-defined guidance when the chord track has no chord regions', async () => {
+    const { project } = buildProjectWithRegionAndOptionalChords();
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
       getCurrentProject: () => project,
@@ -105,7 +87,11 @@ describe('ReadChordProgressionTool', () => {
     const tool = new ReadChordProgressionTool();
     const result = await tool.execute({});
 
-    expect(result.success).toBe(false);
-    expect(result.result).toContain('No active or selected MIDI region found');
+    expect(result.success).toBe(true);
+    expect(result.result).toBe('No chord progression is defined for the requested range on the global chord track. Use read_music to inspect the notes directly.');
+    expect(tool.buildToolHistoryContent({}, result)).toBe(
+      'No chord progression is defined for that range on the global chord track. Use read_music to inspect the notes directly.',
+    );
+    expect(tool.buildToolResultDisplayContent({}, result)).toBe('No chord progression is defined for that range.');
   });
 });

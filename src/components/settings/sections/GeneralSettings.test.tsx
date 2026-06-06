@@ -14,8 +14,10 @@ const { localSeparatorModelCacheMock } = vi.hoisted(() => ({
 
 const configState = new Map<string, unknown>([
   ['general.language', 'auto'],
+  ['general.agent_mode', 'regular'],
   ['general.llm_provider', 'local_browser'],
   ['general.persist_api_keys_non_localhost', false],
+  ['general.auto_compact_threshold_percent', 90],
   ['general.openai.api_key', ''],
   ['general.openai.model', 'gpt-5.4-mini'],
   ['general.openai.flex', false],
@@ -106,7 +108,10 @@ describe('GeneralSettings', () => {
 
   beforeEach(() => {
     configState.set('general.language', 'auto');
+    configState.set('general.agent_mode', 'regular');
+    configState.set('general.llm_provider', 'local_browser');
     configState.set('general.local_browser.context_length', 65536);
+    configState.set('general.auto_compact_threshold_percent', 90);
     configManagerMock.get.mockClear();
     configManagerMock.set.mockClear();
     localModelState.isCached = false;
@@ -171,6 +176,62 @@ describe('GeneralSettings', () => {
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.local_browser.context_length', 131072);
     });
+  });
+
+  it('renders and persists the auto-compact threshold', async () => {
+    renderSettings();
+
+    const select = await screen.findByLabelText(translate('settings.general.autoCompactThreshold.label', undefined, 'en_us'));
+    expect((select as HTMLSelectElement).value).toBe('90');
+
+    fireEvent.change(select, { target: { value: '80' } });
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.auto_compact_threshold_percent', 80);
+    });
+  });
+
+  it('renders the auto-compact threshold label from the zh_cn catalog', async () => {
+    renderSettings('zh_cn');
+
+    expect(
+      await screen.findByLabelText(translate('settings.general.autoCompactThreshold.label', undefined, 'zh_cn')),
+    ).toBeTruthy();
+  });
+
+  it('renders the music assistant section and initializes the agent mode selector', async () => {
+    configState.set('general.llm_provider', 'openai');
+    configState.set('general.agent_mode', 'efficient');
+
+    renderSettings();
+
+    expect(await screen.findByText('K.G.Studio Music Assistant')).toBeTruthy();
+    const select = screen.getByLabelText('Agent Mode');
+    expect((select as HTMLSelectElement).value).toBe('efficient');
+  });
+
+  it('persists agent mode changes for non-local providers', async () => {
+    configState.set('general.llm_provider', 'openai');
+
+    renderSettings();
+
+    const select = await screen.findByLabelText('Agent Mode');
+    fireEvent.change(select, { target: { value: 'efficient' } });
+
+    await waitFor(() => {
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.agent_mode', 'efficient');
+    });
+  });
+
+  it('disables the agent mode selector for the local browser provider and shows override help', async () => {
+    configState.set('general.llm_provider', 'local_browser');
+    configState.set('general.agent_mode', 'regular');
+
+    renderSettings();
+
+    const select = await screen.findByLabelText('Agent Mode');
+    expect(select).toBeDisabled();
+    expect(screen.getByText('Local LLM (Browser) always runs the assistant in Efficient Mode.')).toBeTruthy();
   });
 
   it('renders and persists local runtime download URLs', async () => {

@@ -18,6 +18,13 @@ import {
   LOCAL_SEPARATOR_MODEL_CONFIGS,
   LOCAL_SEPARATOR_MODEL_IDS,
 } from '../../../util/local-separator/config';
+import {
+  DEFAULT_AGENT_MODE,
+  getEffectiveAgentMode,
+  isAgentModeForcedByProvider,
+  normalizeAgentMode,
+  type AgentMode,
+} from '../../../util/agentMode';
 
 const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> = {
   en_us: 'English',
@@ -29,6 +36,7 @@ const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> =
 const GeneralSettings: React.FC = () => {
   const { t, setLanguageSetting } = useI18n();
   const [language, setLanguage] = useState<LanguageSetting>('auto');
+  const [agentMode, setAgentMode] = useState<AgentMode>(DEFAULT_AGENT_MODE);
   const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
   const [openaiKey, setOpenaiKey] = useState<string>('');
   const [openaiModel, setOpenaiModel] = useState<string>('');
@@ -41,6 +49,7 @@ const GeneralSettings: React.FC = () => {
   const [claudeOpenRouterModel, setClaudeOpenRouterModel] = useState<string>('');
   const [openaiFlex, setOpenaiFlex] = useState<boolean>(false);
   const [persistApiKeysNonLocalhost, setPersistApiKeysNonLocalhost] = useState<boolean>(false);
+  const [autoCompactThresholdPercent, setAutoCompactThresholdPercent] = useState<80 | 90 | 95>(90);
   const [compatibleKey, setCompatibleKey] = useState<string>('');
   const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
   const [compatibleModel, setCompatibleModel] = useState<string>('');
@@ -102,11 +111,15 @@ const GeneralSettings: React.FC = () => {
       }
 
       setLanguage(((configManager.get('general.language') as LanguageSetting | undefined) ?? 'auto'));
+      setAgentMode(normalizeAgentMode(configManager.get('general.agent_mode')));
       setLlmProvider((configManager.get('general.llm_provider') as string) || LOCAL_LLM_PROVIDER_KEY);
       setOpenaiKey((configManager.get('general.openai.api_key') as string) || '');
       setOpenaiModel((configManager.get('general.openai.model') as string) || '');
       setOpenaiFlex((configManager.get('general.openai.flex') as boolean) ?? false);
       setPersistApiKeysNonLocalhost((configManager.get('general.persist_api_keys_non_localhost') as boolean) ?? false);
+      setAutoCompactThresholdPercent(
+        ((configManager.get('general.auto_compact_threshold_percent') as 80 | 90 | 95 | undefined) ?? 90),
+      );
       setGeminiKey((configManager.get('general.gemini.api_key') as string) || '');
       setGeminiModel((configManager.get('general.gemini.model') as string) || '');
       setClaudeKey((configManager.get('general.claude.api_key') as string) || '');
@@ -165,6 +178,16 @@ const GeneralSettings: React.FC = () => {
     }
   };
 
+  const handleAgentModeChange = async (value: AgentMode) => {
+    setAgentMode(value);
+    try {
+      await configManager.set('general.agent_mode', value);
+      console.log('Agent mode changed to:', value);
+    } catch (error) {
+      console.error('Failed to save agent mode:', error);
+    }
+  };
+
   const handleLanguageChange = async (value: LanguageSetting) => {
     setLanguage(value);
     try {
@@ -203,6 +226,18 @@ const GeneralSettings: React.FC = () => {
       console.log('Persist API Keys Non-Localhost changed to:', boolValue);
     } catch (error) {
       console.error('Failed to save Persist API Keys Non-Localhost:', error);
+    }
+  };
+
+  const handleAutoCompactThresholdChange = async (value: string) => {
+    const parsed = Number(value);
+    const normalized: 80 | 90 | 95 = parsed === 80 || parsed === 95 ? parsed : 90;
+    setAutoCompactThresholdPercent(normalized);
+    try {
+      await configManager.set('general.auto_compact_threshold_percent', normalized);
+      console.log('Auto-compact threshold changed to:', normalized);
+    } catch (error) {
+      console.error('Failed to save auto-compact threshold:', error);
     }
   };
 
@@ -338,6 +373,8 @@ const GeneralSettings: React.FC = () => {
 
   const localRuntimeMessage = localModelState.runtimeSupport.reason;
   const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
+  const isAgentModeOverriddenByLocalProvider = isAgentModeForcedByProvider(llmProvider);
+  const effectiveAgentMode = getEffectiveAgentMode(configManager);
 
   // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
@@ -406,6 +443,57 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {t('settings.general.persistKeys.help')}
             </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="general-auto-compact-threshold">
+              {t('settings.general.autoCompactThreshold.label')}
+            </label>
+            <select
+              id="general-auto-compact-threshold"
+              className="settings-select"
+              value={autoCompactThresholdPercent}
+              onChange={(e) => void handleAutoCompactThresholdChange(e.target.value)}
+            >
+              <option value="95">{t('settings.general.autoCompactThreshold.conservative')}</option>
+              <option value="90">{t('settings.general.autoCompactThreshold.standard')}</option>
+              <option value="80">{t('settings.general.autoCompactThreshold.early')}</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {t('settings.general.autoCompactThreshold.help')}
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-group">
+          <h4>{t('settings.general.musicAssistant.section')}</h4>
+
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="general-agent-mode-select">
+              {t('settings.general.musicAssistant.agentMode.label')}
+            </label>
+            <select
+              id="general-agent-mode-select"
+              className="settings-select"
+              value={agentMode}
+              onChange={(e) => void handleAgentModeChange(e.target.value as AgentMode)}
+              disabled={isAgentModeOverriddenByLocalProvider}
+            >
+              <option value="regular">{t('settings.general.musicAssistant.agentMode.regular')}</option>
+              <option value="efficient">{t('settings.general.musicAssistant.agentMode.efficient')}</option>
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {isAgentModeOverriddenByLocalProvider
+                ? t('settings.general.musicAssistant.agentMode.localOverride')
+                : t('settings.general.musicAssistant.agentMode.help')}
+            </div>
+            {effectiveAgentMode !== agentMode && (
+              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                {t('settings.general.musicAssistant.agentMode.effectiveValue', {
+                  mode: t('settings.general.musicAssistant.agentMode.efficient'),
+                })}
+              </div>
+            )}
           </div>
         </div>
 

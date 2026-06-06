@@ -48,9 +48,14 @@ OpenRouter is a platform that provides unified access to a wide range of languag
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
 5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
     - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — best balance of quality and cost for the Claude series
-    - `Qwen: Qwen3.5-35B-A3B` (`qwen/qwen3.5-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.5-35b-a3b)) — recommended open source model
-    - `Qwen: Qwen3-Next-80B-A3B` (FREE MODEL: `qwen/qwen3-next-80b-a3b-instruct:free`: [Link](https://openrouter.ai/qwen/qwen3-next-80b-a3b-instruct:free)) — recommended free model
-    - `OpenAI: GPT-OSS 120B` (FREE MODEL: `openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free)) — recommended free model
+    - Free Models:
+        - `OpenAI: GPT-OSS 120B` (FREE MODEL: `openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free))
+        - `Google: Gemma 4 26B A4B IT` (FREE MODEL: `google/gemma-4-26b-a4b-it:free`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it:free))
+        - `Google: Gemma 4 31B IT` (FREE MODEL: `google/gemma-4-31b-it:free`: [Link](https://openrouter.ai/google/gemma-4-31b-it:free))
+    - For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend:
+        - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
+        - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
+        - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
     - Note: free model availability changes frequently — for the latest free options, visit the [OpenRouter Models Page](https://openrouter.ai/models) and use the **Prompt Pricing** filter
     - Note: free model providers may collect your data; check the model page for details before use
 6. Input the base URL `https://openrouter.ai/api/v1` in **OpenAI Compatible Server → Base URL**.

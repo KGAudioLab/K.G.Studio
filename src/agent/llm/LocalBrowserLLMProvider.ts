@@ -56,8 +56,31 @@ async function importMediaPipe(): Promise<MediaPipeGenAI> {
 export class LocalBrowserLLMProvider implements LLMProvider {
   private inference: GemmaInference | null = null;
 
-  getPreferredSystemPromptPath(): string | undefined {
-    return 'prompts/system_compact.md';
+  getContextWindow(): number {
+    return this.getConfiguredContextLength();
+  }
+
+  getReservedOutputTokens(): number {
+    const contextWindow = this.getConfiguredContextLength();
+    return Math.max(1024, Math.min(4096, Math.floor(contextWindow * 0.1)));
+  }
+
+  async estimateHistoryTokens(
+    messages: Message[],
+    systemPrompt?: string,
+    tools?: OpenAIToolDefinition[],
+  ): Promise<number> {
+    const inference = await this.ensureInference();
+    const prompt = this.renderPrompt(messages, systemPrompt, tools);
+    return inference.sizeInTokens(prompt);
+  }
+
+  isContextTooLongError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return /context|token|maxTokens|kv-cache|too long|overflow/i.test(error.message);
   }
 
   private async ensureInference(): Promise<GemmaInference> {

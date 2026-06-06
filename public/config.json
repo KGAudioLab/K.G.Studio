@@ -1,8 +1,10 @@
 {
     "general": {
         "language": "auto",
+        "agent_mode": "regular",
         "llm_provider": "local_browser",
         "persist_api_keys_non_localhost": false,
+        "auto_compact_threshold_percent": 90,
         "openai": {
             "api_key": "",
             "flex": false,

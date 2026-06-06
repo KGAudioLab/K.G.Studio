@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
+import { createDefaultGlobalTracks } from '../core/global-track';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
@@ -9,16 +10,27 @@ const pianoRollStateMocks = vi.hoisted(() => ({
 }));
 
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
+let mockIsMetronomeEnabled = false;
+let mockShowGlobalTracks = false;
 const mockProject = {
   getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
   getMaxBars: () => 32,
   getBarWidthMultiplier: () => 1,
   getTracks: () => mockTracks,
+  getGlobalTracks: () => createDefaultGlobalTracks(),
   getBpm: () => 120,
   getKeySignature: () => 'C major',
   getName: () => 'Test Project',
   getSelectedMode: () => 'major',
   getIsLooping: () => false,
+  getIsMetronomeEnabled: () => mockIsMetronomeEnabled,
+  setIsMetronomeEnabled: vi.fn((value: boolean) => {
+    mockIsMetronomeEnabled = value;
+  }),
+  getShowGlobalTracks: () => mockShowGlobalTracks,
+  setShowGlobalTracks: vi.fn((value: boolean) => {
+    mockShowGlobalTracks = value;
+  }),
   getLoopingRange: () => [0, 0] as [number, number],
   getPianoRollZoom: () => 1,
 };
@@ -37,6 +49,7 @@ const mockAudioInterface = {
   setTrackVolume: vi.fn(),
   setTrackMute: vi.fn(),
   setTrackSolo: vi.fn(),
+  setMetronomeEnabled: vi.fn(),
 };
 
 const configValues = new Map<string, unknown>([
@@ -126,6 +139,11 @@ describe('projectStore piano roll state', () => {
     mockAudioInterface.cancelAudioRecording.mockResolvedValue(undefined);
     mockAudioInterface.getTransportPosition.mockReset();
     mockAudioInterface.getTransportPosition.mockReturnValue(8);
+    mockAudioInterface.setMetronomeEnabled.mockReset();
+    mockIsMetronomeEnabled = false;
+    mockShowGlobalTracks = false;
+    mockProject.setIsMetronomeEnabled.mockClear();
+    mockProject.setShowGlobalTracks.mockClear();
     configValues.set('audio.input_device_id', 'default');
   });
 
@@ -193,6 +211,42 @@ describe('projectStore piano roll state', () => {
     expect(state.activeRegionId).toBe('audio-b');
     expect(state.hybridAudioRegionId).toBeNull();
     expect(state.requestedSheetMusicViewEnabled).toBe(false);
+  });
+
+  it('initializes persisted metronome and global-track visibility state from the project', async () => {
+    mockIsMetronomeEnabled = true;
+    mockShowGlobalTracks = true;
+
+    const { useProjectStore } = await import('./projectStore');
+
+    const state = useProjectStore.getState();
+    expect(state.isMetronomeEnabled).toBe(true);
+    expect(state.showGlobalTracks).toBe(true);
+  });
+
+  it('persists metronome toggles to the project and audio interface', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().toggleMetronome();
+    });
+
+    const state = useProjectStore.getState();
+    expect(mockProject.setIsMetronomeEnabled).toHaveBeenCalledWith(true);
+    expect(mockAudioInterface.setMetronomeEnabled).toHaveBeenCalledWith(true);
+    expect(state.isMetronomeEnabled).toBe(true);
+  });
+
+  it('persists global-track visibility changes to the project', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setShowGlobalTracks(true);
+    });
+
+    const state = useProjectStore.getState();
+    expect(mockProject.setShowGlobalTracks).toHaveBeenCalledWith(true);
+    expect(state.showGlobalTracks).toBe(true);
   });
 
   it('tracks playback preparation around startPlaying success', async () => {

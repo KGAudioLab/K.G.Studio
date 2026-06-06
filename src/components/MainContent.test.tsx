@@ -58,6 +58,10 @@ const storeState = {
   addAudioTrack: vi.fn(),
   projectName: 'Test Project',
   savedProjectName: 'Test Project',
+  showGlobalTracks: false,
+  setShowGlobalTracks: vi.fn((show: boolean) => {
+    storeState.showGlobalTracks = show;
+  }),
   requestPianoRollScroll: vi.fn(),
   mainContentScrollRequest: null,
   activeTrackAutomationTrackId: null,
@@ -80,6 +84,11 @@ const finishTrackCreateDialogClose = () => {
   if (overlay) {
     fireEvent.animationEnd(overlay);
   }
+};
+
+const toggleGlobalTracksAndRerender = (rerender: (ui: React.ReactNode) => void) => {
+  fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+  rerender(<MainContent />);
 };
 
 vi.mock('../stores/projectStore', () => ({
@@ -160,6 +169,7 @@ describe('MainContent', () => {
     storeState.selectedRegionIds = [];
     storeState.activeRegionId = null;
     storeState.showPianoRoll = false;
+    storeState.showGlobalTracks = false;
     storeState.playheadPosition = 0;
     storeState.timeSignature = { numerator: 4, denominator: 4 };
     storeState.clearAllSelections.mockClear();
@@ -171,6 +181,7 @@ describe('MainContent', () => {
     storeState.openSpectrogramViewer.mockClear();
     storeState.addTrack.mockClear();
     storeState.addAudioTrack.mockClear();
+    storeState.setShowGlobalTracks.mockClear();
     executeCommandMock.mockClear();
   });
 
@@ -385,29 +396,35 @@ describe('MainContent', () => {
     expect(screen.queryByRole('dialog', { name: 'Create New Track' })).not.toBeInTheDocument();
   });
 
-  it('toggles the mock global tracks button active state locally', () => {
-    render(<MainContent />);
+  it('toggles the persisted global tracks button active state through the store', () => {
+    const { rerender } = render(<MainContent />);
 
-    const globalTracksButton = screen.getByRole('button', { name: 'Show global tracks' });
+    let globalTracksButton = screen.getByRole('button', { name: 'Show global tracks' });
 
     expect(globalTracksButton.className).not.toContain('active');
 
     fireEvent.click(globalTracksButton);
+    expect(storeState.setShowGlobalTracks).toHaveBeenCalledWith(true);
+    rerender(<MainContent />);
+    globalTracksButton = screen.getByRole('button', { name: 'Show global tracks' });
     expect(globalTracksButton.className).toContain('active');
 
     fireEvent.click(globalTracksButton);
+    expect(storeState.setShowGlobalTracks).toHaveBeenCalledWith(false);
+    rerender(<MainContent />);
+    globalTracksButton = screen.getByRole('button', { name: 'Show global tracks' });
     expect(globalTracksButton.className).not.toContain('active');
   });
 
-  it('renders the four mock global tracks only when toggled on', () => {
-    render(<MainContent />);
+  it('renders the four global tracks only when the persisted toggle is on', () => {
+    const { rerender } = render(<MainContent />);
 
     expect(screen.queryByText('Marker')).not.toBeInTheDocument();
     expect(screen.queryByText('Tempo')).not.toBeInTheDocument();
     expect(screen.queryByText('Key Signature')).not.toBeInTheDocument();
     expect(screen.queryByText('Chord')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
 
     expect(screen.getByText('Marker')).toBeInTheDocument();
     expect(screen.getByText('Tempo')).toBeInTheDocument();
@@ -416,7 +433,7 @@ describe('MainContent', () => {
 
     const globalTracksInfoShell = screen.getByRole('button', { name: 'Add Marker global track item' }).closest('.global-tracks-info-shell') as HTMLElement;
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.transitionEnd(globalTracksInfoShell);
 
     expect(screen.queryByText('Marker')).not.toBeInTheDocument();
@@ -427,9 +444,9 @@ describe('MainContent', () => {
 
   it('routes the tempo and chord global track add buttons through commands', () => {
     storeState.playheadPosition = 5;
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Tempo global track item' }));
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
@@ -450,10 +467,10 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByText('Am'));
 
     expect(storeState.selectedRegionIds).toEqual(['chord-1']);
@@ -471,9 +488,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByText('Am'));
     fireEvent.click(screen.getByText('G'), { shiftKey: true });
 
@@ -492,9 +509,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
 
     const firstChord = screen.getByText('Am');
     const lastChord = screen.getByText('G');
@@ -524,9 +541,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByText('Am'));
     fireEvent.click(screen.getByText('128 BPM'), { metaKey: true });
 
@@ -548,9 +565,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByText('Am'));
     fireEvent.click(screen.getByText('140 BPM'), { shiftKey: true });
 
@@ -566,9 +583,9 @@ describe('MainContent', () => {
     storeState.globalTracks = globalTracks;
     storeState.playheadPosition = 3;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByRole('button', { name: 'Add Chord global track item' }));
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
@@ -586,9 +603,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.doubleClick(screen.getByText('Am'));
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab' });
 
@@ -605,9 +622,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.doubleClick(screen.getByText('Am'));
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab' });
 
@@ -626,9 +643,9 @@ describe('MainContent', () => {
     ]);
     storeState.globalTracks = globalTracks;
 
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.doubleClick(screen.getByText('G'));
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab', shiftKey: true });
 
@@ -639,18 +656,18 @@ describe('MainContent', () => {
   });
 
   it('routes the signature global track add button through a command', () => {
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByRole('button', { name: 'Add Key Signature global track item' }));
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
   });
 
   it('creates new marker regions with a one-bar default length', () => {
-    render(<MainContent />);
+    const { rerender } = render(<MainContent />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.click(screen.getByRole('button', { name: 'Add Marker global track item' }));
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
@@ -672,13 +689,13 @@ describe('MainContent', () => {
       return 1;
     });
 
-    const { container } = render(<MainContent />);
+    const { container, rerender } = render(<MainContent />);
     const mainContent = container.querySelector('.main-content') as HTMLDivElement;
     Object.defineProperty(mainContent, 'scrollWidth', { configurable: true, value: 4000 });
     Object.defineProperty(mainContent, 'clientWidth', { configurable: true, value: 900 });
     mainContent.scrollLeft = 500;
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show global tracks' }));
+    toggleGlobalTracksAndRerender(rerender);
     fireEvent.doubleClick(screen.getByText('Am'));
 
     await waitFor(() => {
