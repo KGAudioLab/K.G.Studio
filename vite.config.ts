@@ -16,6 +16,12 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
+  esbuild: {
+    keepNames: true,
+  },
+  build: {
+    sourcemap: true,
+  },
   server: {
     host: true,
     headers: {
