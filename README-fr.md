@@ -10,11 +10,6 @@
   <h3><a href="https://kgaudiolab.github.io/kgstudio"><b>◀ Commencer à utiliser K.G.Studio en ligne dans votre navigateur ▶</b></a></h3>
 </div>
 
-## Nouveau !
-
-> ### ✦ [K.G.One Music Studio est disponible dès maintenant.](https://github.com/KGAudioLab/K.G.One) ✦ <br />
-> [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) est une plateforme intégrée, entièrement locale et open source, construite autour de **K.G.Studio** (ce projet). Elle embarque [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) pour la génération de morceaux complets, [Foundation-1](https://huggingface.co/RoyalCities/Foundation-1) pour la génération de clips audio et de boucles MIDI, ainsi que [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator) pour la séparation de stems, apportant directement la génération musicale IA accélérée par GPU dans votre flux de production musicale dans le navigateur.
-
 ## Qu'est-ce que K.G.Studio ?
 
 K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le navigateur, avec **K.G.Studio Musician Assistant** en son cœur. Il propose une lecture réaliste des instruments via les samplers Tone.js, un éditeur piano roll, une gestion des pistes et des régions avec annulation/rétablissement complets, la persistance des projets dans OPFS (Origin Private File System), un panneau de configuration personnalisable, et un assistant IA intégré avec exécution d'outils.
