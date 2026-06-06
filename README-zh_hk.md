@@ -10,11 +10,6 @@
   <h3><a href="https://kgaudiolab.github.io/kgstudio"><b>◀ 立即在瀏覽器中線上使用 K.G.Studio ▶</b></a></h3>
 </div>
 
-## 新動態
-
-> ### ✦ [K.G.One Music Studio 現已發佈。](https://github.com/KGAudioLab/K.G.One) ✦ <br />
-> [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) 是一個完全本地、開源的一體化平台，以 **K.G.Studio**（本專案）為核心。它整合了用於整曲生成的 [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5)、用於音訊片段和 MIDI loop 生成的 [Foundation-1](https://huggingface.co/RoyalCities/Foundation-1)，以及用於分軌的 [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator)，將 GPU 加速的 AI 音樂生成能力直接帶入您的瀏覽器音樂製作工作流。
-
 ## 什麼是 K.G.Studio？
 
 K.G.Studio 是一款輕量、現代化的 DAW，完全執行於瀏覽器中，並以 **K.G.Studio 音樂創作助手** 為核心。它提供基於 Tone.js sampler 的真實樂器回放、Piano Roll 編輯器、支援完整復原/重做的音軌與區域管理、基於 OPFS（Origin Private File System）的專案持久化、可設定的設定面板，以及可執行工具的內建 AI 助手。
