@@ -1,3 +1,9 @@
+# [0.20.2-build.20260606] (2026-06-06)
+
+* Merge pull request #51 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (b8d17f4)
+* fix: use raw streaming chat completions and keep readable preview stacks (8323e62)
+* fix: minor errors during compilation (2e27bec)
+
 # [0.20.1-build.20260606] (2026-06-06)
 
 * Merge pull request #50 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (98bcbc5)
