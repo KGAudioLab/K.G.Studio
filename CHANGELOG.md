@@ -1,3 +1,8 @@
+# [0.20.1-build.20260606] (2026-06-06)
+
+* Merge pull request #50 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (98bcbc5)
+* docs: updated readme files (748cd78)
+
 # [0.20.0-build.20260606] (2026-06-06)
 
 * Merge pull request #49 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (ebee595)
