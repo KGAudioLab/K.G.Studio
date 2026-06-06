@@ -137,10 +137,11 @@ export class UpdateTrackTool extends BaseTool {
 
       let instrumentKey: InstrumentType | undefined;
       if (instrumentName !== undefined) {
-        instrumentKey = resolveInstrumentKeyByEnglishName(instrumentName);
-        if (!instrumentKey) {
+        const resolvedInstrumentKey = resolveInstrumentKeyByEnglishName(instrumentName);
+        if (resolvedInstrumentKey === null) {
           return this.createErrorResult(`Invalid instrument "${instrumentName}". Use the exact English name from list_all_available_instruments.`);
         }
+        instrumentKey = resolvedInstrumentKey;
       }
 
       const trackNameChanged = newTrackName !== undefined && newTrackName !== resolvedTrack.getName();
