@@ -45,7 +45,16 @@ OpenRouter donne accès à de nombreux modèles via une API unique, y compris ce
 2. Dans **Réglages ⚙️ → Général → Fournisseur LLM**, choisissez **Serveur compatible OpenAI**.
 3. Saisissez votre clé dans **Serveur compatible OpenAI → Clé**.
 4. Consultez les modèles disponibles sur la [**page des modèles OpenRouter**](https://openrouter.ai/models).
-5. Saisissez le nom du modèle dans **Serveur compatible OpenAI → Modèle**.
+5. Saisissez le nom du modèle dans **Serveur compatible OpenAI → Modèle**. Les séries recommandées comprennent :
+    - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6` : [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — meilleur équilibre qualité/coût pour la série Claude
+    - Modèles gratuits :
+        - `OpenAI: GPT-OSS 120B` (MODÈLE GRATUIT : `openai/gpt-oss-120b:free` : [Link](https://openrouter.ai/openai/gpt-oss-120b:free))
+        - `Google: Gemma 4 26B A4B IT` (MODÈLE GRATUIT : `google/gemma-4-26b-a4b-it:free` : [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it:free))
+        - `Google: Gemma 4 31B IT` (MODÈLE GRATUIT : `google/gemma-4-31b-it:free` : [Link](https://openrouter.ai/google/gemma-4-31b-it:free))
+    - Pour l'auto-déploiement (nécessite ~24 Go de VRAM ou 24-32 Go de mémoire unifiée), nous recommandons :
+        - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b` : [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
+        - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it` : [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
+        - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it` : [Link](https://openrouter.ai/google/gemma-4-31b-it))
 6. Saisissez `https://openrouter.ai/api/v1` dans **Serveur compatible OpenAI → URL de base**.
 
 ### Opérations DAW de base

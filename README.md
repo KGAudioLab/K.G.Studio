@@ -19,7 +19,7 @@ English | [Français](./README-fr.md) | [简体中文](./README-zh_cn.md) | [繁
 
 K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with **K.G.Studio Musician Assistant** at its core. It features realistic instrument playback via Tone.js samplers, a piano‑roll editor, track and region management with full undo/redo, project persistence to OPFS (Origin Private File System), a configurable settings panel, and an integrated AI assistant with tool execution.
 
-**K.G.Studio Musician Assistant** is an AI assistance agent for harmony, arrangement, and note editing — but not full auto‑composition.
+**K.G.Studio Musician Assistant** is a project-aware AI co-creator designed to elevate your creative workflow. Rather than generating raw audio files, it operates directly at the structured track and note level—helping you draft melodies, build harmonic progressions, and edit MIDI notes, while leaving you in complete control to adjust, fine-tune, and perfect every single detail.
 
 <div align="center">
   <img src="./docs/KGOne-Demo-GIF.gif" alt="K.G.One Logo" width="640" />
@@ -28,6 +28,15 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 > Note: Full-Song Generation Feature and Audio Clip Generation Feature requires [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration.
 
 ## Latest Updates
+
+- **2026.06.05**: Significantly expanded the **K.G.Studio Musician Assistant** into a full project-level agent:
+  - **Track management tools** — the agent can now list, create, update, and delete tracks, and browse all available instruments, without requiring a region to be selected first.
+  - **Global track tools** — full read/write/remove access to all four global tracks: **Chord Progression**, **Tempo (BPM)**, **Key Signature**, and **Markers**. The agent can restructure an entire arrangement's harmonic and rhythmic skeleton in a single conversation.
+  - **Tool confirmation** — write operations surface a confirmation step in the chat before executing, giving you a chance to review before anything changes.
+  - **Agent todo list** — the assistant now maintains an inline task checklist rendered as live snapshot cards directly in the chat, making multi-step plans transparent and trackable.
+  - **Conversation history** — chat sessions are persisted per project and can be resumed across page reloads.
+  - **Automatic context compaction** — long conversations are summarised automatically when the context limit approaches, keeping sessions running without manual intervention.
+  - **Efficient agent mode** — a streamlined prompt and reduced tool set for smaller / local language models, activated automatically when using the Local Browser LLM.
 
 - **2026.05.30**: Added **internationalization (i18n) support** — K.G.Studio now ships in four languages: **English**, **Simplified Chinese (简体中文)**, **Traditional Chinese (繁體中文)**, and **French (Français)**. The active language can be configured under **Settings ⚙️ → General → Language**, with an `Auto` option that automatically detects your browser's locale.
 
@@ -49,13 +58,8 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 </div>
 
 - **2026.05.02**: Added **audio track spectrogram visualization** — audio regions now display a real-time spectrogram overlay in the track grid. Added **Piano Roll hybrid mode**: open the piano roll on a MIDI region while an adjacent audio region's spectrogram is shown as a reference layer, letting you edit MIDI notes against the visual shape of the audio. Added **piano roll zoom in/out** with viewport-position preservation so the view stays anchored to the current playhead. Added **fine-tune region position**: nudge regions by small increments for precise placement. Also added cross-component playhead scroll synchronization so the main grid and piano roll stay in sync during playback.
-- **2026.04.29**: Added **Remix** and **Repaint** to the K.G.One Music Generator panel (powered by ACE-Step 1.5). **Remix** lets you cover an existing audio region in a new style — select an audio region, describe the target style and optionally provide new lyrics, and ACE-Step will re-perform the song with the prompted instrumentation and feel. **Repaint** lets you surgically re-generate a specific section of a song — set a loop range on the timeline to define the repaint window, then describe what you want that section to sound like; the rest of the song stays untouched. Both tools support the same import workflow as the other K.G.One tabs: preview the result in the built-in player, drag it onto a track, or click **Import Aligned to Source** to automatically place it below the original region in a new track.
-- **2026.04.24**: Added [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One) integration! When K.G.Studio connects to a local K.G.One server, the **K.G.One Music Generator** panel (magic wand button ✦ in the toolbar) becomes available with three AI-powered tools: **Full Song Generation** (powered by ACE-Step 1.5 — generate full-length songs from text prompts), **Clip Generation** (powered by Foundation-1 — generate instrument clips and MIDI loops from text), and **Stem Separation** (powered by python-audio-separator — split any audio into vocals, instrumentals, and more). Generated audio and MIDI can be previewed instantly and dragged directly onto your tracks. K.G.One runs entirely on your own machine (Windows/Linux, CUDA GPU required); see the [K.G.One repository](https://github.com/KGAudioLab/K.G.One) for setup instructions.
-- **2026.04.11**: Migrated project storage from IndexedDB to OPFS (Origin Private File System) with a folder-based structure for better media file handling. Added audio track support with WAV/MP3 import, playback, looping, and non-destructive region trimming. Added bounce-to-WAV/MP3 export via offline rendering.
-- **2026.04.05**: Migrated the AI agent from XML-based tool calling to native OpenAI SDK function calling for improved reliability and compatibility. Added new LLM model options including GPT-5.4 series.
-- **2026.01.23**: Implemented seamless loop playback! Drag on the bar numbers to set loop range, or toggle loop mode with the Loop button in the toolbar. Loop playback uses `Tone.js`'s native looping for sample-accurate, gap-free looping.
-- **2025.12.21**: Implemented MIDI keyboard support! You can now connect a MIDI keyboard and use it to play sounds. Please note that this feature may not work optimally in Safari and some other browsers that lack complete Web MIDI interface support.
-- **2025.12.15**: Added Intelligent Chord Assistant with functional harmony guidance (T/S/D). Hover over piano keys to see context-aware chord suggestions and create full chords with one click!
+
+For the full release history, see [**Release Notes**](./docs/RELEASE_NOTES.md).
 
 ## Project Status
 
@@ -120,7 +124,7 @@ K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acc
   - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 **Tips:**
-- You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. For local hosting, we recommend `qwen3.5-35b-a3b` as a good balance between generation quality and hardware requirements.
+- You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend: `qwen/qwen3.6-35b-a3b`, `google/gemma-4-26b-a4b-it`, or `google/gemma-4-31b-it`.
 - If you have an active subscription with OpenAI or another LLM provider, you can use [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) to run a local proxy server that routes requests through your existing subscription, without needing a separate API key.
 
 ### Basic DAW operations
@@ -277,7 +281,7 @@ Note: due to CORS limitations with some providers, Google Gemini and Anthropic C
 1. Obtain an OpenAI API Key from [**OpenAI**](https://platform.openai.com/account/api-keys). You may need to create an account and add a payment method to generate an API Key.
 2. In **Settings ⚙️ → General → LLM Provider**, select **OpenAI** as your provider.
 3. Enter your API Key in **OpenAI → Key**.
-4. Select your preferred model from the **OpenAI → Model** dropdown. For a good balance between performance and cost, we recommend `gpt-5.4-mini`.
+4. Select your preferred model from the **OpenAI → Model** dropdown. For a good balance between performance and cost, we recommend `gpt-5.4`.
 5. Optionally, choose whether to enable Flex Mode in **OpenAI → Flex Mode**. Flex Mode offers discounted pricing, but may result in slower response times or server-side errors.
 
 ### Using OpenRouter
@@ -291,9 +295,14 @@ OpenRouter is a platform that provides unified access to a wide range of languag
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
 5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
     - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — best balance of quality and cost for the Claude series
-    - `Qwen: Qwen3.5-35B-A3B` (`qwen/qwen3.5-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.5-35b-a3b)) — recommended open source model
-    - `Qwen: Qwen3-Next-80B-A3B` (FREE MODEL: `qwen/qwen3-next-80b-a3b-instruct:free`: [Link](https://openrouter.ai/qwen/qwen3-next-80b-a3b-instruct:free)) — recommended free model
-    - `OpenAI: GPT-OSS 120B` (FREE MODEL: `openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free)) — recommended free model
+    - Free Models:
+        - `OpenAI: GPT-OSS 120B` (FREE MODEL: `openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free))
+        - `Google: Gemma 4 26B A4B IT` (FREE MODEL: `google/gemma-4-26b-a4b-it:free`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it:free))
+        - `Google: Gemma 4 31B IT` (FREE MODEL: `google/gemma-4-31b-it:free`: [Link](https://openrouter.ai/google/gemma-4-31b-it:free))
+    - For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend:
+        - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
+        - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
+        - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
     - Note: free model providers may collect your data; check the model page for details before use
     - Note: free model availability changes frequently — for the latest free options, visit the [OpenRouter Models Page](https://openrouter.ai/models) and use the **Prompt Pricing** filter to find currently free models
 6. Input the base URL `https://openrouter.ai/api/v1` **OpenAI Compatible Server → Base URL**.
