@@ -340,6 +340,20 @@ export class KGAudioInterface {
   }
 
   /**
+   * Check whether an audio track currently has a player bus.
+   */
+  public hasTrackAudioPlayerBus(trackId: string): boolean {
+    return this.trackAudioPlayerBuses.has(trackId);
+  }
+
+  /**
+   * Check whether an audio buffer is loaded on a specific track's player bus.
+   */
+  public hasAudioBufferForTrack(trackId: string, audioFileId: string): boolean {
+    return this.trackAudioPlayerBuses.get(trackId)?.hasBuffer(audioFileId) ?? false;
+  }
+
+  /**
    * Load an audio buffer into a track's player bus
    */
   public loadAudioBufferForTrack(

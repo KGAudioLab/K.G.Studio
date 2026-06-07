@@ -317,6 +317,66 @@ function getAudioRecordingExtension(mimeType: string): string {
   return 'webm';
 }
 
+const pendingAudioBufferHydrations = new Set<string>();
+
+async function decodeStoredAudioFile(arrayBuffer: ArrayBuffer): Promise<Tone.ToneAudioBuffer> {
+  const audioContext = Tone.getContext().rawContext as AudioContext;
+  const decoded = await audioContext.decodeAudioData(arrayBuffer);
+  const toneBuffer = new Tone.ToneAudioBuffer();
+  toneBuffer.set(decoded);
+  return toneBuffer;
+}
+
+async function hydrateAudioTrackBuffers(project: KGProject): Promise<boolean> {
+  const audioInterface = KGAudioInterface.instance();
+  const projectName = project.getName();
+  let hydratedAnyBuffer = false;
+
+  for (const track of project.getTracks()) {
+    if (track.getCurrentType() !== 'KGAudioTrack') {
+      continue;
+    }
+
+    const audioTrack = track as KGAudioTrack;
+    const trackId = audioTrack.getId().toString();
+
+    if (!audioInterface.hasTrackAudioPlayerBus(trackId)) {
+      await audioInterface.createTrackAudioPlayerBus(trackId, audioTrack.getVolume());
+    }
+
+    for (const region of audioTrack.getRegions()) {
+      if (region.getCurrentType() !== 'KGAudioRegion') {
+        continue;
+      }
+
+      const audioRegion = region as KGAudioRegion;
+      const audioFileId = audioRegion.getAudioFileId();
+      if (!audioFileId || audioInterface.hasAudioBufferForTrack(trackId, audioFileId)) {
+        continue;
+      }
+
+      const hydrationKey = `${projectName}:${trackId}:${audioFileId}`;
+      if (pendingAudioBufferHydrations.has(hydrationKey)) {
+        continue;
+      }
+
+      pendingAudioBufferHydrations.add(hydrationKey);
+      try {
+        const arrayBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
+        const toneBuffer = await decodeStoredAudioFile(arrayBuffer);
+        audioInterface.loadAudioBufferForTrack(trackId, audioFileId, toneBuffer);
+        hydratedAnyBuffer = true;
+      } catch (err) {
+        console.error(`Failed to load audio file ${audioFileId}:`, err);
+      } finally {
+        pendingAudioBufferHydrations.delete(hydrationKey);
+      }
+    }
+  }
+
+  return hydratedAnyBuffer;
+}
+
 // Create the store
 export const useProjectStore = create<ProjectState>((set, get) => {
   const currentProject = KGCore.instance().getCurrentProject();
@@ -887,34 +947,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         });
 
         // Create synths/buses for all tracks (with their stored volumes)
-        const projectName = projectToLoad.getName();
         for (const track of tracks) {
           const trackId = track.getId().toString();
 
           if (track.getCurrentType() === 'KGAudioTrack') {
-            // Audio track: create player bus and load audio buffers
+            // Audio track: create player bus; buffers are hydrated in a shared pass below
             await audioInterface.createTrackAudioPlayerBus(trackId, track.getVolume());
-
-            // Load audio buffers for all regions in this audio track
-            const audioTrack = track as KGAudioTrack;
-            for (const region of audioTrack.getRegions()) {
-              if (region.getCurrentType() === 'KGAudioRegion') {
-                const audioRegion = region as KGAudioRegion;
-                const audioFileId = audioRegion.getAudioFileId();
-                if (audioFileId) {
-                  try {
-                    const arrayBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
-                    const audioContext = Tone.getContext().rawContext as AudioContext;
-                    const decoded = await audioContext.decodeAudioData(arrayBuffer);
-                    const toneBuffer = new Tone.ToneAudioBuffer();
-                    toneBuffer.set(decoded);
-                    audioInterface.loadAudioBufferForTrack(trackId, audioFileId, toneBuffer);
-                  } catch (err) {
-                    console.error(`Failed to load audio file ${audioFileId}:`, err);
-                  }
-                }
-              }
-            }
           } else {
             // MIDI track: create sampler-based audio bus
             let instrument: InstrumentType = 'acoustic_grand_piano';
@@ -925,6 +963,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             audioInterface.setTrackVolume(trackId, track.getVolume());
           }
         }
+
+        await hydrateAudioTrackBuffers(projectToLoad);
 
         // Reapply restored mute/solo state after all buses exist so solo logic can be
         // computed against the full track set.
@@ -1926,6 +1966,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const actions = get();
       actions.syncUndoRedoState();
       actions.syncSelectionFromCore();
+
+      void hydrateAudioTrackBuffers(project).then((hydratedAnyBuffer) => {
+        if (!hydratedAnyBuffer) {
+          return;
+        }
+
+        set(state => ({
+          tracks: [...project.getTracks()] as KGTrack[],
+          audioWaveformRedrawVersion: state.audioWaveformRedrawVersion + 1,
+        }));
+      });
     },
 
     // Initialize store with configuration values
