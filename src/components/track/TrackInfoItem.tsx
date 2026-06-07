@@ -4,7 +4,7 @@ import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
 import { useProjectStore } from '../../stores/projectStore';
 import { TbPiano } from 'react-icons/tb';
-import { TbSettings } from 'react-icons/tb';
+import { TbDots } from 'react-icons/tb';
 import { FaFileAudio } from 'react-icons/fa';
 import KGDropdown from '../common/KGDropdown';
 import FileImportModal from '../common/FileImportModal';
@@ -535,15 +535,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             )}
           </div>
           <div style={{ position: 'relative' }} ref={settingsDropdownRef}>
-            <button className="settings" onClick={handleSettingsButtonClick}>
-              <TbSettings />
+            <button
+              className="settings"
+              onClick={handleSettingsButtonClick}
+              title={t('track.controls.moreActions')}
+              aria-label={t('track.controls.moreActions')}
+            >
+              <TbDots />
             </button>
             <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
               <KGDropdown
                 options={[{ label: t('track.controls.settings.deleteTrack'), value: 'Delete Track' }]}
                 value={''}
                 onChange={handleSettingsAction}
-                label={t('track.controls.settingsDropdown')}
+                label={t('track.controls.moreActions')}
                 hideButton={true}
                 isOpen={showSettingsDropdown}
                 onToggle={setShowSettingsDropdown}

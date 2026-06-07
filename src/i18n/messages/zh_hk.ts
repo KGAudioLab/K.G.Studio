@@ -535,7 +535,7 @@ export const zhHkMessages: TranslationMessages = {
   'track.controls.automationDropdown': '自動化',
   'track.controls.automation.volume': '音量',
   'track.controls.automation.pan': '聲像',
-  'track.controls.settingsDropdown': '設定',
+  'track.controls.moreActions': '更多操作',
   'track.controls.settings.deleteTrack': '刪除音軌',
   'toolbar.keySignatureChooser': '選擇調號，當前為 {value}',
   'toolbar.export.label': '匯出',

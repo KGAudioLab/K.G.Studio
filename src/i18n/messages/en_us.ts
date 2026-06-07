@@ -537,7 +537,7 @@ export const enUsMessages: TranslationMessages = {
   'track.controls.automationDropdown': 'Automation',
   'track.controls.automation.volume': 'Volume',
   'track.controls.automation.pan': 'Pan',
-  'track.controls.settingsDropdown': 'Settings',
+  'track.controls.moreActions': 'More actions',
   'track.controls.settings.deleteTrack': 'Delete Track',
   'toolbar.keySignatureChooser': 'Choose key signature, current {value}',
   'toolbar.export.label': 'Export',
