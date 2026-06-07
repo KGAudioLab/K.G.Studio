@@ -1,3 +1,10 @@
+# [0.20.3-build.20260607] (2026-06-07)
+
+* Merge pull request #52 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (7af9662)
+* fix: minor UI adjustments (6b9fe85)
+* fix: audio track undo buffer rehydration (94befcd)
+* fix: support numeric track_id arguments across track tools (a76a8ab)
+
 # [0.20.2-build.20260606] (2026-06-06)
 
 * Merge pull request #51 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (b8d17f4)
