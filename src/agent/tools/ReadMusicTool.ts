@@ -6,6 +6,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { convertRegionToABCNotation } from '../../util/abcNotationUtil';
 import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 
 /**
  * Tool for reading music content from the project
@@ -68,12 +69,13 @@ export class ReadMusicTool extends BaseTool {
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
+      const normalizedParams = normalizeOptionalTrackIdParam(params);
       // Validate parameters
-      this.validateParameters(params);
+      this.validateParameters(normalizedParams);
 
-      const trackId = params.track_id as string | undefined;
-      const startBeat = (params.start as number) || 0;
-      const length = params.length as number | undefined;
+      const trackId = normalizedParams.track_id as string | undefined;
+      const startBeat = (normalizedParams.start as number) || 0;
+      const length = normalizedParams.length as number | undefined;
 
       const project = this.getCurrentProject();
       const tracks = project.getTracks();
@@ -140,6 +142,7 @@ export class ReadMusicTool extends BaseTool {
     startBar: number;
     endBar: number;
   } | null {
+    const normalizedArgs = normalizeOptionalTrackIdParam(args);
     const project = this.getCurrentProject();
     const tracks = project.getTracks();
     if (tracks.length === 0) {
@@ -147,8 +150,8 @@ export class ReadMusicTool extends BaseTool {
     }
 
     const beatsPerBar = project.getTimeSignature().numerator;
-    const startBeat = (args.start as number) || 0;
-    const length = args.length as number | undefined;
+    const startBeat = (normalizedArgs.start as number) || 0;
+    const length = normalizedArgs.length as number | undefined;
     if (startBeat < 0 || (length !== undefined && length <= 0)) {
       return null;
     }
@@ -157,9 +160,9 @@ export class ReadMusicTool extends BaseTool {
     const rawEndBeat = length !== undefined ? startBeat + length : undefined;
     const roundedEndBeat = rawEndBeat !== undefined
       ? Math.ceil(rawEndBeat / beatsPerBar) * beatsPerBar
-      : this.getTrackReadEndBeat(args, tracks, roundedStartBeat);
+      : this.getTrackReadEndBeat(normalizedArgs, tracks, roundedStartBeat);
 
-    const trackNames = this.resolveSummaryTrackNames(args, tracks);
+    const trackNames = this.resolveSummaryTrackNames(normalizedArgs, tracks);
     if (trackNames.length === 0 || roundedEndBeat === undefined) {
       return null;
     }

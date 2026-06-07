@@ -3,6 +3,7 @@ import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { BaseTool } from './BaseTool';
 import type { ToolParameter, ToolResult } from './BaseTool';
 import { resolveMidiTrackByExactName, resolveMidiTrackByIdOrName } from './toolTargeting';
+import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 
 export class DeleteTrackTool extends BaseTool {
   readonly name = 'delete_track';
@@ -35,12 +36,14 @@ export class DeleteTrackTool extends BaseTool {
       return undefined;
     }
 
-    if (typeof args.track_id === 'string') {
-      return `Allow deleting track ID **${args.track_id}**?`;
+    const normalizedArgs = normalizeOptionalTrackIdParam(args);
+
+    if (typeof normalizedArgs.track_id === 'string') {
+      return `Allow deleting track ID **${normalizedArgs.track_id}**?`;
     }
 
-    if (typeof args.track_name === 'string') {
-      return `Allow deleting track **${args.track_name}**?`;
+    if (typeof normalizedArgs.track_name === 'string') {
+      return `Allow deleting track **${normalizedArgs.track_name}**?`;
     }
 
     return undefined;
@@ -66,10 +69,11 @@ export class DeleteTrackTool extends BaseTool {
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      this.validateParameters(params);
+      const normalizedParams = normalizeOptionalTrackIdParam(params);
+      this.validateParameters(normalizedParams);
 
-      const trackId = params.track_id as string | undefined;
-      const trackName = params.track_name as string | undefined;
+      const trackId = normalizedParams.track_id as string | undefined;
+      const trackName = normalizedParams.track_name as string | undefined;
 
       if (!trackId && !trackName) {
         return this.createErrorResult('Either track_id or track_name must be provided.');

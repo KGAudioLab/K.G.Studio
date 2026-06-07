@@ -9,6 +9,7 @@ import {
   resolveMidiTrackByExactName,
   resolveMidiTrackByIdOrName,
 } from './toolTargeting';
+import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 
 export class UpdateTrackTool extends BaseTool {
   readonly name = 'update_track';
@@ -51,12 +52,13 @@ export class UpdateTrackTool extends BaseTool {
       return undefined;
     }
 
+    const normalizedArgs = normalizeOptionalTrackIdParam(args);
     const normalizedInstrumentName = this.normalizeOptionalString(args.instrument);
     const normalizedNewTrackName = this.normalizeOptionalString(args.new_track_name);
-    const targetLabel = typeof args.track_id === 'string'
-      ? `track ID **${args.track_id}**`
-      : typeof args.track_name === 'string'
-        ? `track **${args.track_name}**`
+    const targetLabel = typeof normalizedArgs.track_id === 'string'
+      ? `track ID **${normalizedArgs.track_id}**`
+      : typeof normalizedArgs.track_name === 'string'
+        ? `track **${normalizedArgs.track_name}**`
         : null;
     if (!targetLabel) {
       return undefined;
@@ -98,12 +100,13 @@ export class UpdateTrackTool extends BaseTool {
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      this.validateParameters(params);
+      const normalizedParams = normalizeOptionalTrackIdParam(params);
+      this.validateParameters(normalizedParams);
 
-      const trackId = params.track_id as string | undefined;
-      const trackName = params.track_name as string | undefined;
-      const instrumentName = this.normalizeOptionalString(params.instrument);
-      const newTrackName = this.normalizeOptionalString(params.new_track_name);
+      const trackId = normalizedParams.track_id as string | undefined;
+      const trackName = normalizedParams.track_name as string | undefined;
+      const instrumentName = this.normalizeOptionalString(normalizedParams.instrument);
+      const newTrackName = this.normalizeOptionalString(normalizedParams.new_track_name);
 
       if (!trackId && !trackName) {
         return this.createErrorResult('Either track_id or track_name must be provided.');

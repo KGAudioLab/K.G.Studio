@@ -16,6 +16,7 @@ import { ResizeRegionCommand } from '../../core/commands/region/ResizeRegionComm
 import { KGCore } from '../../core/KGCore';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 
 interface RequestedNote {
   pitch: string;
@@ -226,9 +227,10 @@ export class AddNotesTool extends BaseTool {
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      this.validateParameters(params);
+      const normalizedParams = normalizeOptionalTrackIdParam(params);
+      this.validateParameters(normalizedParams);
 
-      const notes = params.notes as RequestedNote[];
+      const notes = normalizedParams.notes as RequestedNote[];
       if (notes.length === 0) {
         return this.createErrorResult('No notes were provided.');
       }
@@ -255,8 +257,8 @@ export class AddNotesTool extends BaseTool {
         }
       }
 
-      const trackId = params.track_id as string | undefined;
-      const trackName = params.track_name as string | undefined;
+      const trackId = normalizedParams.track_id as string | undefined;
+      const trackName = normalizedParams.track_name as string | undefined;
       if (trackId || trackName) {
         const explicitTrack = resolveMidiTrackByIdOrName(trackId, trackName);
         if (!explicitTrack) {
@@ -291,7 +293,8 @@ export class AddNotesTool extends BaseTool {
   }
 
   private buildSummaryData(args: Record<string, unknown>): AddNotesSummaryData | null {
-    const typedArgs = args as {
+    const normalizedArgs = normalizeOptionalTrackIdParam(args);
+    const typedArgs = normalizedArgs as {
       notes?: Array<{ start: number; length: number }>;
       track_id?: string;
       track_name?: string;
