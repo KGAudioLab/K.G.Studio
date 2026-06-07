@@ -2,12 +2,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
+import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { createDefaultGlobalTracks } from '../core/global-track';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
   setPianoRollZoom: vi.fn(),
 }));
+
+const audioStorageMocks = vi.hoisted(() => ({
+  loadAudioFile: vi.fn(),
+}));
+
+const toneMocks = vi.hoisted(() => {
+  const decodeAudioData = vi.fn();
+  const toneBufferSet = vi.fn();
+
+  class MockToneAudioBuffer {
+    public set = toneBufferSet;
+  }
+
+  return {
+    decodeAudioData,
+    toneBufferSet,
+    ToneAudioBuffer: MockToneAudioBuffer,
+  };
+});
 
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 let mockIsMetronomeEnabled = false;
@@ -44,6 +65,9 @@ const mockAudioInterface = {
   removeTrackSynth: vi.fn(),
   removeTrackAudioPlayerBus: vi.fn(),
   createTrackAudioPlayerBus: vi.fn().mockResolvedValue(undefined),
+  hasTrackAudioPlayerBus: vi.fn().mockReturnValue(true),
+  hasAudioBufferForTrack: vi.fn().mockReturnValue(false),
+  getAudioBuffer: vi.fn(),
   loadAudioBufferForTrack: vi.fn(),
   createTrackSynth: vi.fn(),
   setTrackVolume: vi.fn(),
@@ -96,6 +120,21 @@ vi.mock('../core/audio-interface/KGAudioInterface', () => ({
   },
 }));
 
+vi.mock('../core/io/KGAudioFileStorage', () => ({
+  KGAudioFileStorage: {
+    loadAudioFile: audioStorageMocks.loadAudioFile,
+  },
+}));
+
+vi.mock('tone', () => ({
+  getContext: () => ({
+    rawContext: {
+      decodeAudioData: toneMocks.decodeAudioData,
+    },
+  }),
+  ToneAudioBuffer: toneMocks.ToneAudioBuffer,
+}));
+
 vi.mock('../core/config/ConfigManager', () => ({
   ConfigManager: {
     instance: () => ({
@@ -139,7 +178,18 @@ describe('projectStore piano roll state', () => {
     mockAudioInterface.cancelAudioRecording.mockResolvedValue(undefined);
     mockAudioInterface.getTransportPosition.mockReset();
     mockAudioInterface.getTransportPosition.mockReturnValue(8);
+    mockAudioInterface.hasTrackAudioPlayerBus.mockReset();
+    mockAudioInterface.hasTrackAudioPlayerBus.mockReturnValue(true);
+    mockAudioInterface.hasAudioBufferForTrack.mockReset();
+    mockAudioInterface.hasAudioBufferForTrack.mockReturnValue(false);
+    mockAudioInterface.getAudioBuffer.mockReset();
+    mockAudioInterface.createTrackAudioPlayerBus.mockReset();
+    mockAudioInterface.createTrackAudioPlayerBus.mockResolvedValue(undefined);
+    mockAudioInterface.loadAudioBufferForTrack.mockReset();
     mockAudioInterface.setMetronomeEnabled.mockReset();
+    audioStorageMocks.loadAudioFile.mockReset();
+    toneMocks.decodeAudioData.mockReset();
+    toneMocks.toneBufferSet.mockReset();
     mockIsMetronomeEnabled = false;
     mockShowGlobalTracks = false;
     mockProject.setIsMetronomeEnabled.mockClear();
@@ -374,6 +424,96 @@ describe('projectStore piano roll state', () => {
     });
 
     expect(useProjectStore.getState().trackAutomationRedrawVersion).toBe(initialVersion + 2);
+  });
+
+  it('rehydrates missing audio buffers during refreshProjectState', async () => {
+    const audioTrack = new KGAudioTrack('Audio 1', 1);
+    audioTrack.setTrackIndex(0);
+    audioTrack.setRegions([
+      new KGAudioRegion('audio-region-1', '1', 0, 'clip.wav', 0, 4, 'audio-file-1.wav', 'clip.wav', 2.5),
+    ]);
+    mockTracks = [audioTrack];
+
+    const decodedBuffer = { duration: 2.5 } as AudioBuffer;
+    audioStorageMocks.loadAudioFile.mockResolvedValue(new ArrayBuffer(16));
+    toneMocks.decodeAudioData.mockResolvedValue(decodedBuffer);
+
+    const { useProjectStore } = await import('./projectStore');
+
+    await act(async () => {
+      useProjectStore.getState().refreshProjectState();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(audioStorageMocks.loadAudioFile).toHaveBeenCalledWith('Test Project', 'audio-file-1.wav');
+    expect(toneMocks.decodeAudioData).toHaveBeenCalled();
+    expect(mockAudioInterface.loadAudioBufferForTrack).toHaveBeenCalledWith(
+      '1',
+      'audio-file-1.wav',
+      expect.any(toneMocks.ToneAudioBuffer),
+    );
+  });
+
+  it('reloads a restored audio track buffer on undo', async () => {
+    const restoredTrack = new KGAudioTrack('Audio 1', 1);
+    restoredTrack.setTrackIndex(0);
+    const restoredRegion = new KGAudioRegion(
+      'audio-region-1',
+      '1',
+      0,
+      'clip.wav',
+      0,
+      4,
+      'audio-file-1.wav',
+      'clip.wav',
+      2.5,
+    );
+    restoredTrack.setRegions([restoredRegion]);
+
+    mockTracks = [];
+    mockCore.undo.mockImplementationOnce(() => {
+      mockTracks = [restoredTrack];
+      return true;
+    });
+
+    const decodedBuffer = { duration: 2.5 } as AudioBuffer;
+    audioStorageMocks.loadAudioFile.mockResolvedValue(new ArrayBuffer(16));
+    toneMocks.decodeAudioData.mockResolvedValue(decodedBuffer);
+
+    const { useProjectStore } = await import('./projectStore');
+    const initialWaveformVersion = useProjectStore.getState().audioWaveformRedrawVersion;
+
+    await act(async () => {
+      useProjectStore.getState().undo();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.tracks).toHaveLength(1);
+    const restoredTrackState = state.tracks[0] as KGAudioTrack;
+    expect((restoredTrackState.getRegions()[0] as KGAudioRegion).getAudioFileId()).toBe('audio-file-1.wav');
+    expect(mockAudioInterface.loadAudioBufferForTrack).toHaveBeenCalledWith(
+      '1',
+      'audio-file-1.wav',
+      expect.any(toneMocks.ToneAudioBuffer),
+    );
+    expect(state.audioWaveformRedrawVersion).toBeGreaterThan(initialWaveformVersion);
+  });
+
+  it('does not attempt audio buffer hydration for MIDI-only undo', async () => {
+    mockTracks = [new KGMidiTrack('Track 1', 1, 'acoustic_grand_piano')];
+
+    const { useProjectStore } = await import('./projectStore');
+
+    await act(async () => {
+      useProjectStore.getState().undo();
+      await Promise.resolve();
+    });
+
+    expect(audioStorageMocks.loadAudioFile).not.toHaveBeenCalled();
+    expect(mockAudioInterface.loadAudioBufferForTrack).not.toHaveBeenCalled();
   });
 
   it('restores Chat after closing Settings when Chat was active on entry', async () => {

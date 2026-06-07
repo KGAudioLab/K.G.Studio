@@ -421,7 +421,7 @@ export const frFrMessages: TranslationMessages = {
   'track.controls.automationDropdown': 'Automation',
   'track.controls.automation.volume': 'Volume',
   'track.controls.automation.pan': 'Panoramique',
-  'track.controls.settingsDropdown': 'Réglages',
+  'track.controls.moreActions': 'Autres actions',
   'track.controls.settings.deleteTrack': 'Supprimer la piste',
   'toolbar.keySignatureChooser': 'Choisir l\'armure, actuelle : {value}',
   'toolbar.export.label': 'Exporter',

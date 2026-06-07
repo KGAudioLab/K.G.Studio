@@ -87,6 +87,26 @@ describe('AddNotesTool', () => {
     expect(createdRegion.getNotes().map(note => note.getStartBeat())).toEqual([0, 2]);
   });
 
+  it('accepts a numeric track_id and creates notes on the matching track', async () => {
+    const track = new KGMidiTrack('Lead', 1);
+    const project = new KGProject('numeric-track-id-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+    project.setTracks([track]);
+    mockCore(project);
+
+    const tool = new AddNotesTool();
+    const result = await tool.execute({
+      track_id: track.getId(),
+      notes: [{ pitch: 'C4', start: 8, length: 2 }],
+    });
+
+    expect(result.success).toBe(true);
+    expect(track.getRegions()).toHaveLength(1);
+    const createdRegion = track.getRegions()[0] as KGMidiRegion;
+    expect(createdRegion.getName()).toBe('Lead Region');
+    expect(createdRegion.getNotes()).toHaveLength(1);
+    expect(createdRegion.getNotes()[0].getStartBeat()).toBe(0);
+  });
+
   it('targets a track by track_name when track_id is omitted', async () => {
     const targetTrack = new KGMidiTrack('Lead', 1);
     const otherTrack = new KGMidiTrack('Bass', 2);
@@ -116,6 +136,26 @@ describe('AddNotesTool', () => {
     const tool = new AddNotesTool();
     const result = await tool.execute({
       track_id: bassTrack.getId().toString(),
+      track_name: 'Lead',
+      notes: [{ pitch: 'C4', start: 8, length: 2 }],
+    });
+
+    expect(result.success).toBe(true);
+    expect(leadTrack.getRegions()).toHaveLength(0);
+    expect(bassTrack.getRegions()).toHaveLength(1);
+    expect((bassTrack.getRegions()[0] as KGMidiRegion).getName()).toBe('Bass Region');
+  });
+
+  it('uses a numeric track_id when both track_id and track_name are provided', async () => {
+    const leadTrack = new KGMidiTrack('Lead', 1);
+    const bassTrack = new KGMidiTrack('Bass', 2);
+    const project = new KGProject('numeric-track-id-precedence-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+    project.setTracks([leadTrack, bassTrack]);
+    mockCore(project);
+
+    const tool = new AddNotesTool();
+    const result = await tool.execute({
+      track_id: bassTrack.getId(),
       track_name: 'Lead',
       notes: [{ pitch: 'C4', start: 8, length: 2 }],
     });
@@ -167,6 +207,29 @@ describe('AddNotesTool', () => {
     expect(regionB.getNotes()).toHaveLength(2);
     expect(regionB.getNotes().find(note => note.getId() === 'note-existing')?.getStartBeat()).toBe(2);
     expect(regionB.getNotes().find(note => note.getId() !== 'note-existing')?.getStartBeat()).toBe(0);
+  });
+
+  it('builds summaries when track_id is provided as a number', () => {
+    const track = new KGMidiTrack('Lead', 1);
+    const project = new KGProject('numeric-track-id-summary-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+    project.setTracks([track]);
+    mockCore(project);
+
+    const tool = new AddNotesTool();
+    const args = {
+      track_id: track.getId(),
+      notes: [
+        { pitch: 'C4', start: 8, length: 2 },
+        { pitch: 'E4', start: 10, length: 2 },
+      ],
+    };
+
+    expect(tool.buildToolResultDisplayContent(args, { success: true, result: 'raw result' })).toBe(
+      'Successfully created 2 notes in new region **Lead Region** on track **Lead**, spanning bars 3 to 3.',
+    );
+    expect(tool.buildConfirmationContent(args)).toBe(
+      'Allow creating 2 notes on track **Lead** in a new region, spanning bars 3 to 3?',
+    );
   });
 
   it('returns distinct raw, history, and UI guidance when no MIDI target is available', async () => {

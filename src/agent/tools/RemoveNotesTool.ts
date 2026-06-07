@@ -12,6 +12,7 @@ import { DeleteNotesCommand } from '../../core/commands/note/DeleteNotesCommand'
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 
 interface RemoveTargetRegionContext {
   region: KGMidiRegion;
@@ -106,12 +107,13 @@ export class RemoveNotesTool extends BaseTool {
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      this.validateParameters(params);
+      const normalizedParams = normalizeOptionalTrackIdParam(params);
+      this.validateParameters(normalizedParams);
 
-      const startBeat = params.start as number;
-      const endBeat = params.end as number;
-      const trackId = params.track_id as string | undefined;
-      const trackName = params.track_name as string | undefined;
+      const startBeat = normalizedParams.start as number;
+      const endBeat = normalizedParams.end as number;
+      const trackId = normalizedParams.track_id as string | undefined;
+      const trackName = normalizedParams.track_name as string | undefined;
 
       if (startBeat < 0) {
         return this.createErrorResult(`Invalid start ${startBeat}. Must be >= 0.`);
@@ -159,7 +161,8 @@ export class RemoveNotesTool extends BaseTool {
   }
 
   private buildSummaryData(args: Record<string, unknown>): RemoveNotesSummaryData | null {
-    const typedArgs = args as {
+    const normalizedArgs = normalizeOptionalTrackIdParam(args);
+    const typedArgs = normalizedArgs as {
       start?: number;
       end?: number;
       track_id?: string;

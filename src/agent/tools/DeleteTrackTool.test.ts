@@ -52,6 +52,24 @@ describe('DeleteTrackTool', () => {
     );
   });
 
+  it('deletes a MIDI track by numeric track_id', async () => {
+    const leadTrack = new KGMidiTrack('Lead', 1, 'trumpet');
+    const bassTrack = new KGMidiTrack('Bass', 2, 'acoustic_bass');
+    const project = new KGProject('delete-by-numeric-id-project');
+    project.setTracks([leadTrack, bassTrack]);
+    mockCore(project);
+
+    const tool = new DeleteTrackTool();
+    const result = await tool.execute({ track_id: 1 });
+
+    expect(result).toEqual({
+      success: true,
+      result: 'Track deleted:\ntrack_id: 1\ntrack_name: Lead',
+    });
+    expect(project.getTracks().map(track => track.getName())).toEqual(['Bass']);
+    expect(tool.buildConfirmationContent({ track_id: 1 })).toBe('Allow deleting track ID **1**?');
+  });
+
   it('deletes a MIDI track by track_name', async () => {
     const leadTrack = new KGMidiTrack('Lead', 1, 'trumpet');
     const bassTrack = new KGMidiTrack('Bass', 2, 'acoustic_bass');
@@ -79,6 +97,23 @@ describe('DeleteTrackTool', () => {
     const tool = new DeleteTrackTool();
     const result = await tool.execute({
       track_id: '2',
+      track_name: 'Lead',
+    });
+
+    expect(result.success).toBe(true);
+    expect(project.getTracks().map(track => track.getName())).toEqual(['Lead']);
+  });
+
+  it('uses numeric track_id when both track_id and track_name are provided', async () => {
+    const leadTrack = new KGMidiTrack('Lead', 1, 'trumpet');
+    const bassTrack = new KGMidiTrack('Bass', 2, 'acoustic_bass');
+    const project = new KGProject('delete-numeric-track-id-precedence-project');
+    project.setTracks([leadTrack, bassTrack]);
+    mockCore(project);
+
+    const tool = new DeleteTrackTool();
+    const result = await tool.execute({
+      track_id: 2,
       track_name: 'Lead',
     });
 

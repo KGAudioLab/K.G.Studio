@@ -56,6 +56,29 @@ describe('UpdateTrackTool', () => {
     );
   });
 
+  it('renames a track by numeric track_id', async () => {
+    const track = new KGMidiTrack('Lead', 1, 'trumpet');
+    const project = new KGProject('rename-track-numeric-project');
+    project.setTracks([track]);
+    mockCore(project);
+
+    const tool = new UpdateTrackTool();
+    const result = await tool.execute({
+      track_id: 1,
+      new_track_name: 'Lead 2',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      result: 'Track updated:\ntrack_id: 1\ntrack_name: Lead 2\ninstrument: Trumpet',
+    });
+    expect(track.getName()).toBe('Lead 2');
+    expect(tool.buildConfirmationContent({
+      track_id: 1,
+      new_track_name: 'Lead 2',
+    })).toBe('Allow updating track ID **1** to rename to **Lead 2**?');
+  });
+
   it('updates a track instrument by track_name', async () => {
     const track = new KGMidiTrack('Lead', 1, 'trumpet');
     const project = new KGProject('instrument-track-project');
@@ -106,6 +129,25 @@ describe('UpdateTrackTool', () => {
     const tool = new UpdateTrackTool();
     const result = await tool.execute({
       track_id: '2',
+      track_name: 'Lead',
+      new_track_name: 'Bass 2',
+    });
+
+    expect(result.success).toBe(true);
+    expect(leadTrack.getName()).toBe('Lead');
+    expect(bassTrack.getName()).toBe('Bass 2');
+  });
+
+  it('uses numeric track_id when both track_id and track_name are provided', async () => {
+    const leadTrack = new KGMidiTrack('Lead', 1, 'trumpet');
+    const bassTrack = new KGMidiTrack('Bass', 2, 'acoustic_bass');
+    const project = new KGProject('numeric-track-id-precedence-project');
+    project.setTracks([leadTrack, bassTrack]);
+    mockCore(project);
+
+    const tool = new UpdateTrackTool();
+    const result = await tool.execute({
+      track_id: 2,
       track_name: 'Lead',
       new_track_name: 'Bass 2',
     });

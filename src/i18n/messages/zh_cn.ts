@@ -535,7 +535,7 @@ export const zhCnMessages: TranslationMessages = {
   'track.controls.automationDropdown': '自动化',
   'track.controls.automation.volume': '音量',
   'track.controls.automation.pan': '声像',
-  'track.controls.settingsDropdown': '设置',
+  'track.controls.moreActions': '更多操作',
   'track.controls.settings.deleteTrack': '删除轨道',
   'toolbar.keySignatureChooser': '选择调号，当前为 {value}',
   'toolbar.export.label': '导出',
