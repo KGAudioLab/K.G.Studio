@@ -77,6 +77,57 @@ function hasExtension(descriptor: Pick<ChordDescriptor, 'extensions'>, extension
   return descriptor.extensions.includes(extension);
 }
 
+interface CollapsedNaturalExtension {
+  suffix: string;
+  consumed: ChordExtension[];
+}
+
+function getCollapsedNaturalExtension(
+  quality: ChordQuality,
+  extensions: ChordExtension[],
+): CollapsedNaturalExtension | null {
+  const has = (extension: ChordExtension) => extensions.includes(extension);
+  const consume = (...consumed: ChordExtension[]): ChordExtension[] => consumed.filter(has);
+
+  if (quality === 'maj' && has('maj7')) {
+    if (has('13')) {
+      return { suffix: 'maj13', consumed: consume('maj7', '9', '11', '13') };
+    }
+    if (has('11')) {
+      return { suffix: 'maj11', consumed: consume('maj7', '9', '11') };
+    }
+    if (has('9')) {
+      return { suffix: 'maj9', consumed: consume('maj7', '9') };
+    }
+  }
+
+  if (quality === 'maj' && has('7')) {
+    if (has('13')) {
+      return { suffix: '13', consumed: consume('7', '9', '11', '13') };
+    }
+    if (has('11')) {
+      return { suffix: '11', consumed: consume('7', '9', '11') };
+    }
+    if (has('9')) {
+      return { suffix: '9', consumed: consume('7', '9') };
+    }
+  }
+
+  if (quality === 'min' && has('7')) {
+    if (has('13')) {
+      return { suffix: 'm13', consumed: consume('7', '9', '11', '13') };
+    }
+    if (has('11')) {
+      return { suffix: 'm11', consumed: consume('7', '9', '11') };
+    }
+    if (has('9')) {
+      return { suffix: 'm9', consumed: consume('7', '9') };
+    }
+  }
+
+  return null;
+}
+
 function getDescriptorIntervals(descriptor: Pick<ChordDescriptor, 'quality' | 'extensions'>): string[] {
   const intervals = ['1P'];
 
@@ -417,43 +468,49 @@ export function buildChordSymbol(descriptor: Pick<ChordDescriptor, 'root' | 'qua
     remainingExtensions.delete('maj7');
     remainingExtensions.delete('#5');
   } else {
-    switch (descriptor.quality) {
-      case 'maj':
-        break;
-      case 'min':
-        symbol += 'm';
-        break;
-      case 'sus2':
-        symbol += 'sus2';
-        break;
-      case 'sus4':
-        symbol += 'sus4';
-        break;
-      case 'power':
-        symbol += '5';
-        break;
-      case 'aug':
-        symbol += 'aug';
-        remainingExtensions.delete('#5');
-        break;
-      case 'dim':
-        symbol += 'dim';
-        remainingExtensions.delete('b5');
-        break;
-    }
+    const collapsedNaturalExtension = getCollapsedNaturalExtension(descriptor.quality, extensions);
+    if (collapsedNaturalExtension) {
+      symbol += collapsedNaturalExtension.suffix;
+      collapsedNaturalExtension.consumed.forEach(extension => remainingExtensions.delete(extension));
+    } else {
+      switch (descriptor.quality) {
+        case 'maj':
+          break;
+        case 'min':
+          symbol += 'm';
+          break;
+        case 'sus2':
+          symbol += 'sus2';
+          break;
+        case 'sus4':
+          symbol += 'sus4';
+          break;
+        case 'power':
+          symbol += '5';
+          break;
+        case 'aug':
+          symbol += 'aug';
+          remainingExtensions.delete('#5');
+          break;
+        case 'dim':
+          symbol += 'dim';
+          remainingExtensions.delete('b5');
+          break;
+      }
 
-    if (has('dim7')) {
-      symbol += 'dim7';
-      remainingExtensions.delete('dim7');
-    } else if (has('maj7')) {
-      symbol += 'maj7';
-      remainingExtensions.delete('maj7');
-    } else if (has('7')) {
-      symbol += '7';
-      remainingExtensions.delete('7');
-    } else if (has('6')) {
-      symbol += '6';
-      remainingExtensions.delete('6');
+      if (has('dim7')) {
+        symbol += 'dim7';
+        remainingExtensions.delete('dim7');
+      } else if (has('maj7')) {
+        symbol += 'maj7';
+        remainingExtensions.delete('maj7');
+      } else if (has('7')) {
+        symbol += '7';
+        remainingExtensions.delete('7');
+      } else if (has('6')) {
+        symbol += '6';
+        remainingExtensions.delete('6');
+      }
     }
   }
 
@@ -530,7 +587,13 @@ export function formatChordSymbolForDisplay(symbol: string): string {
   if (quality === 'dim' && extensions.includes('dim7')) {
     return `${accidentalDisplay(root)}dim7`;
   }
+  const collapsedNaturalExtension = getCollapsedNaturalExtension(quality, extensions);
+  const consumedCollapsedExtensions = new Set(collapsedNaturalExtension?.consumed ?? []);
   const baseQuality = (() => {
+    if (collapsedNaturalExtension) {
+      return '';
+    }
+
     switch (quality) {
       case 'maj':
         return '';
@@ -553,6 +616,10 @@ export function formatChordSymbolForDisplay(symbol: string): string {
   const parentheticalExtensions: string[] = [];
 
   for (const extension of extensions) {
+    if (consumedCollapsedExtensions.has(extension)) {
+      continue;
+    }
+
     if (quality === 'dim' && extension === 'b5' && !extensions.includes('7')) {
       continue;
     }
@@ -565,7 +632,9 @@ export function formatChordSymbolForDisplay(symbol: string): string {
     parentheticalExtensions.push(accidentalDisplay(extension));
   }
 
-  const inlineText = inlineExtensions.join('');
+  const inlineText = collapsedNaturalExtension
+    ? collapsedNaturalExtension.suffix
+    : inlineExtensions.join('');
   const parentheticalText = parentheticalExtensions.length > 0
     ? `(${parentheticalExtensions.join(', ')})`
     : '';
