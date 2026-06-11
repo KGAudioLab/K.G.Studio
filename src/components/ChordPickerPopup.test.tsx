@@ -58,6 +58,20 @@ describe('ChordPickerPopup', () => {
     expect(screen.getByRole('button', { name: 'dim7' }).className).toContain('selected');
   });
 
+  it('preserves suspended seventh chords when parsing text input', () => {
+    const onChange = vi.fn();
+
+    render(<ChordPickerPopup value="C" onChange={onChange} />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'E7sus4' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onChange).toHaveBeenCalledWith('E7sus4');
+    expect(screen.getByRole('button', { name: 'Sus4' }).className).toContain('selected');
+    expect(screen.getByRole('button', { name: '7' }).className).toContain('selected');
+  });
+
   it('intercepts tab and delegates popup bar navigation', () => {
     const onTabNavigate = vi.fn();
 

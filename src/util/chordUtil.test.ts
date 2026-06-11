@@ -44,11 +44,17 @@ describe('chordUtil', () => {
     expect(parseChordSymbol('Dm11')?.symbol).toBe('Dm11');
     expect(parseChordSymbol('G13')?.symbol).toBe('G13');
     expect(parseChordSymbol('Bbmaj9')?.symbol).toBe('Bbmaj9');
+    expect(parseChordSymbol('E7sus4')?.symbol).toBe('E7sus4');
     expect(buildChordSymbol({
       root: 'C',
       quality: 'sus4',
       extensions: ['9'],
     })).toBe('Csus4add9');
+    expect(buildChordSymbol({
+      root: 'E',
+      quality: 'sus4',
+      extensions: ['7'],
+    })).toBe('E7sus4');
   });
 
   it('rejects unsupported symbols deterministically', () => {
@@ -84,6 +90,7 @@ describe('chordUtil', () => {
     expect(convertChordSymbolToMidiPitches('Am')).toEqual([45, 57, 60, 64]);
     expect(convertChordSymbolToMidiPitches('Dm')).toEqual([50, 62, 65, 69]);
     expect(convertChordSymbolToMidiPitches('E7')).toEqual([52, 64, 68, 71, 74]);
+    expect(convertChordSymbolToMidiPitches('E7sus4')).toEqual([52, 64, 69, 71, 74]);
     expect(convertChordSymbolToMidiPitches('Bm7b5')).toEqual([47, 59, 62, 65, 69]);
   });
 
@@ -153,6 +160,25 @@ describe('chordUtil', () => {
       { startBeat: 12, endBeat: 16, pitch: 62, velocity: 127 },
       { startBeat: 12, endBeat: 16, pitch: 65, velocity: 127 },
       { startBeat: 12, endBeat: 16, pitch: 69, velocity: 127 },
+    ]);
+  });
+
+  it('builds an import plan for a suspended dominant chord', () => {
+    const chord = new KGChordRegion('chord-1', 'global-chord', 3, 'E7sus4', 0, 4);
+    const result = buildChordRegionImportPlan([chord]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.plan.sourceRegionIds).toEqual(['chord-1']);
+    expect(result.plan.notes).toEqual([
+      { startBeat: 0, endBeat: 4, pitch: 52, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 69, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 71, velocity: 127 },
+      { startBeat: 0, endBeat: 4, pitch: 74, velocity: 127 },
     ]);
   });
 

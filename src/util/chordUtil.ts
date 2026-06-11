@@ -82,6 +82,25 @@ interface CollapsedNaturalExtension {
   consumed: ChordExtension[];
 }
 
+function getSuspendedSeventhSuffix(
+  quality: ChordQuality,
+  extensions: ChordExtension[],
+): string | null {
+  if (!extensions.includes('7')) {
+    return null;
+  }
+
+  if (quality === 'sus2') {
+    return '7sus2';
+  }
+
+  if (quality === 'sus4') {
+    return '7sus4';
+  }
+
+  return null;
+}
+
 function getCollapsedNaturalExtension(
   quality: ChordQuality,
   extensions: ChordExtension[],
@@ -309,7 +328,15 @@ function parseCustomChordSymbol(symbol: string): ChordDescriptor | null {
   let quality: ChordQuality = 'maj';
   const extensions = new Set<ChordExtension>();
 
-  if (remainder.startsWith('m7b5')) {
+  if (remainder.startsWith('7sus2')) {
+    quality = 'sus2';
+    extensions.add('7');
+    remainder = remainder.slice(5);
+  } else if (remainder.startsWith('7sus4')) {
+    quality = 'sus4';
+    extensions.add('7');
+    remainder = remainder.slice(5);
+  } else if (remainder.startsWith('m7b5')) {
     quality = 'dim';
     extensions.add('b5');
     extensions.add('7');
@@ -473,43 +500,49 @@ export function buildChordSymbol(descriptor: Pick<ChordDescriptor, 'root' | 'qua
       symbol += collapsedNaturalExtension.suffix;
       collapsedNaturalExtension.consumed.forEach(extension => remainingExtensions.delete(extension));
     } else {
-      switch (descriptor.quality) {
-        case 'maj':
-          break;
-        case 'min':
-          symbol += 'm';
-          break;
-        case 'sus2':
-          symbol += 'sus2';
-          break;
-        case 'sus4':
-          symbol += 'sus4';
-          break;
-        case 'power':
-          symbol += '5';
-          break;
-        case 'aug':
-          symbol += 'aug';
-          remainingExtensions.delete('#5');
-          break;
-        case 'dim':
-          symbol += 'dim';
-          remainingExtensions.delete('b5');
-          break;
-      }
-
-      if (has('dim7')) {
-        symbol += 'dim7';
-        remainingExtensions.delete('dim7');
-      } else if (has('maj7')) {
-        symbol += 'maj7';
-        remainingExtensions.delete('maj7');
-      } else if (has('7')) {
-        symbol += '7';
+      const suspendedSeventhSuffix = getSuspendedSeventhSuffix(descriptor.quality, extensions);
+      if (suspendedSeventhSuffix) {
+        symbol += suspendedSeventhSuffix;
         remainingExtensions.delete('7');
-      } else if (has('6')) {
-        symbol += '6';
-        remainingExtensions.delete('6');
+      } else {
+        switch (descriptor.quality) {
+          case 'maj':
+            break;
+          case 'min':
+            symbol += 'm';
+            break;
+          case 'sus2':
+            symbol += 'sus2';
+            break;
+          case 'sus4':
+            symbol += 'sus4';
+            break;
+          case 'power':
+            symbol += '5';
+            break;
+          case 'aug':
+            symbol += 'aug';
+            remainingExtensions.delete('#5');
+            break;
+          case 'dim':
+            symbol += 'dim';
+            remainingExtensions.delete('b5');
+            break;
+        }
+
+        if (has('dim7')) {
+          symbol += 'dim7';
+          remainingExtensions.delete('dim7');
+        } else if (has('maj7')) {
+          symbol += 'maj7';
+          remainingExtensions.delete('maj7');
+        } else if (has('7')) {
+          symbol += '7';
+          remainingExtensions.delete('7');
+        } else if (has('6')) {
+          symbol += '6';
+          remainingExtensions.delete('6');
+        }
       }
     }
   }
@@ -589,8 +622,12 @@ export function formatChordSymbolForDisplay(symbol: string): string {
   }
   const collapsedNaturalExtension = getCollapsedNaturalExtension(quality, extensions);
   const consumedCollapsedExtensions = new Set(collapsedNaturalExtension?.consumed ?? []);
+  const suspendedSeventhSuffix = getSuspendedSeventhSuffix(quality, extensions);
   const baseQuality = (() => {
     if (collapsedNaturalExtension) {
+      return '';
+    }
+    if (suspendedSeventhSuffix) {
       return '';
     }
 
@@ -634,6 +671,8 @@ export function formatChordSymbolForDisplay(symbol: string): string {
 
   const inlineText = collapsedNaturalExtension
     ? collapsedNaturalExtension.suffix
+    : suspendedSeventhSuffix
+      ? suspendedSeventhSuffix
     : inlineExtensions.join('');
   const parentheticalText = parentheticalExtensions.length > 0
     ? `(${parentheticalExtensions.join(', ')})`
