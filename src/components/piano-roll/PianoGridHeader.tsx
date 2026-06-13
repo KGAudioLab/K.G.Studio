@@ -26,20 +26,16 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
   // Utility function to calculate playhead position from mouse coordinates
   const calculatePlayheadFromMouse = useCallback((clientX: number): number | null => {
     if (!headerElementRef.current) return null;
-    
-    const rect = headerElementRef.current.getBoundingClientRect();
+
+    const headerElement = headerElementRef.current;
+    const rect = headerElement.getBoundingClientRect();
     const relativeX = clientX - rect.left;
-    
-    // Account for the piano keys width offset
-    const pianoKeysWidth = hasPianoKeys
-      ? (parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
-        ) || 60)
-      : 0;
-    
-    const adjustedX = relativeX - pianoKeysWidth;
-    
-    // If the click is in the piano keys area (left side), ignore it
+    const scrollContainer = headerElement.closest('.piano-roll-note-scroll') as HTMLElement | null;
+    const scrollLeft = scrollContainer?.scrollLeft ?? 0;
+    const leftGutter = parseFloat(getComputedStyle(headerElement).paddingLeft) || 0;
+    const adjustedX = relativeX + scrollLeft - leftGutter;
+
+    // Ignore clicks inside the visual left gutter reserved for piano keys.
     if (adjustedX < 0) {
       return null;
     }
