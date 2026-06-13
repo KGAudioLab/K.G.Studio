@@ -26,7 +26,7 @@
   background-color: #2d2d2d;
   border-bottom: 1px solid #3a3a3a;
   border-right: 1px solid #3a3a3a;
-  z-index: 1002;
+  z-index: 1005;
   /* Higher than other elements to ensure it's always visible */
   display: flex;
   flex-direction: row;
@@ -107,7 +107,7 @@
   display: flex;
   border-bottom: 1px solid #3a3a3a;
   background-color: #2d2d2d;
-  z-index: 20;
+  z-index: 1004;
   margin-left: var(--track-info-panel-width);
   /* Offset for info-container */
   width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));

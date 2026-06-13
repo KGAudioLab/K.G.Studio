@@ -537,6 +537,8 @@ export const zhCnMessages: TranslationMessages = {
   'track.controls.automation.pan': '声像',
   'track.controls.moreActions': '更多操作',
   'track.controls.settings.deleteTrack': '删除轨道',
+  'track.controls.settings.deleteTrackConfirm': '确定要删除轨道“{name}”吗？',
+  'track.controls.settings.deleteTrackError': '删除轨道失败。请重试。',
   'toolbar.keySignatureChooser': '选择调号，当前为 {value}',
   'toolbar.export.label': '导出',
   'toolbar.importProject.title': '导入项目',

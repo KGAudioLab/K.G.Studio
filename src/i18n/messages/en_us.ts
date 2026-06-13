@@ -539,6 +539,8 @@ export const enUsMessages: TranslationMessages = {
   'track.controls.automation.pan': 'Pan',
   'track.controls.moreActions': 'More actions',
   'track.controls.settings.deleteTrack': 'Delete Track',
+  'track.controls.settings.deleteTrackConfirm': 'Are you sure you want to delete track "{name}"?',
+  'track.controls.settings.deleteTrackError': 'Failed to delete track. Please try again.',
   'toolbar.keySignatureChooser': 'Choose key signature, current {value}',
   'toolbar.export.label': 'Export',
   'toolbar.importProject.title': 'Import Project',

@@ -1,4 +1,4 @@
-import { Chord, Note } from 'tonal';
+import { Note } from 'tonal';
 import { KGChordRegion } from '../core/region/KGChordRegion';
 import { getChordMidiPitches, parseChordSymbol } from './chordUtil';
 
@@ -56,11 +56,6 @@ function getBaseRootMidi(symbol: string): number | null {
 export function convertChordSymbolToMidiPitches(symbol: string): number[] | null {
   const descriptor = parseChordSymbol(symbol);
   if (!descriptor) {
-    return null;
-  }
-
-  const tonalChord = Chord.get(descriptor.symbol);
-  if (tonalChord.empty) {
     return null;
   }
 

@@ -537,6 +537,8 @@ export const zhHkMessages: TranslationMessages = {
   'track.controls.automation.pan': '聲像',
   'track.controls.moreActions': '更多操作',
   'track.controls.settings.deleteTrack': '刪除音軌',
+  'track.controls.settings.deleteTrackConfirm': '確定要刪除音軌「{name}」嗎？',
+  'track.controls.settings.deleteTrackError': '刪除音軌失敗。請再試一次。',
   'toolbar.keySignatureChooser': '選擇調號，當前為 {value}',
   'toolbar.export.label': '匯出',
   'toolbar.importProject.title': '匯入專案',

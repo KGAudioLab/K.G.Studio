@@ -360,7 +360,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   // Handle settings action
   const handleSettingsAction = async (action: string) => {
     if (action === 'Delete Track') {
-      const confirmed = await showConfirm(`Are you sure you want to delete track "${track.getName()}"?`);
+      const confirmed = await showConfirm(
+        t('track.controls.settings.deleteTrackConfirm', { name: track.getName() })
+      );
       if (confirmed) {
         try {
           if (DEBUG_MODE.TRACK_INFO) {
@@ -379,7 +381,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           setShowSettingsDropdown(false);
         } catch (error) {
           console.error('Failed to delete track:', error);
-          await showAlert('Failed to delete track. Please try again.');
+          await showAlert(t('track.controls.settings.deleteTrackError'));
         }
       }
     }

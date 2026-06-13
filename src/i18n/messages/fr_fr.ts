@@ -423,6 +423,8 @@ export const frFrMessages: TranslationMessages = {
   'track.controls.automation.pan': 'Panoramique',
   'track.controls.moreActions': 'Autres actions',
   'track.controls.settings.deleteTrack': 'Supprimer la piste',
+  'track.controls.settings.deleteTrackConfirm': 'Voulez-vous vraiment supprimer la piste « {name} » ?',
+  'track.controls.settings.deleteTrackError': 'Impossible de supprimer la piste. Veuillez réessayer.',
   'toolbar.keySignatureChooser': 'Choisir l\'armure, actuelle : {value}',
   'toolbar.export.label': 'Exporter',
   'toolbar.importProject.title': 'Importer un projet',
