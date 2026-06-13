@@ -1,3 +1,11 @@
+# [0.20.4-build.20260613] (2026-06-13)
+
+* Merge pull request #53 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (fbdba02)
+* fix: playhead location offset issues in piano roll window; z-index issue in `bar-numbers` and `top-left-spacer` (30d8c74)
+* fix: added missing i18n labels (ef7ff08)
+* fix: preserve 7sus4 chord canonicalization for global chord MIDI import (3ba8f81)
+* fix: support extended chord symbols in chord-to-MIDI import (6bfce38)
+
 # [0.20.3-build.20260607] (2026-06-07)
 
 * Merge pull request #52 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (7af9662)
