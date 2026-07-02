@@ -12,6 +12,7 @@ const storeState = {
   removeTrack: vi.fn(),
   toggleInstrumentSelectionForTrack: vi.fn(),
   importAudioToTrack: vi.fn(),
+  updateTrackProperties: vi.fn(),
   tracks: [] as KGAudioTrack[],
   activeTrackAutomationTrackId: null as string | null,
   activeTrackAutomationType: null as string | null,
@@ -21,8 +22,13 @@ const storeState = {
 let fileImportModalProps: Record<string, unknown> | null = null;
 
 vi.mock('../../stores/projectStore', () => ({
-  useProjectStore: (selector?: (state: typeof storeState) => unknown) => (
-    selector ? selector(storeState) : storeState
+  useProjectStore: Object.assign(
+    (selector?: (state: typeof storeState) => unknown) => (
+      selector ? selector(storeState) : storeState
+    ),
+    {
+      getState: () => storeState,
+    },
   ),
 }));
 
@@ -73,6 +79,7 @@ describe('TrackInfoItem audio import', () => {
     storeState.removeTrack.mockReset();
     storeState.toggleInstrumentSelectionForTrack.mockReset();
     storeState.importAudioToTrack.mockReset();
+    storeState.updateTrackProperties.mockReset();
     storeState.setTrackAutomationView.mockReset();
     vi.mocked(showConfirm).mockReset();
   });
@@ -126,5 +133,33 @@ describe('TrackInfoItem audio import', () => {
     expect(showConfirm).toHaveBeenCalledWith(
       translate('track.controls.settings.deleteTrackConfirm', { name: '钢琴' }, 'zh_cn')
     );
+  });
+
+  it('shows the track color entry and clears the color override', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 1);
+    audioTrack.setTrackIndex(0);
+    audioTrack.setColor('#3C8AC4');
+    storeState.tracks = [audioTrack];
+    storeState.updateTrackProperties.mockResolvedValue(undefined);
+
+    render(
+      <TrackInfoItem
+        track={audioTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '轨道颜色...' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset color' }));
+
+    expect(storeState.updateTrackProperties).toHaveBeenCalledWith(1, { color: null });
   });
 });

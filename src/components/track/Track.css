@@ -259,6 +259,49 @@
   color: #101010;
 }
 
+.track-settings-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10000;
+  margin-top: 2px;
+  min-width: 120px;
+  padding: 4px 0;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: #2d2d2d;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.track-settings-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100%;
+  min-width: 120px;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 6px 10px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #e0e0e0 !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap;
+}
+
+.track-settings-menu-item:hover {
+  background: #444 !important;
+}
+
+.track-settings-color-popup {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 6px);
+  z-index: 10001;
+}
+
 .track-grid.automation-active {
   position: relative;
 }

@@ -5,6 +5,7 @@ import { ConfigManager } from './config/ConfigManager';
 import { KGProjectStorage } from './io/KGProjectStorage';
 import { KGConfigUpgrader } from './config-upgrader/KGConfigUpgrader';
 import { KGMidiRegion } from './region/KGMidiRegion';
+import { KGAudioRegion } from './region/KGAudioRegion';
 import { KGMidiNote } from './midi/KGMidiNote';
 import { KGMidiControllerEvent } from './midi/KGMidiControllerEvent';
 import { KGMidiPitchBend } from './midi/KGMidiPitchBend';
@@ -535,6 +536,7 @@ export class KGCore {
             region.getStartFromBeat(),
             region.getLength()
           );
+          clonedRegion.setColor(region.getColor());
           
           // Copy all notes within the region
           const originalNotes = region.getNotes();
@@ -568,6 +570,25 @@ export class KGCore {
           clonedItems.push(clonedRegion);
           break;
         }
+
+        case 'KGAudioRegion': {
+          const region = item as KGAudioRegion;
+          const clonedRegion = new KGAudioRegion(
+            generateUniqueId('KGAudioRegion'),
+            region.getTrackId(),
+            region.getTrackIndex(),
+            region.getName(),
+            region.getStartFromBeat(),
+            region.getLength(),
+            region.getAudioFileId(),
+            region.getAudioFileName(),
+            region.getAudioDurationSeconds(),
+            region.getClipStartOffsetSeconds()
+          );
+          clonedRegion.setColor(region.getColor());
+          clonedItems.push(clonedRegion);
+          break;
+        }
         
         case 'KGRegion': {
           const region = item as KGRegion;
@@ -579,6 +600,7 @@ export class KGCore {
             region.getStartFromBeat(),
             region.getLength()
           );
+          clonedRegion.setColor(region.getColor());
           clonedItems.push(clonedRegion);
           break;
         }

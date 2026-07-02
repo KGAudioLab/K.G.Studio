@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
 import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
+import { SoundfontInstrumentCache, type SoundfontCacheSummary } from '../../../util/soundfontInstrumentCache';
 import { useI18n } from '../../../i18n/useI18n';
 import type { LanguageSetting } from '../../../i18n/types';
 import {
@@ -58,6 +59,11 @@ const GeneralSettings: React.FC = () => {
   const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
   const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
   const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
+  const [soundfontCacheSummary, setSoundfontCacheSummary] = useState<SoundfontCacheSummary>({ instrumentCount: 0, instruments: [] });
+  const [isCheckingSoundfontCache, setIsCheckingSoundfontCache] = useState<boolean>(false);
+  const [isDeletingSoundfontCache, setIsDeletingSoundfontCache] = useState<boolean>(false);
+  const [selectedCachedSoundfontInstrument, setSelectedCachedSoundfontInstrument] = useState<string>('');
+  const [isDeletingCachedSoundfontInstrument, setIsDeletingCachedSoundfontInstrument] = useState<boolean>(false);
   const [localContextLength, setLocalContextLength] = useState<LocalLLMContextLength>(LOCAL_LLM_DEFAULT_CONTEXT_LENGTH);
   const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
   const [localModelUrl, setLocalModelUrl] = useState<string>('');
@@ -102,6 +108,35 @@ const GeneralSettings: React.FC = () => {
       setIsCheckingUvr5ModelCache(false);
     }
   }, []);
+
+  const refreshSoundfontCacheState = useCallback(async () => {
+    setIsCheckingSoundfontCache(true);
+    try {
+      const currentBaseUrl = ((configManager.get('general.soundfont.base_url') as string) || '').trim();
+      if (!currentBaseUrl) {
+        setSoundfontCacheSummary({ instrumentCount: 0, instruments: [] });
+        return;
+      }
+
+      const summary = await SoundfontInstrumentCache.getCacheSummary(currentBaseUrl);
+      setSoundfontCacheSummary(summary);
+      setSelectedCachedSoundfontInstrument((currentSelection) => {
+        if (summary.instruments.length === 0) {
+          return '';
+        }
+        if (currentSelection && summary.instruments.includes(currentSelection)) {
+          return currentSelection;
+        }
+        return summary.instruments[0];
+      });
+    } catch (error) {
+      console.error('Failed to check soundfont cache state:', error);
+      setSoundfontCacheSummary({ instrumentCount: 0, instruments: [] });
+      setSelectedCachedSoundfontInstrument('');
+    } finally {
+      setIsCheckingSoundfontCache(false);
+    }
+  }, [configManager]);
 
   // Load configuration values on component mount
   useEffect(() => {
@@ -150,8 +185,9 @@ const GeneralSettings: React.FC = () => {
     loadConfig();
     const unsubscribe = LocalLLMModelManager.subscribe(setLocalModelState);
     void refreshUvr5ModelCacheState();
+    void refreshSoundfontCacheState();
     return unsubscribe;
-  }, [configManager, refreshUvr5ModelCacheState]);
+  }, [configManager, refreshSoundfontCacheState, refreshUvr5ModelCacheState]);
 
   // Debounced save function for text inputs
   const debouncedSave = useCallback((key: string, value: string) => {
@@ -356,6 +392,35 @@ const GeneralSettings: React.FC = () => {
     } finally {
       setIsDeletingHtdemucsModel(false);
       await refreshUvr5ModelCacheState();
+    }
+  };
+
+  const handleDeleteSoundfontCache = async () => {
+    setIsDeletingSoundfontCache(true);
+    try {
+      await SoundfontInstrumentCache.deleteAll();
+      setSoundfontCacheSummary({ instrumentCount: 0, instruments: [] });
+    } catch (error) {
+      console.error('Failed to delete soundfont cache:', error);
+    } finally {
+      setIsDeletingSoundfontCache(false);
+      await refreshSoundfontCacheState();
+    }
+  };
+
+  const handleDeleteCachedSoundfontInstrument = async () => {
+    if (!selectedCachedSoundfontInstrument) {
+      return;
+    }
+
+    setIsDeletingCachedSoundfontInstrument(true);
+    try {
+      await SoundfontInstrumentCache.deleteInstrument(selectedCachedSoundfontInstrument);
+    } catch (error) {
+      console.error(`Failed to delete soundfont cache for ${selectedCachedSoundfontInstrument}:`, error);
+    } finally {
+      setIsDeletingCachedSoundfontInstrument(false);
+      await refreshSoundfontCacheState();
     }
   };
 
@@ -996,6 +1061,75 @@ const GeneralSettings: React.FC = () => {
               >
                 {t('settings.restoreDefault')}
               </a>
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label">
+              {t('settings.general.soundfont.cachedStatus')}
+            </label>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {isCheckingSoundfontCache
+                ? t('settings.general.soundfont.cacheChecking')
+                : soundfontCacheSummary.instrumentCount > 0
+                  ? t('settings.general.soundfont.cacheReady', { count: soundfontCacheSummary.instrumentCount })
+                  : t('settings.general.soundfont.cacheEmpty')}
+            </div>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {t('settings.general.soundfont.cacheHelp')}
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <label className="settings-label" htmlFor="soundfont-cached-instrument-select">
+              {t('settings.general.soundfont.cachedInstrument')}
+            </label>
+            <select
+              id="soundfont-cached-instrument-select"
+              className="settings-select"
+              value={selectedCachedSoundfontInstrument}
+              onChange={(e) => setSelectedCachedSoundfontInstrument(e.target.value)}
+              disabled={isCheckingSoundfontCache || soundfontCacheSummary.instrumentCount === 0 || isDeletingCachedSoundfontInstrument}
+            >
+              {soundfontCacheSummary.instrumentCount === 0 ? (
+                <option value="">{t('settings.general.soundfont.noCachedInstrumentOption')}</option>
+              ) : (
+                soundfontCacheSummary.instruments.map((instrumentName) => (
+                  <option key={instrumentName} value={instrumentName}>
+                    {instrumentName}
+                  </option>
+                ))
+              )}
+            </select>
+            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              {t('settings.general.soundfont.cachedInstrumentHelp')}
+            </div>
+          </div>
+
+          <div className="settings-item" style={{ marginTop: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="settings-btn settings-btn-danger"
+                onClick={() => void handleDeleteCachedSoundfontInstrument()}
+                disabled={
+                  isDeletingCachedSoundfontInstrument
+                  || isCheckingSoundfontCache
+                  || !selectedCachedSoundfontInstrument
+                  || soundfontCacheSummary.instrumentCount === 0
+                }
+              >
+                {isDeletingCachedSoundfontInstrument ? t('settings.deleting') : t('settings.general.soundfont.deleteSelectedCache')}
+              </button>
+
+              <button
+                type="button"
+                className="settings-btn settings-btn-danger"
+                onClick={() => void handleDeleteSoundfontCache()}
+                disabled={isDeletingSoundfontCache || isCheckingSoundfontCache || soundfontCacheSummary.instrumentCount === 0}
+              >
+                {isDeletingSoundfontCache ? t('settings.deleting') : t('settings.general.soundfont.deleteCache')}
+              </button>
             </div>
           </div>
         </div>

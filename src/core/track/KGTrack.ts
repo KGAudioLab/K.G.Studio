@@ -35,6 +35,9 @@ export class KGTrack {
   protected type: TrackType;
 
   @Expose()
+  protected color?: string;
+
+  @Expose()
   @WithDefault(AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME)
   protected volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
 
@@ -99,6 +102,10 @@ export class KGTrack {
     return this.volume;
   }
 
+  public getColor(): string | undefined {
+    return this.color;
+  }
+
   public getMuted(): boolean {
     return this.muted;
   }
@@ -134,6 +141,10 @@ export class KGTrack {
       AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB,
       Math.min(AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB, volume)
     );
+  }
+
+  public setColor(color: string | undefined): void {
+    this.color = color;
   }
 
   public setMuted(muted: boolean): void {

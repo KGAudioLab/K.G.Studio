@@ -11,7 +11,7 @@ import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGRegion } from '../core/region/KGRegion';
-import { AddTrackCommand, AddAudioTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand } from '../core/commands';
+import { AddTrackCommand, AddAudioTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand, UpdateRegionCommand, type RegionUpdateProperties } from '../core/commands';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
@@ -183,6 +183,7 @@ interface ProjectState {
   removeTrack: (id: number) => Promise<void>;
   updateTrack: (track: KGTrack) => Promise<void>;
   updateTrackProperties: (trackId: number, properties: TrackUpdateProperties) => Promise<void>;
+  updateRegionProperties: (regionId: string, properties: RegionUpdateProperties) => Promise<void>;
   setTrackInstrument: (trackId: number, instrument: InstrumentType) => Promise<void>;
   reorderTracks: (sourceIndex: number, destinationIndex: number) => void;
   setStatus: (status: string) => void;
@@ -853,6 +854,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error) {
         console.error('Error updating track properties:', error);
         get().setStatus('Failed to update track properties');
+      }
+    },
+
+    updateRegionProperties: async (regionId: string, properties: RegionUpdateProperties) => {
+      try {
+        const command = new UpdateRegionCommand(regionId, properties);
+        KGCore.instance().executeCommand(command);
+
+        const project = KGCore.instance().getCurrentProject();
+        set({
+          tracks: [...project.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(project)],
+        });
+
+        console.log(`Updated region ${regionId} properties`);
+      } catch (error) {
+        console.error('Error updating region properties:', error);
+        get().setStatus('Failed to update region properties');
       }
     },
 

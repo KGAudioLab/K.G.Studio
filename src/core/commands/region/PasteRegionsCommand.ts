@@ -8,6 +8,7 @@ import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
+import { KGAudioRegion } from '../../region/KGAudioRegion';
 
 /**
  * Command to paste regions with their notes to a target track at a specific position
@@ -71,6 +72,7 @@ export class PasteRegionsCommand extends KGCommand {
           newPosition,
           originalRegion.getLength()
         );
+        newRegion.setColor(originalRegion.getColor());
         
         // Copy all notes from the original region
         const originalNotes = originalRegion.getNotes();
@@ -102,6 +104,22 @@ export class PasteRegionsCommand extends KGCommand {
         });
         
         console.log(`Created MIDI region "${newRegion.getName()}" with ${originalNotes.length} notes`);
+      } else if (originalRegion instanceof KGAudioRegion) {
+        newRegion = new KGAudioRegion(
+          generateUniqueId('KGAudioRegion'),
+          targetTrack.getId().toString(),
+          targetTrack.getTrackIndex(),
+          `${originalRegion.getName()} (Copy)`,
+          newPosition,
+          originalRegion.getLength(),
+          originalRegion.getAudioFileId(),
+          originalRegion.getAudioFileName(),
+          originalRegion.getAudioDurationSeconds(),
+          originalRegion.getClipStartOffsetSeconds()
+        );
+        newRegion.setColor(originalRegion.getColor());
+
+        console.log(`Created audio region "${newRegion.getName()}"`);
       } else {
         // Fallback for other region types
         newRegion = new KGRegion(
@@ -112,6 +130,7 @@ export class PasteRegionsCommand extends KGCommand {
           newPosition,
           originalRegion.getLength()
         );
+        newRegion.setColor(originalRegion.getColor());
         
         console.log(`Created region "${newRegion.getName()}"`);
       }

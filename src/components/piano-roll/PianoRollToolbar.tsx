@@ -1,7 +1,7 @@
 import React from 'react';
 import { FaMousePointer, FaPencilAlt } from 'react-icons/fa';
 import { TbArrowBarToUp } from 'react-icons/tb';
-import { KGDropdown } from '../common';
+import { ColorPalettePopup, KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
 import {
@@ -50,6 +50,8 @@ interface PianoRollToolbarProps {
   detectingChords?: boolean;
   onDetectTempo?: () => void | Promise<void>;
   detectingTempo?: boolean;
+  selectedRegionColor?: string;
+  onRegionColorSelect?: (color: string | null) => void;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -92,6 +94,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   detectingChords = false,
   onDetectTempo,
   detectingTempo = false,
+  selectedRegionColor,
+  onRegionColorSelect,
 }) => {
   const { t } = useI18n();
   const showMidiControls = mode !== 'spectrogram' && mode !== 'audio-waveform' && !sheetMusicViewEnabled;
@@ -151,6 +155,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   }, [showZoomSlider]);
 
   const [showMoreMenu, setShowMoreMenu] = React.useState(false);
+  const [showRegionColorPalette, setShowRegionColorPalette] = React.useState(false);
   const specMenuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -158,6 +163,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (specMenuRef.current && !specMenuRef.current.contains(e.target as Node)) {
         setShowMoreMenu(false);
+        setShowRegionColorPalette(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -386,7 +392,29 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
               ...
             </button>
             {showMoreMenu && (
-              <div className="quant-dropdown" style={{ right: 0, left: 'auto', width: 'auto', whiteSpace: 'nowrap' }}>
+              <div className="quant-dropdown piano-roll-more-menu" style={{ right: 0, left: 'auto', width: 'auto', whiteSpace: 'nowrap' }}>
+                {onRegionColorSelect && (
+                  <div className="piano-roll-menu-item-wrapper">
+                    <div
+                      className="quant-option"
+                      onClick={() => setShowRegionColorPalette(open => !open)}
+                    >
+                      {t('pianoRoll.regionColor')}
+                    </div>
+                    {showRegionColorPalette && (
+                      <div className="piano-roll-region-color-popup">
+                        <ColorPalettePopup
+                          selectedColor={selectedRegionColor}
+                          onSelect={(color) => {
+                            onRegionColorSelect(color);
+                            setShowRegionColorPalette(false);
+                            setShowMoreMenu(false);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
                 {onDetectChords && (
                   <div
                     className={`quant-option${detectingChords ? ' disabled' : ''}`}
@@ -394,6 +422,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                       if (detectingChords) {
                         return;
                       }
+                      setShowRegionColorPalette(false);
                       setShowMoreMenu(false);
                       void onDetectChords();
                     }}
@@ -409,6 +438,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                       if (detectingTempo) {
                         return;
                       }
+                      setShowRegionColorPalette(false);
                       setShowMoreMenu(false);
                       void onDetectTempo();
                     }}

@@ -14,6 +14,7 @@ export interface TrackUpdateProperties {
   volume?: number;
   muted?: boolean;
   solo?: boolean;
+  color?: string | null;
 }
 
 /**
@@ -51,6 +52,7 @@ export class UpdateTrackCommand extends KGCommand {
       volume: this.targetTrack.getVolume(),
       muted: this.targetTrack.getMuted(),
       solo: this.targetTrack.getSolo(),
+      color: this.targetTrack.getColor(),
     };
 
     // Store original instrument if it's a MIDI track
@@ -133,6 +135,16 @@ export class UpdateTrackCommand extends KGCommand {
       updatedProperties.push(`solo: ${originalSolo} → ${newSolo}`);
     }
 
+    if ('color' in this.newProperties && this.newProperties.color !== this.originalProperties.color) {
+      const newColor = this.newProperties.color ?? undefined;
+      const originalColor = this.originalProperties.color;
+
+      this.targetTrack.setColor(newColor);
+
+      this.changedProperties.add('color');
+      updatedProperties.push(`color: ${originalColor ?? 'none'} → ${newColor}`);
+    }
+
     if (updatedProperties.length > 0) {
       console.log(`Updated track ${this.trackId}: ${updatedProperties.join(', ')}`);
     } else {
@@ -204,6 +216,11 @@ export class UpdateTrackCommand extends KGCommand {
       restoredProperties.push(`solo: ${this.originalProperties.solo}`);
     }
 
+    if (this.changedProperties.has('color')) {
+      this.targetTrack.setColor(this.originalProperties.color ?? undefined);
+      restoredProperties.push(`color: ${this.originalProperties.color ?? 'none'}`);
+    }
+
     console.log(`Restored track ${this.trackId}: ${restoredProperties.join(', ')}`);
   }
 
@@ -228,6 +245,9 @@ export class UpdateTrackCommand extends KGCommand {
     }
     if (this.newProperties.solo !== undefined) {
       updatedProps.push('solo');
+    }
+    if ('color' in this.newProperties) {
+      updatedProps.push('color');
     }
 
     if (updatedProps.length === 1) {

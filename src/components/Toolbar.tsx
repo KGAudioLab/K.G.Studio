@@ -55,7 +55,7 @@ const Toolbar: React.FC = () => {
     isLooping, toggleLoop,
     globalTracks,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
-    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
+    toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, setShowSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
     isRecording, startRecording, stopRecording,
     // Piano roll state/actions
     showPianoRoll, setShowPianoRoll, activeRegionId, setActiveRegionId,
@@ -220,7 +220,7 @@ const Toolbar: React.FC = () => {
   };
 
   // Common project loading logic extracted for reuse
-  const loadProjectFromData = async (project: KGProject, sourceDescription: string, savedName?: string) => {
+  const loadProjectFromData = async (project: KGProject, sourceDescription: string, savedName?: string): Promise<boolean> => {
     try {
       // Clean up UI state first
       cleanupProjectState();
@@ -245,10 +245,13 @@ const Toolbar: React.FC = () => {
         console.log(`project loaded successfully from ${sourceDescription}`);
       }
 
+      return true;
+
     } catch (error) {
       console.error(`Error loading project from ${sourceDescription}:`, error);
       setStatus(t('toolbar.status.loadFailed', { error: String(error) }));
       await showAlert(t('toolbar.load.error', { error: String(error) }));
+      return false;
     }
   };
 
@@ -299,7 +302,15 @@ const Toolbar: React.FC = () => {
         return;
       }
 
-      await loadProjectFromData(loadedProject, `Project "${projectNameToLoad}"`, projectNameToLoad);
+      const didLoadProject = await loadProjectFromData(
+        loadedProject,
+        `Project "${projectNameToLoad}"`,
+        projectNameToLoad
+      );
+
+      if (didLoadProject && showSettings) {
+        setShowSettings(false);
+      }
     } catch (error) {
       console.error("Error loading project:", error);
       await showAlert(t('toolbar.load.error', { error: String(error) }));

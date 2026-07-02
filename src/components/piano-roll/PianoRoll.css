@@ -247,6 +247,22 @@
   cursor: default;
 }
 
+.piano-roll-menu-item-wrapper {
+  position: relative;
+}
+
+.piano-roll-more-menu {
+  overflow: visible;
+  max-height: none;
+}
+
+.piano-roll-region-color-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1600;
+}
+
 .piano-roll-automation-toolbar-group {
   display: flex;
   align-items: center;

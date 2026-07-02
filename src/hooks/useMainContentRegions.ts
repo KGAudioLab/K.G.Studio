@@ -15,6 +15,7 @@ import { DEBUG_MODE } from '../constants';
 import { useProjectStore } from '../stores/projectStore';
 import { useRegionOperations } from './useRegionOperations';
 import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
+import { resolveRegionColor } from '../util/regionColor';
 
 const DEFAULT_REGION_CLICK_OPTIONS: RegionClickOptions = {
   shiftKey: false,
@@ -179,6 +180,10 @@ export function useMainContentRegions({
             barNumber,
             length,
             name: region.getName(),
+            color: region.getColor(),
+            trackColor: track.getColor(),
+            effectiveColor: resolveRegionColor(region.getColor(), track.getColor(), region instanceof KGAudioRegion),
+            isAudioRegion: region instanceof KGAudioRegion,
           });
         }
       });
