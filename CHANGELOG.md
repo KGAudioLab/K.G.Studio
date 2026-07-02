@@ -1,3 +1,10 @@
+# [0.20.5-build.20260702] (2026-07-02)
+
+* Merge pull request #54 from KGAudioLab/feat/2026-06-30-misc (eca0fbd)
+* fix: close Settings after successful saved project load (09dd717)
+* feat: cache soundfont MP3s in OPFS and add cache controls (86ec455)
+* feat: added region color customization feature (4f11fe8)
+
 # [0.20.4-build.20260613] (2026-06-13)
 
 * Merge pull request #53 from KGAudioLab/feat/2026-06-01-enhance-ai-agent (fbdba02)
