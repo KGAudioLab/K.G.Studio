@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Toolbar from './Toolbar';
 import { createDefaultGlobalTracks } from '../core/global-track';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
+import { KGProject } from '../core/KGProject';
+import { KGProjectStorage } from '../core/io/KGProjectStorage';
+import { showAlert, showConfirm } from '../util/dialogUtil';
 
 const executeCommandMock = vi.fn();
 const storeState = {
@@ -41,6 +44,7 @@ const storeState = {
   toggleKGOnePanel: vi.fn(),
   toggleEventListPanel: vi.fn(),
   activateSidePanel: vi.fn(),
+  setShowSettings: vi.fn(),
   showKGOnePanel: true,
   showEventListPanel: false,
   showChatBox: true,
@@ -61,6 +65,7 @@ const storeState = {
   refreshProjectState: vi.fn(),
   requestMainContentScroll: vi.fn(),
   requestPianoRollScroll: vi.fn(),
+  loadProject: vi.fn(),
   tracks: [] as unknown[],
   globalTracks: createDefaultGlobalTracks(),
 };
@@ -141,7 +146,24 @@ vi.mock('../util/midiUtil', () => ({
 vi.mock('../core/audio-interface/KGOfflineRenderer', () => ({ KGOfflineRenderer: { instance: vi.fn(() => ({})) } }));
 vi.mock('./common/FileImportModal', () => ({ default: () => null }));
 vi.mock('./common/LoadingOverlay', () => ({ default: () => null }));
-vi.mock('./common/OpenProjectModal', () => ({ default: () => null }));
+vi.mock('./common/OpenProjectModal', () => ({
+  default: ({
+    onConfirmOpenProject,
+    onOpenProject,
+  }: {
+    onConfirmOpenProject: (projectName: string) => Promise<boolean>;
+    onOpenProject: (projectName: string) => Promise<void>;
+  }) => (
+    <div>
+      <button type="button" onClick={() => void onConfirmOpenProject('Loaded Project')}>
+        confirm-open-project
+      </button>
+      <button type="button" onClick={() => void onOpenProject('Loaded Project')}>
+        open-loaded-project
+      </button>
+    </div>
+  ),
+}));
 vi.mock('../util/chatUtil', () => ({ clearChatHistoryAndUI: vi.fn() }));
 vi.mock('./common/icons/PianoIcon', () => ({ default: () => <span>piano</span> }));
 vi.mock('./common/icons/MetronomeIcon', () => ({ default: () => <span>metro</span> }));
@@ -205,7 +227,11 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.toggleKGOnePanel.mockClear();
     storeState.toggleEventListPanel.mockClear();
     storeState.activateSidePanel.mockClear();
+    storeState.setShowSettings.mockClear();
     storeState.setStatus.mockClear();
+    storeState.cleanupProjectState.mockClear();
+    storeState.loadProject.mockReset();
+    storeState.loadProject.mockResolvedValue(undefined);
     storeState.showSettings = true;
     storeState.showChatBox = true;
     storeState.showKGOnePanel = true;
@@ -216,6 +242,9 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.setKeySignature.mockClear();
     storeState.refreshProjectState.mockClear();
     executeCommandMock.mockClear();
+    vi.mocked(KGProjectStorage.getInstance).mockReset();
+    vi.mocked(showConfirm).mockReset();
+    vi.mocked(showAlert).mockReset();
   });
 
   it('suppresses active styling for side-panel buttons while Settings is visible', () => {
@@ -300,5 +329,61 @@ describe('Toolbar settings side-panel behavior', () => {
     expect(storeState.setKeySignature).not.toHaveBeenCalled();
     expect(storeState.refreshProjectState).toHaveBeenCalled();
     expect(storeState.setStatus).toHaveBeenCalledWith('Key signature changed to E minor');
+  });
+
+  it('closes Settings after a saved project finishes loading successfully', async () => {
+    const storageMock = {
+      load: vi.fn().mockResolvedValue(new KGProject()),
+      cleanupOrphanMedia: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(KGProjectStorage.getInstance).mockReturnValue(storageMock as unknown as ReturnType<typeof KGProjectStorage.getInstance>);
+
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByTitle('Load'));
+    fireEvent.click(screen.getByRole('button', { name: 'open-loaded-project' }));
+
+    await waitFor(() => {
+      expect(storageMock.load).toHaveBeenCalledWith('Loaded Project');
+    });
+    await waitFor(() => {
+      expect(storeState.loadProject).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(storeState.setShowSettings).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it('keeps Settings open when the user cancels project loading', async () => {
+    vi.mocked(showConfirm).mockResolvedValue(false);
+
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByTitle('Load'));
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-open-project' }));
+
+    await waitFor(() => {
+      expect(showConfirm).toHaveBeenCalled();
+    });
+    expect(storeState.setShowSettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps Settings open when project loading fails', async () => {
+    const storageMock = {
+      load: vi.fn().mockResolvedValue(new KGProject()),
+      cleanupOrphanMedia: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(KGProjectStorage.getInstance).mockReturnValue(storageMock as unknown as ReturnType<typeof KGProjectStorage.getInstance>);
+    storeState.loadProject.mockRejectedValueOnce(new Error('load failed'));
+
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByTitle('Load'));
+    fireEvent.click(screen.getByRole('button', { name: 'open-loaded-project' }));
+
+    await waitFor(() => {
+      expect(showAlert).toHaveBeenCalled();
+    });
+    expect(storeState.setShowSettings).not.toHaveBeenCalled();
   });
 });
