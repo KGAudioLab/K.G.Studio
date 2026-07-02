@@ -84,4 +84,27 @@ describe('UpdateTrackCommand', () => {
     expect(mockAudioInterface.setTrackSolo).not.toHaveBeenCalled();
     expect(command.getChangedProperties()).toEqual(new Set());
   });
+
+  it('updates color and restores it on undo', () => {
+    const command = new UpdateTrackCommand(1, { color: '#3C8AC4' });
+
+    command.execute();
+
+    expect(track.getColor()).toBe('#3C8AC4');
+    expect(command.getChangedProperties()).toEqual(new Set(['color']));
+
+    command.undo();
+
+    expect(track.getColor()).toBeUndefined();
+  });
+
+  it('clears an existing color override', () => {
+    track.setColor('#B43F1D');
+    const command = new UpdateTrackCommand(1, { color: null });
+
+    command.execute();
+
+    expect(track.getColor()).toBeUndefined();
+    expect(command.getChangedProperties()).toEqual(new Set(['color']));
+  });
 });

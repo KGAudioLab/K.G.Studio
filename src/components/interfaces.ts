@@ -16,6 +16,10 @@ export interface RegionUI {
   barNumber: number;
   length: number;
   name: string;
+  color?: string;
+  trackColor?: string;
+  effectiveColor?: string;
+  isAudioRegion?: boolean;
 }
 
 export interface RegionPreviewContentStyle {

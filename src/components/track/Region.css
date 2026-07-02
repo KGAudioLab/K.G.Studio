@@ -1,8 +1,8 @@
 /* Track Region Styles */
 .track-region {
   position: absolute;
-  background-color: #4a6b8a;
-  border: 2px solid #5a7b9a;
+  background-color: var(--region-header-bg, #4a6b8a);
+  border: 2px solid var(--region-border-color, #5a7b9a);
   border-radius: 3px;
   height: calc(100%);
   margin: 0px;
@@ -48,7 +48,7 @@
 }
 
 .region-header {
-  background-color: #5a7b9a;
+  background-color: var(--region-header-bg, #5a7b9a);
   color: #fff;
   padding: 2px 6px;
   font-size: 11px;
@@ -61,19 +61,19 @@
 }
 
 .track-region:hover .region-header {
-  background-color: #6a8baa;
+  background-color: var(--region-header-hover-bg, #6a8baa);
 }
 
 .region-content {
   height: calc(100% - 18px);
-  background-color: #87CEFA; /* Light blue */
+  background-color: var(--region-content-bg, #4B9A41); /* Default MIDI region color */
   width: 100%;
   position: relative; /* Allow overlayed controls */
   overflow: hidden;
 }
 
 .region-content.audio-region-content {
-  background-color: #90EE90; /* Light green for audio regions */
+  background-color: var(--region-content-bg, #39649E); /* Default audio region color */
 }
 
 .region-preview-content {
@@ -91,8 +91,8 @@
 
 /* Audio region overrides */
 .track-region.audio-region {
-  background-color: #3a6b4a;
-  border-color: #4a8b5a;
+  background-color: var(--region-header-bg, #3a6b4a);
+  border-color: var(--region-border-color, #4a8b5a);
 }
 
 .track-region.audio-region.selected {
@@ -109,11 +109,11 @@
 }
 
 .track-region.audio-region .region-header {
-  background-color: #4a8b5a;
+  background-color: var(--region-header-bg, #4a8b5a);
 }
 
 .track-region.audio-region:hover .region-header {
-  background-color: #5a9b6a;
+  background-color: var(--region-header-hover-bg, #5a9b6a);
 }
 
 /* Left-side button cluster inside region-content */

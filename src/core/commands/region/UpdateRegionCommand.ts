@@ -8,7 +8,7 @@ import { KGTrack } from '../../track/KGTrack';
  */
 export interface RegionUpdateProperties {
   name?: string;
-  // Future properties can be added here (e.g., color, instrument, etc.)
+  color?: string | null;
 }
 
 /**
@@ -58,6 +58,7 @@ export class UpdateRegionCommand extends KGCommand {
     // Store original properties for undo
     this.originalProperties = {
       name: this.targetRegion.getName(),
+      color: this.targetRegion.getColor(),
     };
 
     // Apply updates and track what actually changes
@@ -68,6 +69,12 @@ export class UpdateRegionCommand extends KGCommand {
       this.targetRegion.setName(this.newProperties.name);
       this.changedProperties.add('name');
       updatedProperties.push(`name: "${this.originalProperties.name}" → "${this.newProperties.name}"`);
+    }
+
+    if ('color' in this.newProperties && this.newProperties.color !== this.originalProperties.color) {
+      this.targetRegion.setColor(this.newProperties.color ?? undefined);
+      this.changedProperties.add('color');
+      updatedProperties.push(`color: ${this.originalProperties.color ?? 'none'} → ${this.newProperties.color ?? 'none'}`);
     }
 
     if (updatedProperties.length > 0) {
@@ -91,6 +98,11 @@ export class UpdateRegionCommand extends KGCommand {
       restoredProperties.push(`name: "${this.originalProperties.name}"`);
     }
 
+    if (this.changedProperties.has('color')) {
+      this.targetRegion.setColor(this.originalProperties.color ?? undefined);
+      restoredProperties.push(`color: ${this.originalProperties.color ?? 'none'}`);
+    }
+
     console.log(`Restored region ${this.regionId}: ${restoredProperties.join(', ')}`);
   }
 
@@ -100,6 +112,9 @@ export class UpdateRegionCommand extends KGCommand {
 
     if (this.newProperties.name !== undefined) {
       updatedProps.push('name');
+    }
+    if ('color' in this.newProperties) {
+      updatedProps.push('color');
     }
 
     if (updatedProps.length === 1) {

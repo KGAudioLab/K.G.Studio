@@ -28,6 +28,9 @@ export class KGRegion implements Selectable {
   protected length: number = 0;
 
   @Expose()
+  protected color?: string;
+
+  @Expose()
   protected selected: boolean = false;
 
   constructor(id: string, trackId: string, trackIndex: number, name: string, startFromBeat: number = 0, length: number = 0) {
@@ -66,6 +69,10 @@ export class KGRegion implements Selectable {
     return this.length;
   }
 
+  public getColor(): string | undefined {
+    return this.color;
+  }
+
   // Setters
   public setId(id: string): void {
     this.id = id;
@@ -89,6 +96,10 @@ export class KGRegion implements Selectable {
 
   public setLength(length: number): void {
     this.length = length;
+  }
+
+  public setColor(color: string | undefined): void {
+    this.color = color;
   }
 
   // interface methods

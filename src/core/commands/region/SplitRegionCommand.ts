@@ -93,6 +93,8 @@ export class SplitRegionCommand extends KGCommand {
         this.splitAtBeat,
         regionLength - splitOffsetBeats
       );
+      region1.setColor(originalRegion.getColor());
+      region2.setColor(originalRegion.getColor());
 
       for (const note of originalRegion.getNotes()) {
         if (note.getStartBeat() < splitOffsetBeats) {
@@ -167,6 +169,7 @@ export class SplitRegionCommand extends KGCommand {
         originalRegion.getAudioDurationSeconds(),
         originalRegion.getClipStartOffsetSeconds()
       );
+      this.region1.setColor(originalRegion.getColor());
 
       this.region2 = new KGAudioRegion(
         generateUniqueId('KGAudioRegion'),
@@ -180,6 +183,7 @@ export class SplitRegionCommand extends KGCommand {
         originalRegion.getAudioDurationSeconds(),
         originalRegion.getClipStartOffsetSeconds() + splitOffsetSeconds
       );
+      this.region2.setColor(originalRegion.getColor());
 
     } else {
       throw new Error(`Unsupported region type for splitting: ${originalRegion.getCurrentType()}`);

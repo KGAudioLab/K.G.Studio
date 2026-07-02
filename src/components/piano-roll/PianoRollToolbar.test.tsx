@@ -30,6 +30,16 @@ vi.mock('../common', () => ({
       </button>
     );
   },
+  ColorPalettePopup: ({ onSelect }: { onSelect: (value: string | null) => void }) => (
+    <div>
+      <button type="button" aria-label="Reset color" onClick={() => onSelect(null)}>
+        Reset
+      </button>
+      <button type="button" onClick={() => onSelect('#3C8AC4')}>
+        Color Swatch
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('../../core/KGCore', () => ({
@@ -430,5 +440,24 @@ describe('PianoRollToolbar', () => {
     );
 
     expect(screen.getByRole('button', { name: '和声小调' })).toBeInTheDocument();
+  });
+
+  it('shows the region color action in the more menu and emits the chosen color', () => {
+    const onRegionColorSelect = vi.fn();
+
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        onRegionColorSelect={onRegionColorSelect}
+        selectedRegionColor="#3C8AC4"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(screen.getByText('Region Color...'));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset color' }));
+
+    expect(onRegionColorSelect).toHaveBeenCalledWith(null);
   });
 });

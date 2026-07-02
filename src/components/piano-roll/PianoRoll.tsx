@@ -101,7 +101,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const isAudioWaveform = currentMode === 'audio-waveform';
   const isAudioOnly = isAudioWaveform || isSpectrogram;
   const isHybrid = currentMode === 'hybrid';
-  const { maxBars, tracks, updateTrack, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
+  const { maxBars, tracks, updateTrack, updateRegionProperties, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, selectedRegionIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
   const { t } = useI18n();
 
   // Tool state for piano roll
@@ -167,6 +167,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const activeInstrument = useMemo<InstrumentType>(() => (
     parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
   ), [parentMidiTrack]);
+  const activeEditableRegionId = audioRegion?.getId() ?? activeRegion?.getId() ?? null;
+  const selectedRegionColor = useMemo(() => {
+    if (audioRegion) {
+      return audioRegion.getColor();
+    }
+
+    return activeRegion?.getColor();
+  }, [activeRegion, audioRegion]);
   const parsedSheetQuantization = useMemo(
     () => parseSheetQuantization(sheetQuantization),
     [sheetQuantization]
@@ -491,6 +499,20 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       await showAlert('Failed to rename region. Please try again.');
     }
   };
+
+  const handleRegionColorSelect = useCallback(async (color: string | null) => {
+    const allTrackRegionIds = new Set(tracks.flatMap(track => track.getRegions().map(region => region.getId())));
+    const selectedProjectRegionIds = selectedRegionIds.filter(regionId => allTrackRegionIds.has(regionId));
+    const targetRegionIds = activeEditableRegionId && selectedProjectRegionIds.includes(activeEditableRegionId)
+      ? selectedProjectRegionIds
+      : activeEditableRegionId
+        ? [activeEditableRegionId]
+        : [];
+
+    for (const regionId of targetRegionIds) {
+      await updateRegionProperties(regionId, { color });
+    }
+  }, [activeEditableRegionId, selectedRegionIds, tracks, updateRegionProperties]);
 
   const handleDetectChords = useCallback(async () => {
     if (!audioRegion && !activeRegion) {
@@ -1597,6 +1619,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         detectingChords={isDetectingChords}
         onDetectTempo={audioRegion ? handleDetectTempo : undefined}
         detectingTempo={isDetectingTempo}
+        selectedRegionColor={selectedRegionColor}
+        onRegionColorSelect={activeEditableRegionId ? (color) => { void handleRegionColorSelect(color); } : undefined}
       />
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />

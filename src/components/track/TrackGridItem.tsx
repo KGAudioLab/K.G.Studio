@@ -12,6 +12,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
 import { TrackType } from '../../core/track/KGTrack';
+import { buildRegionSurfaceColors, resolveRegionColor } from '../../util/regionColor';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -795,12 +796,22 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           );
         }
 
+        const effectiveColor = region.effectiveColor
+          ?? resolveRegionColor(coreRegion?.getColor(), track.getColor(), !!audioRegion || !!region.isAudioRegion);
+        const surfaceColors = buildRegionSurfaceColors(effectiveColor);
+
         return (
           <RegionItem
             key={region.id}
             id={region.id}
             name={region.name}
-            style={getRegionStyle(region)}
+            style={{
+              ...getRegionStyle(region),
+              ['--region-border-color' as string]: surfaceColors.borderColor,
+              ['--region-header-bg' as string]: surfaceColors.headerColor,
+              ['--region-header-hover-bg' as string]: surfaceColors.headerHoverColor,
+              ['--region-content-bg' as string]: surfaceColors.contentColor,
+            }}
             barNumber={region.barNumber}
             length={region.length}
             trackIndex={index}

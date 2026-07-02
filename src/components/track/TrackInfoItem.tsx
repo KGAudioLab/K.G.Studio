@@ -7,6 +7,7 @@ import { TbPiano } from 'react-icons/tb';
 import { TbDots } from 'react-icons/tb';
 import { FaFileAudio } from 'react-icons/fa';
 import KGDropdown from '../common/KGDropdown';
+import ColorPalettePopup from '../common/ColorPalettePopup';
 import FileImportModal from '../common/FileImportModal';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { DEBUG_MODE } from '../../constants/uiConstants';
@@ -91,6 +92,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const [showAutomationDropdown, setShowAutomationDropdown] = useState(false);
+  const [showTrackColorPalette, setShowTrackColorPalette] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const automationDropdownRef = useRef<HTMLDivElement>(null);
   const suppressDragRef = useRef(false);
@@ -115,6 +117,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
         !settingsDropdownRef.current.contains(event.target as Node)
       ) {
         setShowSettingsDropdown(false);
+        setShowTrackColorPalette(false);
       }
       if (
         showAutomationDropdown &&
@@ -336,6 +339,9 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const handleSettingsButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowSettingsDropdown(!showSettingsDropdown);
+    if (showSettingsDropdown) {
+      setShowTrackColorPalette(false);
+    }
   };
 
   const handleAutomationButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -384,6 +390,17 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           await showAlert(t('track.controls.settings.deleteTrackError'));
         }
       }
+    }
+  };
+
+  const handleTrackColorSelect = async (color: string | null) => {
+    try {
+      await useProjectStore.getState().updateTrackProperties(track.getId(), { color });
+    } catch (error) {
+      console.error('Failed to update track color:', error);
+    } finally {
+      setShowTrackColorPalette(false);
+      setShowSettingsDropdown(false);
     }
   };
 
@@ -545,18 +562,38 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             >
               <TbDots />
             </button>
-            <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 10000 }}>
-              <KGDropdown
-                options={[{ label: t('track.controls.settings.deleteTrack'), value: 'Delete Track' }]}
-                value={''}
-                onChange={handleSettingsAction}
-                label={t('track.controls.moreActions')}
-                hideButton={true}
-                isOpen={showSettingsDropdown}
-                onToggle={setShowSettingsDropdown}
-                className="settings-dropdown"
-              />
-            </div>
+            {showSettingsDropdown && (
+              <div className="track-settings-menu">
+                <button
+                  type="button"
+                  className="track-settings-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowTrackColorPalette((open) => !open);
+                  }}
+                >
+                  {t('track.controls.settings.trackColor')}
+                </button>
+                <button
+                  type="button"
+                  className="track-settings-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleSettingsAction('Delete Track');
+                  }}
+                >
+                  {t('track.controls.settings.deleteTrack')}
+                </button>
+                {showTrackColorPalette && (
+                  <div className="track-settings-color-popup">
+                    <ColorPalettePopup
+                      selectedColor={track.getColor()}
+                      onSelect={handleTrackColorSelect}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
