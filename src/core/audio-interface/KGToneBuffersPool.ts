@@ -1,7 +1,13 @@
 import { SAMPLER_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { ConfigManager } from '../config/ConfigManager';
+import { SoundfontInstrumentCache } from '../../util/soundfontInstrumentCache';
 import * as Tone from 'tone';
+
+interface ToneBufferLoadResult {
+  buffers: Tone.ToneAudioBuffers;
+  cacheInMemory: boolean;
+}
 
 /**
  * KGToneBuffersPool - Singleton class for managing ToneAudioBuffers
@@ -19,6 +25,8 @@ export class KGToneBuffersPool {
 
   // Simple event listeners for load start/end without coupling to UI layer
   private loadingListeners: Array<(_evt: { type: 'start' | 'end'; instrument: string }) => void> = [];
+
+  private activeBaseUrl: string | null = null;
 
   // Private constructor to prevent direct instantiation
   private constructor() {
@@ -67,6 +75,9 @@ export class KGToneBuffersPool {
    * Handles race conditions by ensuring only one loading operation per instrument
    */
   public async getToneAudioBuffers(name: string): Promise<Tone.ToneAudioBuffers> {
+    const baseUrl = await this.getSoundfontBaseUrl();
+    this.ensureMemoryCacheMatchesBaseUrl(baseUrl);
+
     // Check if already fully loaded and cached
     const cachedBuffers = this.bufferMap.get(name);
     if (cachedBuffers && cachedBuffers.loaded) {
@@ -82,18 +93,22 @@ export class KGToneBuffersPool {
 
     // Start new loading operation
     console.log(`KGToneBuffersPool: Starting new loading operation for ${name}`);
-    const loadingPromise = this.createToneAudioBuffers(name);
-    this.loadingPromises.set(name, loadingPromise);
+    const loadingPromise = this.createToneAudioBuffers(name, baseUrl);
+    this.loadingPromises.set(name, loadingPromise.then(result => result.buffers));
     // Emit start AFTER registering the promise to avoid duplicate start events in races
     this.emitLoadingEvent({ type: 'start', instrument: name });
     console.log(`[KGToneBuffersPool] start: Active load count: ${this.getActiveLoadCount()}`);
 
     try {
-      const buffers = await loadingPromise;
+      const result = await loadingPromise;
+      const buffers = result.buffers;
 
-      // Cache the fully loaded buffers
-      this.bufferMap.set(name, buffers);
-      console.log(`KGToneBuffersPool: Cached loaded buffers for ${name}`);
+      if (result.cacheInMemory) {
+        this.bufferMap.set(name, buffers);
+        console.log(`KGToneBuffersPool: Cached loaded buffers for ${name}`);
+      } else {
+        console.log(`KGToneBuffersPool: Skipping in-memory cache for ${name} due to partial soundfont load`);
+      }
 
       // Remove from loading promises since it's complete
       this.loadingPromises.delete(name);
@@ -115,43 +130,63 @@ export class KGToneBuffersPool {
   /**
    * Create ToneAudioBuffers for an instrument
    */
-  private async createToneAudioBuffers(name: string): Promise<Tone.ToneAudioBuffers> {
-    const configManager = ConfigManager.instance();
-    if (!configManager.getIsInitialized()) {
-      await configManager.initialize();
+  private async createToneAudioBuffers(name: string, baseUrl: string): Promise<ToneBufferLoadResult> {
+    const instrumentName = name;
+
+    if (!instrumentName) {
+      throw new Error(`Unknown instrument: ${name}`);
     }
 
-    return new Promise((resolve, reject) => {
-      try {
-        const instrumentName = name;
+    const keyNames = this.getInstrumentKeyNames(instrumentName);
 
-        if (!instrumentName) {
-          throw new Error(`Unknown instrument: ${name}`);
+    try {
+      if (await SoundfontInstrumentCache.exists(instrumentName, keyNames, baseUrl)) {
+        console.log(`Loading ToneAudioBuffers for ${name} from OPFS cache...`);
+        const cachedUrls = await SoundfontInstrumentCache.getInstrumentObjectUrls(instrumentName, keyNames, baseUrl);
+        try {
+          const buffers = await this.loadToneAudioBuffers(cachedUrls, name);
+          return { buffers, cacheInMemory: true };
+        } catch (error) {
+          console.warn(`Cached soundfont load failed for ${name}, deleting cache and retrying remote download.`, error);
+          this.revokeObjectUrls(cachedUrls);
+          await SoundfontInstrumentCache.deleteInstrument(instrumentName);
         }
-
-        const baseUrl = (ConfigManager.instance().get('general.soundfont.base_url') as string)
-          || SAMPLER_CONSTANTS.TONE_SAMPLERS.FLUID.url;
-
-        const urls = this.generateKeyUrls(baseUrl, instrumentName);
-
-        console.log(`Loading ToneAudioBuffers for ${name} (${instrumentName})...`);
-
-        // Create ToneAudioBuffers with onload callback
-        const buffers = new Tone.ToneAudioBuffers(
-          urls,
-          () => {
-            console.log(`ToneAudioBuffers loaded successfully for ${name}`);
-            resolve(buffers);
-          }
-        );
-
-        // Don't cache until loading is complete - this will be handled in getToneAudioBuffers
-
-      } catch (error) {
-        console.error(`Error creating ToneAudioBuffers for ${name}:`, error);
-        reject(error);
       }
-    });
+
+      console.log(`Loading ToneAudioBuffers for ${name} (${instrumentName}) from remote source...`);
+      const remoteUrls = this.generateKeyUrls(baseUrl, instrumentName);
+      const fetchResults = await this.fetchRemoteInstrumentBlobs(remoteUrls);
+      const successfulKeys = Object.keys(fetchResults.successfulBlobs);
+
+      if (successfulKeys.length === 0) {
+        throw new Error(`Failed to load any soundfont samples for ${instrumentName}`);
+      }
+
+      const loadUrls = Object.fromEntries(
+        successfulKeys.map(key => [key, URL.createObjectURL(fetchResults.successfulBlobs[key])]),
+      ) as Record<string, string>;
+
+      const buffers = await this.loadToneAudioBuffers(loadUrls, name);
+
+      if (fetchResults.failures.length === 0) {
+        try {
+          await SoundfontInstrumentCache.storeInstrument(instrumentName, keyNames, fetchResults.successfulBlobs, baseUrl);
+        } catch (error) {
+          console.warn(`Failed to persist soundfont cache for ${instrumentName}:`, error);
+        }
+      } else {
+        console.warn(`Skipping cache finalize for ${instrumentName} because ${fetchResults.failures.length} pitch samples failed to load.`);
+        await SoundfontInstrumentCache.deleteInstrument(instrumentName);
+      }
+
+      return {
+        buffers,
+        cacheInMemory: fetchResults.failures.length === 0,
+      };
+    } catch (error) {
+      console.error(`Error creating ToneAudioBuffers for ${name}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -161,27 +196,128 @@ export class KGToneBuffersPool {
   private generateKeyUrls(baseUrl: string, instrumentName: string): { [key: string]: string } {
     const urls: { [key: string]: string } = {};
 
-    // get the range of the instrument. 
-    // TODO: make the sound library name configurable.
-    const range = FLUIDR3_INSTRUMENT_MAP[instrumentName]?.pitchRange || [21, 108];
-
-    // Note names in order (using flats instead of sharps where applicable)
-    const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-    // Generate keys from A0 to C8 (MIDI notes 21 to 108)
-    for (let midiNote = range[0]; midiNote <= range[1]; midiNote++) {
-      const octave = Math.floor((midiNote - 12) / 12);
-      const noteIndex = (midiNote - 12) % 12;
-      const noteName = noteNames[noteIndex];
-      const keyName = `${noteName}${octave}`;
-
-      // Generate URL for this key
+    for (const keyName of this.getInstrumentKeyNames(instrumentName)) {
       urls[keyName] = `${baseUrl}${instrumentName}-mp3/${keyName}.mp3`;
     }
 
     console.log(`Generated ${Object.keys(urls).length} key URLs for ${instrumentName} from A0 to Bb7`);
 
     return urls;
+  }
+
+  private getInstrumentKeyNames(instrumentName: string): string[] {
+    const range = FLUIDR3_INSTRUMENT_MAP[instrumentName]?.pitchRange || [21, 108];
+    const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+    const keys: string[] = [];
+
+    for (let midiNote = range[0]; midiNote <= range[1]; midiNote++) {
+      const octave = Math.floor((midiNote - 12) / 12);
+      const noteIndex = (midiNote - 12) % 12;
+      const noteName = noteNames[noteIndex];
+      keys.push(`${noteName}${octave}`);
+    }
+
+    return keys;
+  }
+
+  private async fetchRemoteInstrumentBlobs(urls: Record<string, string>): Promise<{
+    successfulBlobs: Record<string, Blob>;
+    failures: string[];
+  }> {
+    const entries = Object.entries(urls);
+    const successfulBlobs: Record<string, Blob> = {};
+    const failures: string[] = [];
+
+    await Promise.all(entries.map(async ([key, url]) => {
+      try {
+        const response = await this.fetchWithTimeout(url, 10000);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        successfulBlobs[key] = await response.blob();
+      } catch (error) {
+        console.warn(`Failed to fetch soundfont sample ${key}:`, error);
+        failures.push(key);
+      }
+    }));
+
+    return { successfulBlobs, failures };
+  }
+
+  private async fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private loadToneAudioBuffers(urls: Record<string, string>, name: string): Promise<Tone.ToneAudioBuffers> {
+    return new Promise((resolve, reject) => {
+      if (Object.keys(urls).length === 0) {
+        reject(new Error(`No audio sources were available for ${name}`));
+        return;
+      }
+
+      let settled = false;
+      const cleanup = () => this.revokeObjectUrls(urls);
+
+      const buffers = new Tone.ToneAudioBuffers({
+        urls,
+        onload: () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          console.log(`ToneAudioBuffers loaded successfully for ${name}`);
+          resolve(buffers);
+        },
+        onerror: (error) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(error);
+        },
+      });
+    });
+  }
+
+  private revokeObjectUrls(urls: Record<string, string>): void {
+    Object.values(urls).forEach(url => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    });
+  }
+
+  private async getSoundfontBaseUrl(): Promise<string> {
+    const configManager = ConfigManager.instance();
+    if (!configManager.getIsInitialized()) {
+      await configManager.initialize();
+    }
+
+    return (configManager.get('general.soundfont.base_url') as string)
+      || SAMPLER_CONSTANTS.TONE_SAMPLERS.FLUID.url;
+  }
+
+  private ensureMemoryCacheMatchesBaseUrl(baseUrl: string): void {
+    if (this.activeBaseUrl === baseUrl) {
+      return;
+    }
+
+    this.activeBaseUrl = baseUrl;
+    this.bufferMap.forEach((buffers, name) => {
+      try {
+        buffers.dispose();
+        console.log(`Disposed ToneAudioBuffers for ${name} due to soundfont base URL change`);
+      } catch (error) {
+        console.error(`Error disposing ToneAudioBuffers for ${name} during soundfont base URL change:`, error);
+      }
+    });
+    this.bufferMap.clear();
   }
 
   /**

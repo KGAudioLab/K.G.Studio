@@ -12,6 +12,14 @@ const { localSeparatorModelCacheMock } = vi.hoisted(() => ({
   },
 }));
 
+const { soundfontInstrumentCacheMock } = vi.hoisted(() => ({
+  soundfontInstrumentCacheMock: {
+    deleteInstrument: vi.fn().mockResolvedValue(undefined),
+    deleteAll: vi.fn().mockResolvedValue(undefined),
+    getCacheSummary: vi.fn().mockResolvedValue({ instrumentCount: 2, instruments: ['acoustic_grand_piano', 'violin'] }),
+  },
+}));
+
 const configState = new Map<string, unknown>([
   ['general.language', 'auto'],
   ['general.agent_mode', 'regular'],
@@ -90,6 +98,10 @@ vi.mock('../../../util/local-separator/modelCache', () => ({
   LocalSeparatorModelCache: localSeparatorModelCacheMock,
 }));
 
+vi.mock('../../../util/soundfontInstrumentCache', () => ({
+  SoundfontInstrumentCache: soundfontInstrumentCacheMock,
+}));
+
 describe('GeneralSettings', () => {
   const renderSettings = (locale: 'en_us' | 'zh_cn' = 'en_us') => render(
     <I18nContext.Provider
@@ -132,6 +144,10 @@ describe('GeneralSettings', () => {
     localSeparatorModelCacheMock.delete.mockClear();
     localSeparatorModelCacheMock.exists.mockClear();
     localSeparatorModelCacheMock.exists.mockResolvedValue(true);
+    soundfontInstrumentCacheMock.deleteAll.mockClear();
+    soundfontInstrumentCacheMock.deleteInstrument.mockClear();
+    soundfontInstrumentCacheMock.getCacheSummary.mockClear();
+    soundfontInstrumentCacheMock.getCacheSummary.mockResolvedValue({ instrumentCount: 2, instruments: ['acoustic_grand_piano', 'violin'] });
   });
 
   it('renders the local context length selector and VRAM hint', async () => {
@@ -336,6 +352,52 @@ describe('GeneralSettings', () => {
 
     await waitFor(() => {
       expect(configManagerMock.set).toHaveBeenCalledWith('general.language', 'fr_fr');
+    });
+  });
+
+  it('renders the soundfont cache status and deletes all cached soundfonts', async () => {
+    soundfontInstrumentCacheMock.getCacheSummary
+      .mockResolvedValueOnce({ instrumentCount: 2, instruments: ['acoustic_grand_piano', 'violin'] })
+      .mockResolvedValueOnce({ instrumentCount: 0, instruments: [] });
+
+    renderSettings();
+
+    expect(await screen.findByText('Soundfont Settings')).toBeTruthy();
+    expect(screen.getByText('2 instruments cached in browser storage.')).toBeTruthy();
+
+    const soundfontDeleteButton = screen.getByRole('button', { name: 'Delete Soundfont Cache' });
+    expect(soundfontDeleteButton).not.toBeDisabled();
+    fireEvent.click(soundfontDeleteButton);
+
+    await waitFor(() => {
+      expect(soundfontInstrumentCacheMock.deleteAll).toHaveBeenCalledOnce();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('No cached instruments yet.')).toBeTruthy();
+    });
+  });
+
+  it('deletes the selected cached soundfont instrument', async () => {
+    soundfontInstrumentCacheMock.getCacheSummary
+      .mockResolvedValueOnce({ instrumentCount: 2, instruments: ['acoustic_grand_piano', 'violin'] })
+      .mockResolvedValueOnce({ instrumentCount: 1, instruments: ['acoustic_grand_piano'] });
+
+    renderSettings();
+
+    const select = await screen.findByLabelText('Cached Instrument');
+    fireEvent.change(select, { target: { value: 'violin' } });
+
+    const deleteSelectedButton = screen.getByRole('button', { name: 'Delete Selected Instrument Cache' });
+    expect(deleteSelectedButton).not.toBeDisabled();
+    fireEvent.click(deleteSelectedButton);
+
+    await waitFor(() => {
+      expect(soundfontInstrumentCacheMock.deleteInstrument).toHaveBeenCalledWith('violin');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('1 instruments cached in browser storage.')).toBeTruthy();
     });
   });
 });
