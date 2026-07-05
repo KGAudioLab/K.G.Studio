@@ -2,7 +2,13 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGProject, type KeySignature } from '../../KGProject';
 import type { TimeSignature } from '../../../types/projectTypes';
-import { normalizeTempoRegionsForProject } from '../../../util/globalTrackUtil';
+import {
+  getRequiredMaxBarsForAudioRegions,
+  normalizeTempoRegionsForProject,
+  restoreAudioRegionLengths,
+  syncAudioRegionLengthsToPlaybackDuration,
+  type AudioRegionLengthSnapshot,
+} from '../../../util/globalTrackUtil';
 
 /**
  * Interface defining properties that can be updated on a project
@@ -26,10 +32,23 @@ export class ChangeProjectPropertyCommand extends KGCommand {
   private originalProperties: ProjectUpdateProperties = {};
   private targetProject: KGProject | null = null;
   private changedProperties: Set<keyof ProjectUpdateProperties> = new Set();
+  private audioRegionLengthSnapshots: AudioRegionLengthSnapshot[] = [];
 
   constructor(properties: ProjectUpdateProperties) {
     super();
     this.newProperties = properties;
+  }
+
+  private clampPlayheadToSongEndIfNeeded(): void {
+    if (!this.targetProject) {
+      return;
+    }
+
+    const core = KGCore.instance();
+    const songEndBeat = this.targetProject.getMaxBars() * this.targetProject.getTimeSignature().numerator;
+    if (core.getPlayheadPosition() > songEndBeat) {
+      core.setPlayheadPosition(songEndBeat);
+    }
   }
 
   execute(): void {
@@ -63,6 +82,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       normalizeTempoRegionsForProject(this.targetProject);
       this.changedProperties.add('maxBars');
       updatedProperties.push(`maxBars: ${this.originalProperties.maxBars} → ${this.newProperties.maxBars}`);
+      this.clampPlayheadToSongEndIfNeeded();
     }
 
     // Update currentBars
@@ -79,6 +99,19 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       updatedProperties.push(`bpm: ${this.originalProperties.bpm} → ${this.newProperties.bpm}`);
     }
 
+    if (this.changedProperties.has('bpm')) {
+      this.audioRegionLengthSnapshots = syncAudioRegionLengthsToPlaybackDuration(this.targetProject);
+      const requiredMaxBars = getRequiredMaxBarsForAudioRegions(this.targetProject);
+      if (requiredMaxBars > this.targetProject.getMaxBars()) {
+        this.targetProject.setMaxBars(requiredMaxBars);
+        normalizeTempoRegionsForProject(this.targetProject);
+        this.changedProperties.add('maxBars');
+        if (this.originalProperties.maxBars !== requiredMaxBars) {
+          updatedProperties.push(`maxBars: ${this.originalProperties.maxBars} → ${requiredMaxBars}`);
+        }
+      }
+    }
+
     // Update time signature
     if (this.newProperties.timeSignature !== undefined) {
       const originalTS = this.originalProperties.timeSignature!;
@@ -88,8 +121,10 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       if (originalTS.numerator !== newTS.numerator || originalTS.denominator !== newTS.denominator) {
         this.targetProject.setTimeSignature(newTS);
         normalizeTempoRegionsForProject(this.targetProject);
+        this.audioRegionLengthSnapshots = syncAudioRegionLengthsToPlaybackDuration(this.targetProject);
         this.changedProperties.add('timeSignature');
         updatedProperties.push(`timeSignature: ${originalTS.numerator}/${originalTS.denominator} → ${newTS.numerator}/${newTS.denominator}`);
+        this.clampPlayheadToSongEndIfNeeded();
       }
     }
 
@@ -133,6 +168,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       this.targetProject.setMaxBars(this.originalProperties.maxBars);
       normalizeTempoRegionsForProject(this.targetProject);
       restoredProperties.push(`maxBars: ${this.originalProperties.maxBars}`);
+      this.clampPlayheadToSongEndIfNeeded();
     }
 
     // Restore currentBars (only if it was changed)
@@ -153,6 +189,7 @@ export class ChangeProjectPropertyCommand extends KGCommand {
       normalizeTempoRegionsForProject(this.targetProject);
       const ts = this.originalProperties.timeSignature;
       restoredProperties.push(`timeSignature: ${ts.numerator}/${ts.denominator}`);
+      this.clampPlayheadToSongEndIfNeeded();
     }
 
     // Restore key signature (only if it was changed)
@@ -165,6 +202,10 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     if (this.changedProperties.has('selectedMode') && this.originalProperties.selectedMode !== undefined) {
       this.targetProject.setSelectedMode(this.originalProperties.selectedMode);
       restoredProperties.push(`selectedMode: "${this.originalProperties.selectedMode}"`);
+    }
+
+    if (this.audioRegionLengthSnapshots.length > 0) {
+      restoreAudioRegionLengths(this.audioRegionLengthSnapshots);
     }
 
     console.log(`Restored project: ${restoredProperties.join(', ')}`);

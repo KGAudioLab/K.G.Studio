@@ -12,6 +12,8 @@ const { mockLocalSeparatorDownload } = vi.hoisted(() => ({
 
 let kgoneEnabled = false;
 let selectedRegionIds: string[] = [];
+let projectName = 'Test Project';
+let savedProjectName = 'Test Project';
 let localModelCached: Record<string, boolean> = {};
 let localSeparationResult: Array<{ name: string; blob: Blob }> = [];
 
@@ -21,7 +23,8 @@ const mockExecuteCommand = vi.fn();
 vi.mock('../stores/projectStore', () => ({
   useProjectStore: () => ({
     selectedRegionIds,
-    projectName: 'Test Project',
+    projectName,
+    savedProjectName,
     bpm: 120,
     keySignature: 'C major',
     timeSignature: { numerator: 4, denominator: 4 },
@@ -127,6 +130,8 @@ describe('KGOnePanel local separator mode', () => {
   beforeEach(() => {
     kgoneEnabled = false;
     selectedRegionIds = [];
+    projectName = 'Test Project';
+    savedProjectName = 'Test Project';
     localModelCached = {};
     localSeparationResult = [
       { name: 'Instrumental', blob: new Blob(['instrumental'], { type: 'audio/wav' }) },
@@ -185,6 +190,7 @@ describe('KGOnePanel local separator mode', () => {
     render(<KGOnePanel isVisible={true} />);
 
     expect(await screen.findByText(/Select an audio region on the timeline/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Separate Stems' })).toBeDisabled();
   });
 
   it('renders local separation outputs after processing completes', async () => {
@@ -200,6 +206,79 @@ describe('KGOnePanel local separator mode', () => {
       expect(screen.getByText('Vocals')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Import All Stems to Timeline' })).toBeInTheDocument();
     });
+  });
+
+  it('keeps stem results visible and disables separation after the selection is cleared', async () => {
+    localModelCached[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium] = true;
+    selectedRegionIds = ['audio-region-1'];
+
+    const { rerender } = render(<KGOnePanel isVisible={true} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Separate Stems' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Instrumental')).toBeInTheDocument();
+      expect(screen.getByText('Vocals')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Import All Stems to Timeline' })).toBeInTheDocument();
+    });
+
+    selectedRegionIds = [];
+    rerender(<KGOnePanel isVisible={true} />);
+
+    expect(screen.getByText('Instrumental')).toBeInTheDocument();
+    expect(screen.getByText('Vocals')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import All Stems to Timeline' })).toBeInTheDocument();
+    expect(screen.queryByText(/Select an audio region on the timeline/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Separate Stems' })).toBeDisabled();
+  });
+
+  it('clears stem results when the saved project changes', async () => {
+    localModelCached[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium] = true;
+    selectedRegionIds = ['audio-region-1'];
+
+    const { rerender } = render(<KGOnePanel isVisible={true} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Separate Stems' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Instrumental')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('Separation complete.').length).toBeGreaterThan(0);
+
+    savedProjectName = 'Loaded Project';
+    projectName = 'Loaded Project';
+    selectedRegionIds = [];
+    rerender(<KGOnePanel isVisible={true} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Instrumental')).not.toBeInTheDocument();
+      expect(screen.queryByText('Vocals')).not.toBeInTheDocument();
+    });
+    expect(screen.queryAllByText('Separation complete.')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Import All Stems to Timeline' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Select an audio region on the timeline/)).toBeInTheDocument();
+  });
+
+  it('preserves stem results when only the project name changes', async () => {
+    localModelCached[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium] = true;
+    selectedRegionIds = ['audio-region-1'];
+
+    const { rerender } = render(<KGOnePanel isVisible={true} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Separate Stems' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Instrumental')).toBeInTheDocument();
+    });
+
+    projectName = 'Renamed Project';
+    selectedRegionIds = [];
+    rerender(<KGOnePanel isVisible={true} />);
+
+    expect(screen.getByText('Instrumental')).toBeInTheDocument();
+    expect(screen.getByText('Vocals')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import All Stems to Timeline' })).toBeInTheDocument();
+    expect(screen.queryByText(/Select an audio region on the timeline/)).not.toBeInTheDocument();
   });
 
   it('uses Demucs defaults and renders four local stem players', async () => {

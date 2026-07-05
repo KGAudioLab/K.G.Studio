@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
 import { GlobalTrackType } from '../../global-track';
+import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGTempoRegion } from '../../region/KGTempoRegion';
+import { KGAudioTrack } from '../../track/KGAudioTrack';
 import { CreateTempoRegionCommand } from './CreateTempoRegionCommand';
 import { DeleteTempoRegionCommand } from './DeleteTempoRegionCommand';
 import { ResizeTempoRegionCommand } from './ResizeTempoRegionCommand';
@@ -117,5 +119,27 @@ describe('global tempo region commands', () => {
     expect((tempoTrack.getRegions()[0] as KGTempoRegion).getBpm()).toBe(150);
     command.undo();
     expect((tempoTrack.getRegions()[0] as KGTempoRegion).getBpm()).toBe(120);
+  });
+
+  it('expands max bars when a tempo edit makes audio require more space', () => {
+    const project = KGCore.instance().getCurrentProject();
+    const tempoTrack = getTempoTrack();
+    tempoTrack.setRegions([
+      new KGTempoRegion('region', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+    ]);
+
+    const audioTrack = new KGAudioTrack('Audio', 1);
+    audioTrack.setRegions([
+      new KGAudioRegion('audio', '1', 0, 'Audio', 28, 4, 'file', 'file.wav', 8, 0),
+    ]);
+    project.setTracks([audioTrack]);
+
+    const command = new UpdateTempoRegionCommand('region', 60);
+    command.execute();
+    expect(project.getMaxBars()).toBe(9);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(8);
+    command.undo();
+    expect(project.getMaxBars()).toBe(8);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(4);
   });
 });

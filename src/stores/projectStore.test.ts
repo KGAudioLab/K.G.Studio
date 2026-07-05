@@ -5,6 +5,7 @@ import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { createDefaultGlobalTracks } from '../core/global-track';
+import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
@@ -33,6 +34,7 @@ const toneMocks = vi.hoisted(() => {
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 let mockIsMetronomeEnabled = false;
 let mockShowGlobalTracks = false;
+let mockPlayheadPosition = 0;
 const mockProject = {
   getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
   getMaxBars: () => 32,
@@ -101,8 +103,10 @@ const mockCore = {
   clearSelectedItems: vi.fn(),
   getStatus: () => 'Ready',
   setStatus: vi.fn(),
-  getPlayheadPosition: () => 0,
-  setPlayheadPosition: vi.fn(),
+  getPlayheadPosition: () => mockPlayheadPosition,
+  setPlayheadPosition: vi.fn((position: number) => {
+    mockPlayheadPosition = position;
+  }),
   getIsPlaying: () => false,
   startPlaying: vi.fn().mockResolvedValue(undefined),
   stopPlaying: vi.fn().mockResolvedValue(undefined),
@@ -161,10 +165,13 @@ describe('projectStore piano roll state', () => {
     pianoRollStateMocks.setPianoRollZoom.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
     currentProject = mockProject;
+    mockPlayheadPosition = 0;
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
     mockCore.stopPlaying.mockResolvedValue(undefined);
+    mockCore.executeCommand.mockReset();
+    mockCore.setPlayheadPosition.mockClear();
     mockCore.undo.mockReset();
     mockCore.undo.mockReturnValue(true);
     mockCore.redo.mockReset();
@@ -590,5 +597,144 @@ describe('projectStore piano roll state', () => {
     expect(state.showKGOnePanel).toBe(false);
     expect(state.settingsReturnSidePanel).toBeNull();
     expect(state.lastActiveSidePanel).toBe('eventList');
+  });
+
+  it('refreshes expanded max bars after BPM reduction', async () => {
+    const { KGAudioTrack: TestAudioTrack } = await import('../core/track/KGAudioTrack');
+    const { KGAudioRegion: TestAudioRegion } = await import('../core/region/KGAudioRegion');
+
+    const audioTrack = new TestAudioTrack('Audio 1', 1);
+    audioTrack.setTrackIndex(0);
+    const audioRegion = new TestAudioRegion('audio-region-1', '1', 0, 'clip.wav', 124, 4, 'audio-file-1.wav', 'clip.wav', 8, 0);
+    audioTrack.setRegions([audioRegion]);
+
+    let projectName = 'Test Project';
+    let bpm = 120;
+    let maxBars = 32;
+    let currentBars = 0;
+    let timeSignature = { numerator: 4, denominator: 4 };
+    let keySignature = 'C major';
+    let selectedMode = 'major';
+    const project = {
+      getName: () => projectName,
+      setName: (value: string) => { projectName = value; },
+      getMaxBars: () => maxBars,
+      setMaxBars: (value: number) => { maxBars = value; },
+      getCurrentBars: () => currentBars,
+      setCurrentBars: (value: number) => { currentBars = value; },
+      getTimeSignature: () => timeSignature,
+      setTimeSignature: (value: { numerator: number; denominator: number }) => { timeSignature = value; },
+      getBarWidthMultiplier: () => 1,
+      getTracks: () => [audioTrack],
+      getGlobalTracks: () => createDefaultGlobalTracks(),
+      getBpm: () => bpm,
+      setBpm: (value: number) => { bpm = value; },
+      getKeySignature: () => keySignature,
+      setKeySignature: (value: string) => { keySignature = value; },
+      getSelectedMode: () => selectedMode,
+      setSelectedMode: (value: string) => { selectedMode = value; },
+      getIsLooping: () => false,
+      getIsMetronomeEnabled: () => false,
+      setIsMetronomeEnabled: vi.fn(),
+      getShowGlobalTracks: () => false,
+      setShowGlobalTracks: vi.fn(),
+      getLoopingRange: () => [0, 0] as [number, number],
+      getPianoRollZoom: () => 1,
+    };
+    currentProject = project as unknown as typeof mockProject;
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setBpm(60);
+    });
+
+    const state = useProjectStore.getState();
+    expect(bpm).toBe(60);
+    expect(maxBars).toBe(33);
+    expect(state.maxBars).toBe(33);
+    expect(audioRegion.getLength()).toBeCloseTo(8);
+    expect(getAudioRegionDisplayLengthBeats(project as any, audioRegion)).toBeCloseTo(8);
+  });
+
+  it('does not auto-shrink max bars after BPM increase', async () => {
+    const { KGAudioTrack: TestAudioTrack } = await import('../core/track/KGAudioTrack');
+    const { KGAudioRegion: TestAudioRegion } = await import('../core/region/KGAudioRegion');
+
+    const audioTrack = new TestAudioTrack('Audio 1', 1);
+    audioTrack.setTrackIndex(0);
+    audioTrack.setRegions([
+      new TestAudioRegion('audio-region-1', '1', 0, 'clip.wav', 124, 8, 'audio-file-1.wav', 'clip.wav', 4, 0),
+    ]);
+
+    let projectName = 'Test Project';
+    let bpm = 120;
+    let maxBars = 40;
+    let currentBars = 0;
+    let timeSignature = { numerator: 4, denominator: 4 };
+    let keySignature = 'C major';
+    let selectedMode = 'major';
+    const project = {
+      getName: () => projectName,
+      setName: (value: string) => { projectName = value; },
+      getMaxBars: () => maxBars,
+      setMaxBars: (value: number) => { maxBars = value; },
+      getCurrentBars: () => currentBars,
+      setCurrentBars: (value: number) => { currentBars = value; },
+      getTimeSignature: () => timeSignature,
+      setTimeSignature: (value: { numerator: number; denominator: number }) => { timeSignature = value; },
+      getBarWidthMultiplier: () => 1,
+      getTracks: () => [audioTrack],
+      getGlobalTracks: () => createDefaultGlobalTracks(),
+      getBpm: () => bpm,
+      setBpm: (value: number) => { bpm = value; },
+      getKeySignature: () => keySignature,
+      setKeySignature: (value: string) => { keySignature = value; },
+      getSelectedMode: () => selectedMode,
+      setSelectedMode: (value: string) => { selectedMode = value; },
+      getIsLooping: () => false,
+      getIsMetronomeEnabled: () => false,
+      setIsMetronomeEnabled: vi.fn(),
+      getShowGlobalTracks: () => false,
+      setShowGlobalTracks: vi.fn(),
+      getLoopingRange: () => [0, 0] as [number, number],
+      getPianoRollZoom: () => 1,
+    };
+    currentProject = project as unknown as typeof mockProject;
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setBpm(180);
+    });
+
+    const state = useProjectStore.getState();
+    expect(bpm).toBe(180);
+    expect(maxBars).toBe(40);
+    expect(state.maxBars).toBe(40);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(12);
+  });
+
+  it('moves the playhead to the song end when max bars shrink past it', async () => {
+    const { KGProject } = await import('../core/KGProject');
+    mockPlayheadPosition = 124;
+
+    currentProject = new KGProject('Test Project', 32, 0, 120) as unknown as typeof mockProject;
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setMaxBars(16);
+    });
+
+    const state = useProjectStore.getState();
+    expect(currentProject.getMaxBars()).toBe(16);
+    expect(mockPlayheadPosition).toBe(64);
+    expect(mockCore.setPlayheadPosition).toHaveBeenCalledWith(64);
+    expect(state.maxBars).toBe(16);
+    expect(state.playheadPosition).toBe(64);
   });
 });
