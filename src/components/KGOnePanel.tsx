@@ -856,7 +856,7 @@ function countRepaintTracks(sourceTrackName: string): number {
 
 const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
   const { t } = useI18n();
-  const { selectedRegionIds, projectName, bpm, timeSignature, maxBars, refreshProjectState } = useProjectStore();
+  const { selectedRegionIds, projectName, savedProjectName, bpm, timeSignature, maxBars, refreshProjectState } = useProjectStore();
   const localOnlyMode = mode === 'local-separator';
   const availableSeparatorModels = localOnlyMode ? LOCAL_SEPARATOR_MODEL_OPTIONS : SERVER_SEPARATOR_MODELS;
   const [model, setModel] = useState<string>(availableSeparatorModels[0].value);
@@ -910,12 +910,14 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     setStemAudioUrls([]);
     setGenStatus('idle');
     setGenHint('');
+    setLocalProgressPercent(0);
+    setLocalProgressText('');
     setErrorMsg('');
     setIsImporting(false);
     setImportError('');
     originalRegionRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectName]);
+  }, [savedProjectName]);
 
   useEffect(() => {
     setModel(availableSeparatorModels[0].value);
@@ -967,6 +969,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     }
     return null;
   }, [selectedRegionIds]);
+  const hasStemResults = stemAudioUrls.length > 0;
 
   const getConfiguredLocalSeparatorModelUrl = useCallback(() => {
     const configured = ConfigManager.instance().get(currentLocalModelConfig.download.configKey);
@@ -1450,119 +1453,121 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
         </div>
       )}
 
-      {selectedAudioRegion ? (
-        <>
+      <>
+        {selectedAudioRegion && (
           <div className="kgone-region-info">
             <div className="kgone-region-info-label">{t('kgone.shared.selectedRegion')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.region.getName()}</div>
             <div className="kgone-region-info-label" style={{ marginTop: 4 }}>{t('kgone.shared.track')}</div>
             <div className="kgone-region-info-value">{selectedAudioRegion.trackName}</div>
           </div>
+        )}
 
-          <div className="kgone-field">
-            <label className="kgone-label">{t('kgone.separator.field.separationModel')}</label>
-            <select className="kgone-select" value={model} onChange={e => setModel(e.target.value)}>
-              {availableSeparatorModels.map(m => (
-                <option key={m.value} value={m.value}>{getModelLabel(m.value, t)}</option>
-              ))}
-            </select>
-          </div>
-
-          {localOnlyMode && (
-            <Expander label={t('kgone.shared.advancedSettings')}>
-              <div className="kgone-field">
-                <label className="kgone-label">{t('kgone.separator.field.chunkDuration')}</label>
-                <input
-                  className="kgone-input"
-                  aria-label={t('kgone.separator.field.chunkDuration')}
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={localChunkDurationSeconds}
-                  onChange={e => setLocalChunkDurationSeconds(e.target.value)}
-                  placeholder={t('kgone.separator.field.chunkDurationPlaceholder')}
-                />
-              </div>
-              <div className="kgone-field">
-                <label className="kgone-label">{t('kgone.separator.field.modelOverlap')}</label>
-                <input
-                  className="kgone-input"
-                  aria-label={t('kgone.separator.field.modelOverlap')}
-                  type="number"
-                  min={0.001}
-                  max={0.999}
-                  step={0.01}
-                  value={localOverlap}
-                  onChange={e => setLocalOverlap(e.target.value)}
-                />
-              </div>
-            </Expander>
-          )}
-
-          {/* Stem audio players — shown once separation is complete */}
-          {stemAudioUrls.length > 0 && (
-            <div className="kgone-stems">
-              {stemAudioUrls.map(stem => (
-                <div key={stem.name} className="kgone-stem-player">
-                  <div className="kgone-label" style={{ marginBottom: 4 }}>{stem.name}</div>
-                  <AudioPlayer
-                    src={stem.url}
-                    dragData={taskIdRef.current ? {
-                      audioFileName: `KGOne_Stem_${stem.name}_${taskIdRef.current}.${localOnlyMode ? 'wav' : 'mp3'}`,
-                    } : undefined}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Drag-to-track hint — shown after successful separation */}
-          {genStatus === 'done' && (
-            <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.separator.hint.drag') }} />
-          )}
-
-          {/* Bulk import button — shown after successful separation */}
-          {genStatus === 'done' && stemAudioUrls.length > 0 && (
-            <>
-              <button
-                className="dialog-btn dialog-btn-primary kgone-btn-generate"
-                disabled={isImporting}
-                onClick={handleImportAll}
-                style={{ marginTop: 0 }}
-              >
-                {isImporting && <FaCircleNotch className="kgone-spinner" />}
-                {isImporting ? t('kgone.shared.btn.importing') : t('kgone.separator.btn.importAllStems')}
-              </button>
-              {importError && <div className="kgone-error-msg">{importError}</div>}
-            </>
-          )}
-
-          {/* Separation error message */}
-          {genStatus === 'error' && errorMsg && (
-            <div className="kgone-error-msg">{errorMsg}</div>
-          )}
-
-          <button
-            className="dialog-btn dialog-btn-primary kgone-btn-generate"
-            disabled={isGenerating || (localOnlyMode && !isLocalModelCached)}
-            onClick={handleSeparate}
-          >
-            {isGenerating && <FaCircleNotch className="kgone-spinner" />}
-            {btnLabel()}
-          </button>
-
-          {/* Status hint below button */}
-          {(localOnlyMode ? localProgressText : genHint) && (
-            <div className="kgone-gen-hint">{localOnlyMode ? localProgressText : genHint}</div>
-          )}
-        </>
-      ) : (
-        <div className="kgone-separator-hint">
-          {localOnlyMode && !isLocalModelCached
-            ? t('kgone.separator.hint.noRegion.download', { model: getModelLabel(currentLocalModelConfig.id, t) })
-            : t('kgone.separator.hint.noRegion.select')}
+        <div className="kgone-field">
+          <label className="kgone-label">{t('kgone.separator.field.separationModel')}</label>
+          <select className="kgone-select" value={model} onChange={e => setModel(e.target.value)}>
+            {availableSeparatorModels.map(m => (
+              <option key={m.value} value={m.value}>{getModelLabel(m.value, t)}</option>
+            ))}
+          </select>
         </div>
-      )}
+
+        {localOnlyMode && (
+          <Expander label={t('kgone.shared.advancedSettings')}>
+            <div className="kgone-field">
+              <label className="kgone-label">{t('kgone.separator.field.chunkDuration')}</label>
+              <input
+                className="kgone-input"
+                aria-label={t('kgone.separator.field.chunkDuration')}
+                type="number"
+                min={1}
+                step={1}
+                value={localChunkDurationSeconds}
+                onChange={e => setLocalChunkDurationSeconds(e.target.value)}
+                placeholder={t('kgone.separator.field.chunkDurationPlaceholder')}
+              />
+            </div>
+            <div className="kgone-field">
+              <label className="kgone-label">{t('kgone.separator.field.modelOverlap')}</label>
+              <input
+                className="kgone-input"
+                aria-label={t('kgone.separator.field.modelOverlap')}
+                type="number"
+                min={0.001}
+                max={0.999}
+                step={0.01}
+                value={localOverlap}
+                onChange={e => setLocalOverlap(e.target.value)}
+              />
+            </div>
+          </Expander>
+        )}
+
+        {/* Stem audio players — shown once separation is complete */}
+        {hasStemResults && (
+          <div className="kgone-stems">
+            {stemAudioUrls.map(stem => (
+              <div key={stem.name} className="kgone-stem-player">
+                <div className="kgone-label" style={{ marginBottom: 4 }}>{stem.name}</div>
+                <AudioPlayer
+                  src={stem.url}
+                  dragData={taskIdRef.current ? {
+                    audioFileName: `KGOne_Stem_${stem.name}_${taskIdRef.current}.${localOnlyMode ? 'wav' : 'mp3'}`,
+                  } : undefined}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Drag-to-track hint — shown after successful separation */}
+        {hasStemResults && (
+          <div className="kgone-hint" dangerouslySetInnerHTML={{ __html: t('kgone.separator.hint.drag') }} />
+        )}
+
+        {/* Bulk import button — shown after successful separation */}
+        {hasStemResults && (
+          <>
+            <button
+              className="dialog-btn dialog-btn-primary kgone-btn-generate"
+              disabled={isImporting}
+              onClick={handleImportAll}
+              style={{ marginTop: 0 }}
+            >
+              {isImporting && <FaCircleNotch className="kgone-spinner" />}
+              {isImporting ? t('kgone.shared.btn.importing') : t('kgone.separator.btn.importAllStems')}
+            </button>
+            {importError && <div className="kgone-error-msg">{importError}</div>}
+          </>
+        )}
+
+        {/* Separation error message */}
+        {genStatus === 'error' && errorMsg && (
+          <div className="kgone-error-msg">{errorMsg}</div>
+        )}
+
+        <button
+          className="dialog-btn dialog-btn-primary kgone-btn-generate"
+          disabled={!selectedAudioRegion || isGenerating || (localOnlyMode && !isLocalModelCached)}
+          onClick={handleSeparate}
+        >
+          {isGenerating && <FaCircleNotch className="kgone-spinner" />}
+          {btnLabel()}
+        </button>
+
+        {/* Status hint below button */}
+        {(localOnlyMode ? localProgressText : genHint) && (
+          <div className="kgone-gen-hint">{localOnlyMode ? localProgressText : genHint}</div>
+        )}
+
+        {!selectedAudioRegion && !hasStemResults && (
+          <div className="kgone-separator-hint">
+            {localOnlyMode && !isLocalModelCached
+              ? t('kgone.separator.hint.noRegion.download', { model: getModelLabel(currentLocalModelConfig.id, t) })
+              : t('kgone.separator.hint.noRegion.select')}
+          </div>
+        )}
+      </>
 
       {!localOnlyMode && (
         <div className="kgone-powered-by">
