@@ -1553,8 +1553,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const command = new ChangeProjectPropertyCommand({ bpm });
         KGCore.instance().executeCommand(command);
 
-        // Update the store state
-        set({ bpm });
+        get().refreshProjectState();
         get().bumpAudioWaveformRedrawVersion();
 
         console.log(`Set BPM to ${bpm}`);
@@ -1570,10 +1569,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const command = new ChangeProjectPropertyCommand({ maxBars });
         KGCore.instance().executeCommand(command);
 
-        // Update the store state
-        set({ maxBars });
-        // Sync CSS var so layout adjusts immediately
-        updateMaxBarsCSS(maxBars);
+        get().refreshProjectState();
 
         console.log(`Set max bars to ${maxBars}`);
       } catch (error) {
@@ -1973,6 +1969,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         selectedMode: project.getSelectedMode(),
         isMetronomeEnabled: project.getIsMetronomeEnabled(),
         showGlobalTracks: project.getShowGlobalTracks(),
+        playheadPosition: core.getPlayheadPosition(),
         currentTime: formatCurrentTime(project, core.getPlayheadPosition()),
       });
 

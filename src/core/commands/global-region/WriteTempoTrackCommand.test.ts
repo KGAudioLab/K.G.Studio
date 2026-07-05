@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
 import { GlobalTrackType } from '../../global-track';
+import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGTempoRegion } from '../../region/KGTempoRegion';
+import { KGAudioTrack } from '../../track/KGAudioTrack';
 import { WriteTempoTrackCommand } from './WriteTempoTrackCommand';
 
 describe('WriteTempoTrackCommand', () => {
@@ -89,5 +91,27 @@ describe('WriteTempoTrackCommand', () => {
       { bpm: 120, startBar: 0, lengthBars: 2 },
       { bpm: 128, startBar: 2, lengthBars: 6 },
     ]);
+  });
+
+  it('expands max bars when the rebuilt tempo map makes audio overflow', () => {
+    const project = KGCore.instance().getCurrentProject();
+    const audioTrack = new KGAudioTrack('Audio', 1);
+    audioTrack.setRegions([
+      new KGAudioRegion('audio', '1', 0, 'Audio', 28, 4, 'file', 'file.wav', 8, 0),
+    ]);
+    project.setTracks([audioTrack]);
+
+    const command = new WriteTempoTrackCommand(60, []);
+    command.execute();
+
+    expect(project.getBpm()).toBe(60);
+    expect(project.getMaxBars()).toBe(9);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(8);
+
+    command.undo();
+
+    expect(project.getBpm()).toBe(120);
+    expect(project.getMaxBars()).toBe(8);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(4);
   });
 });

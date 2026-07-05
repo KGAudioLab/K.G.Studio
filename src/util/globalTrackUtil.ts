@@ -13,6 +13,11 @@ import { KGTempoRegion } from '../core/region/KGTempoRegion';
 
 export const DEFAULT_MARKER_REGION_NAME = 'Marker';
 
+export interface AudioRegionLengthSnapshot {
+  region: KGAudioRegion;
+  length: number;
+}
+
 export function ensureDefaultGlobalTracks(project: KGProject): KGGlobalTrack[] {
   const existingTracks = project.getGlobalTracks?.() ?? [];
   const nextTracks = createDefaultGlobalTracks();
@@ -360,8 +365,76 @@ export function getAudioRegionDisplayLengthBeats(project: KGProject, region: KGA
   }
 
   const startBeat = region.getStartFromBeat();
-  const beatBoundSeconds = beatRangeToSeconds(project, startBeat, startBeat + region.getLength());
   const availableAudioSeconds = Math.max(0, region.getAudioDurationSeconds() - region.getClipStartOffsetSeconds());
-  const visibleSeconds = Math.min(beatBoundSeconds, availableAudioSeconds);
-  return Math.max(0, secondsToBeat(project, beatToSeconds(project, startBeat) + visibleSeconds) - startBeat);
+  const endBeat = getAudioRegionPlaybackEndBeat(project, region);
+  return Math.max(0, endBeat - startBeat);
+}
+
+export function getAudioRegionPlaybackEndBeat(project: KGProject, region: KGAudioRegion): number {
+  const startBeat = region.getStartFromBeat();
+  const availableAudioSeconds = Math.max(0, region.getAudioDurationSeconds() - region.getClipStartOffsetSeconds());
+  if (availableAudioSeconds <= 0) {
+    return startBeat;
+  }
+
+  const targetSeconds = beatToSeconds(project, startBeat) + availableAudioSeconds;
+  const songEndBeat = getSongEndBeat(project);
+  const songEndSeconds = beatToSeconds(project, songEndBeat);
+
+  if (targetSeconds <= songEndSeconds) {
+    return secondsToBeat(project, targetSeconds);
+  }
+
+  const tailBpm = getEffectiveBpmAtBeat(project, Math.max(0, songEndBeat - 1e-6));
+  return songEndBeat + ((targetSeconds - songEndSeconds) / (60 / tailBpm));
+}
+
+export function getRequiredMaxBarsForAudioRegions(project: KGProject): number {
+  const beatsPerBar = project.getTimeSignature().numerator;
+  let requiredBars = project.getMaxBars();
+
+  for (const track of project.getTracks()) {
+    for (const region of track.getRegions()) {
+      if (!(region instanceof KGAudioRegion)) {
+        continue;
+      }
+
+      const regionEndBeat = getAudioRegionPlaybackEndBeat(project, region);
+      const regionRequiredBars = Math.ceil(regionEndBeat / beatsPerBar);
+      requiredBars = Math.max(requiredBars, regionRequiredBars);
+    }
+  }
+
+  return requiredBars;
+}
+
+export function syncAudioRegionLengthsToPlaybackDuration(project: KGProject): AudioRegionLengthSnapshot[] {
+  const changedRegions: AudioRegionLengthSnapshot[] = [];
+
+  for (const track of project.getTracks()) {
+    for (const region of track.getRegions()) {
+      if (!(region instanceof KGAudioRegion)) {
+        continue;
+      }
+
+      const nextLength = Math.max(0, getAudioRegionPlaybackEndBeat(project, region) - region.getStartFromBeat());
+      if (region.getLength() === nextLength) {
+        continue;
+      }
+
+      changedRegions.push({
+        region,
+        length: region.getLength(),
+      });
+      region.setLength(nextLength);
+    }
+  }
+
+  return changedRegions;
+}
+
+export function restoreAudioRegionLengths(snapshots: AudioRegionLengthSnapshot[]): void {
+  snapshots.forEach(({ region, length }) => {
+    region.setLength(length);
+  });
 }

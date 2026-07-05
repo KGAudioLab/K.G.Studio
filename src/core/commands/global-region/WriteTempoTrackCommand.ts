@@ -5,8 +5,13 @@ import { KGTempoRegion } from '../../region/KGTempoRegion';
 import {
   cloneTempoRegions,
   findGlobalTrackByType,
+  getRequiredMaxBarsForAudioRegions,
   getSongEndBar,
   getSortedTempoRegions,
+  normalizeTempoRegionsForProject,
+  restoreAudioRegionLengths,
+  syncAudioRegionLengthsToPlaybackDuration,
+  type AudioRegionLengthSnapshot,
 } from '../../../util/globalTrackUtil';
 import { generateUniqueId } from '../../../util/miscUtil';
 
@@ -24,7 +29,10 @@ export class WriteTempoTrackCommand extends KGCommand {
   private readonly replacements: WriteTempoEntry[];
   private previousRegions: KGTempoRegion[] | null = null;
   private previousProjectBpm: number | null = null;
+  private previousMaxBars: number | null = null;
   private nextRegions: KGTempoRegion[] | null = null;
+  private nextMaxBars: number | null = null;
+  private audioRegionLengthSnapshots: AudioRegionLengthSnapshot[] = [];
 
   constructor(baseBpm: number, replacements: WriteTempoEntry[]) {
     super();
@@ -46,17 +54,29 @@ export class WriteTempoTrackCommand extends KGCommand {
     if (this.nextRegions) {
       project.setBpm(this.baseBpm);
       track.setRegions(cloneRegions(this.nextRegions, beatsPerBar));
+      syncAudioRegionLengthsToPlaybackDuration(project);
+      if (this.nextMaxBars !== null) {
+        project.setMaxBars(this.nextMaxBars);
+        normalizeTempoRegionsForProject(project);
+      }
       return;
     }
 
     const currentRegions = getSortedTempoRegions(track, beatsPerBar);
     this.previousProjectBpm = project.getBpm();
+    this.previousMaxBars = project.getMaxBars();
     this.previousRegions = cloneRegions(currentRegions, beatsPerBar);
     project.setBpm(this.baseBpm);
 
     if (this.replacements.length === 0) {
       this.nextRegions = [];
       track.setRegions([]);
+      this.audioRegionLengthSnapshots = syncAudioRegionLengthsToPlaybackDuration(project);
+      this.nextMaxBars = getRequiredMaxBarsForAudioRegions(project);
+      if (this.nextMaxBars > project.getMaxBars()) {
+        project.setMaxBars(this.nextMaxBars);
+        normalizeTempoRegionsForProject(project);
+      }
       return;
     }
 
@@ -64,6 +84,7 @@ export class WriteTempoTrackCommand extends KGCommand {
     if (songEndBar <= 0) {
       this.nextRegions = [];
       track.setRegions([]);
+      this.nextMaxBars = getRequiredMaxBarsForAudioRegions(project);
       return;
     }
 
@@ -119,10 +140,16 @@ export class WriteTempoTrackCommand extends KGCommand {
 
     this.nextRegions = nextRegions;
     track.setRegions(cloneRegions(this.nextRegions, beatsPerBar));
+    this.audioRegionLengthSnapshots = syncAudioRegionLengthsToPlaybackDuration(project);
+    this.nextMaxBars = getRequiredMaxBarsForAudioRegions(project);
+    if (this.nextMaxBars > project.getMaxBars()) {
+      project.setMaxBars(this.nextMaxBars);
+      normalizeTempoRegionsForProject(project);
+    }
   }
 
   undo(): void {
-    if (!this.previousRegions || this.previousProjectBpm === null) {
+    if (!this.previousRegions || this.previousProjectBpm === null || this.previousMaxBars === null) {
       throw new Error('Cannot undo tempo write without original state');
     }
 
@@ -134,7 +161,12 @@ export class WriteTempoTrackCommand extends KGCommand {
     }
 
     project.setBpm(this.previousProjectBpm);
+    project.setMaxBars(this.previousMaxBars);
     track.setRegions(cloneRegions(this.previousRegions, beatsPerBar));
+    normalizeTempoRegionsForProject(project);
+    if (this.audioRegionLengthSnapshots.length > 0) {
+      restoreAudioRegionLengths(this.audioRegionLengthSnapshots);
+    }
   }
 
   getDescription(): string {
