@@ -676,7 +676,7 @@ export class KGDebugger {
    */
   public async startShell(): Promise<void> {
     console.log('📟 OPFS Interactive Shell');
-    console.log('   Commands: pwd, ls, cd <path>, cat <file>, dl <file>, rm <name>');
+    console.log('   Commands: pwd, ls, du [path], cd <path>, cat <file>, dl <file>, rm <name>');
     console.log('   Type "exit" or click Cancel to quit.\n');
 
     let lastOutput = '';
@@ -731,6 +731,7 @@ export class KGDebugger {
    * Supported commands:
    *   pwd              — print current directory
    *   ls               — list files/folders (like ls -lla)
+   *   du [path]        — print recursive file/folder sizes in bytes
    *   cd <path>        — change directory (supports .., /, relative, and quoted paths)
    *   cat <file>       — print file contents
    *   dl <file>        — download a file to your local machine
@@ -739,6 +740,7 @@ export class KGDebugger {
    * Usage in console:
    *   await KGDebugger.opfs('pwd')
    *   await KGDebugger.opfs('ls')
+   *   await KGDebugger.opfs('du')
    *   await KGDebugger.opfs('cd projects')
    *   await KGDebugger.opfs('cat project.json')
    */
@@ -756,6 +758,10 @@ export class KGDebugger {
 
         case 'ls':
           await this.opfsLs();
+          break;
+
+        case 'du':
+          await this.opfsDu(arg);
           break;
 
         case 'cd':
@@ -776,7 +782,7 @@ export class KGDebugger {
 
         default:
           console.log(`opfs: command not found: ${cmd}`);
-          console.log('Available commands: pwd, ls, cd <path>, cat <file>, dl <file>, rm <name>');
+          console.log('Available commands: pwd, ls, du [path], cd <path>, cat <file>, dl <file>, rm <name>');
       }
     } catch (error) {
       console.error(`opfs: ${error}`);
@@ -840,6 +846,103 @@ export class KGDebugger {
     }
   }
 
+  private async opfsDu(path: string): Promise<void> {
+    if (!path) {
+      const dir = await this.opfsResolveCwd();
+      const entries: Array<{ name: string; size: number }> = [];
+
+      for await (const entry of dir.values()) {
+        entries.push({
+          name: entry.kind === 'directory' ? `${entry.name}/` : entry.name,
+          size: await this.opfsGetEntrySize(entry),
+        });
+      }
+
+      entries.sort((a, b) => a.name.localeCompare(b.name));
+
+      if (entries.length === 0) {
+        console.log('0  .');
+        return;
+      }
+
+      for (const entry of entries) {
+        console.log(`${entry.size}  ${entry.name}`);
+      }
+      return;
+    }
+
+    try {
+      const resolved = await this.opfsResolvePath(path);
+      const displayName = resolved.kind === 'directory'
+        ? `${resolved.name}/`
+        : resolved.name;
+      const size = await this.opfsGetEntrySize(resolved);
+      console.log(`${size}  ${displayName}`);
+    } catch {
+      console.error(`opfs: du: no such file or directory: ${path}`);
+    }
+  }
+
+  private async opfsResolvePath(path: string): Promise<FileSystemDirectoryHandle | FileSystemFileHandle> {
+    const { parentDir, name } = await this.opfsResolveParentAndName(path);
+
+    try {
+      return await parentDir.getDirectoryHandle(name);
+    } catch {
+      return parentDir.getFileHandle(name);
+    }
+  }
+
+  private async opfsResolveParentAndName(path: string): Promise<{ parentDir: FileSystemDirectoryHandle; name: string }> {
+    if (!path || path === '') {
+      throw new Error('missing path');
+    }
+
+    const segments = this.opfsResolvePathSegments(path);
+    const name = segments.pop();
+
+    if (!name) {
+      throw new Error('missing path');
+    }
+
+    let parentDir = await navigator.storage.getDirectory();
+    for (const segment of segments) {
+      parentDir = await parentDir.getDirectoryHandle(segment);
+    }
+
+    return { parentDir, name };
+  }
+
+  private opfsResolvePathSegments(path: string): string[] {
+    const rawSegments = path.startsWith('/')
+      ? path.split('/').filter(Boolean)
+      : [...this.opfsCwd, ...path.split('/').filter(Boolean)];
+
+    const resolved: string[] = [];
+    for (const segment of rawSegments) {
+      if (segment === '.') continue;
+      if (segment === '..') {
+        resolved.pop();
+      } else {
+        resolved.push(segment);
+      }
+    }
+
+    return resolved;
+  }
+
+  private async opfsGetEntrySize(entry: FileSystemDirectoryHandle | FileSystemFileHandle): Promise<number> {
+    if (entry.kind === 'file') {
+      return (await entry.getFile()).size;
+    }
+
+    let total = 0;
+    for await (const child of entry.values()) {
+      total += await this.opfsGetEntrySize(child);
+    }
+    return total;
+  }
+
   private async opfsCd(path: string): Promise<void> {
     if (!path || path === '') {
       // cd with no args goes to root
@@ -847,29 +950,12 @@ export class KGDebugger {
       return;
     }
 
-    let segments: string[];
-
     if (path === '/') {
       this.opfsCwd = [];
       return;
-    } else if (path.startsWith('/')) {
-      // Absolute path
-      segments = path.split('/').filter(Boolean);
-    } else {
-      // Relative path
-      segments = [...this.opfsCwd, ...path.split('/').filter(Boolean)];
     }
 
-    // Resolve . and ..
-    const resolved: string[] = [];
-    for (const seg of segments) {
-      if (seg === '.') continue;
-      if (seg === '..') {
-        resolved.pop();
-      } else {
-        resolved.push(seg);
-      }
-    }
+    const resolved = this.opfsResolvePathSegments(path);
 
     // Verify the path exists
     let dir = await navigator.storage.getDirectory();
