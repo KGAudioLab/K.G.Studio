@@ -1,3 +1,9 @@
+# [0.20.6-build.20260705] (2026-07-05)
+
+* Merge pull request #55 from KGAudioLab/feat/2026-06-30-misc (61fe39e)
+* fix: persist separator results until project switch (722ba68)
+* fix: tempo-driven audio region resizing and playhead clamping (a8c68d9)
+
 # [0.20.5-build.20260702] (2026-07-02)
 
 * Merge pull request #54 from KGAudioLab/feat/2026-06-30-misc (eca0fbd)
