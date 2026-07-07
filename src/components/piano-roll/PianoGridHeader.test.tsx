@@ -28,10 +28,12 @@ function renderHeader({
   hasPianoKeys = true,
   scrollLeft = 0,
   paddingLeft = hasPianoKeys ? '60px' : '0px',
+  scrollContainerLeft = 100,
 }: {
   hasPianoKeys?: boolean;
   scrollLeft?: number;
   paddingLeft?: string;
+  scrollContainerLeft?: number;
 } = {}) {
   const view = render(
     <div className="piano-roll-note-scroll">
@@ -48,18 +50,33 @@ function renderHeader({
     writable: true,
   });
 
+  Object.defineProperty(scrollContainer, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      left: scrollContainerLeft,
+      top: 0,
+      right: scrollContainerLeft + 500,
+      bottom: 20,
+      width: 500,
+      height: 20,
+      x: scrollContainerLeft,
+      y: 0,
+      toJSON: () => ({}),
+    }),
+  });
+
   header.style.paddingLeft = paddingLeft;
 
   Object.defineProperty(header, 'getBoundingClientRect', {
     configurable: true,
     value: () => ({
-      left: 100,
+      left: scrollContainerLeft - scrollLeft,
       top: 0,
-      right: 600,
+      right: scrollContainerLeft - scrollLeft + 500,
       bottom: 20,
       width: 500,
       height: 20,
-      x: 100,
+      x: scrollContainerLeft - scrollLeft,
       y: 0,
       toJSON: () => ({}),
     }),
@@ -88,7 +105,7 @@ describe('PianoGridHeader', () => {
     expect(requestMainContentScroll).toHaveBeenCalledWith(3);
   });
 
-  it('includes the note scroll offset when seeking after horizontal scroll', () => {
+  it('seeks to the same beat after horizontal scroll when the header rect already shifts with content', () => {
     const { header } = renderHeader({ scrollLeft: 160 });
 
     fireEvent.click(header, { clientX: 280 });
@@ -116,6 +133,15 @@ describe('PianoGridHeader', () => {
 
     expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
     expect(setPlayheadPosition).toHaveBeenCalledWith(5);
+    expect(requestMainContentScroll).not.toHaveBeenCalled();
+  });
+
+  it('ignores clicks inside the visible piano-key gutter before it fully scrolls out of view', () => {
+    const { header } = renderHeader({ scrollLeft: 20 });
+
+    fireEvent.click(header, { clientX: 110 });
+
+    expect(setPlayheadPosition).not.toHaveBeenCalled();
     expect(requestMainContentScroll).not.toHaveBeenCalled();
   });
 });

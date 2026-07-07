@@ -28,9 +28,9 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     if (!headerElementRef.current) return null;
 
     const headerElement = headerElementRef.current;
-    const rect = headerElement.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
     const scrollContainer = headerElement.closest('.piano-roll-note-scroll') as HTMLElement | null;
+    const referenceRect = scrollContainer?.getBoundingClientRect() ?? headerElement.getBoundingClientRect();
+    const relativeX = clientX - referenceRect.left;
     const scrollLeft = scrollContainer?.scrollLeft ?? 0;
     const leftGutter = parseFloat(getComputedStyle(headerElement).paddingLeft) || 0;
     const adjustedX = relativeX + scrollLeft - leftGutter;

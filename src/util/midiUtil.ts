@@ -761,6 +761,7 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
   // Get existing tracks to calculate proper track indices
   const existingTracks = project.getTracks();
   const startingTrackIndex = existingTracks.length;
+  const importedTrackEndBeats: number[] = [];
   
   // Convert MIDI tracks to KGSP tracks
   let addedTrackCount = 0;
@@ -782,45 +783,51 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
     const kgTrack = new KGMidiTrack(trackName, trackId, instrument);
     kgTrack.setTrackIndex(actualTrackIndex);
     
-    // Group notes into regions (every 16 beats for now, could be more sophisticated)
-    const regions = groupNotesIntoRegions(midiTrack.notes, project.getTimeSignature());
-    
-    regions.forEach((regionData, regionIndex) => {
-      const regionId = generateUniqueId('KGMidiRegion');
-      const regionName = `${trackName} Region ${regionIndex + 1}`;
-      const region = new KGMidiRegion(
-        regionId,
-        trackId.toString(),
-        actualTrackIndex,
-        regionName,
-        regionData.startBeat,
-        regionData.length
+    const regionStartBeat = Math.min(...midiTrack.notes.map(note => note.startBeat));
+    const regionEndBeat = Math.max(...midiTrack.notes.map(note => note.endBeat));
+    importedTrackEndBeats.push(regionEndBeat);
+    const regionId = generateUniqueId('KGMidiRegion');
+    const regionName = `${trackName} Region`;
+    const region = new KGMidiRegion(
+      regionId,
+      trackId.toString(),
+      actualTrackIndex,
+      regionName,
+      regionStartBeat,
+      regionEndBeat - regionStartBeat
+    );
+
+    // Store imported notes relative to the region start while preserving their timing.
+    midiTrack.notes.forEach(midiNote => {
+      const noteId = generateUniqueId('KGMidiNote');
+      const relativeStartBeat = midiNote.startBeat - regionStartBeat;
+      const relativeEndBeat = midiNote.endBeat - regionStartBeat;
+
+      const kgNote = new KGMidiNote(
+        noteId,
+        relativeStartBeat,
+        relativeEndBeat,
+        midiNote.pitch,
+        midiNote.velocity
       );
-      
-      // Convert MIDI notes to KG notes (with relative timing)
-      regionData.notes.forEach(midiNote => {
-        const noteId = generateUniqueId('KGMidiNote');
-        const relativeStartBeat = midiNote.startBeat - regionData.startBeat;
-        const relativeEndBeat = midiNote.endBeat - regionData.startBeat;
-        
-        const kgNote = new KGMidiNote(
-          noteId,
-          relativeStartBeat,
-          relativeEndBeat,
-          midiNote.pitch,
-          midiNote.velocity
-        );
-        
-        region.addNote(kgNote);
-      });
-      
-      kgTrack.addRegion(region);
+
+      region.addNote(kgNote);
     });
+
+    kgTrack.addRegion(region);
     
     // Add track to project
     project.getTracks().push(kgTrack);
     addedTrackCount += 1;
   });
+
+  if (importedTrackEndBeats.length > 0) {
+    const beatsPerBar = project.getTimeSignature().numerator;
+    const requiredBars = Math.ceil(Math.max(...importedTrackEndBeats) / beatsPerBar);
+    if (requiredBars > project.getMaxBars()) {
+      project.setMaxBars(requiredBars);
+    }
+  }
   
   return project;
 };
@@ -848,12 +855,6 @@ interface ParsedMidiNote {
   endBeat: number;
   pitch: number;
   velocity: number;
-}
-
-interface RegionData {
-  startBeat: number;
-  length: number;
-  notes: ParsedMidiNote[];
 }
 
 /**
@@ -1286,45 +1287,4 @@ function getKeySignatureFromMidi(sharpsFlats: number, majorMinor: number): KeySi
   
   // Default to C major
   return 'C major';
-}
-
-/**
- * Groups MIDI notes into regions based on timing
- */
-function groupNotesIntoRegions(notes: ParsedMidiNote[], timeSignature: TimeSignature): RegionData[] {
-  if (notes.length === 0) return [];
-  
-  // Sort notes by start time
-  const sortedNotes = [...notes].sort((a, b) => a.startBeat - b.startBeat);
-  
-  const regions: RegionData[] = [];
-  const beatsPerBar = timeSignature.numerator;
-  const regionLengthInBeats = beatsPerBar * 4; // 4 bars per region
-  
-  // Find the range of all notes
-  const firstNoteBeat = Math.floor(sortedNotes[0].startBeat);
-  const lastNoteBeat = Math.ceil(Math.max(...sortedNotes.map(n => n.endBeat)));
-  
-  // Create regions to cover all notes
-  for (let regionStart = Math.floor(firstNoteBeat / regionLengthInBeats) * regionLengthInBeats; 
-       regionStart < lastNoteBeat; 
-       regionStart += regionLengthInBeats) {
-    
-    const regionEnd = regionStart + regionLengthInBeats;
-    
-    // Find notes that belong to this region
-    const regionNotes = sortedNotes.filter(note => 
-      note.startBeat >= regionStart && note.startBeat < regionEnd
-    );
-    
-    if (regionNotes.length > 0) {
-      regions.push({
-        startBeat: regionStart,
-        length: regionLengthInBeats,
-        notes: regionNotes
-      });
-    }
-  }
-  
-  return regions;
 }

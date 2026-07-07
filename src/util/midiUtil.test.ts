@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { 
   beatsToBar, 
+  convertMidiToProject,
+  convertProjectToMidi,
   formatMidiEventLength,
   formatMidiEventPosition,
   MIDI_EVENT_TICKS_PER_BEAT,
@@ -13,6 +15,10 @@ import {
   pianoRollIndexToPitch,
   noteNameToPitch
 } from './midiUtil';
+import { KGProject } from '../core/KGProject';
+import { KGMidiTrack } from '../core/track/KGMidiTrack';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGMidiNote } from '../core/midi/KGMidiNote';
 
 describe('midiUtil', () => {
   describe('beatsToBar', () => {
@@ -192,6 +198,166 @@ describe('midiUtil', () => {
       expect(parseMidiEventLength('0 0')).toEqual({
         error: 'Length must be greater than 0.'
       });
+    });
+  });
+
+  describe('convertMidiToProject', () => {
+    const createRoundTripTrack = (notes: Array<{
+      startBeat: number;
+      endBeat: number;
+      pitch: number;
+      velocity: number;
+    }>, options?: {
+      trackName?: string;
+      trackId?: number;
+      trackIndex?: number;
+      project?: KGProject;
+    }) => {
+      const project = options?.project ?? new KGProject('Source Project', 64, 0, 132, { numerator: 4, denominator: 4 }, 'D major');
+      const track = new KGMidiTrack(options?.trackName ?? 'Lead', options?.trackId ?? 1, 'acoustic_grand_piano');
+      track.setTrackIndex(options?.trackIndex ?? project.getTracks().length);
+      const region = new KGMidiRegion(
+        `region-${options?.trackId ?? 1}`,
+        String(track.getId()),
+        track.getTrackIndex(),
+        `${track.getName()} Source`,
+        0,
+        Math.max(...notes.map(note => note.endBeat), 0)
+      );
+
+      notes.forEach((note, index) => {
+        region.addNote(new KGMidiNote(
+          `note-${options?.trackId ?? 1}-${index}`,
+          note.startBeat,
+          note.endBeat,
+          note.pitch,
+          note.velocity
+        ));
+      });
+
+      track.addRegion(region);
+      project.getTracks().push(track);
+      return { project, track };
+    };
+
+    const importProject = (project: KGProject) => convertMidiToProject(convertProjectToMidi(project));
+
+    it('imports a short track as a single region covering the full note range', () => {
+      const { project } = createRoundTripTrack([
+        { startBeat: 1, endBeat: 2.5, pitch: 60, velocity: 96 },
+        { startBeat: 6, endBeat: 7, pitch: 64, velocity: 88 },
+      ]);
+
+      const importedProject = importProject(project);
+      const importedTrack = importedProject.getTracks()[0] as KGMidiTrack;
+      const importedRegions = importedTrack.getRegions();
+
+      expect(importedRegions).toHaveLength(1);
+      expect(importedRegions[0].getStartFromBeat()).toBe(1);
+      expect(importedRegions[0].getLength()).toBe(6);
+      expect(importedRegions[0].getNotes()).toHaveLength(2);
+      expect(importedRegions[0].getNotes().map(note => note.getStartBeat())).toEqual([0, 5]);
+      expect(importedRegions[0].getNotes().map(note => note.getEndBeat())).toEqual([1.5, 6]);
+    });
+
+    it('imports a long track as a single region instead of chunking every four bars', () => {
+      const { project } = createRoundTripTrack([
+        { startBeat: 0, endBeat: 1, pitch: 60, velocity: 100 },
+        { startBeat: 20, endBeat: 21, pitch: 64, velocity: 100 },
+        { startBeat: 36, endBeat: 37, pitch: 67, velocity: 100 },
+      ]);
+
+      const importedProject = importProject(project);
+      const importedTrack = importedProject.getTracks()[0] as KGMidiTrack;
+      const importedRegions = importedTrack.getRegions();
+
+      expect(importedRegions).toHaveLength(1);
+      expect(importedRegions[0].getStartFromBeat()).toBe(0);
+      expect(importedRegions[0].getLength()).toBe(37);
+      expect(importedRegions[0].getNotes().map(note => note.getStartBeat())).toEqual([0, 20, 36]);
+    });
+
+    it('imports multiple MIDI tracks as separate tracks with one region each', () => {
+      const project = new KGProject('Ensemble', 64, 0, 110, { numerator: 4, denominator: 4 }, 'G major');
+      createRoundTripTrack([
+        { startBeat: 0, endBeat: 1, pitch: 60, velocity: 90 },
+      ], { project, trackName: 'Lead', trackId: 1, trackIndex: 0 });
+      createRoundTripTrack([
+        { startBeat: 8, endBeat: 10, pitch: 48, velocity: 80 },
+      ], { project, trackName: 'Bass', trackId: 2, trackIndex: 1 });
+
+      const importedProject = importProject(project);
+      const importedTracks = importedProject.getTracks() as KGMidiTrack[];
+
+      expect(importedTracks).toHaveLength(2);
+      expect(importedTracks[0].getRegions()).toHaveLength(1);
+      expect(importedTracks[1].getRegions()).toHaveLength(1);
+      expect(importedTracks[0].getRegions()[0].getStartFromBeat()).toBe(0);
+      expect(importedTracks[1].getRegions()[0].getStartFromBeat()).toBe(8);
+      expect(importedTracks[1].getRegions()[0].getNotes()[0].getStartBeat()).toBe(0);
+    });
+
+    it('preserves a note that crosses the old four-bar boundary inside the single imported region', () => {
+      const { project } = createRoundTripTrack([
+        { startBeat: 15.5, endBeat: 16.5, pitch: 72, velocity: 110 },
+        { startBeat: 18, endBeat: 19, pitch: 76, velocity: 105 },
+      ]);
+
+      const importedProject = importProject(project);
+      const importedTrack = importedProject.getTracks()[0] as KGMidiTrack;
+      const importedRegion = importedTrack.getRegions()[0];
+      const importedNotes = importedRegion.getNotes();
+
+      expect(importedTrack.getRegions()).toHaveLength(1);
+      expect(importedRegion.getStartFromBeat()).toBe(15.5);
+      expect(importedRegion.getLength()).toBe(3.5);
+      expect(importedNotes[0].getStartBeat()).toBe(0);
+      expect(importedNotes[0].getEndBeat()).toBe(1);
+      expect(importedNotes[1].getStartBeat()).toBe(2.5);
+      expect(importedNotes[1].getEndBeat()).toBe(3.5);
+    });
+
+    it('preserves imported tempo, time signature, and key signature metadata', () => {
+      const { project } = createRoundTripTrack([
+        { startBeat: 2, endBeat: 3, pitch: 60, velocity: 100 },
+      ], {
+        project: new KGProject('Meta Source', 64, 0, 147, { numerator: 3, denominator: 4 }, 'A major')
+      });
+
+      const importedProject = importProject(project);
+
+      expect(importedProject.getBpm()).toBe(147);
+      expect(importedProject.getTimeSignature()).toEqual({ numerator: 3, denominator: 4 });
+      expect(importedProject.getKeySignature()).toBe('A major');
+    });
+
+    it('expands max bars when imported MIDI extends beyond the current project length', () => {
+      const existingProject = new KGProject('Existing Project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+      const sourceProject = new KGProject('Long MIDI Source', 64, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+      createRoundTripTrack([
+        { startBeat: 0, endBeat: 1, pitch: 60, velocity: 100 },
+        { startBeat: 44, endBeat: 46, pitch: 64, velocity: 100 },
+      ], {
+        project: sourceProject
+      });
+
+      const importedProject = convertMidiToProject(convertProjectToMidi(sourceProject), existingProject);
+
+      expect(importedProject.getMaxBars()).toBe(12);
+    });
+
+    it('does not shrink max bars when imported MIDI fits within the current project length', () => {
+      const existingProject = new KGProject('Existing Project', 40, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+      const sourceProject = new KGProject('Short MIDI Source', 64, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+      createRoundTripTrack([
+        { startBeat: 4, endBeat: 6, pitch: 60, velocity: 100 },
+      ], {
+        project: sourceProject
+      });
+
+      const importedProject = convertMidiToProject(convertProjectToMidi(sourceProject), existingProject);
+
+      expect(importedProject.getMaxBars()).toBe(40);
     });
   });
 
