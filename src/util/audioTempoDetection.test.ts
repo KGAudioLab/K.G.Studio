@@ -72,6 +72,7 @@ describe('audio tempo detection', () => {
     const project = {
       getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
       getBpm: () => 120,
+      getMaxBars: () => 32,
       getGlobalTrackByType: () => null,
     } as unknown as KGProject;
     const region = {
@@ -83,7 +84,7 @@ describe('audio tempo detection', () => {
 
     expect(buildAudioTempoAnalysisSpanForRegion(project, region)).toEqual({
       offsetSeconds: 1.25,
-      durationSeconds: 8,
+      durationSeconds: 18.75,
     });
   });
 });

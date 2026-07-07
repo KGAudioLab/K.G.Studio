@@ -241,6 +241,9 @@ describe('midiUtil', () => {
     };
 
     const importProject = (project: KGProject) => convertMidiToProject(convertProjectToMidi(project));
+    const getImportedMidiRegion = (track: KGMidiTrack, index = 0): KGMidiRegion => (
+      track.getRegions()[index] as KGMidiRegion
+    );
 
     it('imports a short track as a single region covering the full note range', () => {
       const { project } = createRoundTripTrack([
@@ -250,14 +253,14 @@ describe('midiUtil', () => {
 
       const importedProject = importProject(project);
       const importedTrack = importedProject.getTracks()[0] as KGMidiTrack;
-      const importedRegions = importedTrack.getRegions();
+      const importedRegion = getImportedMidiRegion(importedTrack);
 
-      expect(importedRegions).toHaveLength(1);
-      expect(importedRegions[0].getStartFromBeat()).toBe(1);
-      expect(importedRegions[0].getLength()).toBe(6);
-      expect(importedRegions[0].getNotes()).toHaveLength(2);
-      expect(importedRegions[0].getNotes().map(note => note.getStartBeat())).toEqual([0, 5]);
-      expect(importedRegions[0].getNotes().map(note => note.getEndBeat())).toEqual([1.5, 6]);
+      expect(importedTrack.getRegions()).toHaveLength(1);
+      expect(importedRegion.getStartFromBeat()).toBe(1);
+      expect(importedRegion.getLength()).toBe(6);
+      expect(importedRegion.getNotes()).toHaveLength(2);
+      expect(importedRegion.getNotes().map((note: KGMidiNote) => note.getStartBeat())).toEqual([0, 5]);
+      expect(importedRegion.getNotes().map((note: KGMidiNote) => note.getEndBeat())).toEqual([1.5, 6]);
     });
 
     it('imports a long track as a single region instead of chunking every four bars', () => {
@@ -269,12 +272,12 @@ describe('midiUtil', () => {
 
       const importedProject = importProject(project);
       const importedTrack = importedProject.getTracks()[0] as KGMidiTrack;
-      const importedRegions = importedTrack.getRegions();
+      const importedRegion = getImportedMidiRegion(importedTrack);
 
-      expect(importedRegions).toHaveLength(1);
-      expect(importedRegions[0].getStartFromBeat()).toBe(0);
-      expect(importedRegions[0].getLength()).toBe(37);
-      expect(importedRegions[0].getNotes().map(note => note.getStartBeat())).toEqual([0, 20, 36]);
+      expect(importedTrack.getRegions()).toHaveLength(1);
+      expect(importedRegion.getStartFromBeat()).toBe(0);
+      expect(importedRegion.getLength()).toBe(37);
+      expect(importedRegion.getNotes().map((note: KGMidiNote) => note.getStartBeat())).toEqual([0, 20, 36]);
     });
 
     it('imports multiple MIDI tracks as separate tracks with one region each', () => {
@@ -292,9 +295,9 @@ describe('midiUtil', () => {
       expect(importedTracks).toHaveLength(2);
       expect(importedTracks[0].getRegions()).toHaveLength(1);
       expect(importedTracks[1].getRegions()).toHaveLength(1);
-      expect(importedTracks[0].getRegions()[0].getStartFromBeat()).toBe(0);
-      expect(importedTracks[1].getRegions()[0].getStartFromBeat()).toBe(8);
-      expect(importedTracks[1].getRegions()[0].getNotes()[0].getStartBeat()).toBe(0);
+      expect(getImportedMidiRegion(importedTracks[0]).getStartFromBeat()).toBe(0);
+      expect(getImportedMidiRegion(importedTracks[1]).getStartFromBeat()).toBe(8);
+      expect(getImportedMidiRegion(importedTracks[1]).getNotes()[0].getStartBeat()).toBe(0);
     });
 
     it('preserves a note that crosses the old four-bar boundary inside the single imported region', () => {
@@ -305,7 +308,7 @@ describe('midiUtil', () => {
 
       const importedProject = importProject(project);
       const importedTrack = importedProject.getTracks()[0] as KGMidiTrack;
-      const importedRegion = importedTrack.getRegions()[0];
+      const importedRegion = getImportedMidiRegion(importedTrack);
       const importedNotes = importedRegion.getNotes();
 
       expect(importedTrack.getRegions()).toHaveLength(1);
