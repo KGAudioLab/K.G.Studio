@@ -325,6 +325,46 @@ describe('PianoRollToolbar', () => {
     expect(screen.queryByText('Detect tempo...')).not.toBeInTheDocument();
   });
 
+  it('shows the convert to MIDI action as the last audio option and triggers it', () => {
+    const onConvertToMidi = vi.fn();
+
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onConvertToMidi={onConvertToMidi}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    const options = screen.getAllByText(/Detect chords...|Convert to MIDI.../);
+    expect(options[options.length - 1]).toHaveTextContent('Convert to MIDI...');
+    fireEvent.click(screen.getByText('Convert to MIDI...'));
+
+    expect(onConvertToMidi).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the convert to MIDI action when no MIDI tracks are available', () => {
+    const onConvertToMidi = vi.fn();
+
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="spectrogram"
+        showAutomationControls={false}
+        onConvertToMidi={onConvertToMidi}
+        convertToMidiDisabled={true}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    const convertItem = screen.getByText('Convert to MIDI...');
+    expect(convertItem).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(convertItem);
+    expect(onConvertToMidi).not.toHaveBeenCalled();
+  });
+
   it('shows only the sheet controls when sheet mode is enabled', () => {
     renderWithLocale(
       <PianoRollToolbar

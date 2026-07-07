@@ -37,6 +37,19 @@ export interface TempoApplyResult {
   autoAlignRegionToBeat: boolean;
 }
 
+export interface AudioToMidiOptionsResult {
+  monophonic: boolean;
+  useCurrentFloorDb: boolean;
+  manualFloorDb: number;
+  pitchRangeStart: number;
+  pitchRangeEnd: number;
+  quantizeNoteStart: string;
+  quantizeNoteLength: string;
+  convertLoopRangeOnly: boolean;
+  groupAdjacentPitchesToHighest: boolean;
+  targetTrackId: string;
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -51,6 +64,12 @@ let _showChordDetectionOptionsFn: ((message: string, defaultValue?: ChordDetecti
 let _showMidiChordDetectionOptionsFn: ((message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>) | null = null;
 let _showTempoDetectionOptionsFn: ((message: string, defaultValue?: TempoDetectionOptionsResult) => Promise<TempoDetectionOptionsResult | null>) | null = null;
 let _showTempoApplyFn: ((message: string, choices: ChoiceOption[]) => Promise<TempoApplyResult | null>) | null = null;
+let _showAudioToMidiOptionsFn: ((
+  message: string,
+  targetTracks: ChoiceOption[],
+  loopModeEnabled: boolean,
+  defaultValue?: AudioToMidiOptionsResult,
+) => Promise<AudioToMidiOptionsResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -62,6 +81,12 @@ export function registerDialogFns(
   midiChordDetectionOptionsFn?: (message: string, defaultValue?: MidiChordDetectionOptionsResult) => Promise<MidiChordDetectionOptionsResult | null>,
   tempoDetectionOptionsFn?: (message: string, defaultValue?: TempoDetectionOptionsResult) => Promise<TempoDetectionOptionsResult | null>,
   tempoApplyFn?: (message: string, choices: ChoiceOption[]) => Promise<TempoApplyResult | null>,
+  audioToMidiOptionsFn?: (
+    message: string,
+    targetTracks: ChoiceOption[],
+    loopModeEnabled: boolean,
+    defaultValue?: AudioToMidiOptionsResult,
+  ) => Promise<AudioToMidiOptionsResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -72,6 +97,7 @@ export function registerDialogFns(
   if (midiChordDetectionOptionsFn) _showMidiChordDetectionOptionsFn = midiChordDetectionOptionsFn;
   if (tempoDetectionOptionsFn) _showTempoDetectionOptionsFn = tempoDetectionOptionsFn;
   if (tempoApplyFn) _showTempoApplyFn = tempoApplyFn;
+  if (audioToMidiOptionsFn) _showAudioToMidiOptionsFn = audioToMidiOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -165,4 +191,27 @@ export function showTempoApply(message: string, choices: ChoiceOption[]): Promis
     );
   }
   return _showTempoApplyFn(message, choices);
+}
+
+export function showAudioToMidiOptions(
+  message: string,
+  targetTracks: ChoiceOption[],
+  loopModeEnabled: boolean,
+  defaultValue?: AudioToMidiOptionsResult,
+): Promise<AudioToMidiOptionsResult | null> {
+  if (!_showAudioToMidiOptionsFn) {
+    return Promise.resolve(defaultValue ?? {
+      monophonic: true,
+      useCurrentFloorDb: true,
+      manualFloorDb: -25,
+      pitchRangeStart: 12,
+      pitchRangeEnd: 107,
+      quantizeNoteStart: '1/16',
+      quantizeNoteLength: '1/16',
+      convertLoopRangeOnly: true,
+      groupAdjacentPitchesToHighest: true,
+      targetTrackId: targetTracks[0]?.value ?? '',
+    });
+  }
+  return _showAudioToMidiOptionsFn(message, targetTracks, loopModeEnabled, defaultValue);
 }

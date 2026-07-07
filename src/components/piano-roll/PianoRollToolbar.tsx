@@ -50,6 +50,8 @@ interface PianoRollToolbarProps {
   detectingChords?: boolean;
   onDetectTempo?: () => void | Promise<void>;
   detectingTempo?: boolean;
+  onConvertToMidi?: () => void | Promise<void>;
+  convertToMidiDisabled?: boolean;
   selectedRegionColor?: string;
   onRegionColorSelect?: (color: string | null) => void;
 }
@@ -94,6 +96,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   detectingChords = false,
   onDetectTempo,
   detectingTempo = false,
+  onConvertToMidi,
+  convertToMidiDisabled = false,
   selectedRegionColor,
   onRegionColorSelect,
 }) => {
@@ -102,7 +106,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   const showAudioOnlyControls = mode === 'audio-waveform' && !sheetMusicViewEnabled;
   const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
-  const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo);
+  const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo || !!onConvertToMidi);
   const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
   const snapOptions = React.useMemo(
     () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
@@ -445,6 +449,22 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                     aria-disabled={detectingTempo}
                   >
                     {detectingTempo ? t('pianoRoll.detectingTempo') : t('pianoRoll.detectTempo')}
+                  </div>
+                )}
+                {onConvertToMidi && (
+                  <div
+                    className={`quant-option${convertToMidiDisabled ? ' disabled' : ''}`}
+                    onClick={() => {
+                      if (convertToMidiDisabled) {
+                        return;
+                      }
+                      setShowRegionColorPalette(false);
+                      setShowMoreMenu(false);
+                      void onConvertToMidi();
+                    }}
+                    aria-disabled={convertToMidiDisabled}
+                  >
+                    {t('pianoRoll.convertToMidi')}
                   </div>
                 )}
               </div>

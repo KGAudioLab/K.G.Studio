@@ -153,6 +153,17 @@
   gap: 16px;
 }
 
+.dialog-two-column-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dialog-half-width-group {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .dialog-hint-card {
   margin-top: 12px;
   background-color: #252525;
@@ -219,6 +230,27 @@
   width: 16px;
   height: 16px;
   accent-color: #5a9fd4;
+}
+
+.dialog-compact-checkbox-row {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dialog-compact-checkbox-row span {
+  line-height: 1.3;
+}
+
+.dialog-compact-input {
+  margin-top: 0;
+}
+
+.dialog-inline-sep {
+  color: #b0b0b0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 
 .dialog-footer {

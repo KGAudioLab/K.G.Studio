@@ -2,9 +2,11 @@ import React, { useState, useCallback, useRef } from 'react';
 import './DialogProvider.css';
 import { FaTimes } from 'react-icons/fa';
 import { ConfigManager } from '../../core/config/ConfigManager';
+import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { useI18n } from '../../i18n/useI18n';
 import { registerDialogFns } from '../../util/dialogUtil';
 import type {
+  AudioToMidiOptionsResult,
   ChoiceOption,
   ChordDetectionOptionsResult,
   ConfirmOptions,
@@ -16,7 +18,7 @@ import type {
 } from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply' | 'audio-to-midi';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
@@ -25,6 +27,9 @@ interface DialogInfo {
   defaultChordDetectionOptions?: ChordDetectionOptionsResult;
   defaultMidiChordDetectionOptions?: MidiChordDetectionOptionsResult;
   defaultTempoDetectionOptions?: TempoDetectionOptionsResult;
+  defaultAudioToMidiOptions?: AudioToMidiOptionsResult;
+  audioToMidiTargetTracks?: ChoiceOption[];
+  audioToMidiLoopModeEnabled?: boolean;
 }
 
 const DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS: ChordDetectionOptionsResult = {
@@ -45,6 +50,19 @@ const DEFAULT_TEMPO_DETECTION_OPTIONS: TempoDetectionOptionsResult = {
   maxTempo: 180,
 };
 
+const DEFAULT_AUDIO_TO_MIDI_OPTIONS: AudioToMidiOptionsResult = {
+  monophonic: true,
+  useCurrentFloorDb: true,
+  manualFloorDb: -25,
+  pitchRangeStart: 12,
+  pitchRangeEnd: 107,
+  quantizeNoteStart: '1/16',
+  quantizeNoteLength: '1/16',
+  convertLoopRangeOnly: true,
+  groupAdjacentPitchesToHighest: true,
+  targetTrackId: '',
+};
+
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useI18n();
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
@@ -55,6 +73,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [chordDetectionOptions, setChordDetectionOptions] = useState<ChordDetectionOptionsResult>(DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
   const [midiChordDetectionOptions, setMidiChordDetectionOptions] = useState<MidiChordDetectionOptionsResult>(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
   const [tempoDetectionOptions, setTempoDetectionOptions] = useState<TempoDetectionOptionsResult>(DEFAULT_TEMPO_DETECTION_OPTIONS);
+  const [audioToMidiOptions, setAudioToMidiOptions] = useState<AudioToMidiOptionsResult>(DEFAULT_AUDIO_TO_MIDI_OPTIONS);
+  const [audioToMidiTargetTracks, setAudioToMidiTargetTracks] = useState<ChoiceOption[]>([]);
   const [autoAlignRegionToBeat, setAutoAlignRegionToBeat] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
@@ -142,6 +162,30 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const openAudioToMidiOptions = useCallback((
+    message: string,
+    targetTracks: ChoiceOption[],
+    loopModeEnabled: boolean,
+    defaultValue?: AudioToMidiOptionsResult,
+  ): Promise<AudioToMidiOptionsResult | null> => {
+    return new Promise<AudioToMidiOptionsResult | null>((resolve) => {
+      resolveRef.current = resolve;
+      const fallbackTrackId = targetTracks[0]?.value ?? '';
+      setAudioToMidiTargetTracks(targetTracks);
+      setAudioToMidiOptions({
+        ...(defaultValue ?? DEFAULT_AUDIO_TO_MIDI_OPTIONS),
+        targetTrackId: defaultValue?.targetTrackId || fallbackTrackId,
+      });
+      setDialog({
+        type: 'audio-to-midi',
+        message,
+        defaultAudioToMidiOptions: defaultValue,
+        audioToMidiTargetTracks: targetTracks,
+        audioToMidiLoopModeEnabled: loopModeEnabled,
+      });
+    });
+  }, []);
+
   const close = useCallback((value: unknown) => {
     pendingValueRef.current = value;
     setIsClosing(true);
@@ -158,6 +202,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setChordDetectionOptions(DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS);
     setMidiChordDetectionOptions(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
     setTempoDetectionOptions(DEFAULT_TEMPO_DETECTION_OPTIONS);
+    setAudioToMidiOptions(DEFAULT_AUDIO_TO_MIDI_OPTIONS);
+    setAudioToMidiTargetTracks([]);
     setAutoAlignRegionToBeat(false);
     if (resolveRef.current) {
       resolveRef.current(pendingValueRef.current);
@@ -180,6 +226,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       openMidiChordDetectionOptions,
       openTempoDetectionOptions,
       openTempoApply,
+      openAudioToMidiOptions,
     );
   }
 
@@ -195,6 +242,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isMidiChordDetection = dialog.type === 'midi-chord-detection';
   const isTempoDetection = dialog.type === 'tempo-detection';
   const isTempoApply = dialog.type === 'tempo-apply';
+  const isAudioToMidi = dialog.type === 'audio-to-midi';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
   const isKGOneEnabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
 
@@ -203,10 +251,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     : isTimeSig
       ? t('dialog.title.timeSignature')
       : isTempoDetection
-        ? t('dialog.title.tempoDetection')
-        : isTempoApply
-          ? t('dialog.title.applyTempo')
-          : (isChordDetection || isMidiChordDetection)
+      ? t('dialog.title.tempoDetection')
+      : isTempoApply
+        ? t('dialog.title.applyTempo')
+        : isAudioToMidi
+          ? t('dialog.title.audioToMidi')
+        : (isChordDetection || isMidiChordDetection)
         ? t('dialog.title.chordDetection')
         : isPrompt
           ? t('dialog.title.input')
@@ -218,11 +268,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isTempoDetection || isTempoApply) ? null : false);
+      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isTempoDetection || isTempoApply) ? null : false);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi) ? null : false);
 
   const handleConfirm = () => {
     if (isAlert) { close(undefined); return; }
@@ -241,6 +291,10 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     }
     if (isTempoDetection) {
       close(tempoDetectionOptions);
+      return;
+    }
+    if (isAudioToMidi) {
+      close(audioToMidiOptions);
       return;
     }
     if (isTempoApply) {
@@ -274,13 +328,29 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setTempoDetectionOptions(current => ({ ...current, [key]: value }));
   };
 
+  const updateAudioToMidiOption = <K extends keyof AudioToMidiOptionsResult>(
+    key: K,
+    value: AudioToMidiOptionsResult[K],
+  ) => {
+    setAudioToMidiOptions(current => ({ ...current, [key]: value }));
+  };
+
   const detectionHintText = isChordDetection
     ? t('dialog.chordHint.audio')
     : isMidiChordDetection
       ? t('dialog.chordHint.midi')
       : isTempoDetection
         ? t('dialog.chordHint.tempo')
+        : isAudioToMidi
+          ? t('dialog.audioToMidiHint')
         : null;
+
+  const audioToMidiPitchOptions = Array.from({ length: 96 }, (_, index) => {
+    const pitch = 12 + index;
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const noteName = `${noteNames[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
+    return { value: String(pitch), label: noteName };
+  });
 
   return (
     <>
@@ -298,7 +368,9 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
             </button>
           </div>
           <div className="dialog-body">
-            <p className="dialog-message">{dialog.message}</p>
+            {(!isAudioToMidi || dialog.message.trim().length > 0) && (
+              <p className="dialog-message">{dialog.message}</p>
+            )}
             {detectionHintText && (
               <div className="dialog-hint-card">
                 <div className="dialog-hint-card-title">{t('dialog.experimentalFeature')}</div>
@@ -345,6 +417,160 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                     if (e.key === 'Escape') handleCancel();
                   }}
                 />
+              </div>
+            )}
+            {isAudioToMidi && (
+              <div className="dialog-chord-detection-form">
+                <div className="dialog-two-column-row">
+                  <label className="dialog-checkbox-row dialog-compact-checkbox-row" htmlFor="dialog-audio-to-midi-monophonic">
+                    <input
+                      id="dialog-audio-to-midi-monophonic"
+                      type="checkbox"
+                      checked={audioToMidiOptions.monophonic}
+                      disabled={true}
+                      readOnly={true}
+                      autoFocus
+                    />
+                    <span>{t('dialog.label.monophonicOnly')}</span>
+                  </label>
+                  <label className="dialog-checkbox-row dialog-compact-checkbox-row" htmlFor="dialog-audio-to-midi-current-floor">
+                    <input
+                      id="dialog-audio-to-midi-current-floor"
+                      type="checkbox"
+                      checked={audioToMidiOptions.useCurrentFloorDb}
+                      onChange={(e) => updateAudioToMidiOption('useCurrentFloorDb', e.target.checked)}
+                    />
+                    <span>{t('dialog.label.useCurrentFloorDb')}</span>
+                  </label>
+                </div>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-audio-to-midi-floor">{t('dialog.label.manualFloorDb')}</label>
+                    <span className="dialog-slider-value">{audioToMidiOptions.manualFloorDb} dB</span>
+                  </div>
+                  <input
+                    id="dialog-audio-to-midi-floor"
+                    className="dialog-slider"
+                    type="range"
+                    aria-label={t('dialog.label.manualFloorDb')}
+                    min={-50}
+                    max={-5}
+                    step={1}
+                    value={audioToMidiOptions.manualFloorDb}
+                    onChange={(e) => updateAudioToMidiOption('manualFloorDb', Number(e.target.value))}
+                    disabled={audioToMidiOptions.useCurrentFloorDb}
+                  />
+                </div>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-audio-to-midi-pitch-start">{t('dialog.label.pitchRange')}</label>
+                  </div>
+                  <div className="dialog-timesig-row">
+                    <select
+                      id="dialog-audio-to-midi-pitch-start"
+                      className="dialog-input"
+                      aria-label={`${t('dialog.label.pitchRange')} start`}
+                      value={String(audioToMidiOptions.pitchRangeStart)}
+                      onChange={(e) => {
+                        const nextStart = Number(e.target.value);
+                        updateAudioToMidiOption('pitchRangeStart', nextStart);
+                        if (nextStart > audioToMidiOptions.pitchRangeEnd) {
+                          updateAudioToMidiOption('pitchRangeEnd', nextStart);
+                        }
+                      }}
+                    >
+                      {audioToMidiPitchOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <span className="dialog-inline-sep">{t('dialog.to')}</span>
+                    <select
+                      className="dialog-input"
+                      aria-label={`${t('dialog.label.pitchRange')} end`}
+                      value={String(audioToMidiOptions.pitchRangeEnd)}
+                      onChange={(e) => {
+                        const nextEnd = Number(e.target.value);
+                        updateAudioToMidiOption('pitchRangeEnd', nextEnd);
+                        if (nextEnd < audioToMidiOptions.pitchRangeStart) {
+                          updateAudioToMidiOption('pitchRangeStart', nextEnd);
+                        }
+                      }}
+                    >
+                      {audioToMidiPitchOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="dialog-two-column-row">
+                  <div className="dialog-slider-group dialog-half-width-group">
+                    <div className="dialog-slider-header">
+                      <label className="dialog-slider-label" htmlFor="dialog-audio-to-midi-quant-start">{t('dialog.label.quantizeNoteStart')}</label>
+                    </div>
+                    <select
+                      id="dialog-audio-to-midi-quant-start"
+                      className="dialog-input dialog-compact-input"
+                      aria-label={t('dialog.label.quantizeNoteStart')}
+                      value={audioToMidiOptions.quantizeNoteStart}
+                      onChange={(e) => updateAudioToMidiOption('quantizeNoteStart', e.target.value)}
+                    >
+                      {KGPianoRollState.QUANT_POS_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="dialog-slider-group dialog-half-width-group">
+                    <div className="dialog-slider-header">
+                      <label className="dialog-slider-label" htmlFor="dialog-audio-to-midi-quant-length">{t('dialog.label.quantizeNoteLength')}</label>
+                    </div>
+                    <select
+                      id="dialog-audio-to-midi-quant-length"
+                      className="dialog-input dialog-compact-input"
+                      aria-label={t('dialog.label.quantizeNoteLength')}
+                      value={audioToMidiOptions.quantizeNoteLength}
+                      onChange={(e) => updateAudioToMidiOption('quantizeNoteLength', e.target.value)}
+                    >
+                      {KGPianoRollState.QUANT_LEN_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <label className="dialog-checkbox-row" htmlFor="dialog-audio-to-midi-loop-only">
+                  <input
+                    id="dialog-audio-to-midi-loop-only"
+                    type="checkbox"
+                    checked={audioToMidiOptions.convertLoopRangeOnly}
+                    disabled={!dialog.audioToMidiLoopModeEnabled}
+                    onChange={(e) => updateAudioToMidiOption('convertLoopRangeOnly', e.target.checked)}
+                  />
+                  <span>{t('dialog.label.convertLoopRangeOnly')}</span>
+                </label>
+                <label className="dialog-checkbox-row" htmlFor="dialog-audio-to-midi-group-adjacent">
+                  <input
+                    id="dialog-audio-to-midi-group-adjacent"
+                    type="checkbox"
+                    checked={audioToMidiOptions.groupAdjacentPitchesToHighest}
+                    onChange={(e) => updateAudioToMidiOption('groupAdjacentPitchesToHighest', e.target.checked)}
+                  />
+                  <span>{t('dialog.label.groupAdjacentPitchesToHighest')}</span>
+                </label>
+                <div className="dialog-slider-group">
+                  <div className="dialog-slider-header">
+                    <label className="dialog-slider-label" htmlFor="dialog-audio-to-midi-target-track">{t('dialog.label.targetTrack')}</label>
+                  </div>
+                  <select
+                    id="dialog-audio-to-midi-target-track"
+                    className="dialog-input"
+                    aria-label={t('dialog.label.targetTrack')}
+                    value={audioToMidiOptions.targetTrackId}
+                    onChange={(e) => updateAudioToMidiOption('targetTrackId', e.target.value)}
+                  >
+                    {audioToMidiTargetTracks.map(choice => (
+                      <option key={choice.value} value={choice.value}>{choice.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
             {isChordDetection && (
@@ -545,14 +771,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={handleConfirm}
-                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply}
+                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply && !isAudioToMidi}
               >
                 {isAlert
                   ? t('dialog.ok')
                   : ((dialog.options as ConfirmOptions | PromptOptions | undefined)?.confirmLabel
                     ?? (isPrompt || isTimeSig
                       ? t('dialog.ok')
-                      : (isChordDetection || isMidiChordDetection || isTempoDetection)
+                      : (isChordDetection || isMidiChordDetection || isTempoDetection || isAudioToMidi)
                         ? t('dialog.ok')
                         : t('settings.yes')))}
               </button>
