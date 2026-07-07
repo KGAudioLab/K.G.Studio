@@ -1,3 +1,8 @@
+# [0.20.8-build.20260707] (2026-07-07)
+
+* Merge pull request #57 from KGAudioLab/feat/2026-06-30-misc (73b2840)
+* fix: fixed failed test cases (08c9cf2)
+
 # [0.20.7-build.20260707] (2026-07-07)
 
 * Merge pull request #56 from KGAudioLab/feat/2026-06-30-misc (5c74c82)
