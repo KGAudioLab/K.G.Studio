@@ -1,7 +1,8 @@
 import FFT from 'fft.js';
 import {
+  getSpectrogramAnalysisResolution,
   getSpectrogramPitchBinCount,
-  mapMidiPitchToSpectrogramPosition,
+  mapFrequencyToSpectrogramPosition,
   normalizeSpectrogramHeightResolution,
   type SpectrogramHeightResolution,
 } from '../util/spectrogramUtil';
@@ -11,7 +12,7 @@ type WorkerScopeLike = typeof globalThis & {
   postMessage: (message: SpectrogramResult, transfer: Transferable[]) => void;
 };
 
-const workerScope = self as WorkerScopeLike;
+const workerScope = typeof self === 'undefined' ? null : self as WorkerScopeLike;
 
 export interface SpectrogramRequest {
   pcm: Float32Array;
@@ -28,8 +29,10 @@ export interface SpectrogramResult {
   pitchBins: number;
 }
 
-const FFT_SIZE = 8192;
+const FFT_SIZE = 16384;
 const HOP_SIZE = 1024;
+const MIN_SPECTROGRAM_FREQUENCY = 20;
+const MAX_SPECTROGRAM_FREQUENCY = 20000;
 
 function hannWindow(size: number): Float32Array {
   const w = new Float32Array(size);
@@ -39,24 +42,98 @@ function hannWindow(size: number): Float32Array {
   return w;
 }
 
-function spreadMagnitudeAcrossPitchBins(
+export function getFrequencyBandEdges(
+  centerFrequency: number,
+  hzPerBin: number,
+): { lowerFrequency: number; upperFrequency: number } {
+  const halfBandwidth = hzPerBin / 2;
+  return {
+    lowerFrequency: Math.max(Number.EPSILON, centerFrequency - halfBandwidth),
+    upperFrequency: centerFrequency + halfBandwidth,
+  };
+}
+
+export function estimateParabolicPeakOffset(
+  leftMagnitude: number,
+  centerMagnitude: number,
+  rightMagnitude: number,
+): number {
+  const denominator = leftMagnitude - 2 * centerMagnitude + rightMagnitude;
+  if (!Number.isFinite(denominator) || Math.abs(denominator) < Number.EPSILON) {
+    return 0;
+  }
+
+  const offset = 0.5 * (leftMagnitude - rightMagnitude) / denominator;
+  return Math.max(-0.5, Math.min(0.5, offset));
+}
+
+export function estimatePeakFrequency(
+  bin: number,
+  hzPerBin: number,
+  magnitudes: Float32Array,
+): number {
+  const centerFrequency = bin * hzPerBin;
+  if (bin <= 1 || bin >= magnitudes.length - 1) {
+    return centerFrequency;
+  }
+
+  const leftMagnitude = magnitudes[bin - 1];
+  const centerMagnitude = magnitudes[bin];
+  const rightMagnitude = magnitudes[bin + 1];
+
+  if (centerMagnitude <= leftMagnitude || centerMagnitude <= rightMagnitude) {
+    return centerFrequency;
+  }
+
+  return (bin + estimateParabolicPeakOffset(leftMagnitude, centerMagnitude, rightMagnitude)) * hzPerBin;
+}
+
+function getPitchSpanBounds(
+  lowerFrequency: number,
+  upperFrequency: number,
+  centerFrequency: number,
+  analysisResolution: number,
+): { startPosition: number; endPosition: number; centerPosition: number } | null {
+  const startPosition = mapFrequencyToSpectrogramPosition(lowerFrequency, analysisResolution);
+  const endPosition = mapFrequencyToSpectrogramPosition(upperFrequency, analysisResolution);
+  const centerPosition = mapFrequencyToSpectrogramPosition(centerFrequency, analysisResolution);
+
+  if (startPosition === null || endPosition === null || centerPosition === null) {
+    return null;
+  }
+
+  return {
+    startPosition: Math.min(startPosition, endPosition),
+    endPosition: Math.max(startPosition, endPosition),
+    centerPosition,
+  };
+}
+
+export function paintMagnitudeAcrossPitchSpan(
   result: Float32Array,
   pitchRow: number,
   pitchBins: number,
-  pitchPosition: number,
+  startPosition: number,
+  endPosition: number,
+  centerPosition: number,
   magnitude: number,
-  heightResolution: SpectrogramHeightResolution,
 ): void {
-  const spreadRadius = Math.max(0, heightResolution - 1);
-  const centerBin = Math.round(pitchPosition);
-  const startBin = Math.max(0, centerBin - spreadRadius);
-  const endBin = Math.min(pitchBins - 1, centerBin + spreadRadius);
-  const spreadWidth = spreadRadius + 1;
+  const clampedStart = Math.max(0, Math.min(startPosition, pitchBins - 1));
+  const clampedEnd = Math.max(0, Math.min(endPosition, pitchBins - 1));
+  const startBin = Math.max(0, Math.floor(clampedStart));
+  const endBin = Math.min(pitchBins - 1, Math.ceil(clampedEnd));
+  const spanWidth = Math.max(clampedEnd - clampedStart, 1);
 
   for (let targetBin = startBin; targetBin <= endBin; targetBin++) {
-    const distance = Math.abs(targetBin - pitchPosition);
-    const weight = Math.max(0, 1 - distance / spreadWidth);
-    if (weight <= 0) continue;
+    const cellStart = targetBin - 0.5;
+    const cellEnd = targetBin + 0.5;
+    const overlap = Math.max(0, Math.min(clampedEnd, cellEnd) - Math.max(clampedStart, cellStart));
+    if (overlap <= 0) continue;
+
+    const overlapWeight = Math.min(1, overlap);
+    const centerDistance = Math.abs(targetBin - centerPosition);
+    const centerWeight = Math.max(0, 1 - centerDistance / (spanWidth + 1));
+    const weight = Math.max(overlapWeight * (0.6 + 0.4 * centerWeight), overlapWeight * 0.35);
 
     const weightedMagnitude = magnitude * weight;
     const resultIndex = pitchRow + targetBin;
@@ -66,7 +143,7 @@ function spreadMagnitudeAcrossPitchBins(
   }
 }
 
-workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
+function handleSpectrogramRequest(e: MessageEvent<SpectrogramRequest>, scope: WorkerScopeLike): void {
   const {
     pcm,
     sampleRate,
@@ -75,7 +152,8 @@ workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
     heightResolution,
   } = e.data;
   const normalizedResolution = normalizeSpectrogramHeightResolution(heightResolution);
-  const pitchBins = getSpectrogramPitchBinCount(normalizedResolution);
+  const analysisResolution = getSpectrogramAnalysisResolution(normalizedResolution);
+  const pitchBins = getSpectrogramPitchBinCount(analysisResolution);
 
   const startSample = Math.floor(clipStartOffsetSeconds * sampleRate);
   const endSample = Math.min(pcm.length, startSample + Math.ceil(regionDurationSeconds * sampleRate));
@@ -85,6 +163,7 @@ workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
   const hann = hannWindow(FFT_SIZE);
   const complexOut = fft.createComplexArray() as number[];
   const inputPadded = new Float32Array(FFT_SIZE);
+  const hzPerBin = sampleRate / FFT_SIZE;
 
   const totalHops = Math.max(1, Math.ceil((regionSamples.length - FFT_SIZE) / HOP_SIZE) + 1);
   const result = new Float32Array(totalHops * pitchBins);
@@ -108,25 +187,44 @@ workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
     // rather than summing. Summing inflates every bin by how many FFT bins land there.
     const pitchRow = hop * pitchBins;
     const numBins = FFT_SIZE / 2;
+    const magnitudes = new Float32Array(numBins);
 
     for (let bin = 1; bin < numBins; bin++) {
-      const freq = (bin * sampleRate) / FFT_SIZE;
-      if (freq < 20 || freq > 20000) continue;
-
-      const midiPitch = 69 + 12 * Math.log2(freq / 440);
-      const pitchPosition = mapMidiPitchToSpectrogramPosition(midiPitch, normalizedResolution);
-      if (pitchPosition === null) continue;
-
       const re = complexOut[2 * bin];
       const im = complexOut[2 * bin + 1];
-      const magnitude = Math.sqrt(re * re + im * im);
-      spreadMagnitudeAcrossPitchBins(
+      magnitudes[bin] = Math.sqrt(re * re + im * im);
+    }
+
+    for (let bin = 1; bin < numBins; bin++) {
+      const centerFrequency = estimatePeakFrequency(bin, hzPerBin, magnitudes);
+      const { lowerFrequency, upperFrequency } = getFrequencyBandEdges(centerFrequency, hzPerBin);
+      if (upperFrequency < MIN_SPECTROGRAM_FREQUENCY || lowerFrequency > MAX_SPECTROGRAM_FREQUENCY) continue;
+
+      const clampedLowerFrequency = Math.max(lowerFrequency, MIN_SPECTROGRAM_FREQUENCY);
+      const clampedUpperFrequency = Math.min(upperFrequency, MAX_SPECTROGRAM_FREQUENCY);
+      const clampedCenterFrequency = Math.min(
+        clampedUpperFrequency,
+        Math.max(clampedLowerFrequency, centerFrequency),
+      );
+      const pitchSpan = getPitchSpanBounds(
+        clampedLowerFrequency,
+        clampedUpperFrequency,
+        clampedCenterFrequency,
+        analysisResolution,
+      );
+      if (!pitchSpan) continue;
+
+      const magnitude = magnitudes[bin];
+      if (magnitude <= 0) continue;
+
+      paintMagnitudeAcrossPitchSpan(
         result,
         pitchRow,
         pitchBins,
-        pitchPosition,
+        pitchSpan.startPosition,
+        pitchSpan.endPosition,
+        pitchSpan.centerPosition,
         magnitude,
-        normalizedResolution,
       );
     }
 
@@ -145,5 +243,11 @@ workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
   }
 
   const response: SpectrogramResult = { data: result, timeSteps: totalHops, pitchBins };
-  workerScope.postMessage(response, [result.buffer]);
-};
+  scope.postMessage(response, [result.buffer]);
+}
+
+if (workerScope) {
+  workerScope.onmessage = (e: MessageEvent<SpectrogramRequest>) => {
+    handleSpectrogramRequest(e, workerScope);
+  };
+}
