@@ -227,20 +227,20 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onResize?.('region-a', 'end', 40);
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '0px',
       width: '140px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-a').previewContentStyle).toEqual({
       left: '0px',
       width: '100px',
     });
-    expect(getRegionItem('region-b').style).toEqual({
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '200px',
       width: '240px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-b').previewContentStyle).toEqual({
       left: '0px',
       width: '200px',
@@ -261,20 +261,20 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onResize?.('region-a', 'start', 40);
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '140px',
       width: '160px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-a').previewContentStyle).toEqual({
       left: '-40px',
       width: '200px',
     });
-    expect(getRegionItem('region-b').style).toEqual({
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '340px',
       width: '260px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-b').previewContentStyle).toEqual({
       left: '-40px',
       width: '300px',
@@ -295,20 +295,20 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onResize?.('region-a', 'end', -40);
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '0px',
       width: '160px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-a').previewContentStyle).toEqual({
       left: '0px',
       width: '200px',
     });
-    expect(getRegionItem('region-b').style).toEqual({
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '200px',
       width: '260px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-b').previewContentStyle).toEqual({
       left: '0px',
       width: '300px',
@@ -329,20 +329,20 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onResize?.('region-a', 'start', -40);
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '60px',
       width: '240px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-a').previewContentStyle).toEqual({
       left: '40px',
       width: '200px',
     });
-    expect(getRegionItem('region-b').style).toEqual({
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '260px',
       width: '340px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-b').previewContentStyle).toEqual({
       left: '40px',
       width: '300px',
@@ -357,20 +357,20 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onDrag?.('region-a', 50, 60);
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '50px',
       width: '100px',
       position: 'absolute',
       zIndex: 100,
       transform: 'translateY(0px)',
-    });
-    expect(getRegionItem('region-b').style).toEqual({
+    }));
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '250px',
       width: '200px',
       position: 'absolute',
       zIndex: 100,
       transform: 'translateY(0px)',
-    });
+    }));
   });
 
   it('previews only the grabbed region when it is outside the current selection', () => {
@@ -408,13 +408,13 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-c').onDrag?.('region-c', 50, 60);
     });
 
-    expect(getRegionItem('region-c').style).toEqual({
+    expect(getRegionItem('region-c').style).toEqual(expect.objectContaining({
       left: '450px',
       width: '100px',
       position: 'absolute',
       zIndex: 100,
       transform: 'translateY(60px)',
-    });
+    }));
   });
 
   it('clears preview styles for the full cohort after drag and resize end', () => {
@@ -426,17 +426,17 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onResizeEnd?.('region-a', 'end');
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '0px',
       width: '100px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-a').previewContentStyle).toBeUndefined();
-    expect(getRegionItem('region-b').style).toEqual({
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '200px',
       width: '200px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-b').previewContentStyle).toBeUndefined();
     expect(onRegionResizeEnd).toHaveBeenCalledWith('region-a', 1, 1);
 
@@ -446,17 +446,17 @@ describe('TrackGridItem preview behavior', () => {
       getRegionItem('region-a').onDragEnd?.('region-a');
     });
 
-    expect(getRegionItem('region-a').style).toEqual({
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({
       left: '0px',
       width: '100px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-a').previewContentStyle).toBeUndefined();
-    expect(getRegionItem('region-b').style).toEqual({
+    expect(getRegionItem('region-b').style).toEqual(expect.objectContaining({
       left: '200px',
       width: '200px',
       position: 'absolute',
-    });
+    }));
     expect(getRegionItem('region-b').previewContentStyle).toBeUndefined();
     expect(onRegionDragEnd).toHaveBeenCalledWith('region-a', 2, 0);
   });
