@@ -1,7 +1,7 @@
 {
   "name": "K.G.Studio",
   "private": true,
-  "version": "0.20.6-build.20260705",
+  "version": "0.20.7-build.20260707",
   "type": "module",
   "scripts": {
     "dev": "vite",

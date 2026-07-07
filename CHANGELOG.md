@@ -1,3 +1,10 @@
+# [0.20.7-build.20260707] (2026-07-07)
+
+* Merge pull request #56 from KGAudioLab/feat/2026-06-30-misc (5c74c82)
+* fix: correct piano-roll header seek when horizontally scrolled (3c93dd7)
+* fix: keep imported MIDI in one region and expand project bars (be15983)
+* feat: add mock OPFS du command for recursive size inspection (f9334dc)
+
 # [0.20.6-build.20260705] (2026-07-05)
 
 * Merge pull request #55 from KGAudioLab/feat/2026-06-30-misc (61fe39e)
