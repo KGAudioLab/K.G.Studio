@@ -4,6 +4,8 @@ import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { createDefaultGlobalTracks } from '../core/global-track';
 import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
 
@@ -35,6 +37,9 @@ let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano
 let mockIsMetronomeEnabled = false;
 let mockShowGlobalTracks = false;
 let mockPlayheadPosition = 0;
+let mockSelectedItems: Array<{ getId: () => string; select: () => void; deselect: () => void; isSelected: () => boolean }> = [];
+let mockCopiedItems: Array<{ getId: () => string }> = [];
+const selectionChangedCallbacks: Array<() => void> = [];
 const mockProject = {
   getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
   getMaxBars: () => 32,
@@ -90,8 +95,11 @@ const mockCore = {
   setPlayheadUpdateCallback: vi.fn(),
   setPlaybackStateChangeCallback: vi.fn(),
   setLoopBoundaryReachedCallback: vi.fn(),
-  getSelectedItems: () => [],
-  onSelectionChanged: vi.fn(),
+  getSelectedItems: () => mockSelectedItems,
+  getCopiedItems: () => mockCopiedItems,
+  onSelectionChanged: vi.fn((callback: () => void) => {
+    selectionChangedCallbacks.push(callback);
+  }),
   canUndo: () => false,
   canRedo: () => false,
   getUndoDescription: () => '',
@@ -100,7 +108,16 @@ const mockCore = {
   executeCommand: vi.fn(),
   undo: vi.fn(() => true),
   redo: vi.fn(() => true),
-  clearSelectedItems: vi.fn(),
+  clearSelectedItems: vi.fn(() => {
+    mockSelectedItems = [];
+    selectionChangedCallbacks.forEach(callback => callback());
+  }),
+  addSelectedItems: vi.fn((items: Array<{ getId: () => string; select: () => void; deselect: () => void; isSelected: () => boolean }>) => {
+    const incomingIds = new Set(items.map(item => item.getId()));
+    mockSelectedItems = mockSelectedItems.filter(item => !incomingIds.has(item.getId()));
+    mockSelectedItems.push(...items);
+    selectionChangedCallbacks.forEach(callback => callback());
+  }),
   getStatus: () => 'Ready',
   setStatus: vi.fn(),
   getPlayheadPosition: () => mockPlayheadPosition,
@@ -197,6 +214,12 @@ describe('projectStore piano roll state', () => {
     audioStorageMocks.loadAudioFile.mockReset();
     toneMocks.decodeAudioData.mockReset();
     toneMocks.toneBufferSet.mockReset();
+    mockSelectedItems = [];
+    mockCopiedItems = [];
+    selectionChangedCallbacks.length = 0;
+    mockCore.onSelectionChanged.mockClear();
+    mockCore.clearSelectedItems.mockClear();
+    mockCore.addSelectedItems.mockClear();
     mockIsMetronomeEnabled = false;
     mockShowGlobalTracks = false;
     mockProject.setIsMetronomeEnabled.mockClear();
@@ -736,5 +759,82 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.setPlayheadPosition).toHaveBeenCalledWith(64);
     expect(state.maxBars).toBe(16);
     expect(state.playheadPosition).toBe(64);
+  });
+
+  it('selects only the newly pasted notes after pasting into the active MIDI region', async () => {
+    const { KGMidiTrack: TestMidiTrack } = await import('../core/track/KGMidiTrack');
+    const { KGMidiRegion: TestMidiRegion } = await import('../core/region/KGMidiRegion');
+    const { KGMidiNote: TestMidiNote } = await import('../core/midi/KGMidiNote');
+    const track = new TestMidiTrack('Track 1', 1, 'acoustic_grand_piano');
+    track.setTrackIndex(0);
+    const region = new TestMidiRegion('region-1', '1', 0, 'Region 1', 0, 16);
+    const existingSelectedNote = new TestMidiNote('existing-note', 0, 1, 60, 100);
+    existingSelectedNote.select();
+    region.addNote(existingSelectedNote);
+    track.setRegions([region]);
+
+    mockTracks = [track];
+    currentProject = {
+      ...mockProject,
+      getTracks: () => mockTracks,
+    } as typeof mockProject;
+
+    mockSelectedItems = [existingSelectedNote];
+    mockCopiedItems = [
+      new TestMidiNote('copied-a', 2, 3, 64, 110),
+      new TestMidiNote('copied-b', 3, 4, 67, 120),
+    ];
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().pasteNotesToActiveRegion(region.getId(), 8);
+    });
+
+    const pastedNotes = region.getNotes().filter(note => note.getId() !== existingSelectedNote.getId());
+    const pastedNoteIds = pastedNotes.map(note => note.getId());
+    const state = useProjectStore.getState();
+
+    expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
+    expect(existingSelectedNote.isSelected()).toBe(false);
+    expect(pastedNotes).toHaveLength(2);
+    expect(pastedNotes.every(note => note.isSelected())).toBe(true);
+    expect(mockCore.clearSelectedItems).toHaveBeenCalledTimes(1);
+    expect(mockCore.addSelectedItems).toHaveBeenCalledWith(pastedNotes);
+    expect(state.selectedNoteIds).toEqual(pastedNoteIds);
+  });
+
+  it('keeps selection unchanged when note paste has no clipboard notes', async () => {
+    const { KGMidiTrack: TestMidiTrack } = await import('../core/track/KGMidiTrack');
+    const { KGMidiRegion: TestMidiRegion } = await import('../core/region/KGMidiRegion');
+    const { KGMidiNote: TestMidiNote } = await import('../core/midi/KGMidiNote');
+    const track = new TestMidiTrack('Track 1', 1, 'acoustic_grand_piano');
+    track.setTrackIndex(0);
+    const region = new TestMidiRegion('region-1', '1', 0, 'Region 1', 0, 16);
+    const existingSelectedNote = new TestMidiNote('existing-note', 0, 1, 60, 100);
+    existingSelectedNote.select();
+    region.addNote(existingSelectedNote);
+    track.setRegions([region]);
+
+    mockTracks = [track];
+    currentProject = {
+      ...mockProject,
+      getTracks: () => mockTracks,
+    } as typeof mockProject;
+
+    mockSelectedItems = [existingSelectedNote];
+    mockCopiedItems = [];
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().pasteNotesToActiveRegion(region.getId(), 8);
+    });
+
+    expect(mockCore.executeCommand).not.toHaveBeenCalled();
+    expect(mockCore.clearSelectedItems).not.toHaveBeenCalled();
+    expect(mockCore.addSelectedItems).not.toHaveBeenCalled();
+    expect(existingSelectedNote.isSelected()).toBe(true);
   });
 });

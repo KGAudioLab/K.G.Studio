@@ -59,10 +59,22 @@ vi.mock('../stores/projectStore', () => ({
   }),
 }));
 
+vi.mock('../core/audio-interface/KGAudioInterface', () => ({
+  KGAudioInterface: {
+    instance: () => ({
+      getIsInitialized: () => false,
+      getIsAudioContextStarted: () => false,
+      startAudioContext: vi.fn(),
+      triggerNote: vi.fn(),
+    }),
+  },
+}));
+
 import { useNoteOperations } from './useNoteOperations';
 import { KGCore } from '../core/KGCore';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
-import { MoveNotesCommand, ResizeNotesCommand } from '../core/commands';
+import { CreateNoteCommand, MoveNotesCommand, ResizeNotesCommand } from '../core/commands';
+import { CreateNotesCommand } from '../core/commands/note/CreateNotesCommand';
 import { useProjectStore } from '../stores/projectStore';
 import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack } from '../test/utils/mock-data';
 
@@ -91,19 +103,156 @@ describe('useNoteOperations', () => {
 
     KGPianoRollState.instance().setActiveTool('pointer');
     KGPianoRollState.instance().setCurrentSnap('1/4');
+    KGPianoRollState.instance().setLastEditedNoteLength(1);
+    KGPianoRollState.instance().setLastEditedNoteVelocity(127);
+    KGPianoRollState.instance().setCurrentMatchingChords([]);
+    KGPianoRollState.instance().setCurrentSelectedChordIndex(0);
+    KGPianoRollState.instance().setCurrentChordCursorPitch(null);
   });
 
-  const renderNoteOperations = (activeRegion: ReturnType<typeof createMockMidiRegion>, track = createMockMidiTrack({ id: 1, regions: [activeRegion] }), updateTrack = vi.fn()) => {
+  const createPianoGridRef = () => ({
+    current: {
+      getBoundingClientRect: () => ({
+        left: 0,
+        top: 0,
+        right: 800,
+        bottom: 600,
+        width: 800,
+        height: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
+    } as HTMLDivElement,
+  });
+
+  const createGridClickEvent = (overrides: Partial<React.MouseEvent> = {}): React.MouseEvent => ({
+    clientX: 80,
+    clientY: 120,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    ...overrides,
+  } as React.MouseEvent);
+
+  const renderNoteOperations = (
+    activeRegion: ReturnType<typeof createMockMidiRegion>,
+    track = createMockMidiTrack({ id: 1, regions: [activeRegion] }),
+    updateTrack = vi.fn(),
+    pianoGridRef = createPianoGridRef(),
+  ) => {
     const hook = renderHook(() => useNoteOperations({
       activeRegion,
       timeSignature: { numerator: 4, denominator: 4 },
       updateTrack,
       tracks: [track],
-      pianoGridRef: { current: null },
+      pianoGridRef,
     }));
 
-    return { ...hook, track, updateTrack };
+    return { ...hook, track, updateTrack, pianoGridRef };
   };
+
+  it('uses the last selected note velocity when creating after deselecting', () => {
+    const selectedNote = createMockMidiNote({ id: 'note-a', velocity: 91, pitch: 60 });
+    const activeRegion = createMockMidiRegion({
+      id: 'region-1',
+      trackId: '1',
+      notes: [selectedNote],
+    });
+
+    selectedNote.select();
+    KGCore.instance().addSelectedItem(selectedNote);
+    KGPianoRollState.instance().setLastEditedNoteVelocity(selectedNote.getVelocity());
+    KGCore.instance().clearSelectedItems();
+
+    const { result } = renderNoteOperations(activeRegion);
+
+    act(() => {
+      result.current.handleGridDoubleClick(createGridClickEvent());
+    });
+
+    expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand & { velocity: number };
+    expect(createCommand).toBeInstanceOf(CreateNoteCommand);
+    expect(createCommand.velocity).toBe(91);
+  });
+
+  it('uses the most recently selected note velocity after deselecting a multi-selection', () => {
+    const noteA = createMockMidiNote({ id: 'note-a', velocity: 40, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', velocity: 105, pitch: 64 });
+    const activeRegion = createMockMidiRegion({
+      id: 'region-1',
+      trackId: '1',
+      notes: [noteA, noteB],
+    });
+
+    noteA.select();
+    noteB.select();
+    KGCore.instance().addSelectedItem(noteA);
+    KGCore.instance().addSelectedItem(noteB);
+    KGPianoRollState.instance().setLastEditedNoteVelocity(noteB.getVelocity());
+    KGCore.instance().clearSelectedItems();
+
+    const { result } = renderNoteOperations(activeRegion);
+
+    act(() => {
+      result.current.handleGridDoubleClick(createGridClickEvent());
+    });
+
+    expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand & { velocity: number };
+    expect(createCommand).toBeInstanceOf(CreateNoteCommand);
+    expect(createCommand.velocity).toBe(105);
+  });
+
+  it('falls back to velocity 127 when creating a manual note with no selection', () => {
+    const activeRegion = createMockMidiRegion({
+      id: 'region-1',
+      trackId: '1',
+      notes: [],
+    });
+
+    const { result } = renderNoteOperations(activeRegion);
+
+    act(() => {
+      result.current.handleGridDoubleClick(createGridClickEvent());
+    });
+
+    expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand & { velocity: number };
+    expect(createCommand).toBeInstanceOf(CreateNoteCommand);
+    expect(createCommand.velocity).toBe(127);
+  });
+
+  it('applies the cached velocity to every note in manual chord creation after deselecting', () => {
+    const selectedNote = createMockMidiNote({ id: 'note-a', velocity: 73, pitch: 60 });
+    const activeRegion = createMockMidiRegion({
+      id: 'region-1',
+      trackId: '1',
+      notes: [selectedNote],
+    });
+
+    selectedNote.select();
+    KGCore.instance().addSelectedItem(selectedNote);
+    KGPianoRollState.instance().setLastEditedNoteVelocity(selectedNote.getVelocity());
+    KGCore.instance().clearSelectedItems();
+    KGPianoRollState.instance().setCurrentMatchingChords([[0, 4, 7]]);
+    KGPianoRollState.instance().setCurrentSelectedChordIndex(0);
+    KGPianoRollState.instance().setCurrentChordCursorPitch(72);
+
+    const { result } = renderNoteOperations(activeRegion);
+
+    act(() => {
+      result.current.handleGridDoubleClick(createGridClickEvent({ clientY: 706 }));
+    });
+
+    expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNotesCommand;
+    expect(createCommand).toBeInstanceOf(CreateNotesCommand);
+    expect(createCommand.getNoteCreationData()).toHaveLength(3);
+    expect(createCommand.getNoteCreationData().every(note => note.velocity === 73)).toBe(true);
+  });
 
   it('selects the grabbed note before resizing when it was not part of the current selection', () => {
     const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });

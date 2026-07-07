@@ -108,6 +108,7 @@ export const useNoteSelection = ({
         // Update last edited note length
         const noteLength = note.getEndBeat() - note.getStartBeat();
         KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
+        KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
         
         if (DEBUG_MODE.PIANO_ROLL) {
           console.log(`Added note to selection: ${noteId}`);
@@ -139,6 +140,7 @@ export const useNoteSelection = ({
       // Update last edited note length
       const noteLength = note.getEndBeat() - note.getStartBeat();
       KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
+      KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
       
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Selected note (replacing previous selection): ${noteId}`);
@@ -416,6 +418,7 @@ export const useNoteSelection = ({
         
         const noteLength = closestNote.getEndBeat() - closestNote.getStartBeat();
         KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
+        KGPianoRollState.instance().setLastEditedNoteVelocity(closestNote.getVelocity());
         
         if (DEBUG_MODE.PIANO_ROLL) {
           console.log(`Updated last edited note length to ${noteLength} from closest note: ${closestNote.getId()}`);

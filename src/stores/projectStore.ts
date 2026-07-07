@@ -1052,6 +1052,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(1);
+        KGPianoRollState.instance().setLastEditedNoteVelocity(127);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
 
         // Add a status message
@@ -1904,7 +1905,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       try {
-        KGCore.instance().executeCommand(command);
+        const core = KGCore.instance();
+        core.executeCommand(command);
+
+        const createdNoteIds = new Set(command.getCreatedNotes().map(note => note.noteId));
+        const targetRegion = command.getTargetRegion();
+        const createdNotes = targetRegion
+          ? targetRegion.getNotes().filter(note => createdNoteIds.has(note.getId()))
+          : [];
+
+        if (createdNotes.length > 0) {
+          core.getSelectedItems().forEach(item => {
+            item.deselect();
+          });
+          core.clearSelectedItems();
+
+          createdNotes.forEach(note => {
+            note.select();
+          });
+          core.addSelectedItems(createdNotes);
+        }
 
         // Update the store to trigger re-render
         const { tracks } = get();
