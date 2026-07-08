@@ -131,6 +131,13 @@ export class CreateNoteCommand extends KGCommand {
   }
 
   /**
+   * Get the velocity that will be used for the created note.
+   */
+  public getVelocity(): number {
+    return this.velocity;
+  }
+
+  /**
    * Factory method to create a note command from UI coordinates
    */
   public static fromUICoordinates(

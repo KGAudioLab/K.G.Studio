@@ -59,6 +59,10 @@ const mockProject = {
   setShowGlobalTracks: vi.fn((value: boolean) => {
     mockShowGlobalTracks = value;
   }),
+  getPlayheadPosition: () => mockPlayheadPosition,
+  setPlayheadPosition: vi.fn((position: number) => {
+    mockPlayheadPosition = position;
+  }),
   getLoopingRange: () => [0, 0] as [number, number],
   getPianoRollZoom: () => 1,
 };
@@ -224,6 +228,7 @@ describe('projectStore piano roll state', () => {
     mockShowGlobalTracks = false;
     mockProject.setIsMetronomeEnabled.mockClear();
     mockProject.setShowGlobalTracks.mockClear();
+    mockProject.setPlayheadPosition.mockClear();
     configValues.set('audio.input_device_id', 'default');
   });
 
