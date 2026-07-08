@@ -1,3 +1,11 @@
+# [0.20.9-build.20260708] (2026-07-08)
+
+* Merge pull request #58 from KGAudioLab/feat/2026-06-30-misc (3caa541)
+* feat: persist playhead position and restore centered timeline on project load (cca874a)
+* feat: misc behavior changes (93450ae)
+* feat: implemented v1 audio-to-midi conversion (polyphonic only, algorithm-based) (5aa74e6)
+* feat: improve spectrogram pitch mapping and vertical smoothing (f4e22e5)
+
 # [0.20.8-build.20260707] (2026-07-07)
 
 * Merge pull request #57 from KGAudioLab/feat/2026-06-30-misc (73b2840)
