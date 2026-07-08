@@ -173,9 +173,9 @@ describe('useNoteOperations', () => {
     });
 
     expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
-    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand & { velocity: number };
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand;
     expect(createCommand).toBeInstanceOf(CreateNoteCommand);
-    expect(createCommand.velocity).toBe(91);
+    expect(createCommand.getVelocity()).toBe(91);
   });
 
   it('uses the most recently selected note velocity after deselecting a multi-selection', () => {
@@ -201,9 +201,9 @@ describe('useNoteOperations', () => {
     });
 
     expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
-    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand & { velocity: number };
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand;
     expect(createCommand).toBeInstanceOf(CreateNoteCommand);
-    expect(createCommand.velocity).toBe(105);
+    expect(createCommand.getVelocity()).toBe(105);
   });
 
   it('falls back to velocity 127 when creating a manual note with no selection', () => {
@@ -220,9 +220,9 @@ describe('useNoteOperations', () => {
     });
 
     expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
-    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand & { velocity: number };
+    const createCommand = coreState.executeCommand.mock.calls[0][0] as CreateNoteCommand;
     expect(createCommand).toBeInstanceOf(CreateNoteCommand);
-    expect(createCommand.velocity).toBe(127);
+    expect(createCommand.getVelocity()).toBe(127);
   });
 
   it('applies the cached velocity to every note in manual chord creation after deselecting', () => {
