@@ -247,6 +247,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       // Verify store state updated
       const storeState = useProjectStore.getState();
       expect(storeState.playheadPosition).toBe(newPosition);
+      expect(testProject.getPlayheadPosition()).toBe(newPosition);
       
       // Verify formatted time string was updated
       expect(storeState.currentTime).toBeDefined();
@@ -632,6 +633,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       newProject.setTimeSignature({ numerator: 6, denominator: 8 });
       newProject.setKeySignature('D major');
       newProject.setMaxBars(48);
+      newProject.setPlayheadPosition(17.5);
       
       // Add a track with region and notes
       const track = new KGMidiTrack('Loaded Track', 0, 'violin');
@@ -654,11 +656,14 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(storeState.timeSignature).toEqual({ numerator: 6, denominator: 8 });
       expect(storeState.keySignature).toBe('D major');
       expect(storeState.maxBars).toBe(48);
+      expect(storeState.playheadPosition).toBe(17.5);
+      expect(storeState.mainContentScrollRequest).toBe(17.5);
       expect(storeState.tracks).toHaveLength(1);
       
       // Verify core model is updated
       const core = KGCore.instance();
       expect(core.getCurrentProject()?.getName()).toBe('New Loaded Project');
+      expect(core.getCurrentProject()?.getPlayheadPosition()).toBe(17.5);
       
       // Verify CSS properties were updated
       const timeSignatureCSS = getComputedStyle(document.documentElement).getPropertyValue('--time-signature-numerator');
@@ -666,6 +671,25 @@ describe('Project Store Synchronization Integration Tests', () => {
       
       const maxBarsCSS = getComputedStyle(document.documentElement).getPropertyValue('--max-number-of-bars');
       expect(maxBarsCSS.trim()).toBe('48');
+    });
+
+    it('should clamp restored playhead position when loading beyond the project end', async () => {
+      const { loadProject } = useProjectStore.getState();
+      const newProject = new KGProject('Clamped Loaded Project');
+      newProject.setTimeSignature({ numerator: 4, denominator: 4 });
+      newProject.setMaxBars(8);
+      newProject.setPlayheadPosition(100);
+
+      await act(async () => {
+        await loadProject(newProject);
+      });
+
+      const clampedBeat = 32;
+      const storeState = useProjectStore.getState();
+      expect(storeState.playheadPosition).toBe(clampedBeat);
+      expect(storeState.mainContentScrollRequest).toBe(clampedBeat);
+      expect(newProject.getPlayheadPosition()).toBe(clampedBeat);
+      expect(KGCore.instance().getCurrentProject().getPlayheadPosition()).toBe(clampedBeat);
     });
   });
 });
