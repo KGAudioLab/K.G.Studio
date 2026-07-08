@@ -192,10 +192,10 @@ export const useNoteOperations = ({
     // Calculate note timing relative to the region
     const regionStartBeat = activeRegion.getStartFromBeat();
     const noteStartBeat = beatNumber - regionStartBeat; // relative beat position
-    const lastEditedLength = KGPianoRollState.instance().getLastEditedNoteLength();
-    const noteEndBeat = noteStartBeat + lastEditedLength; // Use last edited note length
-    const velocity = 127; // Maximum velocity
     const pianoRollState = KGPianoRollState.instance();
+    const lastEditedLength = pianoRollState.getLastEditedNoteLength();
+    const noteEndBeat = noteStartBeat + lastEditedLength; // Use last edited note length
+    const velocity = pianoRollState.getLastEditedNoteVelocity();
     const matchingChordPitches = pianoRollState.getCurrentMatchingChords();
     const selectedChordIndex = pianoRollState.getCurrentSelectedChordIndex();
     const cursorChordPitch = pianoRollState.getCurrentChordCursorPitch();
@@ -333,6 +333,7 @@ export const useNoteOperations = ({
       note.select();
       core.addSelectedItem(note);
       KGPianoRollState.instance().setLastEditedNoteLength(note.getEndBeat() - note.getStartBeat());
+      KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
 
       const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
       if (track) {

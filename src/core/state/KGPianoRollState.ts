@@ -55,6 +55,7 @@ export class KGPianoRollState {
   private activeTool: string = "pointer";
   private currentSnap: PianoRollSnapValue = PIANO_ROLL_NO_SNAP;
   private lastEditedNoteLength: number = 1; // Default to 1 beat
+  private lastEditedNoteVelocity: number = 127;
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;
   private currentAutomationType: string = "pitch-bend";
@@ -106,6 +107,14 @@ export class KGPianoRollState {
 
   public setLastEditedNoteLength(length: number): void {
     this.lastEditedNoteLength = length;
+  }
+
+  public getLastEditedNoteVelocity(): number {
+    return this.lastEditedNoteVelocity;
+  }
+
+  public setLastEditedNoteVelocity(velocity: number): void {
+    this.lastEditedNoteVelocity = velocity;
   }
 
   public getCurrentMode(): string {

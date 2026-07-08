@@ -10,6 +10,7 @@ import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
 import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
+import { LoadingOverlay } from '../common';
 import { KGCore } from '../../core/KGCore';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
@@ -21,11 +22,18 @@ import {
   type PianoRollSnapValue,
 } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
-import { beatsToBar } from '../../util/midiUtil';
-import { ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
+import { beatsToBar, type RawMidiNote } from '../../util/midiUtil';
+import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
-import { showAlert, showChordDetectionOptions, showMidiChordDetectionOptions, showTempoApply, showTempoDetectionOptions } from '../../util/dialogUtil';
+import {
+  showAlert,
+  showAudioToMidiOptions,
+  showChordDetectionOptions,
+  showMidiChordDetectionOptions,
+  showTempoApply,
+  showTempoDetectionOptions,
+} from '../../util/dialogUtil';
 import { matchesKeyboardShortcut } from '../../util/osUtil';
 import { resolveChordGuideItems } from '../../util/chordGuideDataUtil';
 import {
@@ -59,6 +67,7 @@ import {
   type MidiChordDetectionOptions,
 } from '../../util/midiChordDetection';
 import type { AudioChordDetectionWorkerMessage } from '../../workers/audioChordDetectionWorker';
+import type { AudioToMidiWorkerResult } from '../../workers/audioToMidiWorker';
 import type { PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { getSheetPlayheadPixel, getSheetQuantizationOptions, parseSheetQuantization } from './sheetNotation';
@@ -70,6 +79,11 @@ import {
 } from './pianoRollViewport';
 import { getNextChordGuideSelection, resolveChordGuideContext, type ChordGuideFunction } from './chordGuideUtil';
 import { useI18n } from '../../i18n/useI18n';
+import {
+  buildAudioToMidiAnalysisSpan,
+  convertDetectedAudioNotesToRawMidiNotes,
+} from '../../util/audioToMidi';
+import { TrackType } from '../../core/track/KGTrack';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -83,6 +97,13 @@ interface PianoRollProps {
   trackId?: string;
   projectName?: string;
 }
+
+type AudioToMidiWorkerHandle = {
+  onmessage: ((event: MessageEvent<AudioToMidiWorkerResult>) => void) | null;
+  onerror: ((this: AbstractWorker, ev: ErrorEvent) => unknown) | null;
+  postMessage: Worker['postMessage'];
+  terminate: () => void;
+};
 
 const PianoRoll: React.FC<PianoRollProps> = ({
   onClose,
@@ -101,7 +122,32 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const isAudioWaveform = currentMode === 'audio-waveform';
   const isAudioOnly = isAudioWaveform || isSpectrogram;
   const isHybrid = currentMode === 'hybrid';
-  const { maxBars, tracks, updateTrack, updateRegionProperties, timeSignature, showChatBox, showKGOnePanel, showEventListPanel, showInstrumentSelection, keySignature, selectedMode, setSelectedMode, playheadPosition, isPlaying, autoScrollEnabled, bpm, pianoRollScrollRequest, selectedNoteIds, selectedRegionIds, automationRedrawVersion, refreshProjectState, setBpm } = useProjectStore();
+  const {
+    maxBars,
+    tracks,
+    updateTrack,
+    updateRegionProperties,
+    timeSignature,
+    showChatBox,
+    showKGOnePanel,
+    showEventListPanel,
+    showInstrumentSelection,
+    keySignature,
+    selectedMode,
+    setSelectedMode,
+    playheadPosition,
+    isPlaying,
+    autoScrollEnabled,
+    bpm,
+    pianoRollScrollRequest,
+    selectedNoteIds,
+    selectedRegionIds,
+    automationRedrawVersion,
+    refreshProjectState,
+    setBpm,
+    isLooping,
+    loopingRange,
+  } = useProjectStore();
   const { t } = useI18n();
 
   // Tool state for piano roll
@@ -115,6 +161,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isDetectingChords, setIsDetectingChords] = useState(false);
   const [detectChordProgressPercent, setDetectChordProgressPercent] = useState(0);
   const [isDetectingTempo, setIsDetectingTempo] = useState(false);
+  const [isConvertingToMidi, setIsConvertingToMidi] = useState(false);
 
   // Piano roll zoom (1x–8x); updates --region-grid-beat-width CSS variable
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(() => KGPianoRollState.instance().getPianoRollZoom());
@@ -164,6 +211,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     return tracks.find(track => track.getId().toString() === activeRegion.getTrackId()) ?? null;
   }, [activeRegion, tracks]);
+  const availableMidiTracks = useMemo(
+    () => tracks.filter(track => track.getType() === TrackType.MIDI),
+    [tracks],
+  );
+  const sourceAudioTrack = useMemo(
+    () => audioRegion ? tracks.find(track => track.getId().toString() === audioRegion.getTrackId()) ?? null : null,
+    [audioRegion, tracks],
+  );
   const activeInstrument = useMemo<InstrumentType>(() => (
     parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
   ), [parentMidiTrack]);
@@ -513,6 +568,165 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       await updateRegionProperties(regionId, { color });
     }
   }, [activeEditableRegionId, selectedRegionIds, tracks, updateRegionProperties]);
+
+  const getMonoPcmForAudioRegion = useCallback(async () => {
+    if (!audioRegion || !projectName || !trackId) {
+      throw new Error('Audio-to-MIDI conversion requires an active audio region with track and project context.');
+    }
+
+    let audioBuffer = KGAudioInterface.instance().getAudioBuffer(trackId, audioRegion.getAudioFileId());
+    if (!audioBuffer) {
+      const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioRegion.getAudioFileId());
+      const audioContext = Tone.getContext().rawContext as AudioContext;
+      audioBuffer = await audioContext.decodeAudioData(rawBuffer);
+    }
+
+    const monoPcm = new Float32Array(audioBuffer.length);
+    for (let channelIndex = 0; channelIndex < audioBuffer.numberOfChannels; channelIndex++) {
+      const channelData = audioBuffer.getChannelData(channelIndex);
+      for (let sampleIndex = 0; sampleIndex < audioBuffer.length; sampleIndex++) {
+        monoPcm[sampleIndex] += channelData[sampleIndex] / audioBuffer.numberOfChannels;
+      }
+    }
+
+    return {
+      pcm: monoPcm,
+      sampleRate: audioBuffer.sampleRate,
+    };
+  }, [audioRegion, projectName, trackId]);
+
+  const handleConvertToMidi = useCallback(async () => {
+    if (!audioRegion) {
+      await showAlert('Open an audio region before converting it to MIDI.');
+      return;
+    }
+
+    if (!projectName || !trackId) {
+      await showAlert('Open an audio region in the piano roll before converting it to MIDI.');
+      return;
+    }
+
+    if (availableMidiTracks.length === 0) {
+      return;
+    }
+
+    const targetTrackChoices = availableMidiTracks.map(track => ({
+      label: track.getName(),
+      value: track.getId().toString(),
+    }));
+    const dialogResult = await showAudioToMidiOptions(
+      '',
+      targetTrackChoices,
+      isLooping,
+      {
+        monophonic: true,
+        useCurrentFloorDb: true,
+        manualFloorDb: spectrogramThresholdDb,
+        pitchRangeStart: 12,
+        pitchRangeEnd: 107,
+        quantizeNoteStart: '1/16',
+        quantizeNoteLength: '1/16',
+        convertLoopRangeOnly: true,
+        groupAdjacentPitchesToHighest: true,
+        targetTrackId: targetTrackChoices[0]?.value ?? '',
+      },
+    );
+    if (!dialogResult) {
+      return;
+    }
+
+    const project = KGCore.instance().getCurrentProject();
+    const analysisSpan = buildAudioToMidiAnalysisSpan(project, audioRegion, {
+      loopModeEnabled: isLooping,
+      convertLoopRangeOnly: dialogResult.convertLoopRangeOnly,
+      loopingRange,
+    });
+    if (!analysisSpan) {
+      await showAlert('The loop range does not overlap with the selected audio region.');
+      return;
+    }
+
+    const targetTrack = availableMidiTracks.find(track => track.getId().toString() === dialogResult.targetTrackId);
+    if (!targetTrack) {
+      await showAlert('Please choose a valid MIDI target track.');
+      return;
+    }
+
+    const floorDb = dialogResult.useCurrentFloorDb
+      ? spectrogramThresholdDb
+      : dialogResult.manualFloorDb;
+
+    let worker: AudioToMidiWorkerHandle | null = null;
+    setIsConvertingToMidi(true);
+
+    try {
+      const { pcm, sampleRate } = await getMonoPcmForAudioRegion();
+      const detectedNotes = await new Promise<RawMidiNote[]>((resolve, reject) => {
+        worker = new Worker(
+          new URL('../../workers/audioToMidiWorker.ts', import.meta.url),
+          { type: 'module' },
+        ) as AudioToMidiWorkerHandle;
+
+        worker.onmessage = (event: MessageEvent<AudioToMidiWorkerResult>) => {
+          if (event.data.type !== 'result') {
+            return;
+          }
+
+          resolve(convertDetectedAudioNotesToRawMidiNotes(
+            project,
+            analysisSpan,
+            event.data.notes,
+            {
+              quantizeNoteStart: dialogResult.quantizeNoteStart as PianoRollQuantizePositionValue,
+              quantizeNoteLength: dialogResult.quantizeNoteLength as PianoRollQuantizeLengthValue,
+            },
+          ));
+        };
+        worker.onerror = () => reject(new Error('Audio-to-MIDI worker failed.'));
+        worker.postMessage({
+          pcm,
+          sampleRate,
+          startSeconds: analysisSpan.startSeconds,
+          endSeconds: analysisSpan.endSeconds,
+          floorDb,
+          pitchRangeStart: dialogResult.pitchRangeStart,
+          pitchRangeEnd: dialogResult.pitchRangeEnd,
+          groupAdjacentPitchesToHighest: dialogResult.groupAdjacentPitchesToHighest,
+        }, [pcm.buffer]);
+      });
+
+      const regionLengthBeats = analysisSpan.regionEndBeat - analysisSpan.regionStartBeat;
+      const importCommand = new ImportMidiClipCommand(
+        targetTrack.getId().toString(),
+        targetTrack.getTrackIndex(),
+        analysisSpan.regionStartBeat,
+        regionLengthBeats,
+        detectedNotes,
+        `Converted from ${sourceAudioTrack?.getName() ?? audioRegion.getName()}`,
+      );
+      KGCore.instance().executeCommand(importCommand);
+      refreshProjectState();
+    } catch (error) {
+      console.error('Error converting audio to MIDI:', error);
+      await showAlert('Failed to convert this audio region to MIDI.');
+    } finally {
+      const cleanupWorker = worker as AudioToMidiWorkerHandle | null;
+      cleanupWorker?.terminate();
+      setIsConvertingToMidi(false);
+    }
+  }, [
+    audioRegion,
+    availableMidiTracks,
+    getMonoPcmForAudioRegion,
+    isLooping,
+    loopingRange,
+    projectName,
+    refreshProjectState,
+    sourceAudioTrack,
+    spectrogramThresholdDb,
+    t,
+    trackId,
+  ]);
 
   const handleDetectChords = useCallback(async () => {
     if (!audioRegion && !activeRegion) {
@@ -1619,6 +1833,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         detectingChords={isDetectingChords}
         onDetectTempo={audioRegion ? handleDetectTempo : undefined}
         detectingTempo={isDetectingTempo}
+        onConvertToMidi={audioRegion ? handleConvertToMidi : undefined}
+        convertToMidiDisabled={availableMidiTracks.length === 0}
         selectedRegionColor={selectedRegionColor}
         onRegionColorSelect={activeEditableRegionId ? (color) => { void handleRegionColorSelect(color); } : undefined}
       />
@@ -1669,6 +1885,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       >
         <FaGripLines />
       </div>
+      <LoadingOverlay visible={isConvertingToMidi} message={t('kgone.shared.btn.processing')} />
     </div>
   );
 };

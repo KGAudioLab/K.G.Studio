@@ -175,6 +175,38 @@ describe('KGProjectStorage', () => {
     expect(loaded!.getPianoRollZoom()).toBe(5);
   });
 
+  it('preserves playhead position when saving and loading', async () => {
+    const project = createTestProject('Playhead Song');
+    project.setPlayheadPosition(18.5);
+
+    await storage.save('Playhead Song', project);
+
+    const loaded = await storage.load('Playhead Song');
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.getPlayheadPosition()).toBe(18.5);
+  });
+
+  it('defaults playhead position to 0 when loading older project data without the field', async () => {
+    const project = createTestProject('Legacy Song');
+    await storage.save('Legacy Song', project);
+
+    const projectsDir = await mockRoot.getDirectoryHandle('projects');
+    const projectDir = await projectsDir.getDirectoryHandle('Legacy Song');
+    const projectHandle = await projectDir.getFileHandle('project.json');
+    const legacyPayload = JSON.parse(await (await projectHandle.getFile()).text()) as Record<string, unknown>;
+    delete legacyPayload.playheadPosition;
+
+    const writable = await projectHandle.createWritable();
+    await writable.write(JSON.stringify(legacyPayload, null, 2));
+    await writable.close();
+
+    const loaded = await storage.load('Legacy Song');
+
+    expect(loaded).not.toBeNull();
+    expect(loaded!.getPlayheadPosition()).toBe(0);
+  });
+
   it('preserves persisted global-track visibility and metronome state when saving and loading', async () => {
     const project = createTestProject('Toggle Song');
     project.setShowGlobalTracks(true);

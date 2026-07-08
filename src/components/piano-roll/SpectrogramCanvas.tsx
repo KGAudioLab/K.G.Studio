@@ -5,6 +5,7 @@ import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import type { SpectrogramRequest, SpectrogramResult } from '../../workers/spectrogramWorker';
 import {
+  SPECTROGRAM_FULL_SEMITONES,
   getSpectrogramVisibleBinRange,
   normalizeSpectrogramHeightResolution,
   SPECTROGRAM_VISIBLE_SEMITONES,
@@ -50,6 +51,25 @@ function hotColormap(v: number): [number, number, number] {
     }
   }
   return COLORMAP_STOPS[COLORMAP_STOPS.length - 1][1];
+}
+
+function smoothSpectrogramVertically(
+  source: Float32Array,
+  timeSteps: number,
+  pitchBins: number,
+): Float32Array {
+  const smoothed = new Float32Array(source.length);
+
+  for (let col = 0; col < timeSteps; col++) {
+    for (let row = 0; row < pitchBins; row++) {
+      const center = source[col * pitchBins + row];
+      const above = row > 0 ? source[col * pitchBins + row - 1] : center;
+      const below = row < pitchBins - 1 ? source[col * pitchBins + row + 1] : center;
+      smoothed[col * pitchBins + row] = above * 0.2 + center * 0.6 + below * 0.2;
+    }
+  }
+
+  return smoothed;
 }
 
 const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
@@ -102,18 +122,21 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
 
     // Convert dB threshold to linear: values below this → black
     const linearThreshold = Math.pow(10, thresholdDb / 20);
-    const visibleRange = getSpectrogramVisibleBinRange(heightResolution);
+    const analysisResolution = result.pitchBins / SPECTROGRAM_FULL_SEMITONES;
+    const visibleRange = getSpectrogramVisibleBinRange(analysisResolution);
     const visiblePitchBins = visibleRange.end - visibleRange.start;
 
     // 1. Paint at natural spectrogram resolution onto an offscreen canvas.
     //    Result data is low-to-high pitch; draw only the visible C0-B7 window, reversed for display.
-    const offscreen = document.createElement('canvas');
-    offscreen.width = result.timeSteps;
-    offscreen.height = visiblePitchBins;
-    const offCtx = offscreen.getContext('2d');
-    if (!offCtx) return;
+    const smoothedData = smoothSpectrogramVertically(result.data, result.timeSteps, result.pitchBins);
 
-    const imgData = offCtx.createImageData(result.timeSteps, visiblePitchBins);
+    const sourceCanvas = document.createElement('canvas');
+    sourceCanvas.width = result.timeSteps;
+    sourceCanvas.height = visiblePitchBins;
+    const sourceCtx = sourceCanvas.getContext('2d');
+    if (!sourceCtx) return;
+
+    const imgData = sourceCtx.createImageData(result.timeSteps, visiblePitchBins);
     const pixels = imgData.data;
 
     for (let row = 0; row < visiblePitchBins; row++) {
@@ -122,7 +145,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
         const idx = (row * result.timeSteps + col) * 4;
         pixels[idx + 3] = 255; // always opaque
 
-        const raw = result.data[col * result.pitchBins + sourceRow];
+        const raw = smoothedData[col * result.pitchBins + sourceRow];
 
         // Hard threshold: values below noise floor → 0 (black)
         // Re-scale surviving range to [0,1] then apply power curve
@@ -139,14 +162,24 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
       }
     }
 
-    offCtx.putImageData(imgData, 0, 0);
+    sourceCtx.putImageData(imgData, 0, 0);
 
-    // 2. Stretch onto the full canvas — browser bilinear filter smooths between bins.
+    const verticallyScaledCanvas = document.createElement('canvas');
+    verticallyScaledCanvas.width = result.timeSteps;
+    verticallyScaledCanvas.height = canvasHeight;
+    const verticallyScaledCtx = verticallyScaledCanvas.getContext('2d');
+    if (!verticallyScaledCtx) return;
+
+    // Scale only along the pitch axis so note starts/stops stay crisp in time.
+    verticallyScaledCtx.imageSmoothingEnabled = true;
+    verticallyScaledCtx.imageSmoothingQuality = 'high';
+    verticallyScaledCtx.drawImage(sourceCanvas, 0, 0, result.timeSteps, canvasHeight);
+
+    // 2. Stretch onto the full canvas horizontally without temporal blur.
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(offscreen, 0, 0, canvasWidth, canvasHeight);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(verticallyScaledCanvas, 0, 0, canvasWidth, canvasHeight);
 
     // Store natural width and apply current zoom as CSS stretch (no pixel recompute on zoom)
     naturalWidthRef.current = canvasWidth;

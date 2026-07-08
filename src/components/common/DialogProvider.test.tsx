@@ -19,6 +19,7 @@ vi.mock('../../core/config/ConfigManager', () => ({
 
 import DialogProvider from './DialogProvider';
 import {
+  showAudioToMidiOptions,
   showChoice,
   showChordDetectionOptions,
   showMidiChordDetectionOptions,
@@ -167,6 +168,123 @@ describe('DialogProvider MIDI chord detection dialog', () => {
     expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
     expect(screen.getByText(/Voicing density, overlaps, and ornamental notes/)).toBeInTheDocument();
     expect(screen.queryByText('Recommended Source Material')).not.toBeInTheDocument();
+  });
+});
+
+describe('DialogProvider audio-to-MIDI dialog', () => {
+  it('opens with the expected defaults and resolves cancel to null', async () => {
+    let resolved: unknown = 'pending';
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showAudioToMidiOptions(
+              'Tune audio-to-MIDI conversion settings before processing.',
+              [
+                { label: 'Lead Synth', value: 'track-1' },
+                { label: 'Bass', value: 'track-2' },
+              ],
+              false,
+              {
+                monophonic: true,
+                useCurrentFloorDb: true,
+                manualFloorDb: -25,
+                pitchRangeStart: 12,
+                pitchRangeEnd: 107,
+                quantizeNoteStart: '1/16',
+                quantizeNoteLength: '1/16',
+                convertLoopRangeOnly: true,
+                groupAdjacentPitchesToHighest: true,
+                targetTrackId: 'track-1',
+              },
+            );
+          }}
+        >
+          Open audio-to-midi
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open audio-to-midi' }));
+
+    expect(screen.getByText('Convert to MIDI')).toBeInTheDocument();
+    expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
+    expect(screen.getByText(/best results, switch to spectrogram view/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Monophonic only (v1)')).toBeChecked();
+    expect(screen.getByLabelText('Monophonic only (v1)')).toBeDisabled();
+    expect(screen.getByLabelText('Use current Floor dB')).toBeChecked();
+    expect(screen.getByLabelText('Manual Floor dB')).toBeDisabled();
+    expect(screen.getByLabelText('Convert loop-range audio clip only')).toBeChecked();
+    expect(screen.getByLabelText('Convert loop-range audio clip only')).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toBeNull());
+  });
+
+  it('returns adjusted conversion options when confirmed', async () => {
+    let resolved: unknown = null;
+
+    render(
+      <DialogProvider>
+        <button
+          type="button"
+          onClick={async () => {
+            resolved = await showAudioToMidiOptions(
+              'Tune audio-to-MIDI conversion settings before processing.',
+              [
+                { label: 'Lead Synth', value: 'track-1' },
+                { label: 'Bass', value: 'track-2' },
+              ],
+              true,
+              {
+                monophonic: true,
+                useCurrentFloorDb: true,
+                manualFloorDb: -25,
+                pitchRangeStart: 12,
+                pitchRangeEnd: 107,
+                quantizeNoteStart: '1/16',
+                quantizeNoteLength: '1/16',
+                convertLoopRangeOnly: true,
+                groupAdjacentPitchesToHighest: true,
+                targetTrackId: 'track-1',
+              },
+            );
+          }}
+        >
+          Open audio-to-midi
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open audio-to-midi' }));
+    fireEvent.click(screen.getByLabelText('Use current Floor dB'));
+    fireEvent.change(screen.getByLabelText('Manual Floor dB'), { target: { value: '-16' } });
+    fireEvent.change(screen.getByLabelText('Pitch range start'), { target: { value: '21' } });
+    fireEvent.change(screen.getByLabelText('Pitch range end'), { target: { value: '38' } });
+    fireEvent.change(screen.getByLabelText('Quantize note start'), { target: { value: '1/8' } });
+    fireEvent.change(screen.getByLabelText('Quantize note length'), { target: { value: '1/8' } });
+    fireEvent.click(screen.getByLabelText('Convert loop-range audio clip only'));
+    fireEvent.click(screen.getByLabelText('Group adjacent pitches to the strongest bin'));
+    fireEvent.change(screen.getByLabelText('Target MIDI track'), { target: { value: 'track-2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toEqual({
+      monophonic: true,
+      useCurrentFloorDb: false,
+      manualFloorDb: -16,
+      pitchRangeStart: 21,
+      pitchRangeEnd: 38,
+      quantizeNoteStart: '1/8',
+      quantizeNoteLength: '1/8',
+      convertLoopRangeOnly: false,
+      groupAdjacentPitchesToHighest: false,
+      targetTrackId: 'track-2',
+    }));
   });
 });
 

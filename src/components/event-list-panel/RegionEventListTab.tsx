@@ -843,7 +843,9 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
         ? lastSelectedNote.getEndBeat() - lastSelectedNote.getStartBeat()
         : KGPianoRollState.instance().getLastEditedNoteLength();
       const defaultPitch = lastSelectedNote ? lastSelectedNote.getPitch() : noteNameToPitch('C4');
-      const defaultVelocity = lastSelectedNote ? lastSelectedNote.getVelocity() : 127;
+      const defaultVelocity = lastSelectedNote
+        ? lastSelectedNote.getVelocity()
+        : KGPianoRollState.instance().getLastEditedNoteVelocity();
 
       const command = new CreateNoteCommand(
         activeMidiRegion.getId(),
@@ -855,6 +857,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
       KGCore.instance().executeCommand(command);
       KGPianoRollState.instance().setLastEditedNoteLength(defaultLength);
+      KGPianoRollState.instance().setLastEditedNoteVelocity(defaultVelocity);
       const createdNote = command.getCreatedNote();
       if (createdNote) {
         createdNote.select();

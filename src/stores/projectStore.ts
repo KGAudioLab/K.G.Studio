@@ -62,6 +62,11 @@ function formatCurrentTime(project: KGProject, beat: number): string {
   return beatsToTimeString(beat, bpmForLegacyFormatting, project.getTimeSignature());
 }
 
+function clampPlayheadPosition(project: KGProject, position: number): number {
+  const maxBeat = project.getMaxBars() * project.getTimeSignature().numerator;
+  return Math.max(0, Math.min(position, maxBeat));
+}
+
 function getProjectGlobalTracks(project: KGProject): KGGlobalTrack[] {
   return (project.getGlobalTracks?.() ?? []) as KGGlobalTrack[];
 }
@@ -923,8 +928,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     loadProject: async (project: KGProject | null = null, savedName?: string) => {
       try {
-        const { setPlayheadPosition } = get();
-
         // Upgrade incoming project data to latest structure version (only when provided explicitly)
         if (project) {
           project = upgradeProjectToLatest(project);
@@ -944,15 +947,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           KGCore.instance().executeCommand(addDefaultTrackCommand);
         }
 
-        // Reset playhead to 0 when loading a project
-        setPlayheadPosition(0);
-
         // Get project properties
         const maxBars = projectToLoad.getMaxBars();
         const timeSignature = projectToLoad.getTimeSignature();
         const bpm = projectToLoad.getBpm();
         const keySignature = projectToLoad.getKeySignature();
         const tracks = projectToLoad.getTracks();
+        const restoredPlayheadPosition = clampPlayheadPosition(projectToLoad, projectToLoad.getPlayheadPosition());
+        projectToLoad.setPlayheadPosition(restoredPlayheadPosition);
+        KGCore.instance().setPlayheadPosition(restoredPlayheadPosition);
 
         // Setup audio synths for all tracks
         const audioInterface = KGAudioInterface.instance();
@@ -1036,8 +1039,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           recordingAudioPreviewPeaks: [],
           recordingAudioPreviewCurrentBeat: 0,
           recordingAudioPreviewFileName: null,
-          playheadPosition: 0, // Ensure store state is also updated
-          currentTime: formatCurrentTime(projectToLoad, 0) // Reset time display
+          playheadPosition: restoredPlayheadPosition,
+          currentTime: formatCurrentTime(projectToLoad, restoredPlayheadPosition),
+          mainContentScrollRequest: restoredPlayheadPosition,
         });
 
         // After loading a project, auto-select the first track and open Instrument Selection
@@ -1052,6 +1056,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(1);
+        KGPianoRollState.instance().setLastEditedNoteVelocity(127);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
 
         // Add a status message
@@ -1064,11 +1069,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     setPlayheadPosition: (position: number) => {
-      const { bpm, timeSignature } = get();
-      KGCore.instance().setPlayheadPosition(position);
+      const project = KGCore.instance().getCurrentProject();
+      const clampedPosition = clampPlayheadPosition(project, position);
+      project.setPlayheadPosition(clampedPosition);
+      KGCore.instance().setPlayheadPosition(clampedPosition);
       set({
-        playheadPosition: position,
-        currentTime: formatCurrentTime(KGCore.instance().getCurrentProject(), position)
+        playheadPosition: clampedPosition,
+        currentTime: formatCurrentTime(project, clampedPosition)
       });
     },
 
@@ -1904,7 +1911,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       try {
-        KGCore.instance().executeCommand(command);
+        const core = KGCore.instance();
+        core.executeCommand(command);
+
+        const createdNoteIds = new Set(command.getCreatedNotes().map(note => note.noteId));
+        const targetRegion = command.getTargetRegion();
+        const createdNotes = targetRegion
+          ? targetRegion.getNotes().filter(note => createdNoteIds.has(note.getId()))
+          : [];
+
+        if (createdNotes.length > 0) {
+          core.getSelectedItems().forEach(item => {
+            item.deselect();
+          });
+          core.clearSelectedItems();
+
+          createdNotes.forEach(note => {
+            note.select();
+          });
+          core.addSelectedItems(createdNotes);
+        }
 
         // Update the store to trigger re-render
         const { tracks } = get();

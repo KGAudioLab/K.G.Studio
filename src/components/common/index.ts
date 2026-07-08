@@ -7,5 +7,22 @@ export { default as OpenProjectModal } from './OpenProjectModal';
 export { default as DialogProvider } from './DialogProvider';
 export { default as TrackCreateDialog } from './TrackCreateDialog';
 export { default as FloatingPopup } from './FloatingPopup';
-export { showAlert, showChordDetectionOptions, showConfirm, showPrompt, showTempoApply, showTempoDetectionOptions, showTimeSigPrompt } from '../../util/dialogUtil';
-export type { ChordDetectionOptionsResult, ConfirmOptions, PromptOptions, TempoApplyResult, TempoDetectionOptionsResult, TimeSigResult } from '../../util/dialogUtil';
+export {
+  showAlert,
+  showAudioToMidiOptions,
+  showChordDetectionOptions,
+  showConfirm,
+  showPrompt,
+  showTempoApply,
+  showTempoDetectionOptions,
+  showTimeSigPrompt,
+} from '../../util/dialogUtil';
+export type {
+  AudioToMidiOptionsResult,
+  ChordDetectionOptionsResult,
+  ConfirmOptions,
+  PromptOptions,
+  TempoApplyResult,
+  TempoDetectionOptionsResult,
+  TimeSigResult,
+} from '../../util/dialogUtil';
