@@ -8,6 +8,7 @@ import {
   MIDI_EVENT_TICKS_PER_BEAT,
   parseMidiEventLength,
   parseMidiEventLengthDelta,
+  parseMidiImportData,
   parseMidiEventPosition,
   parseMidiEventPositionDelta,
   pitchToNoteNameString, 
@@ -361,6 +362,62 @@ describe('midiUtil', () => {
       const importedProject = convertMidiToProject(convertProjectToMidi(sourceProject), existingProject);
 
       expect(importedProject.getMaxBars()).toBe(40);
+    });
+  });
+
+  describe('parseMidiImportData', () => {
+    const createImportProject = () => new KGProject('Import Source', 32, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+
+    it('returns a single note-bearing track with original timing and suggested instrument', () => {
+      const project = createImportProject();
+      const track = new KGMidiTrack('Flute Lead', 1, 'flute');
+      track.setTrackIndex(0);
+      const region = new KGMidiRegion('region-1', '1', 0, 'Lead Region', 4, 6);
+      region.addNote(new KGMidiNote('note-1', 0, 1, 72, 100));
+      region.addNote(new KGMidiNote('note-2', 4, 6, 76, 90));
+      track.addRegion(region);
+      project.getTracks().push(track);
+
+      const parsed = parseMidiImportData(convertProjectToMidi(project));
+
+      expect(parsed.fileStartBeat).toBe(4);
+      expect(parsed.tracks).toHaveLength(1);
+      expect(parsed.tracks[0]).toMatchObject({
+        name: 'Flute Lead',
+        suggestedInstrument: 'flute',
+        startBeat: 4,
+        endBeat: 10,
+      });
+      expect(parsed.tracks[0].notes.map(note => note.startBeat)).toEqual([4, 8]);
+    });
+
+    it('preserves per-track timing and skips empty tracks', () => {
+      const project = createImportProject();
+      const emptyTrack = new KGMidiTrack('Empty', 1, 'violin');
+      emptyTrack.setTrackIndex(0);
+
+      const leadTrack = new KGMidiTrack('Lead', 2, 'clarinet');
+      leadTrack.setTrackIndex(1);
+      const leadRegion = new KGMidiRegion('lead-region', '2', 1, 'Lead Region', 4, 2);
+      leadRegion.addNote(new KGMidiNote('lead-note', 0, 1, 67, 95));
+      leadTrack.addRegion(leadRegion);
+
+      const bassTrack = new KGMidiTrack('Bass', 3, 'electric_bass_finger');
+      bassTrack.setTrackIndex(2);
+      const bassRegion = new KGMidiRegion('bass-region', '3', 2, 'Bass Region', 6, 4);
+      bassRegion.addNote(new KGMidiNote('bass-note', 0, 2, 43, 100));
+      bassTrack.addRegion(bassRegion);
+
+      project.getTracks().push(emptyTrack, leadTrack, bassTrack);
+
+      const parsed = parseMidiImportData(convertProjectToMidi(project));
+
+      expect(parsed.fileStartBeat).toBe(4);
+      expect(parsed.tracks).toHaveLength(2);
+      expect(parsed.tracks.map(track => track.name)).toEqual(['Lead', 'Bass']);
+      expect(parsed.tracks.map(track => track.startBeat)).toEqual([4, 6]);
+      expect(parsed.tracks.map(track => track.endBeat)).toEqual([5, 8]);
+      expect(parsed.tracks.map(track => track.suggestedInstrument)).toEqual(['clarinet', 'electric_bass_finger']);
     });
   });
 
