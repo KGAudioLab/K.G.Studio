@@ -1,3 +1,8 @@
+# [0.20.13-build.20260709] (2026-07-09)
+
+* Merge pull request #61 from KGAudioLab/feat/2026-06-30-misc (d45b919)
+* fix: building errors (850f809)
+
 # [0.20.12-build.20260709] (2026-07-09)
 
 
