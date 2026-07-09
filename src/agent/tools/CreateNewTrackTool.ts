@@ -1,10 +1,12 @@
 import { AddTrackCommand } from '../../core/commands/track/AddTrackCommand';
+import { KGCore } from '../../core/KGCore';
 import { BaseTool } from './BaseTool';
 import type { ToolParameter, ToolResult } from './BaseTool';
 import {
   getEnglishInstrumentName,
   resolveInstrumentKeyByEnglishName,
 } from './toolTargeting';
+import { useProjectStore } from '../../stores/projectStore';
 
 export class CreateNewTrackTool extends BaseTool {
   readonly name = 'create_new_track';
@@ -81,7 +83,17 @@ export class CreateNewTrackTool extends BaseTool {
         return this.createErrorResult(`Invalid instrument "${instrumentName}". Use the exact English name from list_all_available_instruments.`);
       }
 
-      const command = new AddTrackCommand(undefined, trackName, instrumentKey);
+      const project = KGCore.instance().getCurrentProject();
+      const tracks = project.getTracks();
+      const selectedTrackId = useProjectStore.getState().selectedTrackId;
+      const selectedTrack = selectedTrackId
+        ? tracks.find(track => track.getId().toString() === selectedTrackId) ?? null
+        : null;
+      const insertionIndex = selectedTrack
+        ? Math.min(selectedTrack.getTrackIndex() + 1, tracks.length)
+        : tracks.length;
+
+      const command = new AddTrackCommand(undefined, trackName, instrumentKey, insertionIndex);
       await this.executeCommand(command);
 
       return this.createSuccessResult([

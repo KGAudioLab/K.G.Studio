@@ -766,6 +766,40 @@ describe('projectStore piano roll state', () => {
     expect(state.playheadPosition).toBe(64);
   });
 
+  it('inserts a new MIDI track below the selected track', async () => {
+    const { KGProject } = await import('../core/KGProject');
+    const firstTrack = new KGMidiTrack('Lead', 1, 'trumpet');
+    firstTrack.setTrackIndex(0);
+    const secondTrack = new KGMidiTrack('Bass', 2, 'electric_bass_finger');
+    secondTrack.setTrackIndex(1);
+    const thirdTrack = new KGMidiTrack('Drums', 3, 'synth_drum');
+    thirdTrack.setTrackIndex(2);
+
+    const project = new KGProject('Track Insert Project');
+    project.setTracks([firstTrack, secondTrack, thirdTrack]);
+    currentProject = project as unknown as typeof mockProject;
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setSelectedTrack('2');
+    });
+
+    await act(async () => {
+      await useProjectStore.getState().addTrack();
+    });
+
+    const trackNames = currentProject.getTracks().map(track => track.getName());
+    const trackIndices = currentProject.getTracks().map(track => track.getTrackIndex());
+    const insertedTrack = currentProject.getTracks()[2];
+
+    expect(trackNames).toEqual(['Lead', 'Bass', 'Track 1', 'Drums']);
+    expect(trackIndices).toEqual([0, 1, 2, 3]);
+    expect(useProjectStore.getState().selectedTrackId).toBe(insertedTrack.getId().toString());
+    expect(useProjectStore.getState().showInstrumentSelection).toBe(true);
+  });
+
   it('selects only the newly pasted notes after pasting into the active MIDI region', async () => {
     const { KGMidiTrack: TestMidiTrack } = await import('../core/track/KGMidiTrack');
     const { KGMidiRegion: TestMidiRegion } = await import('../core/region/KGMidiRegion');
