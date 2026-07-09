@@ -12,9 +12,10 @@ export class AddAudioTrackCommand extends KGCommand {
   private trackId: number;
   private trackName: string;
   private trackIndex: number;
+  private insertionIndex?: number;
   private createdTrack: KGAudioTrack | null = null;
 
-  constructor(trackId?: number, trackName?: string) {
+  constructor(trackId?: number, trackName?: string, insertionIndex?: number) {
     super();
 
     if (trackId === undefined) {
@@ -29,6 +30,7 @@ export class AddAudioTrackCommand extends KGCommand {
 
     this.trackName = trackName || generateNewTrackName();
     this.trackIndex = 0;
+    this.insertionIndex = insertionIndex;
   }
 
   execute(): void {
@@ -36,12 +38,19 @@ export class AddAudioTrackCommand extends KGCommand {
     const currentProject = core.getCurrentProject();
     const tracks = currentProject.getTracks();
 
-    this.trackIndex = tracks.length;
+    const targetInsertionIndex = typeof this.insertionIndex === 'number'
+      ? Math.max(0, Math.min(this.insertionIndex, tracks.length))
+      : tracks.length;
+    this.trackIndex = targetInsertionIndex;
 
     this.createdTrack = new KGAudioTrack(this.trackName, this.trackId);
     this.createdTrack.setTrackIndex(this.trackIndex);
 
-    const updatedTracks = [...tracks, this.createdTrack];
+    const updatedTracks = [...tracks];
+    updatedTracks.splice(targetInsertionIndex, 0, this.createdTrack);
+    updatedTracks.forEach((track, index) => {
+      track.setTrackIndex(index);
+    });
     currentProject.setTracks(updatedTracks);
 
     // Create audio player bus for the new track
@@ -61,6 +70,9 @@ export class AddAudioTrackCommand extends KGCommand {
     const tracks = currentProject.getTracks();
 
     const updatedTracks = tracks.filter(track => track.getId() !== this.trackId);
+    updatedTracks.forEach((track, index) => {
+      track.setTrackIndex(index);
+    });
     currentProject.setTracks(updatedTracks);
 
     const audioInterface = KGAudioInterface.instance();

@@ -222,6 +222,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const activeInstrument = useMemo<InstrumentType>(() => (
     parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
   ), [parentMidiTrack]);
+  const editableTitleRegion = useMemo<KGMidiRegion | KGAudioRegion | null>(() => {
+    if (isHybrid) {
+      return null;
+    }
+
+    if (isAudioOnly) {
+      return audioRegion ?? null;
+    }
+
+    return activeRegion;
+  }, [activeRegion, audioRegion, isAudioOnly, isHybrid]);
   const activeEditableRegionId = audioRegion?.getId() ?? activeRegion?.getId() ?? null;
   const selectedRegionColor = useMemo(() => {
     if (audioRegion) {
@@ -517,34 +528,34 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [isDragging, isResizing, dragOffset, position]);
 
   useEffect(() => {
-    if (!isEditingTitle && activeRegion) {
-      setTitleInputValue(activeRegion.getName());
+    if (!isEditingTitle) {
+      setTitleInputValue(editableTitleRegion?.getName() ?? '');
     }
-  }, [activeRegion, isEditingTitle]);
+  }, [editableTitleRegion, isEditingTitle]);
 
   const cancelTitleEdit = () => {
-    setTitleInputValue(activeRegion?.getName() ?? '');
+    setTitleInputValue(editableTitleRegion?.getName() ?? '');
     setIsEditingTitle(false);
   };
 
   const commitTitleEdit = async () => {
-    if (!activeRegion) {
+    if (!editableTitleRegion) {
       setIsEditingTitle(false);
       return;
     }
 
     const newName = titleInputValue.trim();
     setIsEditingTitle(false);
-    setTitleInputValue(activeRegion.getName());
+    setTitleInputValue(editableTitleRegion.getName());
 
-    if (!newName || newName === activeRegion.getName()) return;
+    if (!newName || newName === editableTitleRegion.getName()) return;
 
     try {
-      const command = new UpdateRegionCommand(activeRegion.getId(), { name: newName });
+      const command = new UpdateRegionCommand(editableTitleRegion.getId(), { name: newName });
       KGCore.instance().executeCommand(command);
 
       if (DEBUG_MODE.PIANO_ROLL) {
-        console.log(`Executed UpdateRegionCommand: renamed region ${activeRegion.getId()} to "${newName}" using command pattern`);
+        console.log(`Executed UpdateRegionCommand: renamed region ${editableTitleRegion.getId()} to "${newName}" using command pattern`);
       }
 
       const updatedTracks = [...tracks];
@@ -937,8 +948,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return;
     }
 
-    if (!activeRegion) return;
-    setTitleInputValue(activeRegion.getName());
+    if (!editableTitleRegion) return;
+    setTitleInputValue(editableTitleRegion.getName());
     setIsEditingTitle(true);
     window.setTimeout(() => {
       titleInputRef.current?.focus();

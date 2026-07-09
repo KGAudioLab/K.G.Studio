@@ -8,6 +8,10 @@ import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil'
 import { KGChordRegion } from '../../core/region/KGChordRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
+import { convertProjectToMidi } from '../../util/midiUtil';
+import { KGProject } from '../../core/KGProject';
+import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 
 const executeCommandMock = vi.fn();
 const getCreatedRegionMock = vi.fn();
@@ -15,12 +19,14 @@ const showAlertMock = vi.fn();
 let fileImportModalProps: Record<string, unknown> | null = null;
 const storeAudioFileMock = vi.fn<(projectName: string, fileId: string, file: File) => Promise<void>>(async () => undefined);
 const loadAudioBufferForTrackMock = vi.fn<(trackId: string, fileId: string, toneBuffer: unknown) => void>();
+const createTrackSynthMock = vi.fn<(trackId: string, instrument: string) => void>();
 const decodeAudioDataMock = vi.fn<(arrayBuffer: ArrayBuffer, onSuccess: (decoded: { duration?: number }) => void, onError: (error: unknown) => void) => void>();
 const globalChordRegions = [
   new KGChordRegion('chord-1', 'global-chord', 3, 'C', 0, 4),
   new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4, 4),
 ];
 let currentTracks: Array<ReturnType<typeof createMockMidiTrack> | KGAudioTrack> = [];
+let currentMaxBars = 8;
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector?: (state: {
@@ -56,10 +62,17 @@ vi.mock('../../core/KGCore', () => ({
       },
       getCurrentProject: () => ({
         getTracks: () => currentTracks,
+        setTracks: (tracks: typeof currentTracks) => {
+          currentTracks = tracks;
+        },
         getGlobalTracks: () => [{
           getRegions: () => globalChordRegions,
         }],
         getBpm: () => 120,
+        getMaxBars: () => currentMaxBars,
+        setMaxBars: (maxBars: number) => {
+          currentMaxBars = maxBars;
+        },
       }),
     }),
   },
@@ -76,6 +89,8 @@ vi.mock('../../core/audio-interface/KGAudioInterface', () => ({
   KGAudioInterface: {
     instance: () => ({
       loadAudioBufferForTrack: (trackId: string, fileId: string, toneBuffer: unknown) => loadAudioBufferForTrackMock(trackId, fileId, toneBuffer),
+      createTrackSynth: (trackId: string, instrument: string) => createTrackSynthMock(trackId, instrument),
+      removeTrackSynth: vi.fn(),
     }),
   },
 }));
@@ -215,6 +230,18 @@ describe('TrackGridPanel lasso selection', () => {
     return file;
   };
 
+  const createMidiFile = (name: string, configureProject: (project: KGProject) => void) => {
+    const project = new KGProject('Dropped MIDI', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
+    configureProject(project);
+    const midiData = convertProjectToMidi(project);
+    const file = new File([midiData], name, { type: 'audio/midi' });
+    Object.defineProperty(file, 'arrayBuffer', {
+      configurable: true,
+      value: vi.fn(async () => midiData.buffer.slice(0)),
+    });
+    return file;
+  };
+
   const configureGridContainer = (container: HTMLElement) => {
     const gridContainer = container.querySelector('.grid-container') as HTMLDivElement;
     Object.defineProperty(gridContainer, 'clientWidth', { configurable: true, value: 320 });
@@ -251,12 +278,14 @@ describe('TrackGridPanel lasso selection', () => {
     fileImportModalProps = null;
     storeAudioFileMock.mockReset();
     loadAudioBufferForTrackMock.mockReset();
+    createTrackSynthMock.mockReset();
     decodeAudioDataMock.mockReset();
     decodeAudioDataMock.mockImplementation((_arrayBuffer, onSuccess) => {
       onSuccess({ duration: 2 });
     });
     globalChordRegions[0].setSymbol('C');
     currentTracks = [];
+    currentMaxBars = 8;
     KGMainContentState.instance().setSnapping(true);
   });
 
@@ -568,6 +597,160 @@ describe('TrackGridPanel lasso selection', () => {
     expect(executeCommandMock).not.toHaveBeenCalled();
   });
 
+  it('imports a dropped MIDI file into a MIDI track without changing its instrument', async () => {
+    const midiTrack = createMockMidiTrack({ id: 1, regions: [] });
+    midiTrack.setTrackIndex(0);
+    midiTrack.setInstrument('violin');
+    currentTracks = [midiTrack];
+    const onExternalDropComplete = vi.fn();
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[midiTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+        onExternalDropComplete={onExternalDropComplete}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const midiFile = createMidiFile('phrase.mid', project => {
+      const sourceTrack = new KGMidiTrack('Lead Source', 11, 'flute');
+      sourceTrack.setTrackIndex(0);
+      const region = new KGMidiRegion('source-region', '11', 0, 'Lead Source', 4, 6);
+      region.addNote(new KGMidiNote('source-note-1', 0, 1, 60, 100));
+      region.addNote(new KGMidiNote('source-note-2', 4, 6, 64, 90));
+      sourceTrack.addRegion(region);
+      project.getTracks().push(sourceTrack);
+    });
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [midiFile], 80);
+
+    await vi.waitFor(() => {
+      expect(onExternalDropComplete).toHaveBeenCalledTimes(1);
+    });
+
+    expect(currentTracks).toHaveLength(1);
+    expect((currentTracks[0] as KGMidiTrack).getInstrument()).toBe('violin');
+    const importedRegion = (currentTracks[0] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
+    expect(importedRegion.getName()).toBe('phrase.mid');
+    expect(importedRegion.getStartFromBeat()).toBe(8);
+    expect(importedRegion.getLength()).toBe(6);
+    expect(importedRegion.getNotes().map(note => note.getStartBeat())).toEqual([0, 4]);
+  });
+
+  it('imports a dropped multi-track MIDI file into the target track and inserts extra tracks below it', async () => {
+    const topTrack = createMockMidiTrack({ id: 1, regions: [] });
+    const targetTrack = createMockMidiTrack({ id: 2, regions: [] });
+    const bottomTrack = createMockMidiTrack({ id: 3, regions: [] });
+    topTrack.setTrackIndex(0);
+    targetTrack.setTrackIndex(1);
+    bottomTrack.setTrackIndex(2);
+    targetTrack.setInstrument('violin');
+    currentTracks = [topTrack, targetTrack, bottomTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[topTrack, targetTrack, bottomTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const midiFile = createMidiFile('ensemble.mid', project => {
+      const leadTrack = new KGMidiTrack('Lead', 21, 'acoustic_grand_piano');
+      leadTrack.setTrackIndex(0);
+      const leadRegion = new KGMidiRegion('lead-region', '21', 0, 'Lead Source', 4, 4);
+      leadRegion.addNote(new KGMidiNote('lead-note', 0, 1, 72, 100));
+      leadTrack.addRegion(leadRegion);
+
+      const bassTrack = new KGMidiTrack('Bass', 22, 'electric_bass_finger');
+      bassTrack.setTrackIndex(1);
+      const bassRegion = new KGMidiRegion('bass-region', '22', 1, 'Bass Source', 6, 2);
+      bassRegion.addNote(new KGMidiNote('bass-note', 0, 2, 43, 95));
+      bassTrack.addRegion(bassRegion);
+
+      project.getTracks().push(leadTrack, bassTrack);
+    });
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [midiFile], 80);
+
+    await vi.waitFor(() => {
+      expect(currentTracks).toHaveLength(4);
+    });
+
+    expect(currentTracks.map(track => track.getName())).toEqual([
+      topTrack.getName(),
+      targetTrack.getName(),
+      'Bass',
+      bottomTrack.getName(),
+    ]);
+    expect(currentTracks[1].getTrackIndex()).toBe(1);
+    expect(currentTracks[2].getTrackIndex()).toBe(2);
+    expect((currentTracks[1] as KGMidiTrack).getInstrument()).toBe('violin');
+    expect((currentTracks[2] as KGMidiTrack).getInstrument()).toBe('electric_bass_finger');
+    expect(createTrackSynthMock).toHaveBeenCalledWith(expect.any(String), 'electric_bass_finger');
+
+    const targetImportedRegion = (currentTracks[1] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
+    const insertedImportedRegion = (currentTracks[2] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
+    expect(targetImportedRegion.getStartFromBeat()).toBe(8);
+    expect(insertedImportedRegion.getStartFromBeat()).toBe(10);
+    expect(insertedImportedRegion.getNotes()[0].getStartBeat()).toBe(0);
+  });
+
+  it('shows a polite dialog when dropping a MIDI file onto an audio track', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const midiFile = createMidiFile('phrase.mid', project => {
+      const sourceTrack = new KGMidiTrack('Lead Source', 11, 'flute');
+      sourceTrack.setTrackIndex(0);
+      const region = new KGMidiRegion('source-region', '11', 0, 'Lead Source', 0, 1);
+      region.addNote(new KGMidiNote('source-note-1', 0, 1, 60, 100));
+      sourceTrack.addRegion(region);
+      project.getTracks().push(sourceTrack);
+    });
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [midiFile], 80);
+
+    await vi.waitFor(() => {
+      expect(showAlertMock).toHaveBeenCalledWith('MIDI files can only be imported into MIDI tracks. Please drop them onto a MIDI track.');
+    });
+    expect(executeCommandMock).not.toHaveBeenCalled();
+  });
+
   it('shows a validation dialog when dropping an unsupported local file', async () => {
     const audioTrack = new KGAudioTrack('Audio Track', 2);
     audioTrack.setTrackIndex(0);
@@ -592,7 +775,7 @@ describe('TrackGridPanel lasso selection', () => {
     dispatchFileDrop(targetGrid, [new File(['{}'], 'notes.txt', { type: 'text/plain' })], 80);
 
     await vi.waitFor(() => {
-      expect(showAlertMock).toHaveBeenCalledWith('Invalid file type. Please select a file with one of these extensions: .wav, .mp3, .ogg, .flac, .aac, .m4a');
+      expect(showAlertMock).toHaveBeenCalledWith('Invalid file type. Please select a file with one of these extensions: .wav, .mp3, .ogg, .flac, .aac, .m4a, .mid, .midi');
     });
     expect(executeCommandMock).not.toHaveBeenCalled();
   });
@@ -694,7 +877,7 @@ describe('TrackGridPanel lasso selection', () => {
     expect(command.getCreatedRegion()?.getStartFromBeat()).toBeCloseTo(10);
   });
 
-  it('advertises local file drops only on audio rows during drag over', () => {
+  it('advertises local file drops only on compatible rows during drag over', () => {
     const audioTrack = new KGAudioTrack('Audio Track', 2);
     audioTrack.setTrackIndex(0);
     const midiTrack = createMockMidiTrack({ id: 1, regions: [] });
@@ -725,15 +908,46 @@ describe('TrackGridPanel lasso selection', () => {
     });
     fireEvent(audioGrid, audioEvent);
 
-    const midiEvent = createEvent.dragOver(midiGrid);
-    Object.defineProperty(midiEvent, 'dataTransfer', {
+    const midiAudioEvent = createEvent.dragOver(midiGrid);
+    Object.defineProperty(midiAudioEvent, 'dataTransfer', {
       value: { files: mockDroppedFileList([createAudioFile('drag.wav')]), types: ['Files'], dropEffect: 'move' },
     });
-    fireEvent(midiGrid, midiEvent);
+    fireEvent(midiGrid, midiAudioEvent);
+
+    const midiFileEvent = createEvent.dragOver(midiGrid);
+    Object.defineProperty(midiFileEvent, 'dataTransfer', {
+      value: {
+        files: mockDroppedFileList([createMidiFile('drag.mid', project => {
+          const sourceTrack = new KGMidiTrack('Drag Source', 99, 'flute');
+          sourceTrack.setTrackIndex(0);
+          const region = new KGMidiRegion('drag-region', '99', 0, 'Drag Region', 0, 1);
+          region.addNote(new KGMidiNote('drag-note', 0, 1, 60, 90));
+          sourceTrack.addRegion(region);
+          project.getTracks().push(sourceTrack);
+        })]),
+        types: ['Files'],
+        dropEffect: 'move',
+      },
+    });
+    fireEvent(midiGrid, midiFileEvent);
+
+    const unknownFileEvent = createEvent.dragOver(midiGrid);
+    Object.defineProperty(unknownFileEvent, 'dataTransfer', {
+      value: {
+        files: mockDroppedFileList([]),
+        types: ['Files'],
+        dropEffect: 'move',
+      },
+    });
+    fireEvent(midiGrid, unknownFileEvent);
 
     expect(audioEvent.defaultPrevented).toBe(true);
     expect((audioEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('copy');
-    expect(midiEvent.defaultPrevented).toBe(true);
-    expect((midiEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('none');
+    expect(midiAudioEvent.defaultPrevented).toBe(true);
+    expect((midiAudioEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('none');
+    expect(midiFileEvent.defaultPrevented).toBe(true);
+    expect((midiFileEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('copy');
+    expect(unknownFileEvent.defaultPrevented).toBe(true);
+    expect((unknownFileEvent as unknown as { dataTransfer: { dropEffect: string } }).dataTransfer.dropEffect).toBe('copy');
   });
 });

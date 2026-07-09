@@ -13,9 +13,15 @@ export class AddTrackCommand extends KGCommand {
   private trackName: string;
   private instrument: InstrumentType;
   private trackIndex: number;
+  private insertionIndex?: number;
   private createdTrack: KGMidiTrack | null = null;
 
-  constructor(trackId?: number, trackName?: string, instrument: InstrumentType = 'acoustic_grand_piano') {
+  constructor(
+    trackId?: number,
+    trackName?: string,
+    instrument: InstrumentType = 'acoustic_grand_piano',
+    insertionIndex?: number,
+  ) {
     super();
     
     // If trackId not provided, calculate it
@@ -31,6 +37,7 @@ export class AddTrackCommand extends KGCommand {
     
     this.trackName = trackName || generateNewTrackName();
     this.instrument = instrument;
+    this.insertionIndex = insertionIndex;
     
     // Track index will be set during execution
     this.trackIndex = 0;
@@ -41,16 +48,21 @@ export class AddTrackCommand extends KGCommand {
     const currentProject = core.getCurrentProject();
     const tracks = currentProject.getTracks();
     
-    // Set the track index to be the last index in the array
-    this.trackIndex = tracks.length;
+    const targetInsertionIndex = typeof this.insertionIndex === 'number'
+      ? Math.max(0, Math.min(this.insertionIndex, tracks.length))
+      : tracks.length;
+    this.trackIndex = targetInsertionIndex;
     
     // Create a new MIDI track
     this.createdTrack = new KGMidiTrack(this.trackName, this.trackId);
     this.createdTrack.setTrackIndex(this.trackIndex);
     this.createdTrack.setInstrument(this.instrument);
     
-    // Update the core model
-    const updatedTracks = [...tracks, this.createdTrack];
+    const updatedTracks = [...tracks];
+    updatedTracks.splice(targetInsertionIndex, 0, this.createdTrack);
+    updatedTracks.forEach((track, index) => {
+      track.setTrackIndex(index);
+    });
     currentProject.setTracks(updatedTracks);
     
     // Create audio synth for the new track (initialize with track volume)
@@ -71,6 +83,9 @@ export class AddTrackCommand extends KGCommand {
     
     // Remove the track from the core model
     const updatedTracks = tracks.filter(track => track.getId() !== this.trackId);
+    updatedTracks.forEach((track, index) => {
+      track.setTrackIndex(index);
+    });
     currentProject.setTracks(updatedTracks);
     
     // Remove audio synth for the track

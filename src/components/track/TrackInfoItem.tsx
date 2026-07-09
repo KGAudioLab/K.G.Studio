@@ -366,29 +366,34 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   // Handle settings action
   const handleSettingsAction = async (action: string) => {
     if (action === 'Delete Track') {
-      const confirmed = await showConfirm(
-        t('track.controls.settings.deleteTrackConfirm', { name: track.getName() })
-      );
-      if (confirmed) {
-        try {
-          if (DEBUG_MODE.TRACK_INFO) {
-            console.log('Delete track confirmed for:', track.getName());
+      try {
+        const hasRegions = track.getRegions().length > 0;
+        if (hasRegions) {
+          const confirmed = await showConfirm(
+            t('track.controls.settings.deleteTrackConfirm', { name: track.getName() })
+          );
+          if (!confirmed) {
+            return;
           }
-
-          // Clear selection if this track is selected
-          // if (selectedTrackId === track.getId().toString()) {
-          //   setSelectedTrack(null);
-          // }
-
-          // Delete the track using the command system
-          await removeTrack(track.getId());
-          
-          // Close the settings dropdown
-          setShowSettingsDropdown(false);
-        } catch (error) {
-          console.error('Failed to delete track:', error);
-          await showAlert(t('track.controls.settings.deleteTrackError'));
         }
+
+        if (DEBUG_MODE.TRACK_INFO) {
+          console.log('Delete track confirmed for:', track.getName());
+        }
+
+        // Clear selection if this track is selected
+        // if (selectedTrackId === track.getId().toString()) {
+        //   setSelectedTrack(null);
+        // }
+
+        // Delete the track using the command system
+        await removeTrack(track.getId());
+
+        // Close the settings dropdown
+        setShowSettingsDropdown(false);
+      } catch (error) {
+        console.error('Failed to delete track:', error);
+        await showAlert(t('track.controls.settings.deleteTrackError'));
       }
     }
   };

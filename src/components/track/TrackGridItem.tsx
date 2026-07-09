@@ -13,6 +13,8 @@ import { isModifierKeyPressed } from '../../util/osUtil';
 import { CHORD_REGION_IMPORT_MIME_TYPE } from '../../util/chordRegionImportUtil';
 import { TrackType } from '../../core/track/KGTrack';
 import { buildRegionSurfaceColors, resolveRegionColor } from '../../util/regionColor';
+import { isAcceptedMidiImportFile } from '../../util/midiUtil';
+import { isAcceptedAudioImportFile } from '../../util/audioImportUtil';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -56,7 +58,7 @@ interface TrackGridItemProps {
   onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
-  onAudioFileDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
+  onLocalFileDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   onChordRegionDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
   previewRegionStyles?: Record<string, React.CSSProperties>;
   setPreviewRegionStyles?: React.Dispatch<React.SetStateAction<Record<string, React.CSSProperties>>>;
@@ -89,7 +91,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
-  onAudioFileDrop,
+  onLocalFileDrop,
   onChordRegionDrop,
   previewRegionStyles,
   setPreviewRegionStyles,
@@ -715,6 +717,24 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   // Filter regions for this track
   const trackRegions = regions.filter(region => region.trackIndex === index);
   const isAutomationActive = activeTrackAutomationTrackId === track.getId().toString() && activeTrackAutomationType !== null;
+  const getLocalFileDropEffect = (files: FileList | null | undefined) => {
+    const file = files?.[0];
+    if (!file) {
+      return track.getType() === TrackType.Wave || track.getType() === TrackType.MIDI
+        ? 'copy'
+        : 'none';
+    }
+
+    if (isAcceptedAudioImportFile(file)) {
+      return track.getType() === TrackType.Wave ? 'copy' : 'none';
+    }
+
+    if (isAcceptedMidiImportFile(file)) {
+      return track.getType() === TrackType.MIDI ? 'copy' : 'none';
+    }
+
+    return 'none';
+  };
   const shouldRenderRecordingPreview = recordingMode === 'audio'
     && recordingTargetTrackIndex === index
     && recordingAudioPreviewCurrentBeat >= recordingCommitStartBeatAbsolute;
@@ -755,7 +775,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
 
         if (hasLocalFiles) {
           e.preventDefault();
-          e.dataTransfer.dropEffect = track.getType() === TrackType.Wave ? 'copy' : 'none';
+          e.dataTransfer.dropEffect = getLocalFileDropEffect(e.dataTransfer.files);
         }
       }}
       onDrop={(e) => {
@@ -776,7 +796,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
 
         if (hasLocalFiles) {
           e.preventDefault();
-          onAudioFileDrop?.(e, index);
+          onLocalFileDrop?.(e, index);
         }
       }}
     >

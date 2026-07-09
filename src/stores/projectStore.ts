@@ -71,6 +71,20 @@ function getProjectGlobalTracks(project: KGProject): KGGlobalTrack[] {
   return (project.getGlobalTracks?.() ?? []) as KGGlobalTrack[];
 }
 
+function resolveTrackInsertionIndex(project: KGProject, selectedTrackId: string | null): number {
+  const tracks = project.getTracks();
+  if (!selectedTrackId) {
+    return tracks.length;
+  }
+
+  const selectedTrack = tracks.find(track => track.getId().toString() === selectedTrackId);
+  if (!selectedTrack) {
+    return tracks.length;
+  }
+
+  return Math.min(selectedTrack.getTrackIndex() + 1, tracks.length);
+}
+
 type SidePanelType = 'kgone' | 'chat' | 'eventList';
 
 function getSidePanelVisibilityState(activePanel: SidePanelType | null) {
@@ -604,15 +618,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     addTrack: async () => {
       try {
+        const project = KGCore.instance().getCurrentProject();
+        const insertionIndex = resolveTrackInsertionIndex(project, get().selectedTrackId);
+
         // Create and execute the add track command
-        const command = new AddTrackCommand();
+        const command = new AddTrackCommand(undefined, undefined, 'acoustic_grand_piano', insertionIndex);
         KGCore.instance().executeCommand(command);
 
         // Update the store state with a new array reference to trigger re-render
-        const project = KGCore.instance().getCurrentProject();
+        const updatedProject = KGCore.instance().getCurrentProject();
         set({
-          tracks: [...project.getTracks()] as KGTrack[],
-          globalTracks: [...getProjectGlobalTracks(project)],
+          tracks: [...updatedProject.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(updatedProject)],
         });
 
         // Auto-select the newly created track and open instrument selection panel
@@ -631,13 +648,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     addAudioTrack: async () => {
       try {
-        const command = new AddAudioTrackCommand();
+        const project = KGCore.instance().getCurrentProject();
+        const insertionIndex = resolveTrackInsertionIndex(project, get().selectedTrackId);
+        const command = new AddAudioTrackCommand(undefined, undefined, insertionIndex);
         KGCore.instance().executeCommand(command);
 
-        const project = KGCore.instance().getCurrentProject();
+        const updatedProject = KGCore.instance().getCurrentProject();
         set({
-          tracks: [...project.getTracks()] as KGTrack[],
-          globalTracks: [...getProjectGlobalTracks(project)],
+          tracks: [...updatedProject.getTracks()] as KGTrack[],
+          globalTracks: [...getProjectGlobalTracks(updatedProject)],
         });
 
         const newTrackId = command.getTrackId().toString();

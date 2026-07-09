@@ -29,6 +29,7 @@ export const MIDI_PITCH_BEND_MIN_SIGNED = -8192;
 export const MIDI_PITCH_BEND_MAX_SIGNED = 8191;
 export const MIDI_CONTROLLER_MIN = 0;
 export const MIDI_CONTROLLER_MAX = 127;
+export const MIDI_IMPORT_ACCEPTED_TYPES = ['.mid', '.midi'] as const;
 
 export const pitchToNoteName = (pitch: number) => {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -705,6 +706,73 @@ export interface RawMidiNote {
   velocity: number;
 }
 
+export interface ParsedMidiImportTrack {
+  name: string;
+  suggestedInstrument: InstrumentType;
+  startBeat: number;
+  endBeat: number;
+  notes: RawMidiNote[];
+}
+
+export interface ParsedMidiImportData {
+  fileStartBeat: number;
+  tracks: ParsedMidiImportTrack[];
+}
+
+const ACCEPTED_MIDI_IMPORT_MIME_TYPES = new Set([
+  'audio/mid',
+  'audio/midi',
+  'audio/x-mid',
+  'audio/x-midi',
+  'application/midi',
+  'application/x-midi',
+]);
+
+export function isAcceptedMidiImportFile(file: File): boolean {
+  const normalizedName = file.name.toLowerCase();
+  const hasAcceptedExtension = MIDI_IMPORT_ACCEPTED_TYPES.some(extension => normalizedName.endsWith(extension));
+  return hasAcceptedExtension || ACCEPTED_MIDI_IMPORT_MIME_TYPES.has(file.type.toLowerCase());
+}
+
+export function parseMidiImportData(data: Uint8Array): ParsedMidiImportData {
+  const midiFile = parseMidiFile(data);
+  const noteTracks = midiFile.tracks.filter(track => track.notes.length > 0);
+
+  if (noteTracks.length === 0) {
+    return {
+      fileStartBeat: 0,
+      tracks: [],
+    };
+  }
+
+  const fileStartBeat = Math.min(
+    ...noteTracks.map(track => Math.min(...track.notes.map(note => note.startBeat)))
+  );
+
+  const tracks = noteTracks.map((track, index) => {
+    const startBeat = Math.min(...track.notes.map(note => note.startBeat));
+    const endBeat = Math.max(...track.notes.map(note => note.endBeat));
+
+    return {
+      name: track.name || `Track ${index + 1}`,
+      suggestedInstrument: getKGInstrumentFromMidi(track.channel, track.program),
+      startBeat,
+      endBeat,
+      notes: track.notes.map(note => ({
+        startBeat: note.startBeat,
+        endBeat: note.endBeat,
+        pitch: note.pitch,
+        velocity: note.velocity,
+      })),
+    };
+  });
+
+  return {
+    fileStartBeat,
+    tracks,
+  };
+}
+
 /**
  * Parses a MIDI binary and returns all notes from the first track that has
  * notes, with beat offsets normalised so the earliest note starts at beat 0.
@@ -714,15 +782,14 @@ export function parseMidiFirstTrackNotes(data: Uint8Array): {
   notes: RawMidiNote[];
   totalBeats: number;
 } {
-  const midiFile = parseMidiFile(data);
-  const firstTrack = midiFile.tracks.find(t => t.notes.length > 0);
-  if (!firstTrack || firstTrack.notes.length === 0) {
+  const parsedImportData = parseMidiImportData(data);
+  const firstTrack = parsedImportData.tracks[0];
+  if (!firstTrack) {
     return { notes: [], totalBeats: 0 };
   }
-  const minBeat = Math.min(...firstTrack.notes.map(n => n.startBeat));
   const notes: RawMidiNote[] = firstTrack.notes.map(n => ({
-    startBeat: n.startBeat - minBeat,
-    endBeat: n.endBeat - minBeat,
+    startBeat: n.startBeat - firstTrack.startBeat,
+    endBeat: n.endBeat - firstTrack.startBeat,
     pitch: n.pitch,
     velocity: n.velocity,
   }));

@@ -449,7 +449,7 @@ export const frFrMessages: TranslationMessages = {
   'track.controls.moreActions': 'Autres actions',
   'track.controls.settings.trackColor': 'Couleur de la piste...',
   'track.controls.settings.deleteTrack': 'Supprimer la piste',
-  'track.controls.settings.deleteTrackConfirm': 'Voulez-vous vraiment supprimer la piste « {name} » ?',
+  'track.controls.settings.deleteTrackConfirm': 'Supprimer la piste « {name} » ? Cette piste contient des regions, et elles seront egalement supprimees.',
   'track.controls.settings.deleteTrackError': 'Impossible de supprimer la piste. Veuillez réessayer.',
   'toolbar.keySignatureChooser': 'Choisir l\'armure, actuelle : {value}',
   'toolbar.export.label': 'Exporter',
