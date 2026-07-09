@@ -464,7 +464,7 @@ describe('TrackGridItem preview behavior', () => {
   it('advertises local file drag acceptance on audio rows', () => {
     const audioTrack = new KGAudioTrack('Audio Track', 1);
     audioTrack.setTrackIndex(0);
-    const onAudioFileDrop = vi.fn();
+    const onLocalFileDrop = vi.fn();
 
     const view = render(
       <TrackGridItem
@@ -477,7 +477,7 @@ describe('TrackGridItem preview behavior', () => {
         selectedRegionId={null}
         gridContainerRef={createGridContainerRef()}
         onDoubleClick={vi.fn()}
-        onAudioFileDrop={onAudioFileDrop}
+        onLocalFileDrop={onLocalFileDrop}
       />
     );
 

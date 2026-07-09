@@ -58,7 +58,7 @@ const audioTrack = {
   getId: () => 2,
   getName: () => 'Audio Track',
   getRegions: () => [audioRegion],
-  getType: () => TrackType.AUDIO,
+  getType: () => TrackType.Wave,
 };
 
 const storeState = {
