@@ -1,3 +1,11 @@
+# [0.20.11-build.20260709] (2026-07-09)
+
+* Merge pull request #60 from KGAudioLab/feat/2026-06-30-misc (fa54a19)
+* fix: only confirm track deletion when regions exist (e81c973)
+* feat: insert new tracks below selected track (f78175b)
+* feat: allow renaming audio regions in piano roll (ccef44a)
+* feat: allow user to drag-n-drop `.mid` file onto a MIDI track to import it directly (beb2e00)
+
 # [0.20.10-build.20260708] (2026-07-08)
 
 * Merge pull request #59 from KGAudioLab/feat/2026-06-30-misc (d793195)
