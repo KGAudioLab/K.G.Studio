@@ -563,7 +563,7 @@ export const zhHkMessages: TranslationMessages = {
   'track.controls.moreActions': '更多操作',
   'track.controls.settings.trackColor': '音軌顏色...',
   'track.controls.settings.deleteTrack': '刪除音軌',
-  'track.controls.settings.deleteTrackConfirm': '確定要刪除音軌「{name}」嗎？',
+  'track.controls.settings.deleteTrackConfirm': '要刪除音軌「{name}」嗎？這條音軌包含區域資料，刪除音軌時也會一併刪除這些區域。',
   'track.controls.settings.deleteTrackError': '刪除音軌失敗。請再試一次。',
   'toolbar.keySignatureChooser': '選擇調號，當前為 {value}',
   'toolbar.export.label': '匯出',

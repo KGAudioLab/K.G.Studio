@@ -563,7 +563,7 @@ export const zhCnMessages: TranslationMessages = {
   'track.controls.moreActions': '更多操作',
   'track.controls.settings.trackColor': '轨道颜色...',
   'track.controls.settings.deleteTrack': '删除轨道',
-  'track.controls.settings.deleteTrackConfirm': '确定要删除轨道“{name}”吗？',
+  'track.controls.settings.deleteTrackConfirm': '要删除轨道“{name}”吗？这条轨道包含区域数据，删除轨道时也会一并删除这些区域。',
   'track.controls.settings.deleteTrackError': '删除轨道失败。请重试。',
   'toolbar.keySignatureChooser': '选择调号，当前为 {value}',
   'toolbar.export.label': '导出',

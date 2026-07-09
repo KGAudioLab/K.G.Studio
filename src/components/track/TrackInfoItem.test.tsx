@@ -1,9 +1,10 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TrackInfoItem from './TrackInfoItem';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
-import { showConfirm } from '../../util/dialogUtil';
+import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { showAlert, showConfirm } from '../../util/dialogUtil';
 import { translate } from '../../i18n/translate';
 
 const storeState = {
@@ -81,6 +82,7 @@ describe('TrackInfoItem audio import', () => {
     storeState.importAudioToTrack.mockReset();
     storeState.updateTrackProperties.mockReset();
     storeState.setTrackAutomationView.mockReset();
+    vi.mocked(showAlert).mockReset();
     vi.mocked(showConfirm).mockReset();
   });
 
@@ -106,9 +108,10 @@ describe('TrackInfoItem audio import', () => {
     expect(fileImportModalProps?.acceptedTypes).toEqual(['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a']);
   });
 
-  it('uses the localized delete-track confirmation message', () => {
+  it('uses the localized delete-track confirmation message when the track has regions', async () => {
     const audioTrack = new KGAudioTrack('钢琴', 1);
     audioTrack.setTrackIndex(0);
+    audioTrack.addRegion(new KGMidiRegion('region-1', '1', 0, 'Verse', 0, 4));
     storeState.tracks = [audioTrack];
 
     vi.mocked(showConfirm).mockResolvedValue(false);
@@ -130,9 +133,101 @@ describe('TrackInfoItem audio import', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
     fireEvent.click(screen.getByRole('button', { name: '删除轨道' }));
 
-    expect(showConfirm).toHaveBeenCalledWith(
-      translate('track.controls.settings.deleteTrackConfirm', { name: '钢琴' }, 'zh_cn')
+    await waitFor(() => {
+      expect(showConfirm).toHaveBeenCalledWith(
+        translate('track.controls.settings.deleteTrackConfirm', { name: '钢琴' }, 'zh_cn')
+      );
+    });
+    expect(storeState.removeTrack).not.toHaveBeenCalled();
+  });
+
+  it('skips the confirmation dialog when the track has no regions', async () => {
+    const audioTrack = new KGAudioTrack('Empty Track', 1);
+    audioTrack.setTrackIndex(0);
+    storeState.tracks = [audioTrack];
+    storeState.removeTrack.mockResolvedValue(undefined);
+
+    render(
+      <TrackInfoItem
+        track={audioTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
     );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '删除轨道' }));
+
+    await waitFor(() => {
+      expect(storeState.removeTrack).toHaveBeenCalledWith(1);
+    });
+    expect(showConfirm).not.toHaveBeenCalled();
+  });
+
+  it('does not delete a non-empty track when the confirmation is cancelled', async () => {
+    const audioTrack = new KGAudioTrack('Protected Track', 1);
+    audioTrack.setTrackIndex(0);
+    audioTrack.addRegion(new KGMidiRegion('region-1', '1', 0, 'Verse', 0, 4));
+    storeState.tracks = [audioTrack];
+    vi.mocked(showConfirm).mockResolvedValue(false);
+
+    render(
+      <TrackInfoItem
+        track={audioTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '删除轨道' }));
+
+    await waitFor(() => {
+      expect(showConfirm).toHaveBeenCalled();
+    });
+    expect(storeState.removeTrack).not.toHaveBeenCalled();
+  });
+
+  it('shows an alert when track deletion fails', async () => {
+    const audioTrack = new KGAudioTrack('Broken Track', 1);
+    audioTrack.setTrackIndex(0);
+    storeState.tracks = [audioTrack];
+    storeState.removeTrack.mockRejectedValue(new Error('boom'));
+
+    render(
+      <TrackInfoItem
+        track={audioTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '删除轨道' }));
+
+    await waitFor(() => {
+      expect(showAlert).toHaveBeenCalledWith(
+        translate('track.controls.settings.deleteTrackError', undefined, 'zh_cn')
+      );
+    });
   });
 
   it('shows the track color entry and clears the color override', async () => {

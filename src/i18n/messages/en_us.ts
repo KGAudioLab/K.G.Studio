@@ -565,7 +565,7 @@ export const enUsMessages: TranslationMessages = {
   'track.controls.moreActions': 'More actions',
   'track.controls.settings.trackColor': 'Track Color...',
   'track.controls.settings.deleteTrack': 'Delete Track',
-  'track.controls.settings.deleteTrackConfirm': 'Are you sure you want to delete track "{name}"?',
+  'track.controls.settings.deleteTrackConfirm': 'Delete track "{name}"? This track contains region data, and those regions will also be removed.',
   'track.controls.settings.deleteTrackError': 'Failed to delete track. Please try again.',
   'toolbar.keySignatureChooser': 'Choose key signature, current {value}',
   'toolbar.export.label': 'Export',
