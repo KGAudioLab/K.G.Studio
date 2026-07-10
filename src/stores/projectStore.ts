@@ -1907,7 +1907,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
 
       try {
-        KGCore.instance().executeCommand(command);
+        const core = KGCore.instance();
+        core.executeCommand(command);
+
+        const pastedRegionEnd = command.getCreatedRegions().reduce((maxEnd, region) => (
+          Math.max(maxEnd, region.getStartFromBeat() + region.getLength())
+        ), position);
+        get().setPlayheadPosition(pastedRegionEnd);
 
         // Update the store to trigger re-render
         const { tracks } = get();
@@ -1938,6 +1944,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const createdNotes = targetRegion
           ? targetRegion.getNotes().filter(note => createdNoteIds.has(note.getId()))
           : [];
+        const pastedNoteEnd = targetRegion
+          ? command.getCreatedNotes().reduce((maxEnd, note) => (
+            Math.max(maxEnd, targetRegion.getStartFromBeat() + note.endBeat)
+          ), position)
+          : position;
 
         if (createdNotes.length > 0) {
           core.getSelectedItems().forEach(item => {
@@ -1950,6 +1961,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           });
           core.addSelectedItems(createdNotes);
         }
+
+        get().setPlayheadPosition(pastedNoteEnd);
 
         // Update the store to trigger re-render
         const { tracks } = get();
