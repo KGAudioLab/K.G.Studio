@@ -174,6 +174,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInputValue, setTitleInputValue] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const editingTitleRegionIdRef = useRef<string | null>(null);
 
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<PianoRollQuantizePositionValue>('1/8');
@@ -301,6 +302,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     return activeRegion;
   }, [activeRegion, audioRegion, isAudioOnly, isHybrid]);
+  const editableTitleRegionId = editableTitleRegion?.getId() ?? null;
   const activeEditableRegionId = audioRegion?.getId() ?? activeRegion?.getId() ?? null;
   const selectedRegionColor = useMemo(() => {
     if (audioRegion) {
@@ -520,18 +522,33 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
   }, [editableTitleRegion, isEditingTitle]);
 
+  // Region selection can change while the title input still has focus. The edit
+  // belongs to the region that was active when editing began, so discard it
+  // rather than allowing a subsequent blur to rename the newly active region.
+  useEffect(() => {
+    if (isEditingTitle && editingTitleRegionIdRef.current !== editableTitleRegionId) {
+      editingTitleRegionIdRef.current = null;
+      setIsEditingTitle(false);
+      setTitleInputValue(editableTitleRegion?.getName() ?? '');
+    }
+  }, [editableTitleRegion, editableTitleRegionId, isEditingTitle]);
+
   const cancelTitleEdit = () => {
+    editingTitleRegionIdRef.current = null;
     setTitleInputValue(editableTitleRegion?.getName() ?? '');
     setIsEditingTitle(false);
   };
 
   const commitTitleEdit = async () => {
-    if (!editableTitleRegion) {
+    if (!editableTitleRegion || editingTitleRegionIdRef.current !== editableTitleRegionId) {
+      editingTitleRegionIdRef.current = null;
       setIsEditingTitle(false);
+      setTitleInputValue(editableTitleRegion?.getName() ?? '');
       return;
     }
 
     const newName = titleInputValue.trim();
+    editingTitleRegionIdRef.current = null;
     setIsEditingTitle(false);
     setTitleInputValue(editableTitleRegion.getName());
 
@@ -928,6 +945,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Handle title click to rename the region
   const handleTitleClick = () => {
     if (!editableTitleRegion) return;
+    editingTitleRegionIdRef.current = editableTitleRegion.getId();
     setTitleInputValue(editableTitleRegion.getName());
     setIsEditingTitle(true);
     window.setTimeout(() => {
