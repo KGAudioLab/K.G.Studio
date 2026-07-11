@@ -178,12 +178,16 @@
 
 .main-content-body {
   display: flex;
+  width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
+  min-width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
   min-height: fit-content;
 }
 
 .global-tracks-section {
   display: flex;
   position: relative;
+  width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
+  min-width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
   z-index: 1003;
 }
 
@@ -202,6 +206,7 @@
 .global-tracks-info-shell {
   position: sticky;
   left: 0;
+  flex: 0 0 var(--track-info-panel-width);
   width: var(--track-info-panel-width);
   z-index: 1003;
   overflow: hidden;
