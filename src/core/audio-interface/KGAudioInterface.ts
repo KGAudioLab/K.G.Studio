@@ -734,7 +734,7 @@ export class KGAudioInterface {
             const eventId = Tone.Transport.schedule((time) => {
               const hasSoloedTracks = this.hasSoloedTracks();
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, noteDurationSeconds);
+                audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, noteDurationSeconds, hasSoloedTracks);
               }
             }, noteStartTime);
 
@@ -949,7 +949,7 @@ export class KGAudioInterface {
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-        audioBus.triggerAttackRelease(noteName, duration, triggerTime, velocity);
+        audioBus.triggerAttackRelease(noteName, duration, triggerTime, velocity, hasSoloedTracks);
         console.log(`Triggered note ${noteName} for track ${trackId}`);
       }
     } catch (error) {
@@ -977,7 +977,7 @@ export class KGAudioInterface {
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-        audioBus.triggerAttack(noteName, triggerTime, normalizedVelocity);
+        audioBus.triggerAttack(noteName, triggerTime, normalizedVelocity, hasSoloedTracks);
         console.log(`Triggered attack for note ${noteName} (pitch ${pitch}) on track ${trackId}`);
       }
     } catch (error) {
@@ -1003,7 +1003,7 @@ export class KGAudioInterface {
 
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-        audioBus.triggerLiveMidiAttack(pitch, triggerTime, normalizedVelocity);
+        audioBus.triggerLiveMidiAttack(pitch, triggerTime, normalizedVelocity, hasSoloedTracks);
         console.log(`Triggered live MIDI attack for pitch ${pitch} on track ${trackId}`);
       }
     } catch (error) {

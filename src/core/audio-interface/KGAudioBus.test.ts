@@ -143,4 +143,25 @@ describe('KGAudioBus live MIDI pitch bend', () => {
     expect(gainNode.dispose).toHaveBeenCalled();
     expect(MockGain.mock.calls[1]?.[0]).toBe(1);
   });
+
+  it('lets solo override mute while any track is soloed', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano', 0, 0, true, true);
+    const sampler = MockSampler.mock.results[0].value;
+
+    expect(audioBus.shouldPlayWithSolo(true)).toBe(true);
+    audioBus.applyEffectiveVolume(true);
+    expect(sampler.volume.value).toBe(0);
+
+    audioBus.triggerAttackRelease('C4', '4n', 0, 1, true);
+    expect(sampler.triggerAttackRelease).toHaveBeenCalledWith('C4', '4n', 0, 1);
+  });
+
+  it('restores mute behavior after solo is removed', async () => {
+    const audioBus = await KGAudioBus.create('acoustic_grand_piano', 0, 0, true, false);
+    const sampler = MockSampler.mock.results[0].value;
+
+    expect(audioBus.shouldPlayWithSolo(false)).toBe(false);
+    audioBus.applyEffectiveVolume(false);
+    expect(sampler.volume.value).toBe(-Infinity);
+  });
 });

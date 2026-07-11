@@ -326,3 +326,32 @@ describe('TrackInfoItem audio import', () => {
     expect(storeState.updateTrackProperties).toHaveBeenCalledWith(1, { color: null });
   });
 });
+
+describe('TrackInfoItem mute and solo controls', () => {
+  beforeEach(() => {
+    storeState.updateTrackProperties.mockReset();
+  });
+
+  it('dims mute when solo overrides it', () => {
+    const midiTrack = new KGMidiTrack('Piano', 1);
+    midiTrack.setMuted(true);
+    midiTrack.setSolo(true);
+    storeState.tracks = [midiTrack] as unknown as KGAudioTrack[];
+
+    render(
+      <TrackInfoItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'M' })).toHaveClass('solo-overrides-mute');
+  });
+});

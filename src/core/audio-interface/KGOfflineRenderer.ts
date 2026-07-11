@@ -331,7 +331,7 @@ export class KGOfflineRenderer {
 
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
             sampler.volume.value = 0;
-            const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
+            const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, !hasSoloedTracks && trackInfo.muted));
             const trackPanner = createStereoTrackPanner(0);
             sampler.connect(trackGain);
             trackGain.connect(trackPanner);
@@ -437,7 +437,7 @@ export class KGOfflineRenderer {
       for (const trackInfo of audioTrackData) {
         if (!shouldPlay(trackInfo, hasSoloedTracks)) continue;
 
-        const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
+        const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, !hasSoloedTracks && trackInfo.muted));
         const trackPanner = createStereoTrackPanner(0);
         trackGain.connect(trackPanner);
         trackPanner.connect(masterGain);
@@ -575,9 +575,8 @@ export class KGOfflineRenderer {
 // ===== HELPERS =====
 
 function shouldPlay(trackInfo: { muted: boolean; solo: boolean }, hasSoloedTracks: boolean): boolean {
-  if (trackInfo.muted) return false;
   if (hasSoloedTracks) return trackInfo.solo;
-  return true;
+  return !trackInfo.muted;
 }
 
 function setOfflinePlaybackRate(

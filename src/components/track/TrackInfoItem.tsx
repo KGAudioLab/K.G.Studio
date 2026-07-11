@@ -538,7 +538,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
         </div>
         <div className="pan-controls">
           <button className={`solo${solo ? ' active' : ''}`} onClick={handleToggleSolo}>S</button>
-          <button className={`mute${muted ? ' active' : ''}`} onClick={handleToggleMute}>M</button>
+          <button className={`mute${muted ? ' active' : ''}${muted && solo ? ' solo-overrides-mute' : ''}`} onClick={handleToggleMute}>M</button>
           <div style={{ position: 'relative' }} ref={automationDropdownRef}>
             <button
               className={`automation${automationActive ? ' active' : ''}`}
