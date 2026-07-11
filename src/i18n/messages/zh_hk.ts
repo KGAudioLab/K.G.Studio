@@ -2,6 +2,20 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const zhHkMessages: TranslationMessages = {
+  'intelligentArpeggiator.error.pitchOutsideKey': '音高 {pitch} 不在第 {bar} 小節第 {beat} 拍的調式內。',
+  'intelligentArpeggiator.error.noExampleNotes': '在所選範例長度內，第 {bar} 小節第 {beat} 拍未找到範例音符。',
+  'pianoRoll.intelligentArpeggiator': '智能琶音器...',
+  'pianoRoll.intelligentArpeggiatorGenerated': '已產生 {count} 個智能琶音器音符。',
+  'pianoRoll.intelligentArpeggiatorFailed': '無法產生智能琶音器模式。',
+  'dialog.title.intelligentArpeggiator': '智能琶音器',
+  'dialog.label.inputSource': '輸入來源',
+  'dialog.label.exampleLengthBars': '範例長度（小節）',
+  'dialog.label.generateForBars': '產生長度（小節）',
+  'dialog.label.pitchAnchorTieBreak': '音高錨點平局規則',
+  'dialog.option.globalChordTrack': '全域和弦軌道',
+  'dialog.option.preferHigher': '優先較高音',
+  'dialog.option.preferLower': '優先較低音',
+  'dialog.generate': '產生',
   ...enUsMessages,
   'app.loading': '載入中...',
   'assistant.displayName': 'K.G.Studio 音樂創作助手',

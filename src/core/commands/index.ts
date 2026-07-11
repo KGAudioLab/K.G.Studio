@@ -75,6 +75,7 @@ export { UpdateTempoRegionCommand } from './global-region/UpdateTempoRegionComma
 
 // Note commands
 export { CreateNoteCommand } from './note/CreateNoteCommand';
+export { GenerateIntelligentArpeggiatorCommand } from './note/GenerateIntelligentArpeggiatorCommand';
 export { DeleteMidiEventsCommand } from './note/DeleteMidiEventsCommand';
 export { DeleteNotesCommand, DeleteNoteCommand } from './note/DeleteNotesCommand';
 export { ResizeNotesCommand } from './note/ResizeNotesCommand';

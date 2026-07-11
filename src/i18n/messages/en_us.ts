@@ -1,6 +1,20 @@
 import type { TranslationMessages } from '../types';
 
 export const enUsMessages: TranslationMessages = {
+  'intelligentArpeggiator.error.pitchOutsideKey': 'Pitch {pitch} is outside the key at bar {bar} beat {beat}.',
+  'intelligentArpeggiator.error.noExampleNotes': 'No example notes were found at bar {bar} beat {beat} within the selected example length.',
+  'pianoRoll.intelligentArpeggiator': 'Intelligent Arpeggiator...',
+  'pianoRoll.intelligentArpeggiatorGenerated': 'Generated {count} Intelligent Arpeggiator notes.',
+  'pianoRoll.intelligentArpeggiatorFailed': 'Unable to generate the Intelligent Arpeggiator pattern.',
+  'dialog.title.intelligentArpeggiator': 'Intelligent Arpeggiator',
+  'dialog.label.inputSource': 'Input source',
+  'dialog.label.exampleLengthBars': 'Example length (bars)',
+  'dialog.label.generateForBars': 'Generate for (bars)',
+  'dialog.label.pitchAnchorTieBreak': 'Pitch-anchor tie break',
+  'dialog.option.globalChordTrack': 'Global chord track',
+  'dialog.option.preferHigher': 'Prefer higher tone',
+  'dialog.option.preferLower': 'Prefer lower tone',
+  'dialog.generate': 'Generate',
   'app.loading': 'Loading ...',
   'assistant.displayName': 'K.G.Studio Musician Assistant',
   'assistant.welcomeFallback': 'Welcome to K.G.Studio Musician Assistant.',

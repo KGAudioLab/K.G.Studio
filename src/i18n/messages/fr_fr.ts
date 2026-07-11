@@ -2,6 +2,20 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const frFrMessages: TranslationMessages = {
+  'intelligentArpeggiator.error.pitchOutsideKey': 'La note {pitch} est hors de la tonalité à la mesure {bar}, temps {beat}.',
+  'intelligentArpeggiator.error.noExampleNotes': 'Aucune note d’exemple n’a été trouvée à la mesure {bar}, temps {beat}, dans la longueur d’exemple sélectionnée.',
+  'pianoRoll.intelligentArpeggiator': 'Arpégiateur intelligent...',
+  'pianoRoll.intelligentArpeggiatorGenerated': '{count} notes d’arpégiateur intelligent générées.',
+  'pianoRoll.intelligentArpeggiatorFailed': 'Impossible de générer le motif d’arpégiateur intelligent.',
+  'dialog.title.intelligentArpeggiator': 'Arpégiateur intelligent',
+  'dialog.label.inputSource': 'Source d’entrée',
+  'dialog.label.exampleLengthBars': 'Longueur de l’exemple (mesures)',
+  'dialog.label.generateForBars': 'Générer pour (mesures)',
+  'dialog.label.pitchAnchorTieBreak': 'Égalité d’ancrage de hauteur',
+  'dialog.option.globalChordTrack': 'Piste d’accords globale',
+  'dialog.option.preferHigher': 'Préférer la note aiguë',
+  'dialog.option.preferLower': 'Préférer la note grave',
+  'dialog.generate': 'Générer',
   ...enUsMessages,
   'app.loading': 'Chargement...',
   'assistant.displayName': 'Assistant musical K.G.Studio',

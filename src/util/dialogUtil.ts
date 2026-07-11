@@ -56,6 +56,12 @@ export interface NoteRankSelectionOptionsResult {
   interval: string;
   range: 'selected-only' | 'selected-and-above' | 'selected-and-below';
 }
+export interface IntelligentArpeggiatorOptionsResult {
+  sourceId: string;
+  exampleBars: number;
+  generateBars: number;
+  tieBreak: 'higher' | 'lower';
+}
 
 export interface ChoiceOption {
   label: string;
@@ -81,6 +87,7 @@ let _showNoteRankSelectionOptionsFn: ((
   message: string,
   defaultValue?: NoteRankSelectionOptionsResult,
 ) => Promise<NoteRankSelectionOptionsResult | null>) | null = null;
+let _showIntelligentArpeggiatorOptionsFn: ((message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult) => Promise<IntelligentArpeggiatorOptionsResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -102,6 +109,7 @@ export function registerDialogFns(
     message: string,
     defaultValue?: NoteRankSelectionOptionsResult,
   ) => Promise<NoteRankSelectionOptionsResult | null>,
+  intelligentArpeggiatorOptionsFn?: (message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult) => Promise<IntelligentArpeggiatorOptionsResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -114,6 +122,7 @@ export function registerDialogFns(
   if (tempoApplyFn) _showTempoApplyFn = tempoApplyFn;
   if (audioToMidiOptionsFn) _showAudioToMidiOptionsFn = audioToMidiOptionsFn;
   if (noteRankSelectionOptionsFn) _showNoteRankSelectionOptionsFn = noteRankSelectionOptionsFn;
+  if (intelligentArpeggiatorOptionsFn) _showIntelligentArpeggiatorOptionsFn = intelligentArpeggiatorOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -245,4 +254,9 @@ export function showNoteRankSelectionOptions(
   return _showNoteRankSelectionOptionsFn
     ? _showNoteRankSelectionOptionsFn(message, fallback)
     : Promise.resolve(fallback);
+}
+
+export function showIntelligentArpeggiatorOptions(message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult): Promise<IntelligentArpeggiatorOptionsResult | null> {
+  const fallback = defaultValue ?? { sourceId: 'chord', exampleBars: 1, generateBars: 4, tieBreak: 'higher' as const };
+  return _showIntelligentArpeggiatorOptionsFn ? _showIntelligentArpeggiatorOptionsFn(message, sources, fallback) : Promise.resolve(fallback);
 }

@@ -24,7 +24,7 @@ import {
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
 import { downloadBlob } from '../../util/miscUtil';
-import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
+import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import {
@@ -35,7 +35,9 @@ import {
   showNoteRankSelectionOptions,
   showTempoApply,
   showTempoDetectionOptions,
+  showIntelligentArpeggiatorOptions,
 } from '../../util/dialogUtil';
+import { buildIntelligentArpeggiatorPlan } from '../../util/intelligentArpeggiator';
 import { findNoteIdsByRank } from './noteRankSelection';
 import { matchesKeyboardShortcut } from '../../util/osUtil';
 import { resolveChordGuideItems } from '../../util/chordGuideDataUtil';
@@ -274,6 +276,32 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       await showAlert(t('pianoRoll.export.failedMidi', { error: String(error) }));
     }
   }, [activeRegion, parentMidiTrack, projectName, setStatus, t]);
+
+  const handleIntelligentArpeggiator = useCallback(async () => {
+    if (!activeRegion || !(parentMidiTrack instanceof KGMidiTrack)) return;
+    const sourceChoices = [
+      { label: t('dialog.option.globalChordTrack'), value: 'chord' },
+      ...availableMidiTracks
+        .filter(track => track.getId().toString() !== parentMidiTrack.getId().toString())
+        .map(track => ({ label: track.getName(), value: `midi:${track.getId()}` })),
+    ];
+    const options = await showIntelligentArpeggiatorOptions('', sourceChoices);
+    if (!options) return;
+    const source = options.sourceId === 'chord'
+      ? { type: 'chord' as const }
+      : { type: 'midi' as const, trackId: options.sourceId.replace(/^midi:/, '') };
+    const project = KGCore.instance().getCurrentProject();
+    const plan = buildIntelligentArpeggiatorPlan(project, activeRegion, playheadPosition, { source, exampleBars: options.exampleBars, generateBars: options.generateBars, tieBreak: options.tieBreak });
+    if ('error' in plan) { await showAlert(plan.error); return; }
+    try {
+      KGCore.instance().executeCommand(new GenerateIntelligentArpeggiatorCommand(activeRegion.getId(), plan.notes, plan.endBeat));
+      refreshProjectState();
+      setStatus(t('pianoRoll.intelligentArpeggiatorGenerated', { count: plan.notes.length }));
+    } catch (error) {
+      console.error('Intelligent arpeggiator failed:', error);
+      await showAlert(t('pianoRoll.intelligentArpeggiatorFailed'));
+    }
+  }, [activeRegion, availableMidiTracks, parentMidiTrack, playheadPosition, refreshProjectState, setStatus, t]);
   const editableTitleRegion = useMemo<KGMidiRegion | KGAudioRegion | null>(() => {
     if (isHybrid) {
       return null;
@@ -1905,6 +1933,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
           && (currentMode === 'midi-edit' || currentMode === 'hybrid')
             ? handleExportMidi
+            : undefined
+        }
+        onIntelligentArpeggiator={
+          activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
+          && (currentMode === 'midi-edit' || currentMode === 'hybrid')
+            ? handleIntelligentArpeggiator
             : undefined
         }
       />
