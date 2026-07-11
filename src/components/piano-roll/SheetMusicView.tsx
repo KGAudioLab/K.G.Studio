@@ -412,7 +412,10 @@ function createStaveNote(
   const durationSpec = resolveDurationSpec(event.endBeat - event.startBeat, event.isRest);
   const note = new StaveNote({
     clef,
-    keys: event.keys,
+    // VexFlow uses the supplied key to vertically anchor rest glyphs. b/4 is
+    // the middle staff line in treble clef, but resolves above the staff in
+    // bass clef; d/3 occupies that same line in bass clef.
+    keys: event.isRest ? [clef === 'bass' ? 'd/3' : 'b/4'] : event.keys,
     duration: durationSpec.duration,
   });
 
