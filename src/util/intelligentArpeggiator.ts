@@ -27,6 +27,17 @@ function scaleIndex(pitches: number[], pitch: number): number {
   return pitches.indexOf(pitch);
 }
 
+/** Returns the closest scale degree while retaining a source pitch's chromatic alteration separately. */
+function nearestScaleIndex(pitches: number[], pitch: number): number {
+  const exact = scaleIndex(pitches, pitch);
+  if (exact >= 0) return exact;
+  let closest = 0;
+  for (let index = 1; index < pitches.length; index += 1) {
+    if (Math.abs(pitches[index] - pitch) < Math.abs(pitches[closest] - pitch)) closest = index;
+  }
+  return closest;
+}
+
 function displayBeat(beatInBar: number): number {
   return Math.round((beatInBar + 1) * 100) / 100;
 }
@@ -66,8 +77,9 @@ function validateOnKey(project: KGProject, beat: number, pitches: number[]): str
 
 function learnPattern(project: KGProject, region: KGMidiRegion, playhead: number, exampleEnd: number, reference: number[], tieBreak: 'higher' | 'lower'): PatternEvent[] | string {
   const referenceScale = scalePitches(project, playhead);
-  const refIndices = reference.map(pitch => scaleIndex(referenceScale, pitch));
-  if (refIndices.some(index => index < 0)) return 'The input source contains notes outside the current key.';
+  // Source notes may be chromatic. Their nearest scale degree provides the learned
+  // diatonic movement while their chromatic alteration is preserved at generation.
+  const refIndices = reference.map(pitch => nearestScaleIndex(referenceScale, pitch));
   const events: PatternEvent[] = [];
   for (const note of region.getNotes()) {
     const absoluteStart = region.getStartFromBeat() + note.getStartBeat();
@@ -93,8 +105,6 @@ export function buildIntelligentArpeggiatorPlan(project: KGProject, region: KGMi
   if (exampleEnd > songEnd) return { error: 'The example extends beyond the end of the song.' };
   const reference = sourceAt(project, options.source, playhead);
   if (reference.length === 0) return { error: 'The input source is empty at the playhead.' };
-  const referenceError = validateOnKey(project, playhead, reference);
-  if (referenceError) return { error: referenceError };
   const pattern = learnPattern(project, region, playhead, exampleEnd, reference, options.tieBreak);
   if (typeof pattern === 'string') return { error: pattern };
   if (pattern.length === 0) {
@@ -110,13 +120,15 @@ export function buildIntelligentArpeggiatorPlan(project: KGProject, region: KGMi
       if (startBeat >= outputEnd) continue;
       const source = sourceAt(project, options.source, startBeat);
       if (source.length === 0) continue;
-      const sourceError = validateOnKey(project, startBeat, source);
-      if (sourceError) return { error: sourceError };
       const scale = scalePitches(project, startBeat);
       const anchor = source[Math.min(event.anchorRank, source.length - 1)];
-      const index = scaleIndex(scale, anchor) + event.scaleOffset;
+      const nearestAnchorIndex = nearestScaleIndex(scale, anchor);
+      const chromaticOffset = anchor - scale[nearestAnchorIndex];
+      const index = nearestAnchorIndex + event.scaleOffset;
       if (index < 0 || index >= scale.length) return { error: 'A generated pitch is outside the MIDI range.' };
-      notes.push({ startBeat, endBeat: Math.min(outputEnd, startBeat + event.length), pitch: scale[index], velocity: event.velocity });
+      const pitch = scale[index] + chromaticOffset;
+      if (pitch < 0 || pitch > 127) return { error: 'A generated pitch is outside the MIDI range.' };
+      notes.push({ startBeat, endBeat: Math.min(outputEnd, startBeat + event.length), pitch, velocity: event.velocity });
     }
   }
   return { notes, endBeat: outputEnd };
