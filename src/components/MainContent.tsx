@@ -67,7 +67,6 @@ const MainContent: React.FC<MainContentProps> = ({
     addTrack,
     addAudioTrack,
     projectName,
-    savedProjectName,
     showGlobalTracks,
     setShowGlobalTracks,
     requestPianoRollScroll,
@@ -481,7 +480,7 @@ const MainContent: React.FC<MainContentProps> = ({
             }
             return undefined;
           })()}
-          projectName={savedProjectName}
+          projectName={projectName}
         />,
         document.body
       )}

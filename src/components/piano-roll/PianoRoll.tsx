@@ -22,7 +22,8 @@ import {
   type PianoRollSnapValue,
 } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
-import { beatsToBar, type RawMidiNote } from '../../util/midiUtil';
+import { beatsToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
+import { downloadBlob } from '../../util/miscUtil';
 import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
@@ -150,6 +151,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     isLooping,
     loopingRange,
     clearAllSelections,
+    setStatus,
   } = useProjectStore();
   const { t } = useI18n();
 
@@ -255,6 +257,23 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const activeInstrument = useMemo<InstrumentType>(() => (
     parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
   ), [parentMidiTrack]);
+  const handleExportMidi = useCallback(async () => {
+    if (!activeRegion || !(parentMidiTrack instanceof KGMidiTrack) || !projectName) return;
+
+    try {
+      const midiData = convertRegionToMidi(KGCore.instance().getCurrentProject(), parentMidiTrack, activeRegion);
+      downloadBlob(
+        midiData.buffer as ArrayBuffer,
+        'audio/midi',
+        `${projectName} - ${parentMidiTrack.getName()} - ${activeRegion.getName()}.mid`,
+      );
+      setStatus(t('pianoRoll.status.regionExportedMidi', { name: activeRegion.getName() }));
+    } catch (error) {
+      console.error('Error exporting region MIDI:', error);
+      setStatus(t('pianoRoll.status.exportMidiError', { error: String(error) }));
+      await showAlert(t('pianoRoll.export.failedMidi', { error: String(error) }));
+    }
+  }, [activeRegion, parentMidiTrack, projectName, setStatus, t]);
   const editableTitleRegion = useMemo<KGMidiRegion | KGAudioRegion | null>(() => {
     if (isHybrid) {
       return null;
@@ -1882,6 +1901,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         selectedRegionColor={selectedRegionColor}
         onRegionColorSelect={activeEditableRegionId ? (color) => { void handleRegionColorSelect(color); } : undefined}
         onSelectNoteByRank={activeRegion && !sheetMusicViewEnabled ? handleSelectNoteByRank : undefined}
+        onExportMidi={
+          activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
+          && (currentMode === 'midi-edit' || currentMode === 'hybrid')
+            ? handleExportMidi
+            : undefined
+        }
       />
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />

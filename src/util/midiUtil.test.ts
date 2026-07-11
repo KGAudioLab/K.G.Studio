@@ -3,6 +3,8 @@ import {
   beatsToBar, 
   convertMidiToProject,
   convertProjectToMidi,
+  convertRegionToMidi,
+  convertTrackToMidi,
   formatMidiEventLength,
   formatMidiEventPosition,
   MIDI_EVENT_TICKS_PER_BEAT,
@@ -22,6 +24,43 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 
 describe('midiUtil', () => {
+  describe('focused MIDI export', () => {
+    it('exports only the selected region and rebases its containing bar while retaining its beat offset', () => {
+      const track = new KGMidiTrack('Piano', 1);
+      const selectedRegion = new KGMidiRegion('region-a', '1', 0, 'Verse', 10, 4);
+      selectedRegion.addNote(new KGMidiNote('note-a', 0, 1, 60, 100));
+      const excludedRegion = new KGMidiRegion('region-b', '1', 0, 'Chorus', 20, 4);
+      excludedRegion.addNote(new KGMidiNote('note-b', 0, 1, 67, 100));
+      track.setRegions([selectedRegion, excludedRegion]);
+      const project = new KGProject('Export Test', 32, 0, 120, { numerator: 4, denominator: 4 }, 'C major', 'ionian', false, [0, 0], 1, [track]);
+
+      const parsed = parseMidiImportData(convertRegionToMidi(project, track, selectedRegion));
+
+      expect(parsed.tracks).toHaveLength(1);
+      expect(parsed.tracks[0].notes).toEqual([
+        expect.objectContaining({ pitch: 60, startBeat: 2, endBeat: 3 }),
+      ]);
+    });
+
+    it('exports all and only the selected track regions without rebasing their timeline positions', () => {
+      const track = new KGMidiTrack('Piano', 1);
+      const firstRegion = new KGMidiRegion('region-a', '1', 0, 'Verse', 4, 4);
+      firstRegion.addNote(new KGMidiNote('note-a', 0, 1, 60, 100));
+      const secondRegion = new KGMidiRegion('region-b', '1', 0, 'Chorus', 12, 4);
+      secondRegion.addNote(new KGMidiNote('note-b', 1, 2, 67, 100));
+      track.setRegions([firstRegion, secondRegion]);
+      const project = new KGProject('Export Test', 32, 0, 120, { numerator: 4, denominator: 4 }, 'C major', 'ionian', false, [0, 0], 1, [track]);
+
+      const parsed = parseMidiImportData(convertTrackToMidi(project, track));
+
+      expect(parsed.tracks).toHaveLength(1);
+      expect(parsed.tracks[0].notes).toEqual([
+        expect.objectContaining({ pitch: 60, startBeat: 4, endBeat: 5 }),
+        expect.objectContaining({ pitch: 67, startBeat: 13, endBeat: 14 }),
+      ]);
+    });
+  });
+
   describe('beatsToBar', () => {
     it('should convert beats to bar position object', () => {
       const result1 = beatsToBar(0, { numerator: 4, denominator: 4 });

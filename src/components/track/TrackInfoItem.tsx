@@ -18,6 +18,9 @@ import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoin
 import { AUDIO_IMPORT_ACCEPTED_TYPES } from '../../util/audioImportUtil';
 import { useI18n } from '../../i18n/useI18n';
 import { getInstrumentDisplayName } from '../../i18n/instruments';
+import { convertTrackToMidi } from '../../util/midiUtil';
+import { downloadBlob } from '../../util/miscUtil';
+import { KGCore } from '../../core/KGCore';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -73,7 +76,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDragEnd
 }) => {
   const { t } = useI18n();
-  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks } = useProjectStore();
+  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks, projectName, setStatus } = useProjectStore();
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const setTrackAutomationView = useProjectStore(state => state.setTrackAutomationView);
@@ -344,6 +347,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     }
   };
 
+  const handleExportMidi = async () => {
+    if (!(track instanceof KGMidiTrack)) return;
+
+    try {
+      const midiData = convertTrackToMidi(KGCore.instance().getCurrentProject(), track);
+      downloadBlob(midiData.buffer as ArrayBuffer, 'audio/midi', `${projectName} - ${track.getName()}.mid`);
+      setStatus(t('track.controls.status.trackExportedMidi', { name: track.getName() }));
+    } catch (error) {
+      console.error('Error exporting track MIDI:', error);
+      setStatus(t('track.controls.status.exportMidiError', { error: String(error) }));
+      await showAlert(t('track.controls.export.failedMidi', { error: String(error) }));
+    }
+  };
+
   const handleAutomationButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     setSelectedTrack(track.getId().toString());
@@ -569,6 +586,19 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             </button>
             {showSettingsDropdown && (
               <div className="track-settings-menu">
+                {track instanceof KGMidiTrack && (
+                  <button
+                    type="button"
+                    className="track-settings-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSettingsDropdown(false);
+                      void handleExportMidi();
+                    }}
+                  >
+                    {t('track.controls.exportMidi')}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="track-settings-menu-item"

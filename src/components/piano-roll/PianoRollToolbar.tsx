@@ -55,6 +55,7 @@ interface PianoRollToolbarProps {
   selectedRegionColor?: string;
   onRegionColorSelect?: (color: string | null) => void;
   onSelectNoteByRank?: () => void | Promise<void>;
+  onExportMidi?: () => void | Promise<void>;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -102,6 +103,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   selectedRegionColor,
   onRegionColorSelect,
   onSelectNoteByRank,
+  onExportMidi,
 }) => {
   const { t } = useI18n();
   const showMidiControls = mode !== 'spectrogram' && mode !== 'audio-waveform' && !sheetMusicViewEnabled;
@@ -109,7 +111,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo || !!onConvertToMidi);
-  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && !!onSelectNoteByRank);
+  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi));
   const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
   const snapOptions = React.useMemo(
     () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
@@ -432,6 +434,18 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                     }}
                   >
                     {t('pianoRoll.selectNoteByRank')}
+                  </div>
+                )}
+                {onExportMidi && (
+                  <div
+                    className="quant-option"
+                    onClick={() => {
+                      setShowRegionColorPalette(false);
+                      setShowMoreMenu(false);
+                      void onExportMidi();
+                    }}
+                  >
+                    {t('pianoRoll.exportMidi')}
                   </div>
                 )}
                 {onDetectChords && (
