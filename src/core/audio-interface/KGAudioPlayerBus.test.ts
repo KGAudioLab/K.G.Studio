@@ -31,4 +31,15 @@ describe('KGAudioPlayerBus mute and solo precedence', () => {
     audioBus.applyEffectiveVolume(false);
     expect(gainNode.gain.value).toBe(0);
   });
+
+  it('restores gain immediately when a muted active player bus is unmuted', async () => {
+    const audioBus = await KGAudioPlayerBus.create(0, 0, true, false);
+    const gainNode = MockGain.mock.results[0].value;
+
+    expect(gainNode.gain.value).toBe(0);
+
+    audioBus.setMuted(false);
+
+    expect(gainNode.gain.value).toBe(1);
+  });
 });

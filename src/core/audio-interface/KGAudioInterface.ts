@@ -803,15 +803,16 @@ export class KGAudioInterface {
                   const regionStartTime = this.projectBeatToTransportTime(safeResumeBeat);
 
                   const eventId = Tone.Transport.schedule((time) => {
-                    const hasSoloedTracks = this.hasSoloedTracks();
-                    if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                      playerBus.schedulePlayback(
-                        time + playbackDelay,
-                        audioFileId,
-                        adjustedOffsetSeconds,
-                        adjustedRemainingSeconds
-                      );
-                    }
+                    // Start the source even when the track is currently muted or
+                    // excluded by solo. The player bus gain controls audibility,
+                    // allowing a later unmute/solo change to reveal this clip at
+                    // its current playback position.
+                    playerBus.schedulePlayback(
+                      time + playbackDelay,
+                      audioFileId,
+                      adjustedOffsetSeconds,
+                      adjustedRemainingSeconds
+                    );
                   }, regionStartTime);
                   this.scheduledEvents.add(eventId);
                 }
@@ -845,10 +846,9 @@ export class KGAudioInterface {
               );
 
               const eventId = Tone.Transport.schedule((time) => {
-                const hasSoloedTracks = this.hasSoloedTracks();
-                if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                  playerBus.schedulePlayback(time + playbackDelay, audioFileId, clipStartOffsetSeconds, effectiveDurationSeconds);
-                }
+                // See the resume path above: sources must exist while muted so
+                // transport-time mute and solo changes take effect immediately.
+                playerBus.schedulePlayback(time + playbackDelay, audioFileId, clipStartOffsetSeconds, effectiveDurationSeconds);
               }, regionStartTime);
 
               this.scheduledEvents.add(eventId);
