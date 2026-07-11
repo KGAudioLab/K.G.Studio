@@ -186,16 +186,20 @@ describe('DialogProvider note-rank selection dialog', () => {
     expect(screen.getByText('Select Note by Rank')).toBeInTheDocument();
     expect(screen.getByLabelText('Rank')).toHaveValue(1);
     expect(screen.getByLabelText('Detection interval')).toHaveValue('1/16');
+    expect(screen.getByLabelText('Selection range')).toHaveValue('selected-only');
     expect(screen.getByRole('option', { name: '1/1' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '1/32' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Direction'), { target: { value: 'top-to-bottom' } });
     fireEvent.change(screen.getByLabelText('Rank'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Detection interval'), { target: { value: '1/8' } });
+    fireEvent.change(screen.getByLabelText('Selection range'), { target: { value: 'selected-and-above' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     finishDialogCloseAnimation();
 
-    await waitFor(() => expect(resolved).toEqual({ direction: 'top-to-bottom', rank: 3, interval: '1/8' }));
+    await waitFor(() => expect(resolved).toEqual({
+      direction: 'top-to-bottom', rank: 3, interval: '1/8', range: 'selected-and-above',
+    }));
   });
 
   it('resolves cancellation to null', async () => {

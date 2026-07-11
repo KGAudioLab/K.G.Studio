@@ -1,9 +1,11 @@
 export type NoteRankSelectionDirection = 'bottom-to-top' | 'top-to-bottom';
+export type NoteRankSelectionRange = 'selected-only' | 'selected-and-above' | 'selected-and-below';
 
 export interface NoteRankSelectionOptions {
   direction: NoteRankSelectionDirection;
   rank: number;
   interval: string;
+  range: NoteRankSelectionRange;
 }
 
 export interface NoteRankSelectable {
@@ -39,8 +41,16 @@ export function findNoteIdsByRank(
     const selectedPitch = pitches[options.rank - 1];
     if (selectedPitch === undefined) continue;
 
+    const includedPitches = pitches.filter(pitch => (
+      options.range === 'selected-only'
+        ? pitch === selectedPitch
+        : options.range === 'selected-and-above'
+          ? pitch >= selectedPitch
+          : pitch <= selectedPitch
+    ));
+
     soundingNotes
-      .filter(note => note.pitch === selectedPitch)
+      .filter(note => includedPitches.includes(note.pitch))
       .forEach(note => selectedIds.add(note.id));
   }
 

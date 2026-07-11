@@ -54,6 +54,7 @@ export interface NoteRankSelectionOptionsResult {
   direction: 'bottom-to-top' | 'top-to-bottom';
   rank: number;
   interval: string;
+  range: 'selected-only' | 'selected-and-above' | 'selected-and-below';
 }
 
 export interface ChoiceOption {
@@ -235,7 +236,12 @@ export function showNoteRankSelectionOptions(
   message: string,
   defaultValue?: NoteRankSelectionOptionsResult,
 ): Promise<NoteRankSelectionOptionsResult | null> {
-  const fallback = defaultValue ?? { direction: 'bottom-to-top' as const, rank: 1, interval: '1/16' };
+  const fallback = defaultValue ?? {
+    direction: 'bottom-to-top' as const,
+    rank: 1,
+    interval: '1/16',
+    range: 'selected-only' as const,
+  };
   return _showNoteRankSelectionOptionsFn
     ? _showNoteRankSelectionOptionsFn(message, fallback)
     : Promise.resolve(fallback);

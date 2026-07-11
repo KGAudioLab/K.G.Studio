@@ -68,6 +68,7 @@ export class KGPianoRollState {
     direction: 'bottom-to-top',
     rank: 1,
     interval: '1/16',
+    range: 'selected-only',
   };
 
   // Chord guide state

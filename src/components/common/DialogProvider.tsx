@@ -69,6 +69,7 @@ const DEFAULT_NOTE_RANK_SELECTION_OPTIONS: NoteRankSelectionOptionsResult = {
   direction: 'bottom-to-top',
   rank: 1,
   interval: '1/16',
+  range: 'selected-only',
 };
 
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -650,6 +651,20 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                       ))}
                     </select>
                   </div>
+                </div>
+                <div className="dialog-slider-group">
+                  <label className="dialog-slider-label" htmlFor="dialog-note-rank-range">{t('dialog.label.noteRankRange')}</label>
+                  <select
+                    id="dialog-note-rank-range"
+                    className="dialog-input"
+                    value={noteRankSelectionOptions.range}
+                    aria-label={t('dialog.label.noteRankRange')}
+                    onChange={(e) => updateNoteRankSelectionOption('range', e.target.value as NoteRankSelectionOptionsResult['range'])}
+                  >
+                    <option value="selected-only">{t('dialog.option.noteRankSelectedOnly')}</option>
+                    <option value="selected-and-above">{t('dialog.option.noteRankSelectedAndAbove')}</option>
+                    <option value="selected-and-below">{t('dialog.option.noteRankSelectedAndBelow')}</option>
+                  </select>
                 </div>
               </div>
             )}
