@@ -50,6 +50,12 @@ export interface AudioToMidiOptionsResult {
   targetTrackId: string;
 }
 
+export interface NoteRankSelectionOptionsResult {
+  direction: 'bottom-to-top' | 'top-to-bottom';
+  rank: number;
+  interval: string;
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -70,6 +76,10 @@ let _showAudioToMidiOptionsFn: ((
   loopModeEnabled: boolean,
   defaultValue?: AudioToMidiOptionsResult,
 ) => Promise<AudioToMidiOptionsResult | null>) | null = null;
+let _showNoteRankSelectionOptionsFn: ((
+  message: string,
+  defaultValue?: NoteRankSelectionOptionsResult,
+) => Promise<NoteRankSelectionOptionsResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -87,6 +97,10 @@ export function registerDialogFns(
     loopModeEnabled: boolean,
     defaultValue?: AudioToMidiOptionsResult,
   ) => Promise<AudioToMidiOptionsResult | null>,
+  noteRankSelectionOptionsFn?: (
+    message: string,
+    defaultValue?: NoteRankSelectionOptionsResult,
+  ) => Promise<NoteRankSelectionOptionsResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -98,6 +112,7 @@ export function registerDialogFns(
   if (tempoDetectionOptionsFn) _showTempoDetectionOptionsFn = tempoDetectionOptionsFn;
   if (tempoApplyFn) _showTempoApplyFn = tempoApplyFn;
   if (audioToMidiOptionsFn) _showAudioToMidiOptionsFn = audioToMidiOptionsFn;
+  if (noteRankSelectionOptionsFn) _showNoteRankSelectionOptionsFn = noteRankSelectionOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -214,4 +229,14 @@ export function showAudioToMidiOptions(
     });
   }
   return _showAudioToMidiOptionsFn(message, targetTracks, loopModeEnabled, defaultValue);
+}
+
+export function showNoteRankSelectionOptions(
+  message: string,
+  defaultValue?: NoteRankSelectionOptionsResult,
+): Promise<NoteRankSelectionOptionsResult | null> {
+  const fallback = defaultValue ?? { direction: 'bottom-to-top' as const, rank: 1, interval: '1/16' };
+  return _showNoteRankSelectionOptionsFn
+    ? _showNoteRankSelectionOptionsFn(message, fallback)
+    : Promise.resolve(fallback);
 }

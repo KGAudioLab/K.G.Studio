@@ -31,9 +31,11 @@ import {
   showAudioToMidiOptions,
   showChordDetectionOptions,
   showMidiChordDetectionOptions,
+  showNoteRankSelectionOptions,
   showTempoApply,
   showTempoDetectionOptions,
 } from '../../util/dialogUtil';
+import { findNoteIdsByRank } from './noteRankSelection';
 import { matchesKeyboardShortcut } from '../../util/osUtil';
 import { resolveChordGuideItems } from '../../util/chordGuideDataUtil';
 import {
@@ -147,6 +149,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     setBpm,
     isLooping,
     loopingRange,
+    clearAllSelections,
   } = useProjectStore();
   const { t } = useI18n();
 
@@ -204,6 +207,36 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
     [activeRegion, selectedNoteIds]
   );
+  const handleSelectNoteByRank = useCallback(async () => {
+    if (!activeRegion) return;
+
+    const options = await showNoteRankSelectionOptions(
+      '',
+      KGPianoRollState.instance().getNoteRankSelectionOptions(),
+    );
+    if (!options) return;
+
+    KGPianoRollState.instance().setNoteRankSelectionOptions(options);
+    const selectedIds = findNoteIdsByRank(
+      activeRegion.getNotes().map(note => ({
+        id: note.getId(),
+        pitch: note.getPitch(),
+        startBeat: note.getStartBeat(),
+        endBeat: note.getEndBeat(),
+      })),
+      activeRegion.getLength(),
+      options,
+    );
+
+    clearAllSelections();
+    activeRegion.getNotes().forEach(note => note.deselect());
+    const notesToSelect = activeRegion.getNotes().filter(note => selectedIds.has(note.getId()));
+    notesToSelect.forEach(note => note.select());
+    KGCore.instance().addSelectedItems(notesToSelect);
+
+    const track = tracks.find(candidate => candidate.getId().toString() === activeRegion.getTrackId());
+    if (track) updateTrack(track);
+  }, [activeRegion, clearAllSelections, tracks, updateTrack]);
   const parentMidiTrack = useMemo(() => {
     if (!activeRegion) {
       return null;
@@ -1848,6 +1881,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         convertToMidiDisabled={availableMidiTracks.length === 0}
         selectedRegionColor={selectedRegionColor}
         onRegionColorSelect={activeEditableRegionId ? (color) => { void handleRegionColorSelect(color); } : undefined}
+        onSelectNoteByRank={activeRegion && !sheetMusicViewEnabled ? handleSelectNoteByRank : undefined}
       />
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />

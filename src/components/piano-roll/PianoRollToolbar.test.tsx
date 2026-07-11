@@ -500,4 +500,20 @@ describe('PianoRollToolbar', () => {
 
     expect(onRegionColorSelect).toHaveBeenCalledWith(null);
   });
+
+  it('shows Select Note by Rank in the MIDI more menu without spectrogram actions', () => {
+    const onSelectNoteByRank = vi.fn();
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        onDetectChords={undefined}
+        onSelectNoteByRank={onSelectNoteByRank}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(screen.getByText('Select Note by Rank…'));
+    expect(onSelectNoteByRank).toHaveBeenCalledTimes(1);
+  });
 });

@@ -23,6 +23,7 @@ import {
   showChoice,
   showChordDetectionOptions,
   showMidiChordDetectionOptions,
+  showNoteRankSelectionOptions,
   showTempoApply,
   showTempoDetectionOptions,
 } from '../../util/dialogUtil';
@@ -168,6 +169,47 @@ describe('DialogProvider MIDI chord detection dialog', () => {
     expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
     expect(screen.getByText(/Voicing density, overlaps, and ornamental notes/)).toBeInTheDocument();
     expect(screen.queryByText('Recommended Source Material')).not.toBeInTheDocument();
+  });
+});
+
+describe('DialogProvider note-rank selection dialog', () => {
+  it('shows defaults, provides all quantize-length intervals, and returns adjusted options', async () => {
+    let resolved: unknown = null;
+
+    render(
+      <DialogProvider>
+        <button type="button" onClick={async () => { resolved = await showNoteRankSelectionOptions(''); }}>Open</button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+    expect(screen.getByText('Select Note by Rank')).toBeInTheDocument();
+    expect(screen.getByLabelText('Rank')).toHaveValue(1);
+    expect(screen.getByLabelText('Detection interval')).toHaveValue('1/16');
+    expect(screen.getByRole('option', { name: '1/1' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '1/32' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Direction'), { target: { value: 'top-to-bottom' } });
+    fireEvent.change(screen.getByLabelText('Rank'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('Detection interval'), { target: { value: '1/8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toEqual({ direction: 'top-to-bottom', rank: 3, interval: '1/8' }));
+  });
+
+  it('resolves cancellation to null', async () => {
+    let resolved: unknown = 'pending';
+    render(
+      <DialogProvider>
+        <button type="button" onClick={async () => { resolved = await showNoteRankSelectionOptions(''); }}>Open</button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    finishDialogCloseAnimation();
+    await waitFor(() => expect(resolved).toBeNull());
   });
 });
 
