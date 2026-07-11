@@ -18,7 +18,7 @@ import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
 import { toggleLoop } from '../util/loopUtil';
-import { TOOLBAR_CONSTANTS } from '../constants/uiConstants';
+import { PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants/uiConstants';
 import * as Tone from 'tone';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
@@ -129,6 +129,7 @@ interface ProjectState {
 
   // Piano roll state
   showPianoRoll: boolean;
+  pianoRollHeight: number;
   activeRegionId: string | null;
   pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
@@ -232,6 +233,7 @@ interface ProjectState {
 
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
+  setPianoRollHeight: (height: number) => void;
   setActiveRegionId: (regionId: string | null) => void;
   openMidiPianoRoll: (regionId: string) => void;
   openMidiPianoRollWithSheetMusicView: (regionId: string, sheetMusicViewEnabled: boolean) => void;
@@ -536,6 +538,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial piano roll state
     showPianoRoll: false,
+    pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
@@ -1040,6 +1043,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           isLooping: projectToLoad.getIsLooping(),
           isMetronomeEnabled: projectToLoad.getIsMetronomeEnabled(),
           showGlobalTracks: projectToLoad.getShowGlobalTracks(),
+          pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
           loopingRange: projectToLoad.getLoopingRange(),
           activeTrackAutomationTrackId: null,
           activeTrackAutomationType: null,
@@ -1700,6 +1704,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Piano roll actions
     setShowPianoRoll: (show: boolean) => {
       set({ showPianoRoll: show });
+    },
+
+    setPianoRollHeight: (height: number) => {
+      set({ pianoRollHeight: height });
     },
 
     setActiveRegionId: (regionId: string | null) => {

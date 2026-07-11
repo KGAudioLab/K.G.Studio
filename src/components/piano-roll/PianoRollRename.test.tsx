@@ -67,6 +67,8 @@ const storeState = {
   updateTrack: vi.fn(),
   updateRegionProperties: vi.fn(),
   timeSignature: { numerator: 4, denominator: 4 },
+  pianoRollHeight: 500,
+  setPianoRollHeight: vi.fn(),
   showChatBox: false,
   showKGOnePanel: false,
   showEventListPanel: false,
@@ -205,8 +207,6 @@ describe('PianoRoll region renaming', () => {
         regionId={null}
         audioRegion={audioRegion}
         mode={mode}
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -235,8 +235,6 @@ describe('PianoRoll region renaming', () => {
         regionId={midiRegion.getId()}
         audioRegion={audioRegion}
         mode="hybrid"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -253,8 +251,6 @@ describe('PianoRoll region renaming', () => {
         regionId={null}
         audioRegion={audioRegion}
         mode="audio-waveform"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -274,8 +270,6 @@ describe('PianoRoll region renaming', () => {
         regionId={null}
         audioRegion={audioRegion}
         mode="audio-waveform"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -296,8 +290,6 @@ describe('PianoRoll region renaming', () => {
         onClose={vi.fn()}
         regionId={midiRegion.getId()}
         mode="midi-edit"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 

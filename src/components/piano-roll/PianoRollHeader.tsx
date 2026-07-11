@@ -10,7 +10,6 @@ interface PianoRollHeaderProps {
   onTitleInputChange: (value: string) => void;
   onTitleCommit: () => void;
   onTitleCancel: () => void;
-  onMouseDown: (e: React.MouseEvent) => void;
   titleInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -23,14 +22,10 @@ const PianoRollHeader: React.FC<PianoRollHeaderProps> = ({
   onTitleInputChange,
   onTitleCommit,
   onTitleCancel,
-  onMouseDown,
   titleInputRef
 }) => {
   return (
-    <div 
-      className="piano-roll-header"
-      onMouseDown={onMouseDown}
-    >
+    <div className="piano-roll-header">
       {isEditingTitle ? (
         <input
           ref={titleInputRef}

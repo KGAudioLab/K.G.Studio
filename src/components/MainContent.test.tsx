@@ -39,9 +39,13 @@ const storeState = {
   setSelectedTrack: vi.fn(),
   selectedRegionIds: [] as string[],
   showPianoRoll: false,
+  pianoRollHeight: 500,
   activeRegionId: null as string | null,
   setShowPianoRoll: vi.fn((show: boolean) => {
     storeState.showPianoRoll = show;
+  }),
+  setPianoRollHeight: vi.fn((height: number) => {
+    storeState.pianoRollHeight = height;
   }),
   setActiveRegionId: vi.fn((regionId: string | null) => {
     storeState.activeRegionId = regionId;
@@ -690,7 +694,7 @@ describe('MainContent', () => {
     });
 
     const { container, rerender } = render(<MainContent />);
-    const mainContent = container.querySelector('.main-content') as HTMLDivElement;
+    const mainContent = container.querySelector('.main-content-wrapper') as HTMLDivElement;
     Object.defineProperty(mainContent, 'scrollWidth', { configurable: true, value: 4000 });
     Object.defineProperty(mainContent, 'clientWidth', { configurable: true, value: 900 });
     mainContent.scrollLeft = 500;

@@ -6,13 +6,45 @@
 
 /* Piano Roll Panel */
 .piano-roll-panel {
-  position: fixed;
   background-color: #2d2d2d;
   border: 1px solid #3a3a3a;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
+  min-height: 200px;
+  width: 100%;
   overflow: hidden;
+}
+
+.piano-roll-resize-edge {
+  flex: 0 0 7px;
+  cursor: ns-resize;
+  position: relative;
+  background-color: #252525;
+  border-bottom: 1px solid #4b4b4b;
+}
+
+.piano-roll-resize-edge::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 44px;
+  height: 2px;
+  border-radius: 2px;
+  background-color: #777;
+  transform: translateX(-50%);
+}
+
+.piano-roll-resize-edge:hover,
+.piano-roll-resize-edge:active {
+  background-color: #303b43;
+}
+
+.piano-roll-resize-edge:hover::after,
+.piano-roll-resize-edge:active::after {
+  background-color: #9dcbeb;
 }
 
 /* Piano notes */
@@ -54,7 +86,6 @@
   display: flex;
   align-items: center;
   padding: 0 10px;
-  cursor: move;
   user-select: none;
 }
 
@@ -946,20 +977,6 @@
   color: #7893a5;
   font-size: 11px;
   pointer-events: none;
-}
-
-.resize-handle {
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 20px;
-  height: 20px;
-  cursor: nwse-resize;
-  color: #999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
 }
 
 .piano-roll-zoom-popup {

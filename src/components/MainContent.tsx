@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { FaPlus } from 'react-icons/fa';
 import { FaSquareArrowUpRight } from 'react-icons/fa6';
 import './MainContent.css';
@@ -331,10 +330,13 @@ const MainContent: React.FC<MainContentProps> = ({
   return (
     <div
       className={`main-content${showInstrumentSelection ? ' has-left-instrument' : ''}`}
-      ref={viewport.mainContentRef}
       onClick={mainContentRegions.handleEmptyMainContentClick}
     >
-      <div className="main-content-wrapper" onClick={mainContentRegions.handleEmptyMainContentClick}>
+      <div
+        className="main-content-wrapper"
+        ref={viewport.mainContentRef}
+        onClick={mainContentRegions.handleEmptyMainContentClick}
+      >
         <div className="top-left-spacer">
           <div className="track-header-controls">
             <button
@@ -426,19 +428,7 @@ const MainContent: React.FC<MainContentProps> = ({
         </div>
       </div>
 
-      {showCreateTrackModal && (
-        <TrackCreateDialog
-          onResolve={(result) => {
-            setShowCreateTrackModal(false);
-            if (result === 'audio') {
-              addAudioTrack();
-            } else if (result === 'midi') {
-              addTrack();
-            }
-          }}
-        />
-      )}
-      {showPianoRoll && createPortal(
+      {showPianoRoll && (
         <PianoRoll
           onClose={handlePianoRollClose}
           regionId={activeRegionId}
@@ -481,8 +471,20 @@ const MainContent: React.FC<MainContentProps> = ({
             return undefined;
           })()}
           projectName={projectName}
-        />,
-        document.body
+        />
+      )}
+
+      {showCreateTrackModal && (
+        <TrackCreateDialog
+          onResolve={(result) => {
+            setShowCreateTrackModal(false);
+            if (result === 'audio') {
+              addAudioTrack();
+            } else if (result === 'midi') {
+              addTrack();
+            }
+          }}
+        />
       )}
     </div>
   );

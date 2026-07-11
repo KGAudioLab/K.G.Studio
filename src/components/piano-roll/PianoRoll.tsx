@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMe
 import './PianoRoll.css';
 import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
-import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
@@ -93,8 +92,6 @@ import { TrackType } from '../../core/track/KGTrack';
 interface PianoRollProps {
   onClose: () => void;
   regionId: string | null;
-  initialPosition?: { x: number; y: number };
-  initialSize?: { width: number; height: number };
   mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   requestedSheetMusicViewEnabled?: boolean;
   pianoRollViewRequestVersion?: number;
@@ -113,8 +110,6 @@ type AudioToMidiWorkerHandle = {
 const PianoRoll: React.FC<PianoRollProps> = ({
   onClose,
   regionId,
-  initialPosition,
-  initialSize,
   mode = 'midi-edit',
   requestedSheetMusicViewEnabled = false,
   pianoRollViewRequestVersion = 0,
@@ -133,10 +128,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     updateTrack,
     updateRegionProperties,
     timeSignature,
-    showChatBox,
-    showKGOnePanel,
-    showEventListPanel,
-    showInstrumentSelection,
+    pianoRollHeight,
+    setPianoRollHeight,
     keySignature,
     selectedMode,
     setSelectedMode,
@@ -192,15 +185,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Chord guide state
   const [chordGuide, setChordGuide] = useState<ChordGuideFunction>('N');
 
-  // Piano roll state with temporary initial values
-  const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
-
   // Blink effect state for toolbar button feedback
   const [blinkButton, setBlinkButton] = useState<string | null>(null);
-  const [size, setSize] = useState(initialSize || { width: 800, height: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT });
-  const [isDragging, setIsDragging] = useState(false);
+  const [height, setHeight] = useState(pianoRollHeight);
   const [isResizing, setIsResizing] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
 
   useEffect(() => {
@@ -336,7 +324,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
   const pianoRollNoteScrollRef = useRef<HTMLDivElement>(null);
   const pianoGridRef = useRef<HTMLDivElement>(null);
-  const wasDraggingRef = useRef<boolean>(false);
+  const resizeStartRef = useRef<{ clientY: number; height: number } | null>(null);
 
   // Refs for auto-scroll during playback
   const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
@@ -352,67 +340,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Ref for storing the deleteSelectedNotes function
   const deleteSelectedNotesRef = useRef<(() => boolean) | null>(null);
-
-  // Calculate initial position and size once on mount
-  useEffect(() => {
-    // Skip if initialPosition or initialSize were provided as props
-    if (!initialPosition || !initialSize) {
-      // Calculate initial position based on window dimensions
-      const calculateInitialPosition = () => {
-        // Dynamically get heights from CSS computed styles
-        const statusBarElement = document.querySelector('.status-bar');
-
-        // Get actual heights from DOM elements, or use fallback values if elements don't exist yet
-        const statusBarHeight = statusBarElement ? statusBarElement.clientHeight : 30;
-        const pianoRollHeight = PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT;
-
-        // Compute left offset when instrument selection panel is open
-        const rootStyles = getComputedStyle(document.documentElement);
-        const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
-        const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-
-        if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Positioning piano roll with heights - statusBar: ${statusBarHeight}px, pianoRoll: ${pianoRollHeight}px`);
-        }
-
-        return {
-          x: showInstrumentSelection ? instrumentPanelWidth : 0,
-          y: window.innerHeight - statusBarHeight - pianoRollHeight
-        };
-      };
-
-      const calculateInitialSize = () => {
-        const rootStyles = getComputedStyle(document.documentElement);
-        const chatBoxWidthStr = rootStyles.getPropertyValue('--chat-box-width') || '350px';
-        const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
-        const chatBoxWidth = parseInt(chatBoxWidthStr, 10) || 350;
-        const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-
-        let availableWidth = window.innerWidth;
-        if (showChatBox || showKGOnePanel || showEventListPanel) availableWidth -= chatBoxWidth;
-        if (showInstrumentSelection) availableWidth -= instrumentPanelWidth;
-
-        // Ensure a sensible minimum starting width
-        const clampedWidth = Math.max(400, availableWidth);
-
-        return {
-          width: clampedWidth,
-          height: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT
-        };
-      };
-
-      // Set position and size only if not provided as props
-      if (!initialPosition) {
-        setPosition(calculateInitialPosition());
-      }
-
-      if (!initialSize) {
-        setSize(calculateInitialSize());
-      }
-    }
-    // Intentionally run once on mount to capture layout at open time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array means this runs once on mount
 
   // Find and set the active region when regionId changes
   useEffect(() => {
@@ -553,50 +480,30 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
   }, [onClose]);
 
-  // Handle mouse events for dragging and resizing
-  const handleMouseDown = (e: React.MouseEvent, action: 'drag' | 'resize') => {
-    if (action === 'drag') {
-      setIsDragging(true);
-      wasDraggingRef.current = false; // Reset the dragging flag
-      if (pianoRollRef.current) {
-        const rect = pianoRollRef.current.getBoundingClientRect();
-        setDragOffset({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
-      }
-    } else if (action === 'resize') {
-      setIsResizing(true);
-      e.preventDefault();
-    }
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeStartRef.current = { clientY: e.clientY, height };
+    setIsResizing(true);
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        // Set the flag to true as soon as any movement happens
-        wasDraggingRef.current = true;
+      if (!isResizing || !resizeStartRef.current || !pianoRollRef.current?.parentElement) return;
 
-        setPosition({
-          x: e.clientX - dragOffset.x,
-          y: e.clientY - dragOffset.y
-        });
-      } else if (isResizing) {
-        setSize({
-          width: Math.max(400, e.clientX - position.x),
-          height: Math.max(300, e.clientY - position.y)
-        });
-      }
+      const parentHeight = pianoRollRef.current.parentElement.getBoundingClientRect().height;
+      const maxHeight = Math.max(200, parentHeight - 200);
+      const requestedHeight = resizeStartRef.current.height - (e.clientY - resizeStartRef.current.clientY);
+      const nextHeight = Math.max(200, Math.min(maxHeight, requestedHeight));
+      setHeight(nextHeight);
+      setPianoRollHeight(nextHeight);
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
       setIsResizing(false);
-      // We keep wasDraggingRef.current as is - it will be used in handleTitleClick
-      // and reset on the next mousedown
+      resizeStartRef.current = null;
     };
 
-    if (isDragging || isResizing) {
+    if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.addEventListener('mouseup', handleMouseUp);
     }
@@ -605,7 +512,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, dragOffset, position]);
+  }, [isResizing]);
 
   useEffect(() => {
     if (!isEditingTitle) {
@@ -1020,14 +927,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Handle title click to rename the region
   const handleTitleClick = () => {
-    // If we were just dragging, don't show the rename dialog
-    if (wasDraggingRef.current) {
-      if (DEBUG_MODE.PIANO_ROLL) {
-        console.log("Skipping inline rename because the window was just dragged");
-      }
-      return;
-    }
-
     if (!editableTitleRegion) return;
     setTitleInputValue(editableTitleRegion.getName());
     setIsEditingTitle(true);
@@ -1861,16 +1760,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   return (
     <div
       className="piano-roll-panel"
-      style={{
-        position: 'fixed',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
-        zIndex: 2000
-      }}
+      style={{ height: `${height}px` }}
       ref={pianoRollRef}
     >
+      <div
+        className="piano-roll-resize-edge"
+        onMouseDown={handleResizeMouseDown}
+        aria-label="Resize piano roll height"
+      />
       <PianoRollHeader
         onClose={onClose}
         title={getPianoRollTitle()}
@@ -1880,7 +1777,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onTitleInputChange={setTitleInputValue}
         onTitleCommit={() => { void commitTitleEdit(); }}
         onTitleCancel={cancelTitleEdit}
-        onMouseDown={(e) => handleMouseDown(e, 'drag')}
         titleInputRef={titleInputRef}
       />
 
@@ -1983,12 +1879,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         overlayProgressPercent={isDetectingChords ? detectChordProgressPercent : null}
       />
 
-      <div
-        className="resize-handle"
-        onMouseDown={(e) => handleMouseDown(e, 'resize')}
-      >
-        <FaGripLines />
-      </div>
       <LoadingOverlay visible={isConvertingToMidi} message={t('kgone.shared.btn.processing')} />
     </div>
   );
