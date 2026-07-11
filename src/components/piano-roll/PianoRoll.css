@@ -7,7 +7,7 @@
 /* Piano Roll Panel */
 .piano-roll-panel {
   background-color: #2d2d2d;
-  border: 1px solid #3a3a3a;
+  border-top: 1px solid #3a3a3a;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   display: flex;
   flex: 0 0 auto;
@@ -22,7 +22,7 @@
   cursor: ns-resize;
   position: relative;
   background-color: #252525;
-  border-bottom: 1px solid #4b4b4b;
+  border-bottom: 1px solid #3a3a3a;
 }
 
 .piano-roll-resize-edge::after {
