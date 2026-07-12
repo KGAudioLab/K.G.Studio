@@ -1,3 +1,23 @@
+# [0.21.0-build.20260712] (2026-07-12)
+
+* Merge pull request #63 from KGAudioLab/feat/2026-07-10-enhance-midi-handling (b40074d)
+* docs: updated README files (1fb90ed)
+* feat: add persistent custom instruments with sample management (e7c5ed8)
+* fix: minor CSS adjustments (edf2c5b)
+* fix: align bass clef rests within staff (968062e)
+* fix: enable live unmute for audio tracks during playback (f330775)
+* feat(audio): let solo override track mute (e259fbb)
+* fix: preserve sticky track panels during horizontal scrolling (f6b8b7c)
+* fix: cancel piano roll title editing when switching regions (f277c00)
+* feat: dock piano roll below main editor with resizable height (3824757)
+* fix: preserve chromatic source pitches (5953270)
+* feat: add Intelligent Arpeggiator (509d870)
+* feat: add pitch-range note rank selection (80c6c3f)
+* feat: add region and track MIDI exports (8c22520)
+* feat: add note selection by pitch rank (66c0907)
+* Merge pull request #62 from KGAudioLab/feat/2026-06-30-misc (af02a4f)
+* feat: move playhead to pasted note and region end (6cc511a)
+
 # [0.20.13-build.20260709] (2026-07-09)
 
 * Merge pull request #61 from KGAudioLab/feat/2026-06-30-misc (d45b919)
