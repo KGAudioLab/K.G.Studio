@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { resolveInstrumentDefinition } from '../instruments/instrumentResolver';
 
 /**
  * KGToneSamplerFactory - Singleton class for creating Tone.Sampler instances
@@ -48,7 +49,7 @@ export class KGToneSamplerFactory {
 
                 try {
                     const sampler = new Tone.Sampler({
-                        urls: this.convertBuffersToUrls(audioBuffers, FLUIDR3_INSTRUMENT_MAP[instrumentName]?.pitchRange || [21, 108]),
+                        urls: this.convertBuffersToUrls(audioBuffers, resolveInstrumentDefinition(instrumentName)?.pitchRange || [21, 108]),
                         onload: () => {
                             clearTimeout(timeout);
                             console.log(`Sampler loaded successfully for ${instrumentName}`);

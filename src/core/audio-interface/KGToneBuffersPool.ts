@@ -3,6 +3,7 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { ConfigManager } from '../config/ConfigManager';
 import { SoundfontInstrumentCache } from '../../util/soundfontInstrumentCache';
 import * as Tone from 'tone';
+import { UserInstrumentRegistry } from '../instruments/UserInstrumentRegistry';
 
 interface ToneBufferLoadResult {
   buffers: Tone.ToneAudioBuffers;
@@ -137,6 +138,16 @@ export class KGToneBuffersPool {
       throw new Error(`Unknown instrument: ${name}`);
     }
 
+    const userInstrument = UserInstrumentRegistry.get(instrumentName);
+    if (userInstrument) {
+      const files = await UserInstrumentRegistry.getSampleFiles(instrumentName);
+      const urls: Record<string, string> = {};
+      Object.entries(files).forEach(([pitch, file]) => {
+        urls[this.pitchToKeyName(Number(pitch))] = URL.createObjectURL(file);
+      });
+      return { buffers: await this.loadToneAudioBuffers(urls, name), cacheInMemory: true };
+    }
+
     const keyNames = this.getInstrumentKeyNames(instrumentName);
 
     try {
@@ -218,6 +229,20 @@ export class KGToneBuffersPool {
     }
 
     return keys;
+  }
+
+  private pitchToKeyName(midiNote: number): string {
+    const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+    return `${noteNames[midiNote % 12]}${Math.floor(midiNote / 12) - 1}`;
+  }
+
+  public invalidateInstrument(name: string): void {
+    const buffers = this.bufferMap.get(name);
+    if (buffers) {
+      try { buffers.dispose(); } catch { /* already disposed */ }
+      this.bufferMap.delete(name);
+    }
+    this.loadingPromises.delete(name);
   }
 
   private async fetchRemoteInstrumentBlobs(urls: Record<string, string>): Promise<{

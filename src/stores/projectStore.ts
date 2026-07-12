@@ -29,6 +29,10 @@ import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/
 import type { AudioRecordingPeak } from '../core/audio-interface/KGAudioRecorder';
 import { getAudioImportDecodeFailureMessage } from '../util/audioImportUtil';
 import { beatToSeconds } from '../util/globalTrackUtil';
+import { UserInstrumentRegistry } from '../core/instruments/UserInstrumentRegistry';
+import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import { showAlert } from '../util/dialogUtil';
+import { translate } from '../i18n/translate';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -950,6 +954,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     loadProject: async (project: KGProject | null = null, savedName?: string) => {
       try {
+        await UserInstrumentRegistry.initialize();
         // Upgrade incoming project data to latest structure version (only when provided explicitly)
         if (project) {
           project = upgradeProjectToLatest(project);
@@ -975,6 +980,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const bpm = projectToLoad.getBpm();
         const keySignature = projectToLoad.getKeySignature();
         const tracks = projectToLoad.getTracks();
+        const missingUserInstruments = [...new Set(tracks
+          .filter((track): track is KGMidiTrack => track instanceof KGMidiTrack)
+          .map(track => String(track.getInstrument()))
+          .filter(id => !FLUIDR3_INSTRUMENT_MAP[id] && !UserInstrumentRegistry.get(id)))];
+        if (missingUserInstruments.length > 0) {
+          void showAlert(translate('userInstrument.missingWarning', { instruments: missingUserInstruments.join('\n') }));
+        }
         const restoredPlayheadPosition = clampPlayheadPosition(projectToLoad, projectToLoad.getPlayheadPosition());
         projectToLoad.setPlayheadPosition(restoredPlayheadPosition);
         KGCore.instance().setPlayheadPosition(restoredPlayheadPosition);

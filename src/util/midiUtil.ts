@@ -2,7 +2,8 @@ import { DEBUG_MODE } from '../constants/uiConstants';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
-import { FLUIDR3_INSTRUMENT_MAP, STANDARD_MIDI_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import { STANDARD_MIDI_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import { resolveInstrumentDefinition } from '../core/instruments/instrumentResolver';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { generateUniqueId } from './miscUtil';
@@ -670,7 +671,12 @@ function beatToTicks(beats: number, timeSignature: { numerator: number; denomina
  */
 function isDrumInstrument(instrument: InstrumentType): boolean {
   const key = String(instrument);
-  return key === 'standard' || FLUIDR3_INSTRUMENT_MAP[key]?.group === 'PERCUSSION_KIT';
+  const resolved = resolveInstrumentDefinition(key);
+  if (resolved?.custom) {
+    const fallback = resolveInstrumentDefinition(resolved.fallbackInstrument);
+    return fallback?.group === 'PERCUSSION_KIT';
+  }
+  return key === 'standard' || resolved?.group === 'PERCUSSION_KIT';
 }
 
 /**
@@ -719,7 +725,9 @@ function assignChannelForInstrument(
  * Gets the General MIDI instrument number
  */
 function getGMInstrument(instrument: InstrumentType): number {
-  return FLUIDR3_INSTRUMENT_MAP[instrument]?.midiInstrument || 1; // fallback to piano when instrument is not found
+  const resolved = resolveInstrumentDefinition(String(instrument));
+  if (!resolved) return 1;
+  return resolved.custom ? (resolveInstrumentDefinition(resolved.fallbackInstrument)?.midiInstrument ?? 1) : resolved.midiInstrument;
 }
 
 /**

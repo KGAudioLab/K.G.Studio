@@ -10,6 +10,7 @@ import KGDropdown from '../common/KGDropdown';
 import ColorPalettePopup from '../common/ColorPalettePopup';
 import FileImportModal from '../common/FileImportModal';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { resolveInstrumentDefinition, resolvePlaybackInstrument } from '../../core/instruments/instrumentResolver';
 import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
@@ -450,8 +451,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
               />
             ) : (
               <img
-                src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`}
-                alt={getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
+                src={`${import.meta.env.BASE_URL}resources/instruments/${resolveInstrumentDefinition(resolvePlaybackInstrument(String(currentInstrument)))?.image || 'piano.png'}`}
+                alt={resolveInstrumentDefinition(resolvePlaybackInstrument(String(currentInstrument)))?.displayName ?? getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
                 width="64"
                 height="64"
               />

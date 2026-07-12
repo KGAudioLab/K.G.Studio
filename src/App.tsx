@@ -24,6 +24,7 @@ import { showAlert } from './util/dialogUtil';
 import { KGProjectStorage } from './core/io/KGProjectStorage';
 import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 import type { ChordGuideCustomConfig } from './core/ChordGuideTypes';
+import { UserInstrumentRegistry } from './core/instruments/UserInstrumentRegistry';
 
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
@@ -58,8 +59,10 @@ function App() {
         console.warn('Could not clear Untitled Project folder on startup:', error);
       }
 
-      // Load the current project from KGCore
-      loadProject(null);
+      await UserInstrumentRegistry.initialize();
+
+      // Load the current project from KGCore after custom instruments are available.
+      await loadProject(null);
 
       // Initialize ConfigManager first to load config.json and user settings
       const configManager = ConfigManager.instance();

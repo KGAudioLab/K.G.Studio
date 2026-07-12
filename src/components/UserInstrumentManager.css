@@ -1,0 +1,86 @@
+.user-instrument-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(2px);
+}
+
+.user-instrument-dialog {
+  width: min(1050px, 95vw);
+  height: min(760px, 90vh);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #e0e0e0;
+  font-family: inherit;
+  background-color: #2d2d2d;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.user-instrument-dialog header {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 0 18px;
+  background-color: #252525;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.user-instrument-dialog h2 { margin: 0; font-size: 16px; font-weight: bold; }
+.user-instrument-dialog header button { padding: 8px; color: #b0b0b0; font-size: 16px; background: transparent; border: 0; border-radius: 4px; cursor: pointer; }
+.user-instrument-dialog header button:hover { color: #e0e0e0; background-color: #3a3a3a; }
+
+.user-instrument-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); overflow: hidden; }
+.user-instrument-body aside { min-height: 0; display: flex; flex-direction: column; overflow: hidden; background-color: #292929; border-right: 1px solid #3a3a3a; }
+.instrument-list-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; }
+.instrument-list-scroll button { width: 100%; padding: 10px; color: #e0e0e0; text-align: left; background: transparent; border: 0; border-radius: 4px; cursor: pointer; font-size: 14px; }
+.instrument-list-scroll button:hover { background-color: #353535; }
+.instrument-list-scroll button.active { background-color: #3a3a3a; }
+.instrument-list-scroll small { display: block; margin-top: 2px; color: #888; font-size: 11px; }
+.instrument-list-scroll small.enabled { color: inherit; }
+.user-instrument-body aside .add-instrument { flex-shrink: 0; width: 100%; padding: 10px 18px; color: #5a9fd4; font-size: 11px; text-align: left; background-color: #252525; border: 0; border-top: 1px solid #3a3a3a; cursor: pointer; }
+.user-instrument-body aside .add-instrument:hover { color: #e0e0e0; background-color: #353535; }
+
+.user-instrument-body main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.instrument-fields { flex-shrink: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "name image" "lower upper" "fallback actions"; gap: 12px 18px; padding: 14px 18px; border-bottom: 1px solid #3a3a3a; }
+.instrument-fields label { min-width: 0; display: flex; flex-direction: column; gap: 5px; color: #999; font-size: 11px; }
+.instrument-fields input:not([type="checkbox"]), .instrument-fields select { width: 100%; height: 32px; box-sizing: border-box; min-width: 0; padding: 6px 10px; color: #e0e0e0; font: inherit; font-size: 13px; outline: none; background-color: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 4px; }
+.instrument-fields select { padding-right: 34px; }
+.instrument-fields input:focus, .instrument-fields select:focus { border-color: #5a9fd4; }
+.instrument-fields label.check { flex-direction: row; align-items: center; height: 32px; color: #e0e0e0; font-size: 11px; }
+.field-name { grid-area: name; }.field-lower { grid-area: lower; }.field-upper { grid-area: upper; }.field-image { grid-area: image; }.field-fallback { grid-area: fallback; }
+.field-actions { grid-area: actions; display: flex; align-items: end; gap: 14px; min-width: 0; }
+.delete-instrument { flex-shrink: 0; width: auto; height: 30px; box-sizing: border-box; margin-left: auto; padding: 0 12px; color: #e08080; font: inherit; font-size: 11px; background: transparent; border: 1px solid #704040; border-radius: 4px; cursor: pointer; }
+.delete-instrument:hover { color: #fff; background-color: #704040; }
+.image-field { display: flex; align-items: center; gap: 6px; }.image-field img { width: 32px; height: 32px; flex-shrink: 0; object-fit: contain; }.image-field select { flex: 1; }
+
+.sample-table-hint { flex-shrink: 0; padding: 10px 18px; color: #b0b0b0; font-size: 11px; line-height: 1.45; border-bottom: 1px solid #3a3a3a; }
+.sample-table { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 0 18px 14px; }
+.sample-table table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.sample-table th { position: sticky; top: 0; z-index: 1; padding: 10px; color: #e0e0e0; text-align: left; background-color: #2d2d2d; border-bottom: 1px solid #3a3a3a; }
+.sample-table th:first-child { width: 25%; }.sample-table th:last-child { width: 70px; }
+.sample-table td { overflow: hidden; padding: 8px 10px; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid #3a3a3a; }
+.sample-table tr:hover { background-color: #353535; }
+.upload-link, .link-button { padding: 0; color: #5a9fd4; font: inherit; background: none; border: 0; cursor: pointer; }.upload-link input { display: none; }
+.sample-file { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.sample-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample-preview-button { width: 20px; height: 20px; flex: 0 0 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0; color: #b0b0b0; background-color: #252525; border: 1px solid #555; border-radius: 50%; cursor: pointer; }
+.sample-preview-button:hover { color: #fff; background-color: #3a3a3a; border-color: #5a9fd4; }
+.sample-preview-button span { width: 0; height: 0; margin-left: 2px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; }
+.sample-preview-button.playing span { width: 7px; height: 7px; margin-left: 0; background-color: currentColor; border: 0; border-radius: 1px; }
+.empty-instruments { margin: auto; color: #888; }
+
+@media (max-width: 780px) {
+  .user-instrument-body { grid-template-columns: 160px minmax(0, 1fr); }
+  .instrument-fields { grid-template-columns: 1fr; grid-template-areas: "name" "image" "upper" "lower" "fallback" "actions"; }
+  .field-actions { flex-wrap: wrap; }
+}

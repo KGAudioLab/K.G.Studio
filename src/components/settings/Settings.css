@@ -180,6 +180,10 @@
   font-family: inherit;
 }
 
+.settings-select {
+  padding-right: 34px;
+}
+
 .settings-input:focus, .settings-select:focus, .settings-textarea:focus {
   outline: none;
   border-color: #5a9fd4;

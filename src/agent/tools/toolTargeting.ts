@@ -7,6 +7,7 @@ import { KGTrack } from '../../core/track/KGTrack';
 import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import { useProjectStore } from '../../stores/projectStore';
 import { FLUIDR3_INSTRUMENT_MAP, INSTRUMENT_GROUPS } from '../../constants/generalMidiConstants';
+import { UserInstrumentRegistry } from '../../core/instruments/UserInstrumentRegistry';
 
 export const NO_MIDI_TARGET_RAW_MESSAGE =
   'No MIDI target could be resolved. Select the MIDI region you want me to edit and retry, or tell me which MIDI track to operate on by providing its track_id.';
@@ -72,12 +73,14 @@ export function resolveInstrumentKeyByEnglishName(instrumentName: string): Instr
       return instrumentKey as InstrumentType;
     }
   }
+  const custom = UserInstrumentRegistry.listEnabled().find(item => item.displayName === instrumentName);
+  if (custom) return custom.instrumentId as InstrumentType;
 
   return null;
 }
 
 export function getEnglishInstrumentName(instrumentKey: InstrumentType): string {
-  return FLUIDR3_INSTRUMENT_MAP[instrumentKey]?.displayName ?? String(instrumentKey);
+  return FLUIDR3_INSTRUMENT_MAP[instrumentKey]?.displayName ?? UserInstrumentRegistry.get(String(instrumentKey))?.displayName ?? String(instrumentKey);
 }
 
 export function listAvailableInstrumentsByGroup(): Array<{ groupName: string; instruments: string[] }> {
@@ -94,6 +97,7 @@ export function listAvailableInstrumentsByGroup(): Array<{ groupName: string; in
     }
     groupedInstruments.get(groupName)!.push(instrumentInfo.displayName);
   }
+  groupedInstruments.set('Custom Instruments', UserInstrumentRegistry.listEnabled().map(item => item.displayName));
 
   return Array.from(groupedInstruments.entries()).map(([groupName, instruments]) => ({
     groupName,

@@ -3,7 +3,7 @@ import { KGRegion } from '../../core/region/KGRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { useProjectStore } from '../../stores/projectStore';
 import { ConfigManager } from '../../core/config/ConfigManager';
-import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { getInstrumentDisplayName } from '../../core/instruments/instrumentResolver';
 import {
   findRegionById,
   findRegularTrackByRegion,
@@ -78,7 +78,7 @@ export class SystemPrompts {
       if (activeRegion) {
         const track = findRegularTrackByRegion(activeRegion);
         if (track && track instanceof KGMidiTrack) {
-          trackInstrument = FLUIDR3_INSTRUMENT_MAP[track.getInstrument()].displayName;
+          trackInstrument = getInstrumentDisplayName(String(track.getInstrument()));
         }
       }
     } else {
@@ -91,14 +91,14 @@ export class SystemPrompts {
       if (selectedRegion) {
         const track = findRegularTrackByRegion(selectedRegion);
         if (track && track instanceof KGMidiTrack) {
-          trackInstrument = FLUIDR3_INSTRUMENT_MAP[track.getInstrument()].displayName;
+          trackInstrument = getInstrumentDisplayName(String(track.getInstrument()));
         }
       } else {
         // Step 3: Find the first track
         const tracks = project.getTracks();
         const firstMidiTrack = tracks.find(track => track instanceof KGMidiTrack) as KGMidiTrack;
         if (firstMidiTrack) {
-          trackInstrument = FLUIDR3_INSTRUMENT_MAP[firstMidiTrack.getInstrument()].displayName;
+          trackInstrument = getInstrumentDisplayName(String(firstMidiTrack.getInstrument()));
         }
       }
     }

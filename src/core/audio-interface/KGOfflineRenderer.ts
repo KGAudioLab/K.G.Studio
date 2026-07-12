@@ -5,6 +5,7 @@ import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import type { InstrumentType } from '../track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { resolveInstrumentDefinition } from '../instruments/instrumentResolver';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { clampMidiControllerValue, MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 import {
@@ -316,7 +317,7 @@ export class KGOfflineRenderer {
           try {
             // Get cached buffers from pool
             const audioBuffers = await KGToneBuffersPool.instance().getToneAudioBuffers(String(trackInfo.instrumentName));
-            const pitchRange = FLUIDR3_INSTRUMENT_MAP[trackInfo.instrumentName]?.pitchRange || [21, 108];
+            const pitchRange = resolveInstrumentDefinition(String(trackInfo.instrumentName))?.pitchRange || [21, 108];
             const urlMap = KGToneSamplerFactory.instance().convertBuffersToUrls(audioBuffers, pitchRange);
 
             // Create sampler inside offline context

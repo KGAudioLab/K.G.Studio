@@ -3,6 +3,7 @@ import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import { TIME_CONSTANTS, AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { UserInstrumentRegistry } from '../instruments/UserInstrumentRegistry';
 import {
   clampMidiControllerValue,
   MIDI_PITCH_BEND_CENTER,
@@ -23,6 +24,7 @@ import {
 } from '../../util/trackAutomationUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
+import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGAudioPlayerBus } from './KGAudioPlayerBus';
 import {
   KGAudioRecorder,
@@ -30,7 +32,7 @@ import {
   type AudioRecordingResult,
   type AudioRecordingStartResult,
 } from './KGAudioRecorder';
-import type { InstrumentType } from '../track/KGMidiTrack';
+import { KGMidiTrack, type InstrumentType } from '../track/KGMidiTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
@@ -1392,7 +1394,18 @@ export class KGAudioInterface {
   }
 
   public getAvailableInstruments(): InstrumentType[] {
-    return Object.keys(FLUIDR3_INSTRUMENT_MAP) as InstrumentType[];
+    return [...Object.keys(FLUIDR3_INSTRUMENT_MAP), ...UserInstrumentRegistry.listEnabled().map(item => item.instrumentId)] as InstrumentType[];
+  }
+
+  public async refreshUserInstruments(instrumentIds: Iterable<string>): Promise<void> {
+    const ids = new Set(instrumentIds);
+    ids.forEach(id => KGToneBuffersPool.instance().invalidateInstrument(id));
+    const project = KGCore.instance().getCurrentProject();
+    for (const track of project.getTracks()) {
+      if (track instanceof KGMidiTrack && ids.has(String(track.getInstrument()))) {
+        await this.setTrackInstrument(track.getId().toString(), track.getInstrument());
+      }
+    }
   }
 
   public getCaptureStream(): MediaStream | null {

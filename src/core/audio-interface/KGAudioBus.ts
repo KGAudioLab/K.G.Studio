@@ -5,6 +5,7 @@ import type { InstrumentType } from '../track/KGMidiTrack';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { createStereoTrackPanner } from './createStereoTrackPanner';
+import { resolveInstrumentDefinition, resolvePlaybackInstrument } from '../instruments/instrumentResolver';
 
 // InstrumentType is defined in KGMidiTrack and re-used here
 
@@ -95,9 +96,10 @@ export class KGAudioBus {
       // Create the sampler using the factory
       const samplerFactory = KGToneSamplerFactory.instance();
       const buffersPool = KGToneBuffersPool.instance();
+      const playbackInstrument = resolvePlaybackInstrument(String(instrument));
       const [sampler, audioBuffers] = await Promise.all([
-        samplerFactory.createSampler(String(instrument)),
-        buffersPool.getToneAudioBuffers(String(instrument)),
+        samplerFactory.createSampler(playbackInstrument),
+        buffersPool.getToneAudioBuffers(playbackInstrument),
       ]);
       
       // Create the audio bus instance
@@ -422,9 +424,10 @@ export class KGAudioBus {
       // Create new sampler with new instrument
       const samplerFactory = KGToneSamplerFactory.instance();
       const buffersPool = KGToneBuffersPool.instance();
+      const playbackInstrument = resolvePlaybackInstrument(String(newInstrument));
       const [sampler, audioBuffers] = await Promise.all([
-        samplerFactory.createSampler(String(newInstrument)),
-        buffersPool.getToneAudioBuffers(String(newInstrument)),
+        samplerFactory.createSampler(playbackInstrument),
+        buffersPool.getToneAudioBuffers(playbackInstrument),
       ]);
       this.sampler = sampler;
       this.audioBuffers = audioBuffers;
@@ -650,7 +653,7 @@ export class KGAudioBus {
     audioBuffers: Tone.ToneAudioBuffers,
     targetPitch: number
   ): number | null {
-    const [minPitch, maxPitch] = FLUIDR3_INSTRUMENT_MAP[instrument]?.pitchRange || [21, 108];
+    const [minPitch, maxPitch] = resolveInstrumentDefinition(String(instrument))?.pitchRange || [21, 108];
     const boundedPitch = Math.max(minPitch, Math.min(maxPitch, targetPitch));
 
     for (let offset = 0; offset <= 96; offset++) {
