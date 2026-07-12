@@ -24,6 +24,13 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
 
 ## Dernières mises à jour
 
+- **2026.07.12** : développement des workflows de création, d'édition et de lecture MIDI :
+  - **Arpégiateur intelligent** — apprenez un motif à partir de notes d'exemple et générez des variations guidées par des accords ou du MIDI, tout en conservant les hauteurs chromatiques d'origine et avec annulation atomique.
+  - **Édition et export MIDI accélérés** — sélectionnez les notes par rang de hauteur sur des plages configurables, puis exportez une région, une piste complète ou l'ensemble du projet au format MIDI standard.
+  - **Instruments personnalisés persistants** — créez des instruments réutilisables à partir d'échantillons WAV ou MP3 avec assignation par hauteur, préécoute, tessiture configurable, instruments de secours intégrés et prise en charge transparente de la lecture et de l'export MIDI.
+  - **Un éditeur plus ciblé** — le piano roll s'ancre désormais sous la timeline dans une disposition redimensionnable, tandis que les commandes de piste restent accessibles lors du défilement horizontal.
+  - **Lecture et notation plus fiables** — le mode solo prévaut désormais sur le mute, les pistes audio peuvent être réactivées pendant la lecture et les silences en clé de fa s'affichent à la bonne position sur la portée.
+
 - **2026.06.05** : développement majeur du **K.G.Studio Musician Assistant**, transformé en agent IA de niveau projet complet :
   - **Outils de gestion de pistes** — l'agent peut désormais lister, créer, mettre à jour et supprimer des pistes, et parcourir tous les instruments disponibles, sans nécessiter de sélectionner une région au préalable.
   - **Outils de pistes globales** — accès complet en lecture/écriture/suppression aux quatre pistes globales : **Chord Progression**, **Tempo (BPM)**, **Key Signature** et **Markers**. L'agent peut restructurer l'ensemble du squelette harmonique et rythmique d'un arrangement en une seule conversation.
@@ -51,8 +58,6 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
 <div align="center">
   <img src="./public/snapshots/2026-05-08-automations.png" alt="K.G.Studio Logo" width="640" />
 </div>
-
-- **2026.05.02** : ajout de la **visualisation spectrogramme des pistes audio**. Les régions audio affichent désormais une superposition de spectrogramme en temps réel dans la grille des pistes. Ajout du **Piano Roll hybrid mode** : ouvrez le piano roll sur une région MIDI pendant que le spectrogramme d'une région audio voisine est affiché comme couche de référence, afin d'éditer les notes MIDI en fonction de la forme visuelle de l'audio. Ajout du **zoom avant/arrière dans le piano roll** avec conservation de la position de la vue pour qu'elle reste ancrée près de la tête de lecture actuelle. Ajout également du **réglage fin de la position des régions** avec petits incréments pour un placement précis. Enfin, ajout de la synchronisation du défilement de la tête de lecture entre composants afin que la grille principale et le piano roll restent synchronisés pendant la lecture.
 
 Pour consulter l'historique complet des versions, voir les [**Notes de version**](./docs/RELEASE_NOTES.md).
 
