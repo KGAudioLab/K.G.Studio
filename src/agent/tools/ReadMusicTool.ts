@@ -6,6 +6,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { convertRegionToABCNotation } from '../../util/abcNotationUtil';
 import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { getInstrumentDisplayName } from '../../core/instruments/instrumentResolver';
 import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 
 /**
@@ -270,7 +271,7 @@ export class ReadMusicTool extends BaseTool {
     const abcKeySignature = KEY_SIGNATURE_MAP[keySignature]?.abcNotationKeySignature || 'C';
     const trackId = track.getId().toString();
     const trackName = track.getName() || 'Unnamed Track';
-    const instrumentName = FLUIDR3_INSTRUMENT_MAP[track.getInstrument()]?.displayName || track.getInstrument();
+    const instrumentName = getInstrumentDisplayName(String(track.getInstrument()));
 
     return [
       `track_id: ${trackId}`,

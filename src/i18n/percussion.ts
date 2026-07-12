@@ -1,6 +1,7 @@
 import type { InstrumentType } from '../core/track/KGMidiTrack';
 import { midiPercussionKeyMap } from '../util/midiUtil';
 import type { TranslationParams } from './types';
+import { isPercussionInstrument } from '../core/instruments/instrumentResolver';
 
 type TranslateFn = (key: string, params?: TranslationParams) => string;
 
@@ -10,7 +11,7 @@ const GM_DRUM_KIT_INSTRUMENTS: ReadonlySet<InstrumentType> = new Set([
 ]);
 
 export function isGmDrumKitInstrument(instrument: InstrumentType): boolean {
-  return GM_DRUM_KIT_INSTRUMENTS.has(instrument);
+  return GM_DRUM_KIT_INSTRUMENTS.has(instrument) || isPercussionInstrument(String(instrument));
 }
 
 export function getPercussionKeyShortLabel(pitch: number, t: TranslateFn): string | null {

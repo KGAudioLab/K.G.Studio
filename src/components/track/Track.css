@@ -254,6 +254,10 @@
   color: #ffffff;
 }
 
+.pan-controls button.mute.active.solo-overrides-mute {
+  background: #873535;
+}
+
 .pan-controls button.automation.active {
   background: #d7eef9;
   color: #101010;

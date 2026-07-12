@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TrackInfoItem from './TrackInfoItem';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
+import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { showAlert, showConfirm } from '../../util/dialogUtil';
 import { translate } from '../../i18n/translate';
@@ -18,6 +19,8 @@ const storeState = {
   activeTrackAutomationTrackId: null as string | null,
   activeTrackAutomationType: null as string | null,
   setTrackAutomationView: vi.fn(),
+  projectName: 'Demo Project',
+  setStatus: vi.fn(),
 };
 
 let fileImportModalProps: Record<string, unknown> | null = null;
@@ -72,6 +75,17 @@ vi.mock('../../util/dialogUtil', () => ({
   showConfirm: vi.fn(),
 }));
 
+const { convertTrackToMidi, downloadBlob } = vi.hoisted(() => ({
+  convertTrackToMidi: vi.fn(() => new Uint8Array([1, 2, 3])),
+  downloadBlob: vi.fn(),
+}));
+
+vi.mock('../../util/midiUtil', () => ({ convertTrackToMidi }));
+vi.mock('../../util/miscUtil', () => ({ downloadBlob }));
+vi.mock('../../core/KGCore', () => ({
+  KGCore: { instance: () => ({ getCurrentProject: () => ({}) }) },
+}));
+
 describe('TrackInfoItem audio import', () => {
   beforeEach(() => {
     fileImportModalProps = null;
@@ -82,6 +96,9 @@ describe('TrackInfoItem audio import', () => {
     storeState.importAudioToTrack.mockReset();
     storeState.updateTrackProperties.mockReset();
     storeState.setTrackAutomationView.mockReset();
+    storeState.setStatus.mockReset();
+    convertTrackToMidi.mockClear();
+    downloadBlob.mockReset();
     vi.mocked(showAlert).mockReset();
     vi.mocked(showConfirm).mockReset();
   });
@@ -106,6 +123,57 @@ describe('TrackInfoItem audio import', () => {
     );
 
     expect(fileImportModalProps?.acceptedTypes).toEqual(['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a']);
+  });
+
+  it('offers MIDI export for MIDI tracks and downloads the track filename', async () => {
+    const midiTrack = new KGMidiTrack('Piano', 1);
+    midiTrack.setTrackIndex(0);
+    storeState.tracks = [midiTrack] as unknown as KGAudioTrack[];
+
+    render(
+      <TrackInfoItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '导出 MIDI' }));
+
+    await waitFor(() => {
+      expect(convertTrackToMidi).toHaveBeenCalledWith({}, midiTrack);
+      expect(downloadBlob).toHaveBeenCalledWith(expect.any(ArrayBuffer), 'audio/midi', 'Demo Project - Piano.mid');
+    });
+  });
+
+  it('does not offer MIDI export for audio tracks', () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 1);
+    audioTrack.setTrackIndex(0);
+    storeState.tracks = [audioTrack];
+
+    render(
+      <TrackInfoItem
+        track={audioTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    expect(screen.queryByRole('button', { name: '导出 MIDI' })).not.toBeInTheDocument();
   });
 
   it('uses the localized delete-track confirmation message when the track has regions', async () => {
@@ -256,5 +324,34 @@ describe('TrackInfoItem audio import', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset color' }));
 
     expect(storeState.updateTrackProperties).toHaveBeenCalledWith(1, { color: null });
+  });
+});
+
+describe('TrackInfoItem mute and solo controls', () => {
+  beforeEach(() => {
+    storeState.updateTrackProperties.mockReset();
+  });
+
+  it('dims mute when solo overrides it', () => {
+    const midiTrack = new KGMidiTrack('Piano', 1);
+    midiTrack.setMuted(true);
+    midiTrack.setSolo(true);
+    storeState.tracks = [midiTrack] as unknown as KGAudioTrack[];
+
+    render(
+      <TrackInfoItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'M' })).toHaveClass('solo-overrides-mute');
   });
 });

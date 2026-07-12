@@ -1,4 +1,5 @@
 import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
+import type { NoteRankSelectionOptions } from '../../components/piano-roll/noteRankSelection';
 
 export const PIANO_ROLL_NO_SNAP = 'none' as const;
 
@@ -63,6 +64,12 @@ export class KGPianoRollState {
   private sheetMusicViewEnabled: boolean = false;
   private sheetMusicTrackScopeEnabled: boolean = false;
   private sheetQuantization: string = '16,48';
+  private noteRankSelectionOptions: NoteRankSelectionOptions = {
+    direction: 'bottom-to-top',
+    rank: 1,
+    interval: '1/16',
+    range: 'selected-only',
+  };
 
   // Chord guide state
   private currentSuitableChords: ResolvedChordGuideItem[] = [];
@@ -171,6 +178,14 @@ export class KGPianoRollState {
 
   public setSheetQuantization(value: string): void {
     this.sheetQuantization = value;
+  }
+
+  public getNoteRankSelectionOptions(): NoteRankSelectionOptions {
+    return { ...this.noteRankSelectionOptions };
+  }
+
+  public setNoteRankSelectionOptions(options: NoteRankSelectionOptions): void {
+    this.noteRankSelectionOptions = { ...options };
   }
 
   public getCurrentSuitableChords(): ResolvedChordGuideItem[] {

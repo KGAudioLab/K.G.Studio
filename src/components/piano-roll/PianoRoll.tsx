@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMe
 import './PianoRoll.css';
 import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
-import { FaGripLines } from 'react-icons/fa';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
@@ -22,8 +21,9 @@ import {
   type PianoRollSnapValue,
 } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
-import { beatsToBar, type RawMidiNote } from '../../util/midiUtil';
-import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand } from '../../core/commands';
+import { beatsToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
+import { downloadBlob } from '../../util/miscUtil';
+import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import {
@@ -31,9 +31,13 @@ import {
   showAudioToMidiOptions,
   showChordDetectionOptions,
   showMidiChordDetectionOptions,
+  showNoteRankSelectionOptions,
   showTempoApply,
   showTempoDetectionOptions,
+  showIntelligentArpeggiatorOptions,
 } from '../../util/dialogUtil';
+import { buildIntelligentArpeggiatorPlan } from '../../util/intelligentArpeggiator';
+import { findNoteIdsByRank } from './noteRankSelection';
 import { matchesKeyboardShortcut } from '../../util/osUtil';
 import { resolveChordGuideItems } from '../../util/chordGuideDataUtil';
 import {
@@ -88,8 +92,6 @@ import { TrackType } from '../../core/track/KGTrack';
 interface PianoRollProps {
   onClose: () => void;
   regionId: string | null;
-  initialPosition?: { x: number; y: number };
-  initialSize?: { width: number; height: number };
   mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   requestedSheetMusicViewEnabled?: boolean;
   pianoRollViewRequestVersion?: number;
@@ -108,8 +110,6 @@ type AudioToMidiWorkerHandle = {
 const PianoRoll: React.FC<PianoRollProps> = ({
   onClose,
   regionId,
-  initialPosition,
-  initialSize,
   mode = 'midi-edit',
   requestedSheetMusicViewEnabled = false,
   pianoRollViewRequestVersion = 0,
@@ -128,10 +128,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     updateTrack,
     updateRegionProperties,
     timeSignature,
-    showChatBox,
-    showKGOnePanel,
-    showEventListPanel,
-    showInstrumentSelection,
+    pianoRollHeight,
+    setPianoRollHeight,
     keySignature,
     selectedMode,
     setSelectedMode,
@@ -147,6 +145,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     setBpm,
     isLooping,
     loopingRange,
+    clearAllSelections,
+    setStatus,
   } = useProjectStore();
   const { t } = useI18n();
 
@@ -174,6 +174,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInputValue, setTitleInputValue] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const editingTitleRegionIdRef = useRef<string | null>(null);
 
   // Quantization state
   const [quantPosition, setQuantPosition] = useState<PianoRollQuantizePositionValue>('1/8');
@@ -185,15 +186,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   // Chord guide state
   const [chordGuide, setChordGuide] = useState<ChordGuideFunction>('N');
 
-  // Piano roll state with temporary initial values
-  const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
-
   // Blink effect state for toolbar button feedback
   const [blinkButton, setBlinkButton] = useState<string | null>(null);
-  const [size, setSize] = useState(initialSize || { width: 800, height: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT });
-  const [isDragging, setIsDragging] = useState(false);
+  const [height, setHeight] = useState(pianoRollHeight);
   const [isResizing, setIsResizing] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
 
   useEffect(() => {
@@ -204,6 +200,36 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     () => activeRegion?.getNotes().filter(n => selectedNoteIds.includes(n.getId())) ?? [],
     [activeRegion, selectedNoteIds]
   );
+  const handleSelectNoteByRank = useCallback(async () => {
+    if (!activeRegion) return;
+
+    const options = await showNoteRankSelectionOptions(
+      '',
+      KGPianoRollState.instance().getNoteRankSelectionOptions(),
+    );
+    if (!options) return;
+
+    KGPianoRollState.instance().setNoteRankSelectionOptions(options);
+    const selectedIds = findNoteIdsByRank(
+      activeRegion.getNotes().map(note => ({
+        id: note.getId(),
+        pitch: note.getPitch(),
+        startBeat: note.getStartBeat(),
+        endBeat: note.getEndBeat(),
+      })),
+      activeRegion.getLength(),
+      options,
+    );
+
+    clearAllSelections();
+    activeRegion.getNotes().forEach(note => note.deselect());
+    const notesToSelect = activeRegion.getNotes().filter(note => selectedIds.has(note.getId()));
+    notesToSelect.forEach(note => note.select());
+    KGCore.instance().addSelectedItems(notesToSelect);
+
+    const track = tracks.find(candidate => candidate.getId().toString() === activeRegion.getTrackId());
+    if (track) updateTrack(track);
+  }, [activeRegion, clearAllSelections, tracks, updateTrack]);
   const parentMidiTrack = useMemo(() => {
     if (!activeRegion) {
       return null;
@@ -222,6 +248,49 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const activeInstrument = useMemo<InstrumentType>(() => (
     parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
   ), [parentMidiTrack]);
+  const handleExportMidi = useCallback(async () => {
+    if (!activeRegion || !(parentMidiTrack instanceof KGMidiTrack) || !projectName) return;
+
+    try {
+      const midiData = convertRegionToMidi(KGCore.instance().getCurrentProject(), parentMidiTrack, activeRegion);
+      downloadBlob(
+        midiData.buffer as ArrayBuffer,
+        'audio/midi',
+        `${projectName} - ${parentMidiTrack.getName()} - ${activeRegion.getName()}.mid`,
+      );
+      setStatus(t('pianoRoll.status.regionExportedMidi', { name: activeRegion.getName() }));
+    } catch (error) {
+      console.error('Error exporting region MIDI:', error);
+      setStatus(t('pianoRoll.status.exportMidiError', { error: String(error) }));
+      await showAlert(t('pianoRoll.export.failedMidi', { error: String(error) }));
+    }
+  }, [activeRegion, parentMidiTrack, projectName, setStatus, t]);
+
+  const handleIntelligentArpeggiator = useCallback(async () => {
+    if (!activeRegion || !(parentMidiTrack instanceof KGMidiTrack)) return;
+    const sourceChoices = [
+      { label: t('dialog.option.globalChordTrack'), value: 'chord' },
+      ...availableMidiTracks
+        .filter(track => track.getId().toString() !== parentMidiTrack.getId().toString())
+        .map(track => ({ label: track.getName(), value: `midi:${track.getId()}` })),
+    ];
+    const options = await showIntelligentArpeggiatorOptions('', sourceChoices);
+    if (!options) return;
+    const source = options.sourceId === 'chord'
+      ? { type: 'chord' as const }
+      : { type: 'midi' as const, trackId: options.sourceId.replace(/^midi:/, '') };
+    const project = KGCore.instance().getCurrentProject();
+    const plan = buildIntelligentArpeggiatorPlan(project, activeRegion, playheadPosition, { source, exampleBars: options.exampleBars, generateBars: options.generateBars, tieBreak: options.tieBreak });
+    if ('error' in plan) { await showAlert(plan.error); return; }
+    try {
+      KGCore.instance().executeCommand(new GenerateIntelligentArpeggiatorCommand(activeRegion.getId(), plan.notes, plan.endBeat));
+      refreshProjectState();
+      setStatus(t('pianoRoll.intelligentArpeggiatorGenerated', { count: plan.notes.length }));
+    } catch (error) {
+      console.error('Intelligent arpeggiator failed:', error);
+      await showAlert(t('pianoRoll.intelligentArpeggiatorFailed'));
+    }
+  }, [activeRegion, availableMidiTracks, parentMidiTrack, playheadPosition, refreshProjectState, setStatus, t]);
   const editableTitleRegion = useMemo<KGMidiRegion | KGAudioRegion | null>(() => {
     if (isHybrid) {
       return null;
@@ -233,6 +302,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     return activeRegion;
   }, [activeRegion, audioRegion, isAudioOnly, isHybrid]);
+  const editableTitleRegionId = editableTitleRegion?.getId() ?? null;
   const activeEditableRegionId = audioRegion?.getId() ?? activeRegion?.getId() ?? null;
   const selectedRegionColor = useMemo(() => {
     if (audioRegion) {
@@ -256,7 +326,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pianoRollContentRef = useRef<HTMLDivElement>(null);
   const pianoRollNoteScrollRef = useRef<HTMLDivElement>(null);
   const pianoGridRef = useRef<HTMLDivElement>(null);
-  const wasDraggingRef = useRef<boolean>(false);
+  const resizeStartRef = useRef<{ clientY: number; height: number } | null>(null);
 
   // Refs for auto-scroll during playback
   const pianoRollExpectedScrollLeftRef = useRef<number>(-1);
@@ -272,67 +342,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Ref for storing the deleteSelectedNotes function
   const deleteSelectedNotesRef = useRef<(() => boolean) | null>(null);
-
-  // Calculate initial position and size once on mount
-  useEffect(() => {
-    // Skip if initialPosition or initialSize were provided as props
-    if (!initialPosition || !initialSize) {
-      // Calculate initial position based on window dimensions
-      const calculateInitialPosition = () => {
-        // Dynamically get heights from CSS computed styles
-        const statusBarElement = document.querySelector('.status-bar');
-
-        // Get actual heights from DOM elements, or use fallback values if elements don't exist yet
-        const statusBarHeight = statusBarElement ? statusBarElement.clientHeight : 30;
-        const pianoRollHeight = PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT;
-
-        // Compute left offset when instrument selection panel is open
-        const rootStyles = getComputedStyle(document.documentElement);
-        const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
-        const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-
-        if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Positioning piano roll with heights - statusBar: ${statusBarHeight}px, pianoRoll: ${pianoRollHeight}px`);
-        }
-
-        return {
-          x: showInstrumentSelection ? instrumentPanelWidth : 0,
-          y: window.innerHeight - statusBarHeight - pianoRollHeight
-        };
-      };
-
-      const calculateInitialSize = () => {
-        const rootStyles = getComputedStyle(document.documentElement);
-        const chatBoxWidthStr = rootStyles.getPropertyValue('--chat-box-width') || '350px';
-        const instrumentPanelWidthStr = rootStyles.getPropertyValue('--instrument-selection-width') || '300px';
-        const chatBoxWidth = parseInt(chatBoxWidthStr, 10) || 350;
-        const instrumentPanelWidth = parseInt(instrumentPanelWidthStr, 10) || 300;
-
-        let availableWidth = window.innerWidth;
-        if (showChatBox || showKGOnePanel || showEventListPanel) availableWidth -= chatBoxWidth;
-        if (showInstrumentSelection) availableWidth -= instrumentPanelWidth;
-
-        // Ensure a sensible minimum starting width
-        const clampedWidth = Math.max(400, availableWidth);
-
-        return {
-          width: clampedWidth,
-          height: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT
-        };
-      };
-
-      // Set position and size only if not provided as props
-      if (!initialPosition) {
-        setPosition(calculateInitialPosition());
-      }
-
-      if (!initialSize) {
-        setSize(calculateInitialSize());
-      }
-    }
-    // Intentionally run once on mount to capture layout at open time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array means this runs once on mount
 
   // Find and set the active region when regionId changes
   useEffect(() => {
@@ -473,50 +482,30 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
   }, [onClose]);
 
-  // Handle mouse events for dragging and resizing
-  const handleMouseDown = (e: React.MouseEvent, action: 'drag' | 'resize') => {
-    if (action === 'drag') {
-      setIsDragging(true);
-      wasDraggingRef.current = false; // Reset the dragging flag
-      if (pianoRollRef.current) {
-        const rect = pianoRollRef.current.getBoundingClientRect();
-        setDragOffset({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
-      }
-    } else if (action === 'resize') {
-      setIsResizing(true);
-      e.preventDefault();
-    }
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeStartRef.current = { clientY: e.clientY, height };
+    setIsResizing(true);
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        // Set the flag to true as soon as any movement happens
-        wasDraggingRef.current = true;
+      if (!isResizing || !resizeStartRef.current || !pianoRollRef.current?.parentElement) return;
 
-        setPosition({
-          x: e.clientX - dragOffset.x,
-          y: e.clientY - dragOffset.y
-        });
-      } else if (isResizing) {
-        setSize({
-          width: Math.max(400, e.clientX - position.x),
-          height: Math.max(300, e.clientY - position.y)
-        });
-      }
+      const parentHeight = pianoRollRef.current.parentElement.getBoundingClientRect().height;
+      const maxHeight = Math.max(200, parentHeight - 200);
+      const requestedHeight = resizeStartRef.current.height - (e.clientY - resizeStartRef.current.clientY);
+      const nextHeight = Math.max(200, Math.min(maxHeight, requestedHeight));
+      setHeight(nextHeight);
+      setPianoRollHeight(nextHeight);
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
       setIsResizing(false);
-      // We keep wasDraggingRef.current as is - it will be used in handleTitleClick
-      // and reset on the next mousedown
+      resizeStartRef.current = null;
     };
 
-    if (isDragging || isResizing) {
+    if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.addEventListener('mouseup', handleMouseUp);
     }
@@ -525,7 +514,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, dragOffset, position]);
+  }, [isResizing]);
 
   useEffect(() => {
     if (!isEditingTitle) {
@@ -533,18 +522,33 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     }
   }, [editableTitleRegion, isEditingTitle]);
 
+  // Region selection can change while the title input still has focus. The edit
+  // belongs to the region that was active when editing began, so discard it
+  // rather than allowing a subsequent blur to rename the newly active region.
+  useEffect(() => {
+    if (isEditingTitle && editingTitleRegionIdRef.current !== editableTitleRegionId) {
+      editingTitleRegionIdRef.current = null;
+      setIsEditingTitle(false);
+      setTitleInputValue(editableTitleRegion?.getName() ?? '');
+    }
+  }, [editableTitleRegion, editableTitleRegionId, isEditingTitle]);
+
   const cancelTitleEdit = () => {
+    editingTitleRegionIdRef.current = null;
     setTitleInputValue(editableTitleRegion?.getName() ?? '');
     setIsEditingTitle(false);
   };
 
   const commitTitleEdit = async () => {
-    if (!editableTitleRegion) {
+    if (!editableTitleRegion || editingTitleRegionIdRef.current !== editableTitleRegionId) {
+      editingTitleRegionIdRef.current = null;
       setIsEditingTitle(false);
+      setTitleInputValue(editableTitleRegion?.getName() ?? '');
       return;
     }
 
     const newName = titleInputValue.trim();
+    editingTitleRegionIdRef.current = null;
     setIsEditingTitle(false);
     setTitleInputValue(editableTitleRegion.getName());
 
@@ -940,15 +944,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Handle title click to rename the region
   const handleTitleClick = () => {
-    // If we were just dragging, don't show the rename dialog
-    if (wasDraggingRef.current) {
-      if (DEBUG_MODE.PIANO_ROLL) {
-        console.log("Skipping inline rename because the window was just dragged");
-      }
-      return;
-    }
-
     if (!editableTitleRegion) return;
+    editingTitleRegionIdRef.current = editableTitleRegion.getId();
     setTitleInputValue(editableTitleRegion.getName());
     setIsEditingTitle(true);
     window.setTimeout(() => {
@@ -1781,16 +1778,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   return (
     <div
       className="piano-roll-panel"
-      style={{
-        position: 'fixed',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
-        zIndex: 2000
-      }}
+      style={{ height: `${height}px` }}
       ref={pianoRollRef}
     >
+      <div
+        className="piano-roll-resize-edge"
+        onMouseDown={handleResizeMouseDown}
+        aria-label="Resize piano roll height"
+      />
       <PianoRollHeader
         onClose={onClose}
         title={getPianoRollTitle()}
@@ -1800,7 +1795,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onTitleInputChange={setTitleInputValue}
         onTitleCommit={() => { void commitTitleEdit(); }}
         onTitleCancel={cancelTitleEdit}
-        onMouseDown={(e) => handleMouseDown(e, 'drag')}
         titleInputRef={titleInputRef}
       />
 
@@ -1848,6 +1842,19 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         convertToMidiDisabled={availableMidiTracks.length === 0}
         selectedRegionColor={selectedRegionColor}
         onRegionColorSelect={activeEditableRegionId ? (color) => { void handleRegionColorSelect(color); } : undefined}
+        onSelectNoteByRank={activeRegion && !sheetMusicViewEnabled ? handleSelectNoteByRank : undefined}
+        onExportMidi={
+          activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
+          && (currentMode === 'midi-edit' || currentMode === 'hybrid')
+            ? handleExportMidi
+            : undefined
+        }
+        onIntelligentArpeggiator={
+          activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
+          && (currentMode === 'midi-edit' || currentMode === 'hybrid')
+            ? handleIntelligentArpeggiator
+            : undefined
+        }
       />
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />
@@ -1890,12 +1897,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         overlayProgressPercent={isDetectingChords ? detectChordProgressPercent : null}
       />
 
-      <div
-        className="resize-handle"
-        onMouseDown={(e) => handleMouseDown(e, 'resize')}
-      >
-        <FaGripLines />
-      </div>
       <LoadingOverlay visible={isConvertingToMidi} message={t('kgone.shared.btn.processing')} />
     </div>
   );

@@ -244,7 +244,7 @@ export class KGAudioPlayerBus {
   public applyEffectiveVolume(hasSoloedTracks: boolean): void {
     try {
       const effectiveVolume = this.automationVolume ?? this.volume;
-      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      const isSilent = (hasSoloedTracks ? !this.solo : this.muted) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
       this.gainNode.gain.value = isSilent ? 0 : Math.pow(10, effectiveVolume / 20);
     } catch (error) {
       console.error('Error applying effective volume for audio player bus:', error);
@@ -255,13 +255,10 @@ export class KGAudioPlayerBus {
    * Check if this audio bus should play considering solo logic
    */
   public shouldPlayWithSolo(hasSoloedTracks: boolean): boolean {
-    if (this.muted) {
-      return false;
-    }
     if (hasSoloedTracks) {
       return this.solo;
     }
-    return true;
+    return !this.muted;
   }
 
   // ===== AUDIO ROUTING =====

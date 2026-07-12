@@ -24,6 +24,13 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 
 ## Latest Updates
 
+- **2026.07.12**: Expanded MIDI creation, editing, and playback workflows:
+  - **Intelligent Arpeggiator** — learn a pattern from example notes and generate chord- or MIDI-driven variations while preserving chromatic source pitches, with atomic undo support.
+  - **Faster MIDI editing and export** — select notes by pitch rank across configurable ranges, and export individual regions, complete tracks, or the full project as standard MIDI files.
+  - **Persistent custom instruments** — build reusable instruments from WAV or MP3 samples with per-pitch mapping, previews, configurable ranges, built-in fallbacks, and seamless playback and MIDI export integration.
+  - **A more focused editor** — the piano roll now docks beneath the timeline with a resizable layout, while sticky track controls remain accessible during horizontal scrolling.
+  - **More reliable playback and notation** — solo now overrides mute, audio tracks can be unmuted during playback, and bass-clef rests render in the correct staff position.
+
 - **2026.06.05**: Significantly expanded the **K.G.Studio Musician Assistant** into a full project-level agent:
   - **Track management tools** — the agent can now list, create, update, and delete tracks, and browse all available instruments, without requiring a region to be selected first.
   - **Global track tools** — full read/write/remove access to all four global tracks: **Chord Progression**, **Tempo (BPM)**, **Key Signature**, and **Markers**. The agent can restructure an entire arrangement's harmonic and rhythmic skeleton in a single conversation.
@@ -51,8 +58,6 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
 <div align="center">
   <img src="./public/snapshots/2026-05-08-automations.png" alt="K.G.Studio Logo" width="640" />
 </div>
-
-- **2026.05.02**: Added **audio track spectrogram visualization** — audio regions now display a real-time spectrogram overlay in the track grid. Added **Piano Roll hybrid mode**: open the piano roll on a MIDI region while an adjacent audio region's spectrogram is shown as a reference layer, letting you edit MIDI notes against the visual shape of the audio. Added **piano roll zoom in/out** with viewport-position preservation so the view stays anchored to the current playhead. Added **fine-tune region position**: nudge regions by small increments for precise placement. Also added cross-component playhead scroll synchronization so the main grid and piano roll stay in sync during playback.
 
 For the full release history, see [**Release Notes**](./docs/RELEASE_NOTES.md).
 

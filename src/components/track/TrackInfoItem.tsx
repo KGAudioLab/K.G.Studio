@@ -10,6 +10,7 @@ import KGDropdown from '../common/KGDropdown';
 import ColorPalettePopup from '../common/ColorPalettePopup';
 import FileImportModal from '../common/FileImportModal';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { resolveInstrumentDefinition, resolvePlaybackInstrument } from '../../core/instruments/instrumentResolver';
 import { DEBUG_MODE } from '../../constants/uiConstants';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
@@ -18,6 +19,9 @@ import type { TrackAutomationType } from '../../core/track/KGTrackAutomationPoin
 import { AUDIO_IMPORT_ACCEPTED_TYPES } from '../../util/audioImportUtil';
 import { useI18n } from '../../i18n/useI18n';
 import { getInstrumentDisplayName } from '../../i18n/instruments';
+import { convertTrackToMidi } from '../../util/midiUtil';
+import { downloadBlob } from '../../util/miscUtil';
+import { KGCore } from '../../core/KGCore';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -73,7 +77,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDragEnd
 }) => {
   const { t } = useI18n();
-  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks } = useProjectStore();
+  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks, projectName, setStatus } = useProjectStore();
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const setTrackAutomationView = useProjectStore(state => state.setTrackAutomationView);
@@ -344,6 +348,20 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
     }
   };
 
+  const handleExportMidi = async () => {
+    if (!(track instanceof KGMidiTrack)) return;
+
+    try {
+      const midiData = convertTrackToMidi(KGCore.instance().getCurrentProject(), track);
+      downloadBlob(midiData.buffer as ArrayBuffer, 'audio/midi', `${projectName} - ${track.getName()}.mid`);
+      setStatus(t('track.controls.status.trackExportedMidi', { name: track.getName() }));
+    } catch (error) {
+      console.error('Error exporting track MIDI:', error);
+      setStatus(t('track.controls.status.exportMidiError', { error: String(error) }));
+      await showAlert(t('track.controls.export.failedMidi', { error: String(error) }));
+    }
+  };
+
   const handleAutomationButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     setSelectedTrack(track.getId().toString());
@@ -433,8 +451,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
               />
             ) : (
               <img
-                src={`${import.meta.env.BASE_URL}resources/instruments/${String(FLUIDR3_INSTRUMENT_MAP[currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP]?.image || 'piano.png')}`}
-                alt={getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
+                src={`${import.meta.env.BASE_URL}resources/instruments/${resolveInstrumentDefinition(resolvePlaybackInstrument(String(currentInstrument)))?.image || 'piano.png'}`}
+                alt={resolveInstrumentDefinition(resolvePlaybackInstrument(String(currentInstrument)))?.displayName ?? getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
                 width="64"
                 height="64"
               />
@@ -521,7 +539,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
         </div>
         <div className="pan-controls">
           <button className={`solo${solo ? ' active' : ''}`} onClick={handleToggleSolo}>S</button>
-          <button className={`mute${muted ? ' active' : ''}`} onClick={handleToggleMute}>M</button>
+          <button className={`mute${muted ? ' active' : ''}${muted && solo ? ' solo-overrides-mute' : ''}`} onClick={handleToggleMute}>M</button>
           <div style={{ position: 'relative' }} ref={automationDropdownRef}>
             <button
               className={`automation${automationActive ? ' active' : ''}`}
@@ -569,6 +587,19 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             </button>
             {showSettingsDropdown && (
               <div className="track-settings-menu">
+                {track instanceof KGMidiTrack && (
+                  <button
+                    type="button"
+                    className="track-settings-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSettingsDropdown(false);
+                      void handleExportMidi();
+                    }}
+                  >
+                    {t('track.controls.exportMidi')}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="track-settings-menu-item"

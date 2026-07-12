@@ -13,6 +13,7 @@ const requestMainContentScroll = vi.fn();
 const vexflowMocks = vi.hoisted(() => ({
   addKeySignatureMock: vi.fn(),
   applyAccidentalsMock: vi.fn(),
+  staveNoteMock: vi.fn(),
 }));
 const storeState = {
   playheadPosition: 0,
@@ -93,7 +94,9 @@ vi.mock('vexflow', () => {
   }
 
   class MockStaveNote {
-    constructor(_options: unknown) {}
+    constructor(options: unknown) {
+      vexflowMocks.staveNoteMock(options);
+    }
 
     isRest() {
       return false;
@@ -181,6 +184,7 @@ describe('SheetMusicView', () => {
     onMetricsChange.mockClear();
     vexflowMocks.addKeySignatureMock.mockClear();
     vexflowMocks.applyAccidentalsMock.mockClear();
+    vexflowMocks.staveNoteMock.mockClear();
     storeState.globalTracks = createDefaultGlobalTracks();
   });
 
@@ -371,5 +375,74 @@ describe('SheetMusicView', () => {
 
     const metrics = getLatestMetrics();
     expect(metrics[1].widthPx).toBeGreaterThan(metrics[2].widthPx);
+  });
+
+  it('anchors quarter and whole rests on the middle line in bass clef', () => {
+    const activeRegion = createMockMidiRegion({
+      startFromBeat: 0,
+      length: 12,
+      notes: [
+        createMockMidiNote({ id: 'bass-note-1', startBeat: 0, endBeat: 1, pitch: 40 }),
+        createMockMidiNote({ id: 'bass-note-2', startBeat: 2, endBeat: 3, pitch: 40 }),
+        createMockMidiNote({ id: 'bass-note-3', startBeat: 8, endBeat: 9, pitch: 40 }),
+      ],
+    });
+
+    render(
+      <SheetMusicView
+        activeRegion={activeRegion}
+        midiRegions={[activeRegion]}
+        maxBars={4}
+        sheetMusicTrackScopeEnabled={false}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        keySignature="C major"
+        instrument="acoustic_grand_piano"
+        quantization={quantization}
+        onMetricsChange={onMetricsChange}
+      />
+    );
+
+    const restOptions = vexflowMocks.staveNoteMock.mock.calls
+      .map(([options]) => options as { keys: string[]; duration: string })
+      .filter(({ duration }) => duration.endsWith('r'));
+
+    expect(restOptions.some(({ duration }) => duration === 'qr')).toBe(true);
+    expect(restOptions.some(({ duration }) => duration === 'wr')).toBe(true);
+    expect(restOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ keys: ['d/3'] }),
+    ]));
+    expect(restOptions.every(({ keys }) => keys[0] === 'd/3')).toBe(true);
+  });
+
+  it('keeps treble-clef rests anchored with b/4', () => {
+    const activeRegion = createMockMidiRegion({
+      startFromBeat: 0,
+      length: 4,
+      notes: [
+        createMockMidiNote({ id: 'treble-note-1', startBeat: 0, endBeat: 1, pitch: 76 }),
+        createMockMidiNote({ id: 'treble-note-2', startBeat: 2, endBeat: 3, pitch: 76 }),
+      ],
+    });
+
+    render(
+      <SheetMusicView
+        activeRegion={activeRegion}
+        midiRegions={[activeRegion]}
+        maxBars={4}
+        sheetMusicTrackScopeEnabled={false}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        keySignature="C major"
+        instrument="acoustic_grand_piano"
+        quantization={quantization}
+        onMetricsChange={onMetricsChange}
+      />
+    );
+
+    const restOptions = vexflowMocks.staveNoteMock.mock.calls
+      .map(([options]) => options as { keys: string[]; duration: string })
+      .filter(({ duration }) => duration.endsWith('r'));
+
+    expect(restOptions).not.toHaveLength(0);
+    expect(restOptions.every(({ keys }) => keys[0] === 'b/4')).toBe(true);
   });
 });

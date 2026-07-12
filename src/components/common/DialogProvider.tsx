@@ -11,6 +11,8 @@ import type {
   ChordDetectionOptionsResult,
   ConfirmOptions,
   MidiChordDetectionOptionsResult,
+  NoteRankSelectionOptionsResult,
+  IntelligentArpeggiatorOptionsResult,
   PromptOptions,
   TempoApplyResult,
   TempoDetectionOptionsResult,
@@ -18,7 +20,7 @@ import type {
 } from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply' | 'audio-to-midi';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply' | 'audio-to-midi' | 'note-rank-selection' | 'intelligent-arpeggiator';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
@@ -30,6 +32,8 @@ interface DialogInfo {
   defaultAudioToMidiOptions?: AudioToMidiOptionsResult;
   audioToMidiTargetTracks?: ChoiceOption[];
   audioToMidiLoopModeEnabled?: boolean;
+  defaultNoteRankSelectionOptions?: NoteRankSelectionOptionsResult;
+  intelligentArpeggiatorSources?: ChoiceOption[];
 }
 
 const DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS: ChordDetectionOptionsResult = {
@@ -63,6 +67,14 @@ const DEFAULT_AUDIO_TO_MIDI_OPTIONS: AudioToMidiOptionsResult = {
   targetTrackId: '',
 };
 
+const DEFAULT_NOTE_RANK_SELECTION_OPTIONS: NoteRankSelectionOptionsResult = {
+  direction: 'bottom-to-top',
+  rank: 1,
+  interval: '1/16',
+  range: 'selected-only',
+};
+const DEFAULT_INTELLIGENT_ARPEGGIATOR_OPTIONS: IntelligentArpeggiatorOptionsResult = { sourceId: 'chord', exampleBars: 1, generateBars: 4, tieBreak: 'higher' };
+
 const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useI18n();
   const [dialog, setDialog] = useState<DialogInfo | null>(null);
@@ -74,6 +86,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [midiChordDetectionOptions, setMidiChordDetectionOptions] = useState<MidiChordDetectionOptionsResult>(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
   const [tempoDetectionOptions, setTempoDetectionOptions] = useState<TempoDetectionOptionsResult>(DEFAULT_TEMPO_DETECTION_OPTIONS);
   const [audioToMidiOptions, setAudioToMidiOptions] = useState<AudioToMidiOptionsResult>(DEFAULT_AUDIO_TO_MIDI_OPTIONS);
+  const [noteRankSelectionOptions, setNoteRankSelectionOptions] = useState<NoteRankSelectionOptionsResult>(DEFAULT_NOTE_RANK_SELECTION_OPTIONS);
+  const [intelligentArpeggiatorOptions, setIntelligentArpeggiatorOptions] = useState<IntelligentArpeggiatorOptionsResult>(DEFAULT_INTELLIGENT_ARPEGGIATOR_OPTIONS);
   const [audioToMidiTargetTracks, setAudioToMidiTargetTracks] = useState<ChoiceOption[]>([]);
   const [autoAlignRegionToBeat, setAutoAlignRegionToBeat] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -186,6 +200,20 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     });
   }, []);
 
+  const openNoteRankSelectionOptions = useCallback((
+    message: string,
+    defaultValue?: NoteRankSelectionOptionsResult,
+  ): Promise<NoteRankSelectionOptionsResult | null> => new Promise((resolve) => {
+    resolveRef.current = resolve;
+    setNoteRankSelectionOptions(defaultValue ?? DEFAULT_NOTE_RANK_SELECTION_OPTIONS);
+    setDialog({ type: 'note-rank-selection', message, defaultNoteRankSelectionOptions: defaultValue });
+  }), []);
+  const openIntelligentArpeggiatorOptions = useCallback((message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult): Promise<IntelligentArpeggiatorOptionsResult | null> => new Promise((resolve) => {
+    resolveRef.current = resolve;
+    setIntelligentArpeggiatorOptions(defaultValue ?? { ...DEFAULT_INTELLIGENT_ARPEGGIATOR_OPTIONS, sourceId: sources[0]?.value ?? 'chord' });
+    setDialog({ type: 'intelligent-arpeggiator', message, intelligentArpeggiatorSources: sources });
+  }), []);
+
   const close = useCallback((value: unknown) => {
     pendingValueRef.current = value;
     setIsClosing(true);
@@ -203,6 +231,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setMidiChordDetectionOptions(DEFAULT_MIDI_CHORD_DETECTION_OPTIONS);
     setTempoDetectionOptions(DEFAULT_TEMPO_DETECTION_OPTIONS);
     setAudioToMidiOptions(DEFAULT_AUDIO_TO_MIDI_OPTIONS);
+    setNoteRankSelectionOptions(DEFAULT_NOTE_RANK_SELECTION_OPTIONS);
+    setIntelligentArpeggiatorOptions(DEFAULT_INTELLIGENT_ARPEGGIATOR_OPTIONS);
     setAudioToMidiTargetTracks([]);
     setAutoAlignRegionToBeat(false);
     if (resolveRef.current) {
@@ -227,6 +257,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       openTempoDetectionOptions,
       openTempoApply,
       openAudioToMidiOptions,
+      openNoteRankSelectionOptions,
+      openIntelligentArpeggiatorOptions,
     );
   }
 
@@ -243,6 +275,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isTempoDetection = dialog.type === 'tempo-detection';
   const isTempoApply = dialog.type === 'tempo-apply';
   const isAudioToMidi = dialog.type === 'audio-to-midi';
+  const isNoteRankSelection = dialog.type === 'note-rank-selection';
+  const isIntelligentArpeggiator = dialog.type === 'intelligent-arpeggiator';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
   const isKGOneEnabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
 
@@ -256,6 +290,10 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
         ? t('dialog.title.applyTempo')
         : isAudioToMidi
           ? t('dialog.title.audioToMidi')
+        : isNoteRankSelection
+          ? t('dialog.title.selectNoteByRank')
+        : isIntelligentArpeggiator
+          ? t('dialog.title.intelligentArpeggiator')
         : (isChordDetection || isMidiChordDetection)
         ? t('dialog.title.chordDetection')
         : isPrompt
@@ -268,11 +306,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi) ? null : false);
+      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi || isNoteRankSelection || isIntelligentArpeggiator) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi) ? null : false);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi || isNoteRankSelection || isIntelligentArpeggiator) ? null : false);
 
   const handleConfirm = () => {
     if (isAlert) { close(undefined); return; }
@@ -297,6 +335,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       close(audioToMidiOptions);
       return;
     }
+    if (isNoteRankSelection) {
+      close(noteRankSelectionOptions);
+      return;
+    }
+    if (isIntelligentArpeggiator) { close(intelligentArpeggiatorOptions); return; }
     if (isTempoApply) {
       close({
         action: dialog.choices?.[dialog.choices.length - 1]?.value ?? '',
@@ -334,6 +377,14 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   ) => {
     setAudioToMidiOptions(current => ({ ...current, [key]: value }));
   };
+
+  const updateNoteRankSelectionOption = <K extends keyof NoteRankSelectionOptionsResult>(
+    key: K,
+    value: NoteRankSelectionOptionsResult[K],
+  ) => {
+    setNoteRankSelectionOptions(current => ({ ...current, [key]: value }));
+  };
+  const updateIntelligentArpeggiatorOption = <K extends keyof IntelligentArpeggiatorOptionsResult>(key: K, value: IntelligentArpeggiatorOptionsResult[K]) => setIntelligentArpeggiatorOptions(current => ({ ...current, [key]: value }));
 
   const detectionHintText = isChordDetection
     ? t('dialog.chordHint.audio')
@@ -573,6 +624,73 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 </div>
               </div>
             )}
+            {isNoteRankSelection && (
+              <div className="dialog-chord-detection-form">
+                <div className="dialog-slider-group">
+                  <label className="dialog-slider-label" htmlFor="dialog-note-rank-direction">{t('dialog.label.noteRankDirection')}</label>
+                  <select
+                    id="dialog-note-rank-direction"
+                    className="dialog-input"
+                    value={noteRankSelectionOptions.direction}
+                    onChange={(e) => updateNoteRankSelectionOption('direction', e.target.value as NoteRankSelectionOptionsResult['direction'])}
+                    autoFocus
+                  >
+                    <option value="bottom-to-top">{t('dialog.option.bottomToTop')}</option>
+                    <option value="top-to-bottom">{t('dialog.option.topToBottom')}</option>
+                  </select>
+                </div>
+                <div className="dialog-two-column-row">
+                  <div className="dialog-half-width-group">
+                    <label className="dialog-slider-label" htmlFor="dialog-note-rank">{t('dialog.label.noteRank')}</label>
+                    <input
+                      id="dialog-note-rank"
+                      className="dialog-input"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={noteRankSelectionOptions.rank}
+                      aria-label={t('dialog.label.noteRank')}
+                      onChange={(e) => updateNoteRankSelectionOption('rank', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                    />
+                  </div>
+                  <div className="dialog-half-width-group">
+                    <label className="dialog-slider-label" htmlFor="dialog-note-rank-interval">{t('dialog.label.noteRankInterval')}</label>
+                    <select
+                      id="dialog-note-rank-interval"
+                      className="dialog-input"
+                      value={noteRankSelectionOptions.interval}
+                      aria-label={t('dialog.label.noteRankInterval')}
+                      onChange={(e) => updateNoteRankSelectionOption('interval', e.target.value)}
+                    >
+                      {KGPianoRollState.QUANT_LEN_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="dialog-slider-group">
+                  <label className="dialog-slider-label" htmlFor="dialog-note-rank-range">{t('dialog.label.noteRankRange')}</label>
+                  <select
+                    id="dialog-note-rank-range"
+                    className="dialog-input"
+                    value={noteRankSelectionOptions.range}
+                    aria-label={t('dialog.label.noteRankRange')}
+                    onChange={(e) => updateNoteRankSelectionOption('range', e.target.value as NoteRankSelectionOptionsResult['range'])}
+                  >
+                    <option value="selected-only">{t('dialog.option.noteRankSelectedOnly')}</option>
+                    <option value="selected-and-above">{t('dialog.option.noteRankSelectedAndAbove')}</option>
+                    <option value="selected-and-below">{t('dialog.option.noteRankSelectedAndBelow')}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            {isIntelligentArpeggiator && (
+              <div className="dialog-chord-detection-form">
+                <div className="dialog-slider-group"><label className="dialog-slider-label" htmlFor="dialog-intelligent-source">{t('dialog.label.inputSource')}</label><select id="dialog-intelligent-source" className="dialog-input" value={intelligentArpeggiatorOptions.sourceId} onChange={(e) => updateIntelligentArpeggiatorOption('sourceId', e.target.value)} autoFocus>{dialog.intelligentArpeggiatorSources?.map(source => <option key={source.value} value={source.value}>{source.label}</option>)}</select></div>
+                <div className="dialog-two-column-row"><div className="dialog-half-width-group"><label className="dialog-slider-label" htmlFor="dialog-intelligent-example">{t('dialog.label.exampleLengthBars')}</label><input id="dialog-intelligent-example" className="dialog-input" type="number" min={1} step={1} value={intelligentArpeggiatorOptions.exampleBars} onChange={(e) => updateIntelligentArpeggiatorOption('exampleBars', Math.max(1, Math.floor(Number(e.target.value) || 1)))} /></div><div className="dialog-half-width-group"><label className="dialog-slider-label" htmlFor="dialog-intelligent-generate">{t('dialog.label.generateForBars')}</label><input id="dialog-intelligent-generate" className="dialog-input" type="number" min={1} step={1} value={intelligentArpeggiatorOptions.generateBars} onChange={(e) => updateIntelligentArpeggiatorOption('generateBars', Math.max(1, Math.floor(Number(e.target.value) || 1)))} /></div></div>
+                <div className="dialog-slider-group"><label className="dialog-slider-label" htmlFor="dialog-intelligent-tie">{t('dialog.label.pitchAnchorTieBreak')}</label><select id="dialog-intelligent-tie" className="dialog-input" value={intelligentArpeggiatorOptions.tieBreak} onChange={(e) => updateIntelligentArpeggiatorOption('tieBreak', e.target.value as IntelligentArpeggiatorOptionsResult['tieBreak'])}><option value="higher">{t('dialog.option.preferHigher')}</option><option value="lower">{t('dialog.option.preferLower')}</option></select></div>
+              </div>
+            )}
             {isChordDetection && (
               <div className="dialog-chord-detection-form">
                 <div className="dialog-hint-card">
@@ -771,7 +889,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={handleConfirm}
-                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply && !isAudioToMidi}
+                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply && !isAudioToMidi && !isNoteRankSelection && !isIntelligentArpeggiator}
               >
                 {isAlert
                   ? t('dialog.ok')
@@ -780,7 +898,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                       ? t('dialog.ok')
                       : (isChordDetection || isMidiChordDetection || isTempoDetection || isAudioToMidi)
                         ? t('dialog.ok')
-                        : t('settings.yes')))}
+                        : (isNoteRankSelection ? t('dialog.apply') : isIntelligentArpeggiator ? t('dialog.generate') : t('settings.yes'))))}
               </button>
             )}
           </div>

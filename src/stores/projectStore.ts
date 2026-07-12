@@ -18,7 +18,7 @@ import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
 import { toggleLoop } from '../util/loopUtil';
-import { TOOLBAR_CONSTANTS } from '../constants/uiConstants';
+import { PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants/uiConstants';
 import * as Tone from 'tone';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
@@ -29,6 +29,10 @@ import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/
 import type { AudioRecordingPeak } from '../core/audio-interface/KGAudioRecorder';
 import { getAudioImportDecodeFailureMessage } from '../util/audioImportUtil';
 import { beatToSeconds } from '../util/globalTrackUtil';
+import { UserInstrumentRegistry } from '../core/instruments/UserInstrumentRegistry';
+import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import { showAlert } from '../util/dialogUtil';
+import { translate } from '../i18n/translate';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -129,6 +133,7 @@ interface ProjectState {
 
   // Piano roll state
   showPianoRoll: boolean;
+  pianoRollHeight: number;
   activeRegionId: string | null;
   pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
   hybridAudioRegionId: string | null;
@@ -232,6 +237,7 @@ interface ProjectState {
 
   // Piano roll actions
   setShowPianoRoll: (show: boolean) => void;
+  setPianoRollHeight: (height: number) => void;
   setActiveRegionId: (regionId: string | null) => void;
   openMidiPianoRoll: (regionId: string) => void;
   openMidiPianoRollWithSheetMusicView: (regionId: string, sheetMusicViewEnabled: boolean) => void;
@@ -536,6 +542,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial piano roll state
     showPianoRoll: false,
+    pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
@@ -947,6 +954,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     loadProject: async (project: KGProject | null = null, savedName?: string) => {
       try {
+        await UserInstrumentRegistry.initialize();
         // Upgrade incoming project data to latest structure version (only when provided explicitly)
         if (project) {
           project = upgradeProjectToLatest(project);
@@ -972,6 +980,13 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const bpm = projectToLoad.getBpm();
         const keySignature = projectToLoad.getKeySignature();
         const tracks = projectToLoad.getTracks();
+        const missingUserInstruments = [...new Set(tracks
+          .filter((track): track is KGMidiTrack => track instanceof KGMidiTrack)
+          .map(track => String(track.getInstrument()))
+          .filter(id => !FLUIDR3_INSTRUMENT_MAP[id] && !UserInstrumentRegistry.get(id)))];
+        if (missingUserInstruments.length > 0) {
+          void showAlert(translate('userInstrument.missingWarning', { instruments: missingUserInstruments.join('\n') }));
+        }
         const restoredPlayheadPosition = clampPlayheadPosition(projectToLoad, projectToLoad.getPlayheadPosition());
         projectToLoad.setPlayheadPosition(restoredPlayheadPosition);
         KGCore.instance().setPlayheadPosition(restoredPlayheadPosition);
@@ -1040,6 +1055,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           isLooping: projectToLoad.getIsLooping(),
           isMetronomeEnabled: projectToLoad.getIsMetronomeEnabled(),
           showGlobalTracks: projectToLoad.getShowGlobalTracks(),
+          pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
           loopingRange: projectToLoad.getLoopingRange(),
           activeTrackAutomationTrackId: null,
           activeTrackAutomationType: null,
@@ -1700,6 +1716,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Piano roll actions
     setShowPianoRoll: (show: boolean) => {
       set({ showPianoRoll: show });
+    },
+
+    setPianoRollHeight: (height: number) => {
+      set({ pianoRollHeight: height });
     },
 
     setActiveRegionId: (regionId: string | null) => {

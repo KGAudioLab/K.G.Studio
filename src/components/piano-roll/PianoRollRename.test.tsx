@@ -40,7 +40,13 @@ const midiRegion = createMockMidiRegion({
   trackIndex: 0,
   name: 'MIDI Region',
 });
-const midiTrack = createMockMidiTrack({ id: 1, regions: [midiRegion] });
+const secondMidiRegion = createMockMidiRegion({
+  id: 'midi-region-2',
+  trackId: '1',
+  trackIndex: 0,
+  name: 'Second MIDI Region',
+});
+const midiTrack = createMockMidiTrack({ id: 1, regions: [midiRegion, secondMidiRegion] });
 
 const audioRegion = new KGAudioRegion(
   'audio-region-1',
@@ -67,6 +73,8 @@ const storeState = {
   updateTrack: vi.fn(),
   updateRegionProperties: vi.fn(),
   timeSignature: { numerator: 4, denominator: 4 },
+  pianoRollHeight: 500,
+  setPianoRollHeight: vi.fn(),
   showChatBox: false,
   showKGOnePanel: false,
   showEventListPanel: false,
@@ -192,6 +200,7 @@ describe('PianoRoll region renaming', () => {
   beforeEach(() => {
     executeCommandMock.mockClear();
     midiRegion.setName('MIDI Region');
+    secondMidiRegion.setName('Second MIDI Region');
     audioRegion.setName('Audio Region');
   });
 
@@ -205,8 +214,6 @@ describe('PianoRoll region renaming', () => {
         regionId={null}
         audioRegion={audioRegion}
         mode={mode}
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -235,8 +242,6 @@ describe('PianoRoll region renaming', () => {
         regionId={midiRegion.getId()}
         audioRegion={audioRegion}
         mode="hybrid"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -253,8 +258,6 @@ describe('PianoRoll region renaming', () => {
         regionId={null}
         audioRegion={audioRegion}
         mode="audio-waveform"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -274,8 +277,6 @@ describe('PianoRoll region renaming', () => {
         regionId={null}
         audioRegion={audioRegion}
         mode="audio-waveform"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -296,8 +297,6 @@ describe('PianoRoll region renaming', () => {
         onClose={vi.fn()}
         regionId={midiRegion.getId()}
         mode="midi-edit"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -315,5 +314,34 @@ describe('PianoRoll region renaming', () => {
     expect(command).toBeInstanceOf(UpdateRegionCommand);
     expect((command as UpdateRegionCommand).getRegionId()).toBe(midiRegion.getId());
     expect(midiRegion.getName()).toBe('Renamed MIDI Region');
+  });
+
+  it('cancels a title edit when switching to another region', async () => {
+    const { rerender } = render(
+      <PianoRoll
+        onClose={vi.fn()}
+        regionId={midiRegion.getId()}
+        mode="midi-edit"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'MIDI Region (at 1:1)' }));
+    fireEvent.change(screen.getByLabelText('Region title input'), { target: { value: 'Unsaved Name' } });
+
+    rerender(
+      <PianoRoll
+        onClose={vi.fn()}
+        regionId={secondMidiRegion.getId()}
+        mode="midi-edit"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Region title input')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Second MIDI Region (at 1:1)' })).toBeInTheDocument();
+    });
+    expect(executeCommandMock).not.toHaveBeenCalled();
+    expect(midiRegion.getName()).toBe('MIDI Region');
+    expect(secondMidiRegion.getName()).toBe('Second MIDI Region');
   });
 });

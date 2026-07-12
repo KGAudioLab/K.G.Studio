@@ -76,4 +76,13 @@ describe('InstrumentSelection', () => {
     fireEvent.click(screen.getByText('电钢琴 1'));
     expect(storeState.setTrackInstrument).toHaveBeenCalledWith(1, 'electric_piano_1');
   });
+
+  it('keeps a newly selected instrument group open', () => {
+    renderWithLocale('en_us');
+
+    fireEvent.click(screen.getByText('Guitar'));
+
+    expect(screen.getByText('Acoustic Guitar (nylon)')).toBeTruthy();
+    expect(screen.queryByText('Bright Acoustic Piano')).toBeNull();
+  });
 });

@@ -2,7 +2,8 @@ import { DEBUG_MODE } from '../constants/uiConstants';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
-import { FLUIDR3_INSTRUMENT_MAP, STANDARD_MIDI_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import { STANDARD_MIDI_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import { resolveInstrumentDefinition } from '../core/instruments/instrumentResolver';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { generateUniqueId } from './miscUtil';
@@ -394,6 +395,55 @@ export const convertProjectToMidi = (project: KGProject): Uint8Array => {
   return result;
 };
 
+/** Converts one MIDI track while preserving its positions in the project timeline. */
+export const convertTrackToMidi = (project: KGProject, track: KGMidiTrack): Uint8Array => {
+  return convertMidiTrackSelectionToMidi(project, track, track.getRegions().filter(
+    (region): region is KGMidiRegion => region.getCurrentType() === 'KGMidiRegion'
+  ));
+};
+
+/**
+ * Converts one MIDI region, rebasing its containing bar to the first bar while
+ * retaining the original beat offset within that bar.
+ */
+export const convertRegionToMidi = (
+  project: KGProject,
+  track: KGMidiTrack,
+  region: KGMidiRegion,
+): Uint8Array => {
+  const beatsPerBar = project.getTimeSignature().numerator;
+  const containingBarStartBeat = Math.floor(region.getStartFromBeat() / beatsPerBar) * beatsPerBar;
+
+  return convertMidiTrackSelectionToMidi(project, track, [region], containingBarStartBeat);
+};
+
+function convertMidiTrackSelectionToMidi(
+  project: KGProject,
+  track: KGMidiTrack,
+  regions: KGMidiRegion[],
+  timelineOffsetBeats: number = 0,
+): Uint8Array {
+  const instrument = track.getInstrument();
+  const isDrums = isDrumInstrument(instrument);
+  const gmProgram = getGMInstrument(instrument);
+  const channelAssignments: (number | 'DRUMS' | null)[] = new Array(16).fill(null);
+  channelAssignments[0] = 1;
+  channelAssignments[9] = 'DRUMS';
+  const channel = assignChannelForInstrument(gmProgram, isDrums, channelAssignments);
+  const chunks = [
+    ...createMidiHeader(2),
+    ...createTempoTrack(project),
+    ...createInstrumentTrack(track, project, channel, gmProgram, isDrums, regions, timelineOffsetBeats),
+  ];
+  const result = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let offset = 0;
+  chunks.forEach(chunk => {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  });
+  return result;
+}
+
 /**
  * Creates the MIDI file header chunk
  */
@@ -473,7 +523,9 @@ function createInstrumentTrack(
   project: KGProject,
   channel: number,
   gmProgram: number,
-  isDrums: boolean
+  isDrums: boolean,
+  regions = track.getRegions(),
+  timelineOffsetBeats: number = 0,
 ): Uint8Array[] {
   const events: Uint8Array[] = [];
   
@@ -500,15 +552,15 @@ function createInstrumentTrack(
     absoluteEndBeat: number;
   }> = [];
   
-  track.getRegions().forEach((region) => {
+  regions.forEach((region) => {
     // Type guard to ensure we have a KGMidiRegion
     if (region.getCurrentType() === 'KGMidiRegion') {
       const midiRegion = region as KGMidiRegion;
       midiRegion.getNotes().forEach((note: KGMidiNote) => {
         allNotes.push({
           note,
-          absoluteStartBeat: midiRegion.getStartFromBeat() + note.getStartBeat(),
-          absoluteEndBeat: midiRegion.getStartFromBeat() + note.getEndBeat(),
+          absoluteStartBeat: midiRegion.getStartFromBeat() + note.getStartBeat() - timelineOffsetBeats,
+          absoluteEndBeat: midiRegion.getStartFromBeat() + note.getEndBeat() - timelineOffsetBeats,
         });
       });
     }
@@ -619,7 +671,12 @@ function beatToTicks(beats: number, timeSignature: { numerator: number; denomina
  */
 function isDrumInstrument(instrument: InstrumentType): boolean {
   const key = String(instrument);
-  return key === 'standard' || FLUIDR3_INSTRUMENT_MAP[key]?.group === 'PERCUSSION_KIT';
+  const resolved = resolveInstrumentDefinition(key);
+  if (resolved?.custom) {
+    const fallback = resolveInstrumentDefinition(resolved.fallbackInstrument);
+    return fallback?.group === 'PERCUSSION_KIT';
+  }
+  return key === 'standard' || resolved?.group === 'PERCUSSION_KIT';
 }
 
 /**
@@ -668,7 +725,9 @@ function assignChannelForInstrument(
  * Gets the General MIDI instrument number
  */
 function getGMInstrument(instrument: InstrumentType): number {
-  return FLUIDR3_INSTRUMENT_MAP[instrument]?.midiInstrument || 1; // fallback to piano when instrument is not found
+  const resolved = resolveInstrumentDefinition(String(instrument));
+  if (!resolved) return 1;
+  return resolved.custom ? (resolveInstrumentDefinition(resolved.fallbackInstrument)?.midiInstrument ?? 1) : resolved.midiInstrument;
 }
 
 /**

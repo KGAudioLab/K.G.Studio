@@ -1,5 +1,5 @@
 import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
-import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { isPercussionInstrument } from '../../core/instruments/instrumentResolver';
 import type { KeySignature } from '../../core/KGProject';
 import type { KGMidiNote } from '../../core/midi/KGMidiNote';
 import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
@@ -102,7 +102,7 @@ export function parseSheetQuantization(value: string): SheetQuantization {
 
 export function isDrumInstrument(instrument: InstrumentType): boolean {
   const key = String(instrument);
-  return key === 'standard' || FLUIDR3_INSTRUMENT_MAP[key]?.group === 'PERCUSSION_KIT';
+  return key === 'standard' || isPercussionInstrument(key);
 }
 
 export function resolveSheetClef(

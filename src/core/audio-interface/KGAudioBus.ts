@@ -5,6 +5,7 @@ import type { InstrumentType } from '../track/KGMidiTrack';
 import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { createStereoTrackPanner } from './createStereoTrackPanner';
+import { resolveInstrumentDefinition, resolvePlaybackInstrument } from '../instruments/instrumentResolver';
 
 // InstrumentType is defined in KGMidiTrack and re-used here
 
@@ -95,9 +96,10 @@ export class KGAudioBus {
       // Create the sampler using the factory
       const samplerFactory = KGToneSamplerFactory.instance();
       const buffersPool = KGToneBuffersPool.instance();
+      const playbackInstrument = resolvePlaybackInstrument(String(instrument));
       const [sampler, audioBuffers] = await Promise.all([
-        samplerFactory.createSampler(String(instrument)),
-        buffersPool.getToneAudioBuffers(String(instrument)),
+        samplerFactory.createSampler(playbackInstrument),
+        buffersPool.getToneAudioBuffers(playbackInstrument),
       ]);
       
       // Create the audio bus instance
@@ -123,10 +125,11 @@ export class KGAudioBus {
     note: string, 
     duration: Tone.Unit.Time, 
     time?: number, 
-    velocity?: number
+    velocity?: number,
+    hasSoloedTracks: boolean = false,
   ): void {
-    if (!this.shouldPlay()) {
-      return; // Don't play if muted or should be silent due to solo logic
+    if (!this.shouldPlayWithSolo(hasSoloedTracks)) {
+      return;
     }
     
     try {
@@ -143,10 +146,11 @@ export class KGAudioBus {
   public triggerAttack(
     note: string, 
     time?: number, 
-    velocity?: number
+    velocity?: number,
+    hasSoloedTracks: boolean = false,
   ): void {
-    if (!this.shouldPlay()) {
-      return; // Don't play if muted or should be silent due to solo logic
+    if (!this.shouldPlayWithSolo(hasSoloedTracks)) {
+      return;
     }
     
     try {
@@ -163,18 +167,20 @@ export class KGAudioBus {
   public triggerLiveMidiAttack(
     pitch: number,
     time?: number,
-    velocity?: number
+    velocity?: number,
+    hasSoloedTracks: boolean = false,
   ): void {
-    this.triggerPitchBendAwareAttack(pitch, time, velocity);
+    this.triggerPitchBendAwareAttack(pitch, time, velocity, undefined, hasSoloedTracks);
   }
 
   public triggerPitchBendAwareAttack(
     pitch: number,
     time?: number,
     velocity?: number,
-    duration?: number
+    duration?: number,
+    hasSoloedTracks: boolean = false,
   ): void {
-    if (!this.shouldPlay()) {
+    if (!this.shouldPlayWithSolo(hasSoloedTracks)) {
       return;
     }
 
@@ -418,9 +424,10 @@ export class KGAudioBus {
       // Create new sampler with new instrument
       const samplerFactory = KGToneSamplerFactory.instance();
       const buffersPool = KGToneBuffersPool.instance();
+      const playbackInstrument = resolvePlaybackInstrument(String(newInstrument));
       const [sampler, audioBuffers] = await Promise.all([
-        samplerFactory.createSampler(String(newInstrument)),
-        buffersPool.getToneAudioBuffers(String(newInstrument)),
+        samplerFactory.createSampler(playbackInstrument),
+        buffersPool.getToneAudioBuffers(playbackInstrument),
       ]);
       this.sampler = sampler;
       this.audioBuffers = audioBuffers;
@@ -527,7 +534,7 @@ export class KGAudioBus {
   public applyEffectiveVolume(hasSoloedTracks: boolean): void {
     try {
       const effectiveVolume = this.automationVolume ?? this.volume;
-      const isSilent = this.muted || (hasSoloedTracks && !this.solo) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
+      const isSilent = (hasSoloedTracks ? !this.solo : this.muted) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
       this.sampler.volume.value = isSilent ? -Infinity : effectiveVolume;
     } catch (error) {
       console.error(`Error applying effective volume for ${this.instrument}:`, error);
@@ -535,27 +542,15 @@ export class KGAudioBus {
   }
 
   /**
-   * Check if this audio bus should play (handles mute state)
-   * Note: Solo logic should be handled at the audio interface level
-   */
-  private shouldPlay(): boolean {
-    return !this.muted;
-  }
-
-  /**
    * Check if this audio bus should play considering solo logic
    * Called by audio interface with knowledge of other tracks' solo states
    */
   public shouldPlayWithSolo(hasSoloedTracks: boolean): boolean {
-    if (this.muted) {
-      return false; // Muted tracks never play
-    }
-    
     if (hasSoloedTracks) {
       return this.solo; // Only soloed tracks play when any track is soloed
     }
     
-    return true; // All non-muted tracks play when no tracks are soloed
+    return !this.muted; // All non-muted tracks play when no tracks are soloed
   }
 
   // ===== GETTERS FOR DEBUGGING =====
@@ -658,7 +653,7 @@ export class KGAudioBus {
     audioBuffers: Tone.ToneAudioBuffers,
     targetPitch: number
   ): number | null {
-    const [minPitch, maxPitch] = FLUIDR3_INSTRUMENT_MAP[instrument]?.pitchRange || [21, 108];
+    const [minPitch, maxPitch] = resolveInstrumentDefinition(String(instrument))?.pitchRange || [21, 108];
     const boundedPitch = Math.max(minPitch, Math.min(maxPitch, targetPitch));
 
     for (let offset = 0; offset <= 96; offset++) {

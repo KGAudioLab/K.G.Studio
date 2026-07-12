@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import PianoRoll from './PianoRoll';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 
@@ -41,6 +41,10 @@ const storeState = {
   tracks: [track],
   updateTrack: vi.fn(),
   timeSignature: { numerator: 4, denominator: 4 },
+  pianoRollHeight: 500,
+  setPianoRollHeight: vi.fn((height: number) => {
+    storeState.pianoRollHeight = height;
+  }),
   showChatBox: false,
   showKGOnePanel: false,
   showEventListPanel: false,
@@ -138,6 +142,8 @@ describe('PianoRoll zoom persistence', () => {
     mockProject.setPianoRollZoom.mockReset();
     pianoRollState.getPianoRollZoom.mockClear();
     pianoRollState.setPianoRollZoom.mockClear();
+    storeState.pianoRollHeight = 500;
+    storeState.setPianoRollHeight.mockClear();
     document.documentElement.style.setProperty('--region-piano-key-width', '60px');
     document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
   });
@@ -147,8 +153,6 @@ describe('PianoRoll zoom persistence', () => {
       <PianoRoll
         onClose={vi.fn()}
         regionId="region-1"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
@@ -165,11 +169,36 @@ describe('PianoRoll zoom persistence', () => {
       <PianoRoll
         onClose={vi.fn()}
         regionId="region-1"
-        initialPosition={{ x: 0, y: 0 }}
-        initialSize={{ width: 800, height: 400 }}
       />
     );
 
     expect(latestToolbarProps?.zoom).toBe(3);
+  });
+
+  it('resizes only the piano-roll height from its upper edge within the 200px pane limits', () => {
+    const { container, unmount } = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
+    const panel = container.querySelector('.piano-roll-panel') as HTMLDivElement;
+    const resizeEdge = container.querySelector('.piano-roll-resize-edge') as HTMLDivElement;
+
+    Object.defineProperty(panel.parentElement!, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ height: 800 }),
+    });
+
+    expect(panel.style.height).toBe('500px');
+    expect(panel.style.width).toBe('');
+
+    fireEvent.mouseDown(resizeEdge, { clientY: 500 });
+    fireEvent.mouseMove(document, { clientY: 400 });
+    expect(panel.style.height).toBe('600px');
+
+    fireEvent.mouseMove(document, { clientY: 1000 });
+    expect(panel.style.height).toBe('200px');
+    expect(panel.style.width).toBe('');
+    fireEvent.mouseUp(document);
+
+    unmount();
+    const reopened = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
+    expect((reopened.container.querySelector('.piano-roll-panel') as HTMLDivElement).style.height).toBe('200px');
   });
 });

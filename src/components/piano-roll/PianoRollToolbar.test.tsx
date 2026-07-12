@@ -253,6 +253,37 @@ describe('PianoRollToolbar', () => {
     expect(onDetectTempo).toHaveBeenCalledTimes(1);
   });
 
+  it('shows MIDI export in MIDI mode and invokes it', () => {
+    const onExportMidi = vi.fn();
+
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        onDetectChords={undefined}
+        onExportMidi={onExportMidi}
+      />
+    );
+
+    fireEvent.click(screen.getByTitle('More options'));
+    fireEvent.click(screen.getByText('Export MIDI'));
+
+    expect(onExportMidi).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render a more-options button for MIDI export when no callback is supplied', () => {
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="audio-waveform"
+        onDetectChords={undefined}
+        onExportMidi={undefined}
+      />
+    );
+
+    expect(screen.queryByTitle('More options')).not.toBeInTheDocument();
+  });
+
   it('shows the detect chords action in midi mode and triggers it', () => {
     const onDetectChords = vi.fn();
 
@@ -499,5 +530,21 @@ describe('PianoRollToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset color' }));
 
     expect(onRegionColorSelect).toHaveBeenCalledWith(null);
+  });
+
+  it('shows Select Note by Rank in the MIDI more menu without spectrogram actions', () => {
+    const onSelectNoteByRank = vi.fn();
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        onDetectChords={undefined}
+        onSelectNoteByRank={onSelectNoteByRank}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(screen.getByText('Select Note by Rank…'));
+    expect(onSelectNoteByRank).toHaveBeenCalledTimes(1);
   });
 });

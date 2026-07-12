@@ -5,6 +5,7 @@ import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import type { InstrumentType } from '../track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { resolveInstrumentDefinition } from '../instruments/instrumentResolver';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { clampMidiControllerValue, MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 import {
@@ -316,7 +317,7 @@ export class KGOfflineRenderer {
           try {
             // Get cached buffers from pool
             const audioBuffers = await KGToneBuffersPool.instance().getToneAudioBuffers(String(trackInfo.instrumentName));
-            const pitchRange = FLUIDR3_INSTRUMENT_MAP[trackInfo.instrumentName]?.pitchRange || [21, 108];
+            const pitchRange = resolveInstrumentDefinition(String(trackInfo.instrumentName))?.pitchRange || [21, 108];
             const urlMap = KGToneSamplerFactory.instance().convertBuffersToUrls(audioBuffers, pitchRange);
 
             // Create sampler inside offline context
@@ -331,7 +332,7 @@ export class KGOfflineRenderer {
 
             // Track volumes are stored in dB across the app, with 0 meaning unity gain.
             sampler.volume.value = 0;
-            const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
+            const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, !hasSoloedTracks && trackInfo.muted));
             const trackPanner = createStereoTrackPanner(0);
             sampler.connect(trackGain);
             trackGain.connect(trackPanner);
@@ -437,7 +438,7 @@ export class KGOfflineRenderer {
       for (const trackInfo of audioTrackData) {
         if (!shouldPlay(trackInfo, hasSoloedTracks)) continue;
 
-        const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, trackInfo.muted));
+        const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, !hasSoloedTracks && trackInfo.muted));
         const trackPanner = createStereoTrackPanner(0);
         trackGain.connect(trackPanner);
         trackPanner.connect(masterGain);
@@ -575,9 +576,8 @@ export class KGOfflineRenderer {
 // ===== HELPERS =====
 
 function shouldPlay(trackInfo: { muted: boolean; solo: boolean }, hasSoloedTracks: boolean): boolean {
-  if (trackInfo.muted) return false;
   if (hasSoloedTracks) return trackInfo.solo;
-  return true;
+  return !trackInfo.muted;
 }
 
 function setOfflinePlaybackRate(

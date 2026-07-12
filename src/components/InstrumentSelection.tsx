@@ -6,6 +6,12 @@ import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { useI18n } from '../i18n/useI18n';
 import { getInstrumentDisplayName, getInstrumentGroupLabel, type InstrumentGroupKey } from '../i18n/instruments';
+import { UserInstrumentRegistry } from '../core/instruments/UserInstrumentRegistry';
+import { resolveInstrumentDefinition } from '../core/instruments/instrumentResolver';
+import { resolvePlaybackInstrument } from '../core/instruments/instrumentResolver';
+import { UserInstrumentManager } from './UserInstrumentManager';
+
+const CUSTOM_GROUP = 'CUSTOM';
 
 const InstrumentSelection: React.FC = () => {
   const { t } = useI18n();
@@ -15,6 +21,9 @@ const InstrumentSelection: React.FC = () => {
     closeInstrumentSelection,
     setTrackInstrument
   } = useProjectStore();
+  const [registryRevision, setRegistryRevision] = useState(0);
+  const [showManager, setShowManager] = useState(false);
+  useEffect(() => UserInstrumentRegistry.subscribe(() => setRegistryRevision(value => value + 1)), []);
 
   const targetTrack = useMemo(() => {
     return tracks.find(t => t.getId().toString() === selectedTrackId) || null;
@@ -24,23 +33,28 @@ const InstrumentSelection: React.FC = () => {
     ? (targetTrack.getInstrument() as InstrumentType)
     : 'acoustic_grand_piano';
 
-  const currentInstrumentDef = FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey] || FLUIDR3_INSTRUMENT_MAP['acoustic_grand_piano'];
+  const currentInstrumentDef = resolveInstrumentDefinition(String(currentInstrumentKey)) || resolveInstrumentDefinition('acoustic_grand_piano')!;
+  const currentInstrumentGroup = currentInstrumentDef.group || 'PIANO_AND_KEYBOARDS';
 
   // Maintain selected group in local state; selected instrument derives from model
-  const [selectedGroupKey, setSelectedGroupKey] = useState<string>(currentInstrumentDef?.group || 'PIANO_AND_KEYBOARDS');
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string>(currentInstrumentGroup);
 
   useEffect(() => {
     // Sync when the target track or its instrument changes
-    setSelectedGroupKey(currentInstrumentDef?.group || 'PIANO_AND_KEYBOARDS');
-  }, [selectedTrackId, currentInstrumentKey, currentInstrumentDef]);
+    setSelectedGroupKey(currentInstrumentGroup);
+  }, [selectedTrackId, currentInstrumentKey, currentInstrumentGroup]);
 
-  const groups = useMemo(() => Object.keys(INSTRUMENT_GROUPS) as InstrumentGroupKey[], []);
+  const groups = useMemo(() => [...Object.keys(INSTRUMENT_GROUPS), CUSTOM_GROUP] as string[], []);
 
   const instrumentsInGroup = useMemo<Array<{ key: InstrumentType; label: string }>>(() => {
+    void registryRevision;
+    if (selectedGroupKey === CUSTOM_GROUP) {
+      return UserInstrumentRegistry.listEnabled().map(item => ({ key: item.instrumentId as InstrumentType, label: item.displayName }));
+    }
     return Object.entries(FLUIDR3_INSTRUMENT_MAP)
       .filter((entry) => entry[1].group === selectedGroupKey)
       .map((entry) => ({ key: entry[0] as InstrumentType, label: getInstrumentDisplayName(entry[0] as InstrumentType, t) }));
-  }, [selectedGroupKey, t]);
+  }, [selectedGroupKey, t, registryRevision]);
 
   const handleSelectGroup = (groupKey: string) => {
     setSelectedGroupKey(groupKey);
@@ -57,8 +71,9 @@ const InstrumentSelection: React.FC = () => {
   };
 
   const isAudioTrack = targetTrack instanceof KGAudioTrack;
-  const previewImage = isAudioTrack ? 'speaker.png' : (FLUIDR3_INSTRUMENT_MAP[currentInstrumentKey]?.image || 'piano.png');
-  const previewAlt = isAudioTrack ? 'Audio Track' : getInstrumentDisplayName(currentInstrumentKey, t);
+  const displayedInstrumentKey = resolvePlaybackInstrument(String(currentInstrumentKey));
+  const previewImage = isAudioTrack ? 'speaker.png' : (resolveInstrumentDefinition(displayedInstrumentKey)?.image || 'piano.png');
+  const previewAlt = isAudioTrack ? 'Audio Track' : (UserInstrumentRegistry.get(displayedInstrumentKey)?.displayName ?? getInstrumentDisplayName(displayedInstrumentKey as InstrumentType, t));
   const hasTargetTrack = !!targetTrack;
 
   return (
@@ -90,7 +105,7 @@ const InstrumentSelection: React.FC = () => {
                 className={`instrument-group-item${selectedGroupKey === key ? ' active' : ''}`}
                 onClick={() => handleSelectGroup(key)}
               >
-                {getInstrumentGroupLabel(key, t)}
+                {key === CUSTOM_GROUP ? t('instrument.group.CUSTOM') : getInstrumentGroupLabel(key as InstrumentGroupKey, t)}
               </div>
             ))}
           </div>
@@ -106,10 +121,12 @@ const InstrumentSelection: React.FC = () => {
                 {inst.label}
               </div>
             ))}
+            {selectedGroupKey === CUSTOM_GROUP && <div className="instrument-instrument-item manage-instruments" onClick={() => setShowManager(true)}>{t('userInstrument.manage')}</div>}
           </div>
         </div>
       </div>
       )}
+      {showManager && <UserInstrumentManager onClose={() => setShowManager(false)}/>}
     </div>
   );
 };

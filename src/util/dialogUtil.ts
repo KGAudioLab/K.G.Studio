@@ -50,6 +50,19 @@ export interface AudioToMidiOptionsResult {
   targetTrackId: string;
 }
 
+export interface NoteRankSelectionOptionsResult {
+  direction: 'bottom-to-top' | 'top-to-bottom';
+  rank: number;
+  interval: string;
+  range: 'selected-only' | 'selected-and-above' | 'selected-and-below';
+}
+export interface IntelligentArpeggiatorOptionsResult {
+  sourceId: string;
+  exampleBars: number;
+  generateBars: number;
+  tieBreak: 'higher' | 'lower';
+}
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -70,6 +83,11 @@ let _showAudioToMidiOptionsFn: ((
   loopModeEnabled: boolean,
   defaultValue?: AudioToMidiOptionsResult,
 ) => Promise<AudioToMidiOptionsResult | null>) | null = null;
+let _showNoteRankSelectionOptionsFn: ((
+  message: string,
+  defaultValue?: NoteRankSelectionOptionsResult,
+) => Promise<NoteRankSelectionOptionsResult | null>) | null = null;
+let _showIntelligentArpeggiatorOptionsFn: ((message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult) => Promise<IntelligentArpeggiatorOptionsResult | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -87,6 +105,11 @@ export function registerDialogFns(
     loopModeEnabled: boolean,
     defaultValue?: AudioToMidiOptionsResult,
   ) => Promise<AudioToMidiOptionsResult | null>,
+  noteRankSelectionOptionsFn?: (
+    message: string,
+    defaultValue?: NoteRankSelectionOptionsResult,
+  ) => Promise<NoteRankSelectionOptionsResult | null>,
+  intelligentArpeggiatorOptionsFn?: (message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult) => Promise<IntelligentArpeggiatorOptionsResult | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -98,6 +121,8 @@ export function registerDialogFns(
   if (tempoDetectionOptionsFn) _showTempoDetectionOptionsFn = tempoDetectionOptionsFn;
   if (tempoApplyFn) _showTempoApplyFn = tempoApplyFn;
   if (audioToMidiOptionsFn) _showAudioToMidiOptionsFn = audioToMidiOptionsFn;
+  if (noteRankSelectionOptionsFn) _showNoteRankSelectionOptionsFn = noteRankSelectionOptionsFn;
+  if (intelligentArpeggiatorOptionsFn) _showIntelligentArpeggiatorOptionsFn = intelligentArpeggiatorOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -214,4 +239,24 @@ export function showAudioToMidiOptions(
     });
   }
   return _showAudioToMidiOptionsFn(message, targetTracks, loopModeEnabled, defaultValue);
+}
+
+export function showNoteRankSelectionOptions(
+  message: string,
+  defaultValue?: NoteRankSelectionOptionsResult,
+): Promise<NoteRankSelectionOptionsResult | null> {
+  const fallback = defaultValue ?? {
+    direction: 'bottom-to-top' as const,
+    rank: 1,
+    interval: '1/16',
+    range: 'selected-only' as const,
+  };
+  return _showNoteRankSelectionOptionsFn
+    ? _showNoteRankSelectionOptionsFn(message, fallback)
+    : Promise.resolve(fallback);
+}
+
+export function showIntelligentArpeggiatorOptions(message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult): Promise<IntelligentArpeggiatorOptionsResult | null> {
+  const fallback = defaultValue ?? { sourceId: 'chord', exampleBars: 1, generateBars: 4, tieBreak: 'higher' as const };
+  return _showIntelligentArpeggiatorOptionsFn ? _showIntelligentArpeggiatorOptionsFn(message, sources, fallback) : Promise.resolve(fallback);
 }

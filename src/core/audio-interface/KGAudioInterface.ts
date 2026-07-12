@@ -3,6 +3,7 @@ import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import { TIME_CONSTANTS, AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { UserInstrumentRegistry } from '../instruments/UserInstrumentRegistry';
 import {
   clampMidiControllerValue,
   MIDI_PITCH_BEND_CENTER,
@@ -23,6 +24,7 @@ import {
 } from '../../util/trackAutomationUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
+import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGAudioPlayerBus } from './KGAudioPlayerBus';
 import {
   KGAudioRecorder,
@@ -30,7 +32,7 @@ import {
   type AudioRecordingResult,
   type AudioRecordingStartResult,
 } from './KGAudioRecorder';
-import type { InstrumentType } from '../track/KGMidiTrack';
+import { KGMidiTrack, type InstrumentType } from '../track/KGMidiTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
@@ -734,7 +736,7 @@ export class KGAudioInterface {
             const eventId = Tone.Transport.schedule((time) => {
               const hasSoloedTracks = this.hasSoloedTracks();
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, noteDurationSeconds);
+                audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, noteDurationSeconds, hasSoloedTracks);
               }
             }, noteStartTime);
 
@@ -803,15 +805,16 @@ export class KGAudioInterface {
                   const regionStartTime = this.projectBeatToTransportTime(safeResumeBeat);
 
                   const eventId = Tone.Transport.schedule((time) => {
-                    const hasSoloedTracks = this.hasSoloedTracks();
-                    if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                      playerBus.schedulePlayback(
-                        time + playbackDelay,
-                        audioFileId,
-                        adjustedOffsetSeconds,
-                        adjustedRemainingSeconds
-                      );
-                    }
+                    // Start the source even when the track is currently muted or
+                    // excluded by solo. The player bus gain controls audibility,
+                    // allowing a later unmute/solo change to reveal this clip at
+                    // its current playback position.
+                    playerBus.schedulePlayback(
+                      time + playbackDelay,
+                      audioFileId,
+                      adjustedOffsetSeconds,
+                      adjustedRemainingSeconds
+                    );
                   }, regionStartTime);
                   this.scheduledEvents.add(eventId);
                 }
@@ -845,10 +848,9 @@ export class KGAudioInterface {
               );
 
               const eventId = Tone.Transport.schedule((time) => {
-                const hasSoloedTracks = this.hasSoloedTracks();
-                if (playerBus.shouldPlayWithSolo(hasSoloedTracks)) {
-                  playerBus.schedulePlayback(time + playbackDelay, audioFileId, clipStartOffsetSeconds, effectiveDurationSeconds);
-                }
+                // See the resume path above: sources must exist while muted so
+                // transport-time mute and solo changes take effect immediately.
+                playerBus.schedulePlayback(time + playbackDelay, audioFileId, clipStartOffsetSeconds, effectiveDurationSeconds);
               }, regionStartTime);
 
               this.scheduledEvents.add(eventId);
@@ -949,7 +951,7 @@ export class KGAudioInterface {
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-        audioBus.triggerAttackRelease(noteName, duration, triggerTime, velocity);
+        audioBus.triggerAttackRelease(noteName, duration, triggerTime, velocity, hasSoloedTracks);
         console.log(`Triggered note ${noteName} for track ${trackId}`);
       }
     } catch (error) {
@@ -977,7 +979,7 @@ export class KGAudioInterface {
       // Check if track should play considering solo logic
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-        audioBus.triggerAttack(noteName, triggerTime, normalizedVelocity);
+        audioBus.triggerAttack(noteName, triggerTime, normalizedVelocity, hasSoloedTracks);
         console.log(`Triggered attack for note ${noteName} (pitch ${pitch}) on track ${trackId}`);
       }
     } catch (error) {
@@ -1003,7 +1005,7 @@ export class KGAudioInterface {
 
       const hasSoloedTracks = this.hasSoloedTracks();
       if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
-        audioBus.triggerLiveMidiAttack(pitch, triggerTime, normalizedVelocity);
+        audioBus.triggerLiveMidiAttack(pitch, triggerTime, normalizedVelocity, hasSoloedTracks);
         console.log(`Triggered live MIDI attack for pitch ${pitch} on track ${trackId}`);
       }
     } catch (error) {
@@ -1392,7 +1394,18 @@ export class KGAudioInterface {
   }
 
   public getAvailableInstruments(): InstrumentType[] {
-    return Object.keys(FLUIDR3_INSTRUMENT_MAP) as InstrumentType[];
+    return [...Object.keys(FLUIDR3_INSTRUMENT_MAP), ...UserInstrumentRegistry.listEnabled().map(item => item.instrumentId)] as InstrumentType[];
+  }
+
+  public async refreshUserInstruments(instrumentIds: Iterable<string>): Promise<void> {
+    const ids = new Set(instrumentIds);
+    ids.forEach(id => KGToneBuffersPool.instance().invalidateInstrument(id));
+    const project = KGCore.instance().getCurrentProject();
+    for (const track of project.getTracks()) {
+      if (track instanceof KGMidiTrack && ids.has(String(track.getInstrument()))) {
+        await this.setTrackInstrument(track.getId().toString(), track.getInstrument());
+      }
+    }
   }
 
   public getCaptureStream(): MediaStream | null {
