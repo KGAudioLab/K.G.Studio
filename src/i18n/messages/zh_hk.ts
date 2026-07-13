@@ -2,6 +2,7 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const zhHkMessages: TranslationMessages = {
+  ...enUsMessages,
   'intelligentArpeggiator.error.pitchOutsideKey': '音高 {pitch} 不在第 {bar} 小節第 {beat} 拍的調式內。',
   'intelligentArpeggiator.error.noExampleNotes': '在所選範例長度內，第 {bar} 小節第 {beat} 拍未找到範例音符。',
   'pianoRoll.intelligentArpeggiator': '智能琶音器...',
@@ -16,7 +17,6 @@ export const zhHkMessages: TranslationMessages = {
   'dialog.option.preferHigher': '優先較高音',
   'dialog.option.preferLower': '優先較低音',
   'dialog.generate': '產生',
-  ...enUsMessages,
   'app.loading': '載入中...',
   'assistant.displayName': 'K.G.Studio 音樂創作助手',
   'assistant.welcomeFallback': '歡迎使用 K.G.Studio 音樂創作助手。',
