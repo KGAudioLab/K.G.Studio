@@ -152,6 +152,9 @@ vi.mock('./track/TrackGridPanel', () => ({
       <button type="button" onClick={() => onRegionClick?.('audio-1', { shiftKey: false, metaKey: true, ctrlKey: false })}>
         meta-select-audio-region
       </button>
+      <button type="button" onClick={() => onRegionClick?.('audio-1', { shiftKey: true, metaKey: false, ctrlKey: false })}>
+        shift-select-audio-region
+      </button>
     </>
   ),
 }));
@@ -283,14 +286,47 @@ describe('MainContent', () => {
     expect(storeState.selectedRegionIds).toEqual(['region-2']);
   });
 
-  it('shift-click preserves already selected regions on other regular tracks', () => {
-    const middleMidiRegion = new KGMidiRegion('region-1b', '1', 0, 'Region 1B', 4, 4);
-    midiTrack.setRegions([midiRegion, middleMidiRegion, anotherMidiRegion]);
-
+  it('shift-click across tracks adds only the clicked region', () => {
     render(<MainContent />);
 
     fireEvent.click(screen.getByRole('button', { name: 'select-midi-region' }));
-    fireEvent.click(screen.getByRole('button', { name: 'meta-select-audio-region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'shift-select-audio-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1', 'audio-1']);
+    expect(storeState.activeRegionId).toBe('audio-1');
+  });
+
+  it('shift-click across tracks removes an already selected region', () => {
+    storeState.selectedRegionIds = ['audio-1', 'region-1'];
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'shift-select-audio-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1']);
+  });
+
+  it('uses the primary region as the shift anchor when an older selection shares the target track', () => {
+    const middleMidiRegion = new KGMidiRegion('region-1b', '1', 0, 'Region 1B', 4, 4);
+    midiTrack.setRegions([midiRegion, middleMidiRegion, anotherMidiRegion]);
+    storeState.selectedRegionIds = ['region-1', 'audio-1'];
+
+    render(<MainContent />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'shift-select-second-midi-region' }));
+
+    expect(storeState.selectedRegionIds).toEqual(['region-1', 'audio-1', 'region-2']);
+
+    midiTrack.setRegions([midiRegion, anotherMidiRegion]);
+  });
+
+  it('shift-click preserves already selected regions on other regular tracks', () => {
+    const middleMidiRegion = new KGMidiRegion('region-1b', '1', 0, 'Region 1B', 4, 4);
+    midiTrack.setRegions([midiRegion, middleMidiRegion, anotherMidiRegion]);
+    storeState.selectedRegionIds = ['audio-1', 'region-1'];
+
+    render(<MainContent />);
+
     fireEvent.click(screen.getByRole('button', { name: 'shift-select-second-midi-region' }));
 
     expect(storeState.selectedRegionIds).toEqual(['audio-1', 'region-1', 'region-1b', 'region-2']);
