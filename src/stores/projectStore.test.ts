@@ -913,4 +913,70 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.setPlayheadPosition).toHaveBeenCalledWith(19);
     expect(state.playheadPosition).toBe(19);
   });
+
+  it('pastes multi-track regions to their original tracks and advances to the latest end', async () => {
+    const { KGMidiTrack: TestMidiTrack } = await import('../core/track/KGMidiTrack');
+    const { KGMidiRegion: TestMidiRegion } = await import('../core/region/KGMidiRegion');
+    const firstTrack = new TestMidiTrack('Track 1', 1, 'acoustic_grand_piano');
+    const secondTrack = new TestMidiTrack('Track 2', 2, 'acoustic_grand_piano');
+    firstTrack.setTrackIndex(0);
+    secondTrack.setTrackIndex(1);
+    mockTracks = [firstTrack, secondTrack];
+    let maxBars = 4;
+    currentProject = {
+      ...mockProject,
+      getTracks: () => mockTracks,
+      getMaxBars: () => maxBars,
+      setMaxBars: (value: number) => { maxBars = value; },
+    } as typeof mockProject;
+    mockCopiedItems = [
+      new TestMidiRegion('copied-region-a', '1', 0, 'Region A', 2, 4),
+      new TestMidiRegion('copied-region-b', '2', 1, 'Region B', 5, 6),
+    ];
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+    const { useProjectStore } = await import('./projectStore');
+
+    let result = { success: false };
+    act(() => {
+      result = useProjectStore.getState().pasteRegionsAtTrack(null, 10);
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(firstTrack.getRegions().map(region => region.getStartFromBeat())).toEqual([10]);
+    expect(secondTrack.getRegions().map(region => region.getStartFromBeat())).toEqual([13]);
+    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(19);
+    expect(useProjectStore.getState().playheadPosition).toBe(19);
+    expect(maxBars).toBe(5);
+    expect(useProjectStore.getState().maxBars).toBe(5);
+    expect(document.documentElement.style.getPropertyValue('--max-number-of-bars')).toBe('5');
+  });
+
+  it('returns a friendly error without moving the playhead when an original track is missing', async () => {
+    const { KGMidiTrack: TestMidiTrack } = await import('../core/track/KGMidiTrack');
+    const { KGMidiRegion: TestMidiRegion } = await import('../core/region/KGMidiRegion');
+    const availableTrack = new TestMidiTrack('Track 1', 1, 'acoustic_grand_piano');
+    availableTrack.setTrackIndex(0);
+    mockTracks = [availableTrack];
+    currentProject = {
+      ...mockProject,
+      getTracks: () => mockTracks,
+    } as typeof mockProject;
+    mockCopiedItems = [
+      new TestMidiRegion('copied-region-a', '1', 0, 'Region A', 2, 4),
+      new TestMidiRegion('copied-region-b', '2', 1, 'Region B', 5, 6),
+    ];
+    mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
+    const { useProjectStore } = await import('./projectStore');
+
+    let result: { success: boolean; error?: string } = { success: true };
+    act(() => {
+      result = useProjectStore.getState().pasteRegionsAtTrack(null, 10);
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Some of the original tracks are no longer available');
+    expect(availableTrack.getRegions()).toHaveLength(0);
+    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().playheadPosition).toBe(0);
+  });
 });

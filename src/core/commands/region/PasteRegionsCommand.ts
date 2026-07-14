@@ -9,19 +9,22 @@ import { KGTrack } from '../../track/KGTrack';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
+import { translate } from '../../../i18n/translate';
 
 /**
  * Command to paste regions with their notes to a target track at a specific position
  * Handles creating new regions with new IDs and copying all notes with proper positioning
  */
 export class PasteRegionsCommand extends KGCommand {
-  private targetTrackId: string;
+  private targetTrackId: string | null;
   private pastePosition: number;
   private sourceRegions: KGRegion[];
   private createdRegions: KGRegion[] = [];
-  private targetTrack: KGTrack | null = null;
+  private targetTracks: KGTrack[] = [];
+  private maxBarsBeforeExecution: number | null = null;
+  private expandedMaxBars = false;
 
-  constructor(targetTrackId: string, pastePosition: number, sourceRegions: KGRegion[]) {
+  constructor(targetTrackId: string | null, pastePosition: number, sourceRegions: KGRegion[]) {
     super();
     this.targetTrackId = targetTrackId;
     this.pastePosition = pastePosition;
@@ -36,14 +39,29 @@ export class PasteRegionsCommand extends KGCommand {
     const core = KGCore.instance();
     const currentProject = core.getCurrentProject();
     const tracks = currentProject.getTracks();
+    this.maxBarsBeforeExecution = currentProject.getMaxBars();
+    this.expandedMaxBars = false;
 
-    // Find the target track
-    const targetTrack = tracks.find(track => track.getId().toString() === this.targetTrackId);
-    if (!targetTrack) {
-      throw new Error(`Target track with ID ${this.targetTrackId} not found`);
+    const sourceTrackIds = new Set(this.sourceRegions.map(region => region.getTrackId()));
+    const isMultiTrackPaste = sourceTrackIds.size > 1;
+    const requiredTrackIds = isMultiTrackPaste
+      ? sourceTrackIds
+      : new Set(this.targetTrackId ? [this.targetTrackId] : []);
+
+    if (!isMultiTrackPaste && !this.targetTrackId) {
+      throw new Error(translate('regionPaste.error.selectTrack'));
     }
 
-    this.targetTrack = targetTrack;
+    const tracksById = new Map(tracks.map(track => [track.getId().toString(), track]));
+    const missingTrackIds = [...requiredTrackIds].filter(trackId => !tracksById.has(trackId));
+    if (missingTrackIds.length > 0) {
+      if (isMultiTrackPaste) {
+        throw new Error(translate('regionPaste.error.originalTracksMissing'));
+      }
+      throw new Error(translate('regionPaste.error.selectedTrackMissing'));
+    }
+
+    this.targetTracks = [...requiredTrackIds].map(trackId => tracksById.get(trackId)!);
 
     // Clear any previously created regions (for re-execution)
     this.createdRegions = [];
@@ -51,8 +69,12 @@ export class PasteRegionsCommand extends KGCommand {
     // Calculate the base position from the first region to maintain relative positions
     const basePosition = this.sourceRegions[0].getStartFromBeat();
 
-    // Create new regions at the target position
+    const regionsToAdd: Array<{ targetTrack: KGTrack; region: KGRegion }> = [];
+
+    // Build every pasted region before mutating any track.
     this.sourceRegions.forEach((originalRegion) => {
+      const destinationTrackId = isMultiTrackPaste ? originalRegion.getTrackId() : this.targetTrackId!;
+      const targetTrack = tracksById.get(destinationTrackId)!;
       // Generate new ID for the pasted region
       const newId = generateUniqueId('KGMidiRegion');
       
@@ -135,19 +157,34 @@ export class PasteRegionsCommand extends KGCommand {
         console.log(`Created region "${newRegion.getName()}"`);
       }
       
-      // Add the new region to the target track
-      const currentRegions = targetTrack.getRegions();
-      targetTrack.setRegions([...currentRegions, newRegion]);
-      
-      // Track the created region for undo
+      regionsToAdd.push({ targetTrack, region: newRegion });
       this.createdRegions.push(newRegion);
     });
-    
-    console.log(`Pasted ${this.sourceRegions.length} regions to track ${this.targetTrackId} at position ${this.pastePosition}`);
+
+    this.targetTracks.forEach(targetTrack => {
+      const additions = regionsToAdd
+        .filter(item => item.targetTrack === targetTrack)
+        .map(item => item.region);
+      targetTrack.setRegions([...targetTrack.getRegions(), ...additions]);
+    });
+
+    const latestRegionEnd = this.createdRegions.reduce((maxEnd, region) => (
+      Math.max(maxEnd, region.getStartFromBeat() + region.getLength())
+    ), this.pastePosition);
+    const requiredMaxBars = Math.ceil(latestRegionEnd / currentProject.getTimeSignature().numerator);
+    if (requiredMaxBars > this.maxBarsBeforeExecution) {
+      currentProject.setMaxBars(requiredMaxBars);
+      this.expandedMaxBars = true;
+    }
+
+    const destinationDescription = isMultiTrackPaste
+      ? `${this.targetTracks.length} original tracks`
+      : `track ${this.targetTrackId}`;
+    console.log(`Pasted ${this.sourceRegions.length} regions to ${destinationDescription} at position ${this.pastePosition}`);
   }
 
   undo(): void {
-    if (!this.targetTrack || this.createdRegions.length === 0) {
+    if (this.targetTracks.length === 0 || this.createdRegions.length === 0) {
       throw new Error('Cannot undo: no regions were pasted');
     }
 
@@ -164,17 +201,26 @@ export class PasteRegionsCommand extends KGCommand {
       console.log(`Closed piano roll because active region ${activeRegionId} is being removed`);
     }
 
-    // Remove all created regions from the target track
-    const currentRegions = this.targetTrack.getRegions();
-    const filteredRegions = currentRegions.filter(region => !regionIdsToRemove.has(region.getId()));
-    this.targetTrack.setRegions(filteredRegions);
-    
-    console.log(`Removed ${this.createdRegions.length} pasted regions from track ${this.targetTrackId}`);
+    this.targetTracks.forEach(targetTrack => {
+      const filteredRegions = targetTrack.getRegions().filter(region => !regionIdsToRemove.has(region.getId()));
+      targetTrack.setRegions(filteredRegions);
+    });
+
+    if (this.expandedMaxBars && this.maxBarsBeforeExecution !== null) {
+      KGCore.instance().getCurrentProject().setMaxBars(this.maxBarsBeforeExecution);
+    }
+
+    console.log(`Removed ${this.createdRegions.length} pasted regions from ${this.targetTracks.length} track(s)`);
   }
 
   getDescription(): string {
     const regionCount = this.sourceRegions.length;
-    const trackName = this.targetTrack ? this.targetTrack.getName() : `Track ${this.targetTrackId}`;
+    if (new Set(this.sourceRegions.map(region => region.getTrackId())).size > 1) {
+      return translate('regionPaste.description.originalTracks', { count: regionCount });
+    }
+
+    const targetTrack = this.targetTracks[0];
+    const trackName = targetTrack ? targetTrack.getName() : `Track ${this.targetTrackId}`;
     
     if (regionCount === 1) {
       const regionName = this.sourceRegions[0].getName();
@@ -187,7 +233,7 @@ export class PasteRegionsCommand extends KGCommand {
   /**
    * Get the target track ID
    */
-  public getTargetTrackId(): string {
+  public getTargetTrackId(): string | null {
     return this.targetTrackId;
   }
 
@@ -216,13 +262,17 @@ export class PasteRegionsCommand extends KGCommand {
    * Get the target track instance (only available after execute)
    */
   public getTargetTrack(): KGTrack | null {
-    return this.targetTrack;
+    return this.targetTracks.length === 1 ? this.targetTracks[0] : null;
+  }
+
+  public getTargetTracks(): KGTrack[] {
+    return [...this.targetTracks];
   }
 
   /**
    * Factory method to create a paste command from the clipboard
    */
-  public static fromClipboard(targetTrackId: string, pastePosition: number): PasteRegionsCommand | null {
+  public static fromClipboard(targetTrackId: string | null, pastePosition: number): PasteRegionsCommand | null {
     const core = KGCore.instance();
     const copiedItems = core.getCopiedItems();
     const regionsToCreate = copiedItems.filter(item => item instanceof KGRegion) as KGRegion[];
@@ -237,7 +287,7 @@ export class PasteRegionsCommand extends KGCommand {
   /**
    * Factory method to create a paste command from specific regions
    */
-  public static fromRegions(targetTrackId: string, pastePosition: number, regions: KGRegion[]): PasteRegionsCommand {
+  public static fromRegions(targetTrackId: string | null, pastePosition: number, regions: KGRegion[]): PasteRegionsCommand {
     return new PasteRegionsCommand(targetTrackId, pastePosition, regions);
   }
 }

@@ -79,7 +79,7 @@ vi.mock('../util/osUtil', async (importOriginal) => {
 
 vi.mock('../util/copyPasteUtil', () => ({
   handleCopyOperation: vi.fn(() => false),
-  handlePasteOperation: vi.fn(() => false),
+  handlePasteOperation: vi.fn(() => ({ success: false })),
 }));
 
 vi.mock('../util/saveUtil', () => ({

@@ -91,6 +91,11 @@ function resolveTrackInsertionIndex(project: KGProject, selectedTrackId: string 
 
 type SidePanelType = 'kgone' | 'chat' | 'eventList';
 
+export interface PasteRegionsResult {
+  success: boolean;
+  error?: string;
+}
+
 function getSidePanelVisibilityState(activePanel: SidePanelType | null) {
   return {
     showKGOnePanel: activePanel === 'kgone',
@@ -274,7 +279,7 @@ interface ProjectState {
   toggleSettings: () => void;
 
   // Copy/paste actions
-  pasteRegionsAtTrack: (trackId: string, position: number) => void;
+  pasteRegionsAtTrack: (trackId: string | null, position: number) => PasteRegionsResult;
   pasteNotesToActiveRegion: (regionId: string, position: number) => void;
 
   // Undo/redo actions
@@ -1917,18 +1922,18 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     // Copy/paste actions
-    pasteRegionsAtTrack: (trackId: string, position: number) => {
+    pasteRegionsAtTrack: (trackId: string | null, position: number): PasteRegionsResult => {
       // Use command pattern for region pasting with undo support
       const command = PasteRegionsCommand.fromClipboard(trackId, position);
 
       if (!command) {
         console.log('No regions to paste');
-        return;
+        return { success: false, error: translate('regionPaste.error.noRegions') };
       }
 
       try {
         const core = KGCore.instance();
-        core.executeCommand(command);
+        core.executeCommand(command, { rethrow: true });
 
         const pastedRegionEnd = command.getCreatedRegions().reduce((maxEnd, region) => (
           Math.max(maxEnd, region.getStartFromBeat() + region.getLength())
@@ -1936,13 +1941,21 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         get().setPlayheadPosition(pastedRegionEnd);
 
         // Update the store to trigger re-render
+        const project = core.getCurrentProject();
         const { tracks } = get();
         const updatedTracks = [...tracks];
-        set({ tracks: updatedTracks });
+        const maxBars = project.getMaxBars();
+        set({ tracks: updatedTracks, maxBars });
+        updateMaxBarsCSS(maxBars);
 
         console.log(`Executed PasteRegionsCommand: pasted regions to track ${trackId} using command pattern`);
+        return { success: true };
       } catch (error) {
         console.error('Error pasting regions:', error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : translate('regionPaste.error.generic'),
+        };
       }
     },
 

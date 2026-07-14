@@ -1,5 +1,12 @@
 import { KGCore } from '../core/KGCore';
+import { KGRegion } from '../core/region/KGRegion';
 import { useProjectStore } from '../stores/projectStore';
+import { showAlert } from './dialogUtil';
+
+export interface PasteOperationResult {
+  success: boolean;
+  failureMessageShown?: boolean;
+}
 
 /**
  * Utility functions for copy/paste operations
@@ -26,15 +33,15 @@ export const handleCopyOperation = (): boolean => {
 
 /**
  * Handles paste operation based on current context
- * @returns {boolean} true if items were pasted, false if paste was not possible
+ * Returns whether anything was pasted and whether a specific failure message was shown.
  */
-export const handlePasteOperation = (): boolean => {
+export const handlePasteOperation = (): PasteOperationResult => {
   const core = KGCore.instance();
   const copiedItems = core.getCopiedItems();
   
   if (copiedItems.length === 0) {
     console.log('No items in clipboard to paste');
-    return false;
+    return { success: false };
   }
 
   // Get current store state
@@ -51,15 +58,24 @@ export const handlePasteOperation = (): boolean => {
   const hasNotes = copiedItems.some(item => item.getRootType() === 'KGMidiNote');
 
   if (hasRegions && !hasNotes) {
-    // Pasting regions - need selected track and playhead position
-    if (selectedTrackId) {
+    const copiedRegions = copiedItems.filter(item => item instanceof KGRegion) as KGRegion[];
+    const isMultiTrackPaste = new Set(copiedRegions.map(region => region.getTrackId())).size > 1;
+
+    if (selectedTrackId || isMultiTrackPaste) {
       const playheadPosition = core.getPlayheadPosition();
-      pasteRegionsAtTrack(selectedTrackId, playheadPosition);
-      console.log(`Pasted ${copiedItems.length} regions at track ${selectedTrackId}, position ${playheadPosition}`);
-      return true;
+      const result = pasteRegionsAtTrack(selectedTrackId, playheadPosition);
+      if (!result.success) {
+        if (result.error) {
+          void showAlert(result.error);
+          return { success: false, failureMessageShown: true };
+        }
+        return { success: false };
+      }
+      console.log(`Pasted ${copiedItems.length} regions at position ${playheadPosition}`);
+      return { success: true };
     } else {
       console.log('No track selected for pasting regions');
-      return false;
+      return { success: false };
     }
   } else if (hasNotes && !hasRegions) {
     // Pasting notes - only when piano roll is open
@@ -69,15 +85,15 @@ export const handlePasteOperation = (): boolean => {
       const playheadPosition = core.getPlayheadPosition();
       pasteNotesToActiveRegion(activeRegionId, playheadPosition);
       console.log(`Pasted ${copiedItems.length} notes to active region ${activeRegionId}, position ${playheadPosition}`);
-      return true;
+      return { success: true };
     } else {
       console.log('Piano roll must be open to paste notes');
-      return false;
+      return { success: false };
     }
   } else if (hasRegions && hasNotes) {
     console.log('Mixed clipboard content (regions + notes) cannot be pasted');
-    return false;
+    return { success: false };
   }
 
-  return false;
+  return { success: false };
 };
