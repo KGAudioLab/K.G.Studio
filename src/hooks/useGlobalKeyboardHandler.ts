@@ -116,10 +116,10 @@ export const useGlobalKeyboardHandler = () => {
       // Check for paste shortcut
       if (pasteShortcut && matchesKeyboardShortcut(event, pasteShortcut)) {
         event.preventDefault();
-        const pasted = handlePasteOperation();
-        if (pasted) {
+        const pasteResult = handlePasteOperation();
+        if (pasteResult.success) {
           setStatus('Items pasted from clipboard');
-        } else {
+        } else if (!pasteResult.failureMessageShown) {
           setStatus('Cannot paste - no valid clipboard content or context');
         }
         return;

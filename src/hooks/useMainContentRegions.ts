@@ -427,21 +427,24 @@ export function useMainContentRegions({
         ? regularSelectedRegionIds.filter(id => id !== regionId)
         : appendPrimarySelection([...regularSelectedRegionIds, regionId], regionId);
     } else if (options.shiftKey) {
-      const sameTrackSelectedIds = regularSelectedRegionIds.filter(selectedId => {
-        const selectedRegion = regionsToUse.find(candidate => candidate.id === selectedId);
-        return selectedRegion?.trackId === region.trackId;
-      });
-      const anchorRegionId = [...sameTrackSelectedIds].reverse().find(selectedId => selectedId !== regionId) ?? null;
+      const anchorRegionId = regularSelectedRegionIds[regularSelectedRegionIds.length - 1] ?? null;
+      const anchorRegion = anchorRegionId
+        ? regionsToUse.find(candidate => candidate.id === anchorRegionId)
+        : null;
 
       if (!anchorRegionId) {
         orderedSelection = [regionId];
-      } else {
+      } else if (anchorRegion?.trackId === region.trackId) {
         orderedSelection = buildSameTrackRangeSelection(
           regularSelectedRegionIds,
           anchorRegionId,
           regionId,
           getOrderedTrackRegionIds(region.trackId)
         );
+      } else {
+        orderedSelection = regularSelectedRegionIds.includes(regionId)
+          ? regularSelectedRegionIds.filter(id => id !== regionId)
+          : appendPrimarySelection([...regularSelectedRegionIds, regionId], regionId);
       }
     } else {
       orderedSelection = [regionId];

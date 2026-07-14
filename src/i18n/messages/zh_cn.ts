@@ -2,6 +2,7 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const zhCnMessages: TranslationMessages = {
+  ...enUsMessages,
   'intelligentArpeggiator.error.pitchOutsideKey': '音高 {pitch} 不在第 {bar} 小节第 {beat} 拍的调式内。',
   'intelligentArpeggiator.error.noExampleNotes': '在所选示例长度内，第 {bar} 小节第 {beat} 拍未找到示例音符。',
   'pianoRoll.intelligentArpeggiator': '智能琶音器...',
@@ -16,7 +17,6 @@ export const zhCnMessages: TranslationMessages = {
   'dialog.option.preferHigher': '优先较高音',
   'dialog.option.preferLower': '优先较低音',
   'dialog.generate': '生成',
-  ...enUsMessages,
   'app.loading': '加载中...',
   'assistant.displayName': 'K.G.Studio 音乐创作助手',
   'assistant.welcomeFallback': '欢迎使用 K.G.Studio 音乐创作助手。',
@@ -543,6 +543,12 @@ export const zhCnMessages: TranslationMessages = {
   'toolbar.status.copyNone': '没有可复制的已选项目',
   'toolbar.status.pasted': '已从剪贴板粘贴项目',
   'toolbar.status.pasteFailed': '无法粘贴 - 没有有效的剪贴板内容或上下文',
+  'regionPaste.error.selectTrack': '粘贴这些区域前，请先选择一个轨道。',
+  'regionPaste.error.originalTracksMissing': '部分原始轨道已不存在，因此无法粘贴这些区域。请重新复制这些区域后再试。',
+  'regionPaste.error.selectedTrackMissing': '所选轨道已不存在。请选择其他轨道后再试。',
+  'regionPaste.error.noRegions': '没有可粘贴的区域。',
+  'regionPaste.error.generic': '无法粘贴这些区域，请重试。',
+  'regionPaste.description.originalTracks': '将 {count} 个区域粘贴到其原始轨道',
   'toolbar.status.deleted': '已删除所选区域',
   'toolbar.status.deleteNone': '没有选中可删除的区域',
   'toolbar.undo.none': '没有可撤销的操作',

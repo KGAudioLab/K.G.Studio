@@ -2,6 +2,7 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const frFrMessages: TranslationMessages = {
+  ...enUsMessages,
   'intelligentArpeggiator.error.pitchOutsideKey': 'La note {pitch} est hors de la tonalité à la mesure {bar}, temps {beat}.',
   'intelligentArpeggiator.error.noExampleNotes': 'Aucune note d’exemple n’a été trouvée à la mesure {bar}, temps {beat}, dans la longueur d’exemple sélectionnée.',
   'pianoRoll.intelligentArpeggiator': 'Arpégiateur intelligent...',
@@ -16,7 +17,6 @@ export const frFrMessages: TranslationMessages = {
   'dialog.option.preferHigher': 'Préférer la note aiguë',
   'dialog.option.preferLower': 'Préférer la note grave',
   'dialog.generate': 'Générer',
-  ...enUsMessages,
   'app.loading': 'Chargement...',
   'assistant.displayName': 'Assistant musical K.G.Studio',
   'assistant.welcomeFallback': 'Bienvenue dans l\'assistant musical K.G.Studio.',
@@ -429,6 +429,12 @@ export const frFrMessages: TranslationMessages = {
   'toolbar.status.copyNone': 'Aucun élément sélectionné à copier',
   'toolbar.status.pasted': 'Éléments collés depuis le presse-papiers',
   'toolbar.status.pasteFailed': 'Impossible de coller : contenu ou contexte du presse-papiers invalide',
+  'regionPaste.error.selectTrack': 'Veuillez sélectionner une piste avant de coller ces régions.',
+  'regionPaste.error.originalTracksMissing': 'Certaines pistes d’origine ne sont plus disponibles. Ces régions ne peuvent donc pas être collées. Veuillez les copier à nouveau, puis réessayer.',
+  'regionPaste.error.selectedTrackMissing': 'La piste sélectionnée n’est plus disponible. Veuillez sélectionner une autre piste, puis réessayer.',
+  'regionPaste.error.noRegions': 'Aucune région n’est disponible pour être collée.',
+  'regionPaste.error.generic': 'Impossible de coller ces régions. Veuillez réessayer.',
+  'regionPaste.description.originalTracks': 'Coller {count} régions sur leurs pistes d’origine',
   'toolbar.status.deleted': 'Régions sélectionnées supprimées',
   'toolbar.status.deleteNone': 'Aucune région sélectionnée à supprimer',
   'toolbar.undo.none': 'Rien à annuler',

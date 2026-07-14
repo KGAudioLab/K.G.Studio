@@ -800,14 +800,14 @@ const Toolbar: React.FC = () => {
       console.log("Paste button clicked");
     }
 
-    const pasted = handlePasteOperation();
+    const pasteResult = handlePasteOperation();
 
-    if (pasted) {
+    if (pasteResult.success) {
       setStatus(t('toolbar.status.pasted'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Items pasted successfully");
       }
-    } else {
+    } else if (!pasteResult.failureMessageShown) {
       setStatus(t('toolbar.status.pasteFailed'));
       if (DEBUG_MODE.TOOLBAR) {
         console.log("Paste operation failed or no valid context");

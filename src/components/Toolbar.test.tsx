@@ -137,7 +137,7 @@ vi.mock('../util/regionEditUtil', () => ({
 }));
 vi.mock('../util/copyPasteUtil', () => ({
   handleCopyOperation: vi.fn(() => false),
-  handlePasteOperation: vi.fn(() => false),
+  handlePasteOperation: vi.fn(() => ({ success: false })),
 }));
 vi.mock('../util/midiUtil', () => ({
   convertProjectToMidi: vi.fn(),

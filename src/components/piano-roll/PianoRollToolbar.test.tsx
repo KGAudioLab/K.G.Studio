@@ -513,6 +513,20 @@ describe('PianoRollToolbar', () => {
     expect(screen.getByRole('button', { name: '和声小调' })).toBeInTheDocument();
   });
 
+  it('translates the Intelligent Arpeggiator action in the more menu', () => {
+    renderWithLocale(
+      <PianoRollToolbar
+        {...baseProps}
+        mode="midi-edit"
+        onIntelligentArpeggiator={vi.fn()}
+      />,
+      'zh_cn',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多选项' }));
+    expect(screen.getByText('智能琶音器...')).toBeInTheDocument();
+  });
+
   it('shows the region color action in the more menu and emits the chosen color', () => {
     const onRegionColorSelect = vi.fn();
 
