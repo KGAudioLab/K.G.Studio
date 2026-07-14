@@ -1,3 +1,10 @@
+# [0.21.1-build.20260714] (2026-07-14)
+
+* Merge pull request #64 from KGAudioLab/feat/2026-07-10-enhance-midi-handling (0ab90f0)
+* feat: preserve track layout when pasting regions (c0f61ef)
+* feat: support shift-click region selection across tracks (6c7b04f)
+* fix: missing translation (9d00726)
+
 # [0.21.0-build.20260712] (2026-07-12)
 
 * Merge pull request #63 from KGAudioLab/feat/2026-07-10-enhance-midi-handling (b40074d)
