@@ -22,7 +22,7 @@ export class KGDebugger {
   // Private constructor to prevent direct instantiation
   private constructor() {
     console.log("🔧 KGDebugger initialized - Available methods:", [
-      'convertSelectedRegionToABCNotation(startFromBeat?)',
+      'convertSelectedRegionToABCNotation(startFromBeat?, length?)',
       'convertSelectedRegionChordProgressionToABCNotation()',
       'testQuantizeDuration(durationBeats, timeSignature?)',
       'debugSelectedItems()',
@@ -49,9 +49,11 @@ export class KGDebugger {
 
   /**
    * Convert the currently selected region to ABC notation
-   * @param startFromBeat - Optional absolute beat position to start from (defaults to region start)
+   * @param startFromBeat - Optional absolute beat position to start from. Defaults to the region start;
+   * negative values use the current playhead's rounded beat, rounded down to its containing bar.
+   * @param length - Optional conversion length in beats (must be positive and finite)
    */
-  public convertSelectedRegionToABCNotation(startFromBeat?: number): void {
+  public convertSelectedRegionToABCNotation(startFromBeat?: number, length?: number): void {
     const core = KGCore.instance();
     const selectedItems = core.getSelectedItems();
 
@@ -98,16 +100,34 @@ export class KGDebugger {
       return;
     }
 
-    // Use provided startFromBeat or default to region start
-    const effectiveStartBeat = startFromBeat ?? midiRegion.getStartFromBeat();
+    // Use the region start by default, or the playhead's containing bar for a negative start.
+    let effectiveStartBeat = startFromBeat ?? midiRegion.getStartFromBeat();
+    if (effectiveStartBeat < 0) {
+      const roundedPlayheadBeat = Math.round(core.getPlayheadPosition());
+      const beatsPerBar = core.getCurrentProject().getTimeSignature().numerator;
+      effectiveStartBeat = Math.floor(roundedPlayheadBeat / beatsPerBar) * beatsPerBar;
+      console.log(`📍 Negative start requested; using playhead bar at beat: ${effectiveStartBeat}`);
+    }
+
+    if (length !== undefined && (!Number.isFinite(length) || length <= 0)) {
+      console.error("❌ Conversion length must be a positive, finite number.");
+      return;
+    }
+
+    const endBeat = length !== undefined ? effectiveStartBeat + length : undefined;
 
     console.log(`🎵 Converting region: "${midiRegion.getName()}"`);
     console.log(`📍 Region starts at beat: ${midiRegion.getStartFromBeat()}`);
     console.log(`📍 Conversion starts at beat: ${effectiveStartBeat}`);
+    if (endBeat !== undefined) {
+      console.log(`📍 Conversion ends at beat: ${endBeat}`);
+    }
     console.log(`🎼 Notes in region: ${midiRegion.getNotes().length}`);
 
     try {
-      const abcNotation = convertRegionToABCNotation(midiRegion, effectiveStartBeat);
+      const abcNotation = endBeat === undefined
+        ? convertRegionToABCNotation(midiRegion, effectiveStartBeat)
+        : convertRegionToABCNotation(midiRegion, effectiveStartBeat, endBeat);
 
       console.log("✅ ABC Notation conversion successful!");
       console.log("📄 Result:");
@@ -410,7 +430,7 @@ export class KGDebugger {
   public help(): void {
     console.log("🔧 KGDebugger Help");
     console.log("Available methods:");
-    console.log("  convertSelectedRegionToABCNotation(startFromBeat?) - Convert selected region to ABC");
+    console.log("  convertSelectedRegionToABCNotation(startFromBeat?, length?) - Convert selected region to ABC");
     console.log("  convertSelectedRegionChordProgressionToABCNotation() - Convert selected region chord progression to dual ABC views");
     console.log("  testQuantizeDuration(beats, timeSignature?) - Test quantization logic");
     console.log("  debugSelectedItems() - Show info about selected items");
