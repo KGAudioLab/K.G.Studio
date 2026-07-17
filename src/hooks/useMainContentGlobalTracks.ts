@@ -35,6 +35,10 @@ import {
   getSortedTempoRegions,
 } from '../util/globalTrackUtil';
 import type MainContentGlobalTracksSection from '../components/global-track/MainContentGlobalTracksSection';
+import { showAlert, showConfirm } from '../util/dialogUtil';
+import { useI18n } from '../i18n/useI18n';
+import { hasChordRegionsInTracks } from '../util/chordTransposeUtil';
+import { getKeySignatureTransposeDelta } from '../util/midiTransposeUtil';
 
 interface UseMainContentGlobalTracksParams {
   globalTracks: KGGlobalTrack[];
@@ -81,6 +85,7 @@ export function useMainContentGlobalTracks({
   isGlobalRegionId,
   selectGlobalRegion,
 }: UseMainContentGlobalTracksParams): UseMainContentGlobalTracksResult {
+  const { t } = useI18n();
   const [editingGlobalRegionId, setEditingGlobalRegionId] = useState<string | null>(null);
   const [editingGlobalRegionText, setEditingGlobalRegionText] = useState('');
   const [editingKeySignatureRegionId, setEditingKeySignatureRegionId] = useState<string | null>(null);
@@ -257,15 +262,33 @@ export function useMainContentGlobalTracks({
     }
   }, [refreshProjectState]);
 
-  const updateKeySignatureRegion = useCallback((regionId: string, keySignature: KeySignature) => {
+  const updateKeySignatureRegion = useCallback(async (regionId: string, keySignature: KeySignature) => {
     try {
-      KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(regionId, keySignature));
+      const region = findProjectRegionById(regionId);
+      if (!(region instanceof KGKeySignatureRegion)) {
+        throw new Error(`Key signature region with ID ${regionId} not found`);
+      }
+      const scope = {
+        startBeat: region.getStartFromBeat(),
+        endBeat: region.getStartFromBeat() + region.getLength(),
+      };
+      const shouldAsk = getKeySignatureTransposeDelta(region.getKeySignature(), keySignature) !== 0
+        && hasChordRegionsInTracks(globalTracks, scope);
+      const transposeChords = shouldAsk && await showConfirm(t('transpose.chords.confirmRange'), {
+        confirmLabel: t('transpose.chords.transposeAction'),
+        cancelLabel: t('transpose.chords.leaveAction'),
+      });
+      KGCore.instance().executeCommand(
+        new UpdateKeySignatureRegionCommand(regionId, keySignature, transposeChords),
+        { rethrow: true },
+      );
       setEditingKeySignatureRegionId(null);
       refreshProjectState();
     } catch (error) {
       console.error('Error updating key signature region:', error);
+      void showAlert(t('transpose.error', { error: String(error) }));
     }
-  }, [refreshProjectState]);
+  }, [findProjectRegionById, globalTracks, refreshProjectState, t]);
 
   const commitTempoRegionEdit = useCallback((regionId: string) => {
     const region = findProjectRegionById(regionId);

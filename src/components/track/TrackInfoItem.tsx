@@ -22,6 +22,8 @@ import { getInstrumentDisplayName } from '../../i18n/instruments';
 import { convertTrackToMidi } from '../../util/midiUtil';
 import { downloadBlob } from '../../util/miscUtil';
 import { KGCore } from '../../core/KGCore';
+import TransposeSettingsPopup from '../TransposeSettingsPopup';
+import { UpdateMidiTrackTransposeCommand } from '../../core/commands';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -97,6 +99,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const [showAudioImportModal, setShowAudioImportModal] = useState(false);
   const [showAutomationDropdown, setShowAutomationDropdown] = useState(false);
   const [showTrackColorPalette, setShowTrackColorPalette] = useState(false);
+  const [showTransposePopup, setShowTransposePopup] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const automationDropdownRef = useRef<HTMLDivElement>(null);
   const suppressDragRef = useRef(false);
@@ -594,6 +597,19 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowSettingsDropdown(false);
+                      setShowTransposePopup(true);
+                    }}
+                  >
+                    {t('transpose.menuItem')}
+                  </button>
+                )}
+                {track instanceof KGMidiTrack && (
+                  <button
+                    type="button"
+                    className="track-settings-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSettingsDropdown(false);
                       void handleExportMidi();
                     }}
                   >
@@ -641,6 +657,28 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           acceptedTypes={[...AUDIO_IMPORT_ACCEPTED_TYPES]}
           title="Import Audio"
           description="Drag and drop your audio file here"
+        />
+      )}
+      {track instanceof KGMidiTrack && (
+        <TransposeSettingsPopup
+          isOpen={showTransposePopup}
+          settings={track.getTransposeSettings()}
+          noTranspose={track.getNoTranspose()}
+          showNoTranspose={true}
+          onCancel={() => setShowTransposePopup(false)}
+          onConfirm={({ settings, noTranspose }) => {
+            try {
+              KGCore.instance().executeCommand(
+                new UpdateMidiTrackTransposeCommand(track.getId(), settings, noTranspose),
+                { rethrow: true },
+              );
+              useProjectStore.getState().refreshProjectState();
+              setStatus(t('transpose.status.trackUpdated'));
+              setShowTransposePopup(false);
+            } catch (error) {
+              void showAlert(t('transpose.error', { error: String(error) }));
+            }
+          }}
         />
       )}
     </div>

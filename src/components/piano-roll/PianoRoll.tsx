@@ -7,6 +7,7 @@ import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
+import TransposeSettingsPopup from '../TransposeSettingsPopup';
 import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
 import { LoadingOverlay } from '../common';
@@ -23,7 +24,7 @@ import {
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { beatsToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
 import { downloadBlob } from '../../util/miscUtil';
-import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand } from '../../core/commands';
+import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand, UpdateMidiRegionTransposeCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import {
@@ -191,6 +192,12 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [height, setHeight] = useState(pianoRollHeight);
   const [isResizing, setIsResizing] = useState(false);
   const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
+  const [showTransposePopup, setShowTransposePopup] = useState(false);
+  const transposePopupRegionId = activeRegion?.getId() ?? null;
+
+  useEffect(() => {
+    setShowTransposePopup(false);
+  }, [transposePopupRegionId]);
 
   useEffect(() => {
     setCurrentMode(mode);
@@ -248,6 +255,23 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const activeInstrument = useMemo<InstrumentType>(() => (
     parentMidiTrack instanceof KGMidiTrack ? parentMidiTrack.getInstrument() : 'acoustic_grand_piano'
   ), [parentMidiTrack]);
+  const handleRegionTransposeConfirm = useCallback((result: {
+    settings: { followKeySignature: boolean; transpose: number };
+    inherit: boolean;
+  }) => {
+    if (!activeRegion || !(parentMidiTrack instanceof KGMidiTrack)) return;
+    try {
+      KGCore.instance().executeCommand(
+        new UpdateMidiRegionTransposeCommand(activeRegion.getId(), result.inherit ? null : result.settings),
+        { rethrow: true },
+      );
+      refreshProjectState();
+      setStatus(t('transpose.status.regionUpdated'));
+      setShowTransposePopup(false);
+    } catch (error) {
+      void showAlert(t('transpose.error', { error: String(error) }));
+    }
+  }, [activeRegion, parentMidiTrack, refreshProjectState, setStatus, t]);
   const handleExportMidi = useCallback(async () => {
     if (!activeRegion || !(parentMidiTrack instanceof KGMidiTrack) || !projectName) return;
 
@@ -1855,7 +1879,24 @@ const PianoRoll: React.FC<PianoRollProps> = ({
             ? handleIntelligentArpeggiator
             : undefined
         }
+        onTransposeSettings={
+          activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
+            ? () => setShowTransposePopup(true)
+            : undefined
+        }
       />
+
+      {activeRegion && parentMidiTrack instanceof KGMidiTrack && (
+        <TransposeSettingsPopup
+          isOpen={showTransposePopup}
+          settings={activeRegion.getTransposeSettingsOverride() ?? parentMidiTrack.getTransposeSettings()}
+          noTranspose={parentMidiTrack.getNoTranspose()}
+          showNoTranspose={false}
+          inherit={activeRegion.getTransposeSettingsOverride() === null}
+          onCancel={() => setShowTransposePopup(false)}
+          onConfirm={handleRegionTransposeConfirm}
+        />
+      )}
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />
 

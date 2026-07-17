@@ -231,7 +231,7 @@ interface ProjectState {
   setMaxBars: (maxBars: number) => void;
   setBarWidthMultiplier: (multiplier: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
-  setKeySignature: (keySignature: KeySignature) => void;
+  setKeySignature: (keySignature: KeySignature, options?: { transposeChords?: boolean }) => void;
   setSelectedMode: (selectedMode: string) => void;
 
   // Selection actions
@@ -1649,11 +1649,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
-    setKeySignature: (keySignature: KeySignature) => {
+    setKeySignature: (keySignature: KeySignature, options?: { transposeChords?: boolean }) => {
       try {
         // Create and execute the change project property command
-        const command = new ChangeProjectPropertyCommand({ keySignature });
-        KGCore.instance().executeCommand(command);
+        const command = new ChangeProjectPropertyCommand({ keySignature }, options);
+        KGCore.instance().executeCommand(command, { rethrow: true });
 
         // Update the store state
         set({ keySignature });
@@ -1662,6 +1662,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error) {
         console.error('Error setting key signature:', error);
         get().setStatus('Failed to set key signature');
+        throw error;
       }
     },
 

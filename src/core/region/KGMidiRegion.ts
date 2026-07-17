@@ -3,6 +3,8 @@ import { KGRegion } from './KGRegion';
 import { KGMidiNote } from '../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import { KGMidiControllerEvent } from '../midi/KGMidiControllerEvent';
+import { WithDefault } from '../../types/projectTypes';
+import type { MidiTransposeSettings } from '../track/KGMidiTrack';
 
 export interface FlattenedControllerEvent {
   controller: number;
@@ -32,6 +34,10 @@ export class KGMidiRegion extends KGRegion {
   protected notes: KGMidiNote[] = [];
 
   @Expose()
+  @WithDefault(null)
+  protected transposeSettingsOverride: MidiTransposeSettings | null = null;
+
+  @Expose()
   @Type(() => KGMidiPitchBend)
   protected pitchBends: KGMidiPitchBend[] = [];
 
@@ -55,6 +61,14 @@ export class KGMidiRegion extends KGRegion {
   // Setter
   public setNotes(notes: KGMidiNote[]): void {
     this.notes = notes ?? [];
+  }
+
+  public getTransposeSettingsOverride(): MidiTransposeSettings | null {
+    return this.transposeSettingsOverride ? { ...this.transposeSettingsOverride } : null;
+  }
+
+  public setTransposeSettingsOverride(settings: MidiTransposeSettings | null): void {
+    this.transposeSettingsOverride = settings ? { ...settings } : null;
   }
 
   public getPitchBends(): KGMidiPitchBend[] {
