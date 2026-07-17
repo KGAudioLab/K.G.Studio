@@ -38,6 +38,7 @@ interface RenderedSheetEvent {
   startBeat: number;
   endBeat: number;
   keys: string[];
+  midiPitches: number[];
   tieStart: boolean;
   tieEnd: boolean;
   tieLeftX: number;
@@ -232,6 +233,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
           startBeat: event.startBeat,
           endBeat: event.endBeat,
           keys: [...event.keys],
+          midiPitches: [...event.midiPitches],
           tieStart: event.tieStart,
           tieEnd: event.tieEnd,
           tieLeftX: note.getTieLeftX() + nextMetrics[index].leftPx,
@@ -444,7 +446,7 @@ function buildTiePaths(events: RenderedSheetEvent[], metrics: SheetMeasureMetric
       const nextEvent = nextCandidates.find((candidate) => (
         candidate.tieStart &&
         candidate.barIndex === event.barIndex + 1 &&
-        candidate.keys.join(',') === event.keys.join(',')
+        candidate.midiPitches.join(',') === event.midiPitches.join(',')
       ));
 
       if (!nextEvent) {

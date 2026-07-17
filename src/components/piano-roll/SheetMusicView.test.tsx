@@ -348,6 +348,38 @@ describe('SheetMusicView', () => {
     expect(vexflowMocks.applyAccidentalsMock).toHaveBeenCalledWith(expect.any(Array), 'G');
   });
 
+  it('keeps ties connected when a key change respells the same MIDI pitch', () => {
+    const activeRegion = createMockMidiRegion({
+      startFromBeat: 0,
+      length: 8,
+      notes: [createMockMidiNote({ startBeat: 0, endBeat: 5, pitch: 68 })],
+    });
+    const signatureTrack = storeState.globalTracks.find(track => track.getType() === 'signature');
+    signatureTrack?.setRegions([
+      new KGKeySignatureRegion('sig-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'F minor', 1, 1, 4),
+    ]);
+
+    render(
+      <SheetMusicView
+        activeRegion={activeRegion}
+        midiRegions={[activeRegion]}
+        maxBars={2}
+        sheetMusicTrackScopeEnabled={false}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        keySignature="C# minor"
+        instrument="acoustic_grand_piano"
+        quantization={quantization}
+        onMetricsChange={onMetricsChange}
+      />
+    );
+
+    const renderedKeys = vexflowMocks.staveNoteMock.mock.calls
+      .map(([options]) => (options as { keys: string[] }).keys);
+    expect(renderedKeys).toContainEqual(['g#/4']);
+    expect(renderedKeys).toContainEqual(['ab/4']);
+    expect(document.querySelector('.sheet-music-tie-path')).not.toBeNull();
+  });
+
   it('widens a measure when a key change header is inserted', () => {
     const activeRegion = createMockMidiRegion({
       startFromBeat: 0,
