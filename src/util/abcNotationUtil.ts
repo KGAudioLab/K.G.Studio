@@ -6,12 +6,11 @@
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGCore } from '../core/KGCore';
-import { KGProject } from '../core/KGProject';
+import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
-import { pitchToNoteName } from './midiUtil';
-import { beatsToTicks, getTicksPerBar, reduceFraction } from './mathUtil';
+import { beatsToTicks, getTicksPerBar, reduceFraction, ticksToBeats } from './mathUtil';
 import type { TimeSignature } from '../types/projectTypes';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { getChordMidiPitches, parseChordSymbol } from './chordUtil';
@@ -26,11 +25,44 @@ const TICKS_PER_SIXTEENTH_NOTE = TICKS_PER_QUARTER_NOTE / 4; // 120 ticks
  * ABC Note data structure for processing
  */
 interface ABCNote {
-  pitch: string[]; // ABC notation pitch array (C, D, E, F, G, A, B, with ^ for sharp, z for rest) - supports polyphonic notes
+  pitches: number[]; // MIDI pitches; an empty array represents a rest
   startTick: number; // Start time in MIDI ticks
   endTick: number; // End time in MIDI ticks
   tieWithNext: boolean; // Whether this note should be tied to the next note
 }
+
+type ABCAccidental = '' | '#' | 'b';
+
+interface ABCPitchSpelling {
+  letter: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+  accidental: ABCAccidental;
+  semitoneOffset: -1 | 0 | 1;
+}
+
+const ABC_PITCH_SPELLINGS: Record<number, ABCPitchSpelling[]> = {
+  0: [{ letter: 'C', accidental: '', semitoneOffset: 0 }, { letter: 'B', accidental: '#', semitoneOffset: 1 }],
+  1: [{ letter: 'C', accidental: '#', semitoneOffset: 1 }, { letter: 'D', accidental: 'b', semitoneOffset: -1 }],
+  2: [{ letter: 'D', accidental: '', semitoneOffset: 0 }],
+  3: [{ letter: 'D', accidental: '#', semitoneOffset: 1 }, { letter: 'E', accidental: 'b', semitoneOffset: -1 }],
+  4: [{ letter: 'E', accidental: '', semitoneOffset: 0 }, { letter: 'F', accidental: 'b', semitoneOffset: -1 }],
+  5: [{ letter: 'F', accidental: '', semitoneOffset: 0 }, { letter: 'E', accidental: '#', semitoneOffset: 1 }],
+  6: [{ letter: 'F', accidental: '#', semitoneOffset: 1 }, { letter: 'G', accidental: 'b', semitoneOffset: -1 }],
+  7: [{ letter: 'G', accidental: '', semitoneOffset: 0 }],
+  8: [{ letter: 'G', accidental: '#', semitoneOffset: 1 }, { letter: 'A', accidental: 'b', semitoneOffset: -1 }],
+  9: [{ letter: 'A', accidental: '', semitoneOffset: 0 }],
+  10: [{ letter: 'A', accidental: '#', semitoneOffset: 1 }, { letter: 'B', accidental: 'b', semitoneOffset: -1 }],
+  11: [{ letter: 'B', accidental: '', semitoneOffset: 0 }, { letter: 'C', accidental: 'b', semitoneOffset: -1 }],
+};
+
+const NATURAL_PITCH_CLASSES: Record<ABCPitchSpelling['letter'], number> = {
+  C: 0,
+  D: 2,
+  E: 4,
+  F: 5,
+  G: 7,
+  A: 9,
+  B: 11,
+};
 
 export interface ChordProgressionSegment {
   symbol: string;
@@ -62,33 +94,82 @@ const QUANTIZATION_TICKS: Record<QuantizationFraction, number> = {
  * @param pitch - MIDI pitch number (0-127)
  * @returns ABC notation string (e.g., "C", "c", "c'", "C,")
  */
-function midiPitchToABCNote(pitch: number): string {
-  const { note, octave } = pitchToNoteName(pitch);
-  
-  // ABC notation uses different octave conventions:
-  // C4 (middle C) is represented as "C"
-  // C5 is "c", C6 is "c'", C7 is "c''"
-  // C3 is "C,", C2 is "C,," etc.
-  
-  const accidental = note.includes('#') ? '^' : note.includes('b') ? '_' : '';
-  const naturalNote = note.replace('#', '').replace('b', '');
-  const baseNote = `${accidental}${naturalNote}`;
-  
+function formatABCOctave(letter: ABCPitchSpelling['letter'], octave: number): string {
   if (octave >= 4) {
     if (octave === 4) {
-      return baseNote; // C4 -> C
+      return letter;
     } else if (octave === 5) {
-      return baseNote.toLowerCase(); // C5 -> c
+      return letter.toLowerCase();
     } else {
-      // C6+ -> c', c'', c'''
       const apostrophes = "'".repeat(octave - 5);
-      return baseNote.toLowerCase() + apostrophes;
+      return letter.toLowerCase() + apostrophes;
     }
   } else {
-    // C3 and below -> C,, C,,, etc.
     const commas = ",".repeat(4 - octave);
-    return baseNote + commas;
+    return letter + commas;
   }
+}
+
+function chooseABCPitchSpelling(pitch: number, keySignature: KeySignature): ABCPitchSpelling {
+  const pitchClass = ((pitch % 12) + 12) % 12;
+  const candidates = ABC_PITCH_SPELLINGS[pitchClass];
+  const keyEntry = KEY_SIGNATURE_MAP[keySignature];
+  const signatureSpelling = candidates.find(candidate => (
+    candidate.accidental !== '' &&
+    (keyEntry.accidentals as readonly string[]).includes(`${candidate.letter}${candidate.accidental}`)
+  ));
+
+  if (signatureSpelling) {
+    return signatureSpelling;
+  }
+
+  const naturalSpelling = candidates.find(candidate => candidate.accidental === '');
+  if (naturalSpelling) {
+    return naturalSpelling;
+  }
+
+  const preferredAccidental: ABCAccidental = keyEntry.flats > 0 ? 'b' : '#';
+  return candidates.find(candidate => candidate.accidental === preferredAccidental)
+    ?? candidates[0];
+}
+
+function getKeySignatureAccidental(
+  keySignature: KeySignature,
+  letter: ABCPitchSpelling['letter'],
+): ABCAccidental {
+  const accidental = KEY_SIGNATURE_MAP[keySignature].accidentals
+    .find(candidate => candidate.startsWith(letter));
+  return accidental?.endsWith('#') ? '#' : accidental?.endsWith('b') ? 'b' : '';
+}
+
+function midiPitchToABCNote(
+  pitch: number,
+  keySignature: KeySignature,
+  accidentalState: Map<string, ABCAccidental>,
+  asCMajor: boolean = false,
+): string {
+  const spelling = chooseABCPitchSpelling(pitch, keySignature);
+  const naturalPitchClass = NATURAL_PITCH_CLASSES[spelling.letter];
+  const octave = ((pitch - naturalPitchClass - spelling.semitoneOffset) / 12) - 1;
+  const stateKey = `${spelling.letter}/${octave}`;
+  const keySignatureAccidental = getKeySignatureAccidental(keySignature, spelling.letter);
+  const currentAccidental = accidentalState.get(stateKey) ?? keySignatureAccidental;
+  let prefix = '';
+
+  if (
+    asCMajor &&
+    spelling.accidental !== '' &&
+    spelling.accidental === keySignatureAccidental &&
+    !accidentalState.has(stateKey)
+  ) {
+    prefix = spelling.accidental === '#' ? '^' : '_';
+    accidentalState.set(stateKey, spelling.accidental);
+  } else if (spelling.accidental !== currentAccidental) {
+    prefix = spelling.accidental === '#' ? '^' : spelling.accidental === 'b' ? '_' : '=';
+    accidentalState.set(stateKey, spelling.accidental);
+  }
+
+  return `${prefix}${formatABCOctave(spelling.letter, octave)}`;
 }
 
 /**
@@ -189,10 +270,10 @@ function resolveRegionTrackMetadata(region: KGMidiRegion, project: KGProject): {
   return { trackId, trackName, instrumentName };
 }
 
-function formatABCHeader(region: KGMidiRegion, project: KGProject): string {
+function formatABCHeader(region: KGMidiRegion, project: KGProject, beat: number): string {
   const timeSignature = project.getTimeSignature();
-  const bpm = project.getBpm();
-  const keySignature = project.getKeySignature();
+  const bpm = getEffectiveBpmAtBeat(project, beat);
+  const keySignature = getEffectiveKeySignatureAtBeat(project, beat);
   const { trackId, trackName, instrumentName } = resolveRegionTrackMetadata(region, project);
   
   // Get ABC notation key signature from the key signature map
@@ -348,8 +429,13 @@ export function formatChordProgressionSymbolLine(
 export function formatChordProgressionNoteLine(
   segments: ChordProgressionSegment[],
   timeSignature: TimeSignature,
+  resolveKeySignature: (beat: number) => KeySignature = () => 'C major',
+  initialKeySignature: KeySignature = resolveKeySignature(segments[0]?.startBeat ?? 0),
 ): string {
-  const values = segments.map((segment) => {
+  let previousKeySignature = initialKeySignature;
+  const tokens: string[] = [];
+
+  segments.forEach((segment) => {
     const rootMidi = getChordRootMidi(segment.symbol);
     if (rootMidi === null) {
       throw new Error(`Unable to parse chord "${segment.symbol}"`);
@@ -360,10 +446,28 @@ export function formatChordProgressionNoteLine(
       throw new Error(`Unable to parse chord "${segment.symbol}"`);
     }
 
-    return pitches.map(midiPitchToABCNote).join(' ');
+    splitSegmentAtBarBoundaries(
+      segment.startBeat,
+      segment.endBeat,
+      timeSignature.numerator,
+    ).forEach((part) => {
+      const keySignature = resolveKeySignature(part.startBeat);
+      if (previousKeySignature !== keySignature) {
+        tokens.push(`[K:${KEY_SIGNATURE_MAP[keySignature].abcNotationKeySignature}]`);
+        previousKeySignature = keySignature;
+      }
+
+      const accidentalState = new Map<string, ABCAccidental>();
+      const chordNotes = pitches
+        .map(pitch => midiPitchToABCNote(pitch, keySignature, accidentalState))
+        .join(' ');
+      const length = formatBeatsToABCLength(part.endBeat - part.startBeat, timeSignature);
+      tokens.push(`[${chordNotes}]${length}`);
+      tokens.push('|');
+    });
   });
 
-  return formatTimedChordTokens(values, segments, timeSignature);
+  return tokens.join(' ');
 }
 
 export function convertBeatRangeChordProgressionToABCNotation(
@@ -387,7 +491,12 @@ export function convertBeatRangeChordProgressionToABCNotation(
 
   const timeSignature = project.getTimeSignature();
   const chordSymbols = formatChordProgressionSymbolLine(segments, timeSignature);
-  const chordNotes = formatChordProgressionNoteLine(segments, timeSignature);
+  const chordNotes = formatChordProgressionNoteLine(
+    segments,
+    timeSignature,
+    beat => getEffectiveKeySignatureAtBeat(project, beat),
+    getEffectiveKeySignatureAtBeat(project, startBeat),
+  );
 
   return [
     'Chord Progression',
@@ -410,7 +519,15 @@ export function convertBeatRangeChordProgressionToABCNotation(
  * @param timeSignature - Project time signature
  * @returns ABC body string
  */
-function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSignature: TimeSignature): string {
+function formatABCBody(
+  notes: KGMidiNote[],
+  relativeStartBeat: number,
+  timeSignature: TimeSignature,
+  project: KGProject,
+  regionStartBeat: number,
+  initialKeySignature: KeySignature,
+  asCMajor: boolean,
+): string {
   if (notes.length === 0) {
     return 'z16 |'; // Rest for one bar if no notes
   }
@@ -433,11 +550,8 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
     const quantizedStartTicks = Math.round(startTicks / TICKS_PER_SIXTEENTH_NOTE) * TICKS_PER_SIXTEENTH_NOTE;
     const quantizedEndTicks = Math.round(endTicks / TICKS_PER_SIXTEENTH_NOTE) * TICKS_PER_SIXTEENTH_NOTE;
     
-    // Get ABC pitch notation
-    const abcPitch = midiPitchToABCNote(note.getPitch());
-    
     abcNotes.push({
-      pitch: [abcPitch],
+      pitches: [note.getPitch()],
       startTick: quantizedStartTicks,
       endTick: quantizedEndTicks,
       tieWithNext: false
@@ -478,7 +592,7 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
            currentNote.endTick === abcNotes[nextIndex].endTick) {
       const nextNote = abcNotes[nextIndex];
       // Merge the pitch into current note's pitch array
-      currentNote.pitch.push(...nextNote.pitch);
+      currentNote.pitches.push(...nextNote.pitches);
       // Remove the next note since it's now part of the current chord
       abcNotes.splice(nextIndex, 1);
     }
@@ -513,7 +627,7 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
     // Add rest if there's a gap
     if (currentNote.startTick > prevEndTick) {
       finalNotes.push({
-        pitch: ['z'],
+        pitches: [],
         startTick: prevEndTick,
         endTick: currentNote.startTick,
         tieWithNext: false
@@ -537,7 +651,7 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
       const lastBarEndTick = relativeStartTicks + ((lastBarIndex + 1) * ticksPerBar);
       
       finalNotes.push({
-        pitch: ['z'],
+        pitches: [],
         startTick: lastNoteEndTick,
         endTick: lastBarEndTick,
         tieWithNext: false
@@ -570,10 +684,10 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
         const isLastPart = (barIndex === endBarIndex);
         
         splitNotes.push({
-          pitch: currentNote.pitch,
+          pitches: currentNote.pitches,
           startTick: noteStartInBar,
           endTick: noteEndInBar,
-          tieWithNext: !isLastPart && currentNote.pitch[0] !== 'z' // Don't tie rests
+          tieWithNext: !isLastPart && currentNote.pitches.length > 0 // Don't tie rests
         });
       }
     }
@@ -581,20 +695,40 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
 
   // Step 7: Generate ABC notation output with bar lines and ties
   const abcStrings: string[] = [];
+  const accidentalState = new Map<string, ABCAccidental>();
+  let activeKeySignature = initialKeySignature;
+  let previousBarIndex: number | null = null;
   
   for (let i = 0; i < splitNotes.length; i++) {
     const note = splitNotes[i];
     const duration = note.endTick - note.startTick;
     const lengthString = convertTicksToABCLength(duration, timeSignature);
+    const currentBarIndex = Math.floor((note.startTick - relativeStartTicks) / ticksPerBar);
+    if (currentBarIndex !== previousBarIndex) {
+      accidentalState.clear();
+      previousBarIndex = currentBarIndex;
+    }
+
+    const absoluteBeat = regionStartBeat + ticksToBeats(note.startTick, timeSignature);
+    const effectiveKeySignature = getEffectiveKeySignatureAtBeat(project, absoluteBeat);
+    if (effectiveKeySignature !== activeKeySignature) {
+      activeKeySignature = effectiveKeySignature;
+      accidentalState.clear();
+      abcStrings.push(`[K:${KEY_SIGNATURE_MAP[activeKeySignature].abcNotationKeySignature}]`);
+    }
     
     // Build note string with length - handle polyphonic notes
     let noteString: string;
-    if (note.pitch.length === 1) {
+    if (note.pitches.length === 0) {
+      noteString = `z${lengthString}`;
+    } else if (note.pitches.length === 1) {
       // Single note
-      noteString = `${note.pitch[0]}${lengthString}`;
+      noteString = `${midiPitchToABCNote(note.pitches[0], activeKeySignature, accidentalState, asCMajor)}${lengthString}`;
     } else {
       // Polyphonic note (chord) - use ABC chord notation [C E G]
-      const chordNotes = note.pitch.join(' ');
+      const chordNotes = note.pitches
+        .map(pitch => midiPitchToABCNote(pitch, activeKeySignature, accidentalState, asCMajor))
+        .join(' ');
       noteString = `[${chordNotes}]${lengthString}`;
     }
     
@@ -606,7 +740,6 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
     abcStrings.push(noteString);
     
     // Check if we've reached the end of a bar
-    const currentBarIndex = Math.floor((note.startTick - relativeStartTicks) / ticksPerBar);
     const nextNote = splitNotes[i + 1];
     
     if (nextNote) {
@@ -631,7 +764,12 @@ function formatABCBody(notes: KGMidiNote[], relativeStartBeat: number, timeSigna
  * @param startFromBeat - Absolute beat position to start conversion from
  * @returns ABC notation as plain text string
  */
-export function convertRegionToABCNotation(region: KGMidiRegion, startFromBeat: number, endBeat?: number): string {
+export function convertRegionToABCNotation(
+  region: KGMidiRegion,
+  startFromBeat: number,
+  endBeat?: number,
+  asCMajor: boolean = false,
+): string {
   // Get project information
   const project = KGCore.instance().getCurrentProject();
   const timeSignature = project.getTimeSignature();
@@ -655,8 +793,17 @@ export function convertRegionToABCNotation(region: KGMidiRegion, startFromBeat: 
   }
   
   // Generate ABC notation
-  const header = formatABCHeader(region, project);
-  const body = formatABCBody(filteredNotes, relativeStartBeat, timeSignature);
+  const initialKeySignature = getEffectiveKeySignatureAtBeat(project, roundedStartBeat);
+  const header = formatABCHeader(region, project, roundedStartBeat);
+  const body = formatABCBody(
+    filteredNotes,
+    relativeStartBeat,
+    timeSignature,
+    project,
+    region.getStartFromBeat(),
+    initialKeySignature,
+    asCMajor,
+  );
   
   return `${header}\n${body}`;
 }

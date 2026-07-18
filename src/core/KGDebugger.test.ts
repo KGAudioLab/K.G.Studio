@@ -168,6 +168,24 @@ describe('KGDebugger ABC notation conversion', () => {
     expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, 14);
   });
 
+  it('forwards asCMajor while preserving the actual key signature header', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(6, 8, true);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, 14, true);
+  });
+
+  it('supports asCMajor for an unbounded conversion', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(6, undefined, true);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, undefined, true);
+  });
+
   it('uses the region start when length is provided without startFromBeat', () => {
     const region = createMockMidiRegion(10);
     debuggerMocks.selectedItems.push(region);

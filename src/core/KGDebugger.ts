@@ -22,7 +22,7 @@ export class KGDebugger {
   // Private constructor to prevent direct instantiation
   private constructor() {
     console.log("🔧 KGDebugger initialized - Available methods:", [
-      'convertSelectedRegionToABCNotation(startFromBeat?, length?)',
+      'convertSelectedRegionToABCNotation(startFromBeat?, length?, asCMajor?)',
       'convertSelectedRegionChordProgressionToABCNotation()',
       'testQuantizeDuration(durationBeats, timeSignature?)',
       'debugSelectedItems()',
@@ -52,8 +52,14 @@ export class KGDebugger {
    * @param startFromBeat - Optional absolute beat position to start from. Defaults to the region start;
    * negative values use the current playhead's rounded beat, rounded down to its containing bar.
    * @param length - Optional conversion length in beats (must be positive and finite)
+   * @param asCMajor - Keep the actual K: header and enharmonic preference, but explicitly write
+   * accidentals that would otherwise be implied by the key signature.
    */
-  public convertSelectedRegionToABCNotation(startFromBeat?: number, length?: number): void {
+  public convertSelectedRegionToABCNotation(
+    startFromBeat?: number,
+    length?: number,
+    asCMajor: boolean = false,
+  ): void {
     const core = KGCore.instance();
     const selectedItems = core.getSelectedItems();
 
@@ -125,9 +131,11 @@ export class KGDebugger {
     console.log(`🎼 Notes in region: ${midiRegion.getNotes().length}`);
 
     try {
-      const abcNotation = endBeat === undefined
-        ? convertRegionToABCNotation(midiRegion, effectiveStartBeat)
-        : convertRegionToABCNotation(midiRegion, effectiveStartBeat, endBeat);
+      const abcNotation = asCMajor
+        ? convertRegionToABCNotation(midiRegion, effectiveStartBeat, endBeat, true)
+        : endBeat === undefined
+          ? convertRegionToABCNotation(midiRegion, effectiveStartBeat)
+          : convertRegionToABCNotation(midiRegion, effectiveStartBeat, endBeat);
 
       console.log("✅ ABC Notation conversion successful!");
       console.log("📄 Result:");
@@ -430,7 +438,7 @@ export class KGDebugger {
   public help(): void {
     console.log("🔧 KGDebugger Help");
     console.log("Available methods:");
-    console.log("  convertSelectedRegionToABCNotation(startFromBeat?, length?) - Convert selected region to ABC");
+    console.log("  convertSelectedRegionToABCNotation(startFromBeat?, length?, asCMajor?) - Convert selected region to ABC");
     console.log("  convertSelectedRegionChordProgressionToABCNotation() - Convert selected region chord progression to dual ABC views");
     console.log("  testQuantizeDuration(beats, timeSignature?) - Test quantization logic");
     console.log("  debugSelectedItems() - Show info about selected items");

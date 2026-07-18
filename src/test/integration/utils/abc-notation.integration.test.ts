@@ -8,7 +8,9 @@ import {
   getChordProgressionSegmentsForBeatRange,
 } from '../../../util/abcNotationUtil';
 import { KGMidiRegion } from '../../../core/region/KGMidiRegion';
+import { KGMidiNote } from '../../../core/midi/KGMidiNote';
 import { KGChordRegion } from '../../../core/region/KGChordRegion';
+import { KGKeySignatureRegion } from '../../../core/region/KGKeySignatureRegion';
 import { KGMidiTrack } from '../../../core/track/KGMidiTrack';
 import { KGCore } from '../../../core/KGCore';
 import { KGProject } from '../../../core/KGProject';
@@ -240,6 +242,100 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const lines = result.split('\n');
       const musicLine = lines[lines.length - 1]; // Last line contains the music
       expect(musicLine).toBeTruthy();
+    });
+  });
+
+  describe('key-aware pitch spelling', () => {
+    it('uses the F minor key signature and emits naturals only when required', () => {
+      const project = new KGProject('f-minor', 2, 0, 120, { numerator: 4, denominator: 4 }, 'F minor');
+      const track = new KGMidiTrack('Melody', 1);
+      const region = new KGMidiRegion('region-fm', track.getId().toString(), 0, 'F minor melody', 0, 8);
+      region.setNotes([
+        new KGMidiNote('ab-1', 0, 1, 68),
+        new KGMidiNote('a-natural', 1, 2, 69),
+        new KGMidiNote('ab-2', 2, 3, 68),
+        new KGMidiNote('db', 3, 4, 61),
+        new KGMidiNote('a-natural-next-bar', 4, 5, 69),
+      ]);
+      track.addRegion(region);
+      project.setTracks([track]);
+      vi.spyOn(KGCore, 'instance').mockReturnValue({
+        getCurrentProject: () => project,
+      } as unknown as KGCore);
+
+      const output = convertRegionToABCNotation(region, 0, 8);
+
+      expect(output).toContain('K:Fm');
+      expect(output.split('\n').at(-1)).toBe('A =A _A D | =A z3 |');
+    });
+
+    it('can explicitly show key-signature accidentals while retaining F minor spelling', () => {
+      const project = new KGProject('f-minor-explicit', 2, 0, 120, { numerator: 4, denominator: 4 }, 'F minor');
+      const track = new KGMidiTrack('Melody', 1);
+      const region = new KGMidiRegion('region-fm-explicit', track.getId().toString(), 0, 'F minor explicit', 0, 8);
+      region.setNotes([
+        new KGMidiNote('ab-1', 0, 1, 68),
+        new KGMidiNote('a-natural', 1, 2, 69),
+        new KGMidiNote('ab-2', 2, 3, 68),
+        new KGMidiNote('db', 3, 4, 61),
+        new KGMidiNote('ab-next-bar', 4, 5, 68),
+      ]);
+      track.addRegion(region);
+      project.setTracks([track]);
+      vi.spyOn(KGCore, 'instance').mockReturnValue({
+        getCurrentProject: () => project,
+      } as unknown as KGCore);
+
+      const output = convertRegionToABCNotation(region, 0, 8, true);
+
+      expect(output).toContain('K:Fm');
+      expect(output.split('\n').at(-1)).toBe('_A =A _A _D | _A z3 |');
+      expect(output).not.toContain('^G');
+    });
+
+    it('emits inline key changes and respells notes from the Signature track', () => {
+      const project = new KGProject('key-changes', 2, 0, 120, { numerator: 4, denominator: 4 }, 'C# minor');
+      const track = new KGMidiTrack('Melody', 1);
+      const region = new KGMidiRegion('region-key-change', track.getId().toString(), 0, 'Changing melody', 0, 8);
+      region.setNotes([
+        new KGMidiNote('g-sharp', 0, 1, 68),
+        new KGMidiNote('a-flat', 4, 5, 68),
+      ]);
+      track.addRegion(region);
+      project.setTracks([track]);
+
+      const signatureTrack = findGlobalTrackByType(project, GlobalTrackType.Signature);
+      signatureTrack!.addRegion(new KGKeySignatureRegion(
+        'signature-fm',
+        signatureTrack!.getId(),
+        signatureTrack!.getTrackIndex(),
+        'F minor',
+        1,
+        1,
+        4,
+      ));
+      vi.spyOn(KGCore, 'instance').mockReturnValue({
+        getCurrentProject: () => project,
+      } as unknown as KGCore);
+
+      const output = convertRegionToABCNotation(region, 0, 8);
+
+      expect(output).toContain('K:C#m');
+      expect(output.split('\n').at(-1)).toBe('G z3 | [K:Fm] A z3 |');
+    });
+
+    it('uses key-aware spelling in note-based chord progression output', () => {
+      const segments = [
+        { symbol: 'Ab', startBeat: 0, endBeat: 4 },
+        { symbol: 'Ab', startBeat: 4, endBeat: 8 },
+      ];
+
+      expect(formatChordProgressionNoteLine(
+        segments,
+        { numerator: 4, denominator: 4 },
+        beat => (beat < 4 ? 'F minor' : 'C# minor'),
+        'F minor',
+      )).toBe('[A, C E]4 | [K:C#m] [G, =C D]4 |');
     });
   });
 

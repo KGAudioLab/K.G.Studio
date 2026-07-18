@@ -42,7 +42,7 @@ export function getSongEndBeat(project: KGProject): number {
 }
 
 export function findGlobalTrackByType(project: KGProject, type: GlobalTrackType): KGGlobalTrack | null {
-  return project.getGlobalTracks?.().find(track => track.getType() === type) ?? null;
+  return (project.getGlobalTracks?.() ?? []).find(track => track.getType() === type) ?? null;
 }
 
 export function findGlobalTrackContainingRegion(
