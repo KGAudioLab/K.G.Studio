@@ -31,6 +31,10 @@ export class KGAudioTrack extends KGTrack {
     this.regions = regions;
   }
 
+  public override getRegions(): KGAudioRegion[] {
+    return this.regions;
+  }
+
   // Override getCurrentType to return specific subclass type
   public override getCurrentType(): string {
     return 'KGAudioTrack';

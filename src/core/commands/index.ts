@@ -9,6 +9,11 @@ export { KGCommandHistory } from './KGCommandHistory';
 // Track commands
 export { AddTrackCommand } from './track/AddTrackCommand';
 export { AddAudioTrackCommand } from './track/AddAudioTrackCommand';
+export {
+  DuplicateTrackCommand,
+  generateDuplicateTrackName,
+  type DuplicateTrackOptions,
+} from './track/DuplicateTrackCommand';
 export { RemoveTrackCommand } from './track/RemoveTrackCommand';
 export { ReorderTracksCommand } from './track/ReorderTracksCommand';
 export { UpdateTrackCommand, type TrackUpdateProperties } from './track/UpdateTrackCommand';

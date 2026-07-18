@@ -11,7 +11,7 @@ import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGRegion } from '../core/region/KGRegion';
-import { AddTrackCommand, AddAudioTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand, UpdateRegionCommand, type RegionUpdateProperties } from '../core/commands';
+import { AddTrackCommand, AddAudioTrackCommand, DuplicateTrackCommand, type DuplicateTrackOptions, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand, UpdateRegionCommand, type RegionUpdateProperties } from '../core/commands';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
@@ -206,6 +206,7 @@ interface ProjectState {
   setSavedProjectName: (name: string) => void;
   addTrack: () => Promise<void>;
   addAudioTrack: () => Promise<void>;
+  duplicateTrack: (sourceTrackId: number, options: DuplicateTrackOptions) => Promise<void>;
   importAudioToTrack: (trackId: string, file: File) => Promise<void>;
   openAudioImportModal: (trackId: string) => void;
   closeAudioImportModal: () => void;
@@ -682,6 +683,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error) {
         console.error('Error adding audio track:', error);
         get().setStatus('Failed to add audio track');
+      }
+    },
+
+    duplicateTrack: async (sourceTrackId: number, options: DuplicateTrackOptions) => {
+      try {
+        const command = new DuplicateTrackCommand(sourceTrackId, options, trackId => get().setSelectedTrack(trackId));
+        KGCore.instance().executeCommand(command, { rethrow: true });
+        get().refreshProjectState();
+        get().bumpTrackAutomationRedrawVersion();
+        get().bumpAudioWaveformRedrawVersion();
+
+        const duplicate = command.getDuplicateTrack();
+        get().setStatus(translate('track.duplicate.status', { name: duplicate?.getName() ?? '' }));
+      } catch (error) {
+        console.error('Failed to duplicate track:', error);
+        const message = translate('track.duplicate.error');
+        get().setStatus(message);
+        await showAlert(message);
       }
     },
 

@@ -24,6 +24,7 @@ import { downloadBlob } from '../../util/miscUtil';
 import { KGCore } from '../../core/KGCore';
 import TransposeSettingsPopup from '../TransposeSettingsPopup';
 import { UpdateMidiTrackTransposeCommand } from '../../core/commands';
+import DuplicateTrackDialog from './DuplicateTrackDialog';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -79,7 +80,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   onDragEnd
 }) => {
   const { t } = useI18n();
-  const { selectedTrackId, setSelectedTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks, projectName, setStatus } = useProjectStore();
+  const { selectedTrackId, setSelectedTrack, duplicateTrack, removeTrack, toggleInstrumentSelectionForTrack, importAudioToTrack, tracks: allTracks, projectName, setStatus } = useProjectStore();
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const setTrackAutomationView = useProjectStore(state => state.setTrackAutomationView);
@@ -100,6 +101,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const [showAutomationDropdown, setShowAutomationDropdown] = useState(false);
   const [showTrackColorPalette, setShowTrackColorPalette] = useState(false);
   const [showTransposePopup, setShowTransposePopup] = useState(false);
+  const [showDuplicateTrackDialog, setShowDuplicateTrackDialog] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
   const automationDropdownRef = useRef<HTMLDivElement>(null);
   const suppressDragRef = useRef(false);
@@ -621,6 +623,18 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
                   className="track-settings-menu-item"
                   onClick={(e) => {
                     e.stopPropagation();
+                    setShowSettingsDropdown(false);
+                    setShowTrackColorPalette(false);
+                    setShowDuplicateTrackDialog(true);
+                  }}
+                >
+                  {t('track.duplicate.menuItem')}
+                </button>
+                <button
+                  type="button"
+                  className="track-settings-menu-item"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setShowTrackColorPalette((open) => !open);
                   }}
                 >
@@ -681,6 +695,15 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           }}
         />
       )}
+      <DuplicateTrackDialog
+        isOpen={showDuplicateTrackDialog}
+        hasRegions={track.getRegions().length > 0}
+        onCancel={() => setShowDuplicateTrackDialog(false)}
+        onConfirm={(options) => {
+          setShowDuplicateTrackDialog(false);
+          void duplicateTrack(track.getId(), options);
+        }}
+      />
     </div>
   );
 };
