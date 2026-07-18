@@ -33,6 +33,7 @@ vi.mock('../../stores/projectStore', () => ({
 
 import {
   createPendingModeSwitchRequest,
+  createPendingRegionSwitchRequest,
   getRegionStartScrollLeft,
   getRegionPlayheadRelation,
   getScrollLeftForViewportRequest,
@@ -63,6 +64,104 @@ describe('PianoRoll viewport switch helpers', () => {
     document.documentElement.style.setProperty('--region-grid-bar-width', 'calc(var(--region-grid-beat-width) * var(--time-signature-numerator))');
 
     expect(getRegionStartScrollLeft(16)).toBe(1280);
+  });
+
+  it('creates a song-scoped center request only when the playhead is inside the switched region', () => {
+    const options = {
+      regionStartBeat: 16,
+      regionEndBeat: 24,
+      sourceSheetMusicViewEnabled: false,
+      destinationSheetMusicViewEnabled: false,
+      destinationSheetMusicTrackScopeEnabled: false,
+      destinationHasPianoKeys: true,
+    };
+
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 15 })).toBeNull();
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 25 })).toBeNull();
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 16 })).toMatchObject({
+      alignment: 'center',
+      anchorBeat: 16,
+      clampScope: 'track',
+    });
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 24 })).toMatchObject({
+      alignment: 'center',
+      anchorBeat: 24,
+      clampScope: 'track',
+    });
+  });
+
+  it('centers a switched-region playhead using zoom and the destination key gutter', () => {
+    document.documentElement.style.setProperty('--region-grid-beat-width', '80px');
+    const request = createPendingRegionSwitchRequest({
+      playheadBeat: 16,
+      regionStartBeat: 12,
+      regionEndBeat: 20,
+      sourceSheetMusicViewEnabled: false,
+      destinationSheetMusicViewEnabled: false,
+      destinationSheetMusicTrackScopeEnabled: false,
+      destinationHasPianoKeys: true,
+    });
+
+    expect(request).not.toBeNull();
+    expect(getScrollLeftForViewportRequest({
+      request: request!,
+      container: createContainer({ clientWidth: 260, scrollWidth: 2620 }),
+      sheetMeasureMetrics: [],
+      activeRegionStartBeat: 12,
+      activeRegionEndBeat: 20,
+      songEndBeat: 32,
+    })).toBe(1180);
+  });
+
+  it('clamps switched-region centering at both song boundaries', () => {
+    const container = createContainer({ clientWidth: 260, scrollWidth: 1340 });
+    const createRequest = (playheadBeat: number) => createPendingRegionSwitchRequest({
+      playheadBeat,
+      regionStartBeat: playheadBeat,
+      regionEndBeat: playheadBeat + 1,
+      sourceSheetMusicViewEnabled: false,
+      destinationSheetMusicViewEnabled: false,
+      destinationSheetMusicTrackScopeEnabled: false,
+      destinationHasPianoKeys: true,
+    })!;
+
+    expect(getScrollLeftForViewportRequest({
+      request: createRequest(1),
+      container,
+      sheetMeasureMetrics: [],
+      activeRegionStartBeat: 1,
+      activeRegionEndBeat: 2,
+      songEndBeat: 32,
+    })).toBe(0);
+    expect(getScrollLeftForViewportRequest({
+      request: createRequest(31),
+      container,
+      sheetMeasureMetrics: [],
+      activeRegionStartBeat: 31,
+      activeRegionEndBeat: 32,
+      songEndBeat: 32,
+    })).toBe(1080);
+  });
+
+  it('centers audio-waveform destinations without a piano-key gutter', () => {
+    const request = createPendingRegionSwitchRequest({
+      playheadBeat: 16,
+      regionStartBeat: 12,
+      regionEndBeat: 20,
+      sourceSheetMusicViewEnabled: false,
+      destinationSheetMusicViewEnabled: false,
+      destinationSheetMusicTrackScopeEnabled: false,
+      destinationHasPianoKeys: false,
+    })!;
+
+    expect(getScrollLeftForViewportRequest({
+      request,
+      container: createContainer({ clientWidth: 260, scrollWidth: 1280 }),
+      sheetMeasureMetrics: [],
+      activeRegionStartBeat: 12,
+      activeRegionEndBeat: 20,
+      songEndBeat: 32,
+    })).toBe(510);
   });
 
   it('centers an in-region playhead when switching to region-scope sheet view', () => {

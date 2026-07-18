@@ -4,6 +4,7 @@ import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import type { KGRegion } from '../../core/region/KGRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
@@ -78,6 +79,7 @@ import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { getSheetPlayheadPixel, getSheetQuantizationOptions, parseSheetQuantization } from './sheetNotation';
 import {
   createPendingModeSwitchRequest,
+  createPendingRegionSwitchRequest,
   getRegionStartScrollLeft,
   getScrollLeftForViewportRequest,
   type PendingModeSwitchRequest,
@@ -191,7 +193,21 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [blinkButton, setBlinkButton] = useState<string | null>(null);
   const [height, setHeight] = useState(pianoRollHeight);
   const [isResizing, setIsResizing] = useState(false);
-  const [activeRegion, setActiveRegion] = useState<KGMidiRegion | null>(null);
+  const activeEditorRegion = useMemo<KGRegion | null>(() => {
+    if (!regionId) {
+      return null;
+    }
+
+    for (const track of tracks) {
+      const region = track.getRegions().find(candidate => candidate.getId() === regionId);
+      if (region) {
+        return region;
+      }
+    }
+
+    return null;
+  }, [regionId, tracks]);
+  const activeRegion = activeEditorRegion instanceof KGMidiRegion ? activeEditorRegion : null;
   const [showTransposePopup, setShowTransposePopup] = useState(false);
   const transposePopupRegionId = activeRegion?.getId() ?? null;
 
@@ -357,6 +373,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const pianoRollIsPlayingRef = useRef(false);
   const pendingZoomAnchorBeatRef = useRef<number | null>(null);
   const pendingModeSwitchRequestRef = useRef<PendingModeSwitchRequest | null>(null);
+  const pendingRegionSwitchDestinationModeRef = useRef<PianoRollProps['mode'] | null>(null);
   const previousSheetMusicViewEnabledRef = useRef<boolean>(false);
   const previousActiveRegionIdRef = useRef<string | null>(null);
   const lastAppliedViewRequestVersionRef = useRef<number>(0);
@@ -366,31 +383,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   // Ref for storing the deleteSelectedNotes function
   const deleteSelectedNotesRef = useRef<(() => boolean) | null>(null);
-
-  // Find and set the active region when regionId changes
-  useEffect(() => {
-    if (!regionId) {
-      setActiveRegion(null);
-      return;
-    }
-
-    let found: KGMidiRegion | null = null;
-    for (const track of tracks) {
-      const region = track.getRegions().find(r => r.getId() === regionId);
-      if (region && region instanceof KGMidiRegion) {
-        found = region;
-        break;
-      }
-    }
-
-    // Always update — clears stale MIDI region when switching to an audio region
-    setActiveRegion(found);
-
-    if (found && DEBUG_MODE.PIANO_ROLL) {
-      console.log(`Active region set in PianoRoll: ${found.getId()}`);
-      console.log(`Region details: name=${found.getName()}, trackId=${found.getTrackId()}, trackIndex=${found.getTrackIndex()}`);
-    }
-  }, [regionId, tracks]);
 
   // Sync local state with KGPianoRollState on mount
   useEffect(() => {
@@ -425,17 +417,20 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     lastAppliedViewRequestVersionRef.current = pianoRollViewRequestVersion;
 
-    if (activeRegion) {
-      pendingModeSwitchRequestRef.current = createPendingModeSwitchRequest({
-        playheadBeat: playheadPosition,
-        regionStartBeat: activeRegion.getStartFromBeat(),
-        regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
-        sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
-        destinationSheetMusicViewEnabled: requestedSheetMusicViewEnabled,
-        destinationSheetMusicTrackScopeEnabled: requestedSheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
-      });
-    } else {
-      pendingModeSwitchRequestRef.current = null;
+    if (
+      pendingModeSwitchRequestRef.current === null
+      && requestedSheetMusicViewEnabled !== sheetMusicViewEnabled
+    ) {
+      pendingModeSwitchRequestRef.current = activeRegion
+        ? createPendingModeSwitchRequest({
+            playheadBeat: playheadPosition,
+            regionStartBeat: activeRegion.getStartFromBeat(),
+            regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+            sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
+            destinationSheetMusicViewEnabled: requestedSheetMusicViewEnabled,
+            destinationSheetMusicTrackScopeEnabled: requestedSheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
+          })
+        : null;
     }
 
     setSheetMusicViewEnabled(requestedSheetMusicViewEnabled);
@@ -1551,38 +1546,83 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     };
   }, [pianoRollZoom]);
 
-  // Scroll horizontally to the active region's starting position
-  useEffect(() => {
-    if (!pianoRollNoteScrollRef.current || !activeRegion) {
-      previousActiveRegionIdRef.current = activeRegion?.getId() ?? null;
+  // Position the viewport when the editor opens or switches to another audio/MIDI region.
+  useLayoutEffect(() => {
+    const container = pianoRollNoteScrollRef.current;
+    if (!container || !activeEditorRegion) {
+      previousActiveRegionIdRef.current = activeEditorRegion?.getId() ?? null;
       return;
     }
 
-    if (pendingModeSwitchRequestRef.current !== null) {
-      previousActiveRegionIdRef.current = activeRegion.getId();
+    const nextRegionId = activeEditorRegion.getId();
+    const previousRegionId = previousActiveRegionIdRef.current;
+    if (previousRegionId === nextRegionId) {
       return;
     }
 
-    if (previousActiveRegionIdRef.current !== activeRegion.getId()) {
-      // Get the starting beat of the region
-      const startBeat = activeRegion.getStartFromBeat();
+    const startBeat = activeEditorRegion.getStartFromBeat();
+    const isInitialOpen = previousRegionId === null;
+
+    if (!isInitialOpen) {
+      const request = createPendingRegionSwitchRequest({
+        playheadBeat: playheadPosition,
+        regionStartBeat: startBeat,
+        regionEndBeat: startBeat + activeEditorRegion.getLength(),
+        sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
+        destinationSheetMusicViewEnabled: requestedSheetMusicViewEnabled,
+        destinationSheetMusicTrackScopeEnabled: requestedSheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
+        destinationHasPianoKeys: mode !== 'audio-waveform',
+      });
+
+      if (request) {
+        pendingModeSwitchRequestRef.current = request;
+        pendingRegionSwitchDestinationModeRef.current = mode;
+        previousActiveRegionIdRef.current = nextRegionId;
+        return;
+      }
+    }
+
+    // Preserve the existing fallback: MIDI regions align to their start, while
+    // audio regions do not force a viewport change when the playhead is outside.
+    if (activeEditorRegion instanceof KGMidiRegion) {
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Scrolling to region's starting position: startBeat=${startBeat}`);
       }
 
       const scrollPosition = getRegionStartScrollLeft(startBeat);
-
-      // Scroll to the calculated position
-      pianoRollNoteScrollRef.current.scrollLeft = Math.max(0, scrollPosition);
-      previousActiveRegionIdRef.current = activeRegion.getId();
+      const clampedScrollLeft = Math.max(
+        0,
+        Math.min(scrollPosition, container.scrollWidth - container.clientWidth)
+      );
+      pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
+      container.scrollLeft = clampedScrollLeft;
     }
-  }, [activeRegion]);
+
+    previousActiveRegionIdRef.current = nextRegionId;
+  }, [
+    activeEditorRegion,
+    mode,
+    playheadPosition,
+    requestedSheetMusicViewEnabled,
+    sheetMusicTrackScopeEnabled,
+    sheetMusicViewEnabled,
+  ]);
 
   useLayoutEffect(() => {
     const request = pendingModeSwitchRequestRef.current;
     const container = pianoRollNoteScrollRef.current;
-    if (!request || !container || !activeRegion) {
+    if (!request || !container || !activeEditorRegion) {
+      return;
+    }
+
+    const effectiveSheetMusicViewEnabled = sheetMusicViewEnabled && activeRegion !== null;
+    if (request.destinationSheetMusicViewEnabled !== effectiveSheetMusicViewEnabled) {
+      return;
+    }
+
+    const destinationMode = pendingRegionSwitchDestinationModeRef.current;
+    if (destinationMode !== null && currentMode !== destinationMode) {
       return;
     }
 
@@ -1594,15 +1634,16 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       request,
       container,
       sheetMeasureMetrics,
-      activeRegionStartBeat: activeRegion.getStartFromBeat(),
-      activeRegionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+      activeRegionStartBeat: activeEditorRegion.getStartFromBeat(),
+      activeRegionEndBeat: activeEditorRegion.getStartFromBeat() + activeEditorRegion.getLength(),
       songEndBeat: maxBars * timeSignature.numerator,
     });
 
     pianoRollExpectedScrollLeftRef.current = targetScrollLeft;
     container.scrollLeft = targetScrollLeft;
     pendingModeSwitchRequestRef.current = null;
-  }, [activeRegion, maxBars, sheetMeasureMetrics, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled, timeSignature.numerator]);
+    pendingRegionSwitchDestinationModeRef.current = null;
+  }, [activeEditorRegion, activeRegion, currentMode, maxBars, sheetMeasureMetrics, sheetMusicViewEnabled, timeSignature.numerator]);
 
   // Add keyboard event listener for piano roll hotkeys (snapping and quantization)
   useEffect(() => {

@@ -1,8 +1,10 @@
 import React from 'react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import PianoRoll from './PianoRoll';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
+import { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import { KGAudioTrack } from '../../core/track/KGAudioTrack';
 
 const pianoRollState = {
   zoom: 1,
@@ -34,11 +36,22 @@ const mockProject = {
 };
 
 const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0 });
-const track = createMockMidiTrack({ id: 1, regions: [region] });
+const secondRegion = createMockMidiRegion({
+  id: 'region-2',
+  trackId: '1',
+  trackIndex: 0,
+  startFromBeat: 12,
+  length: 8,
+});
+const track = createMockMidiTrack({ id: 1, regions: [region, secondRegion] });
+const audioRegion = new KGAudioRegion('audio-1', '2', 1, 'Audio Region', 18, 8);
+const secondAudioRegion = new KGAudioRegion('audio-2', '2', 1, 'Second Audio Region', 16, 8);
+const audioTrack = new KGAudioTrack('Audio Track', 2);
+audioTrack.setRegions([audioRegion, secondAudioRegion]);
 
 const storeState = {
   maxBars: 8,
-  tracks: [track],
+  tracks: [track, audioTrack],
   updateTrack: vi.fn(),
   timeSignature: { numerator: 4, denominator: 4 },
   pianoRollHeight: 500,
@@ -62,6 +75,7 @@ const storeState = {
 };
 
 let latestToolbarProps: { zoom: number; onZoomChange: (value: number) => void } | null = null;
+let latestNoteScrollElement: HTMLDivElement | null = null;
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: Object.assign(
@@ -116,7 +130,21 @@ vi.mock('../../util/dialogUtil', () => ({
 
 vi.mock('./PianoRollHeader', () => ({ default: () => <div data-testid="header" /> }));
 vi.mock('./NoteAttributeBar', () => ({ default: () => <div data-testid="note-attribute-bar" /> }));
-vi.mock('./PianoRollContent', () => ({ default: () => <div data-testid="content" /> }));
+vi.mock('./PianoRollContent', () => ({
+  default: ({ noteScrollRef }: { noteScrollRef: React.MutableRefObject<HTMLDivElement | null> }) => (
+    <div
+      data-testid="content"
+      ref={(element) => {
+        noteScrollRef.current = element;
+        latestNoteScrollElement = element;
+        if (element) {
+          Object.defineProperty(element, 'clientWidth', { configurable: true, value: 260 });
+          Object.defineProperty(element, 'scrollWidth', { configurable: true, value: 1340 });
+        }
+      }}
+    />
+  ),
+}));
 vi.mock('./PianoRollToolbar', () => ({
   default: (props: { zoom: number; onZoomChange: (value: number) => void }) => {
     latestToolbarProps = props;
@@ -138,11 +166,13 @@ vi.mock('./chordGuideUtil', async () => {
 describe('PianoRoll zoom persistence', () => {
   beforeEach(() => {
     latestToolbarProps = null;
+    latestNoteScrollElement = null;
     pianoRollState.zoom = 1;
     mockProject.setPianoRollZoom.mockReset();
     pianoRollState.getPianoRollZoom.mockClear();
     pianoRollState.setPianoRollZoom.mockClear();
     storeState.pianoRollHeight = 500;
+    storeState.playheadPosition = 0;
     storeState.setPianoRollHeight.mockClear();
     document.documentElement.style.setProperty('--region-piano-key-width', '60px');
     document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
@@ -200,5 +230,59 @@ describe('PianoRoll zoom persistence', () => {
     unmount();
     const reopened = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
     expect((reopened.container.querySelector('.piano-roll-panel') as HTMLDivElement).style.height).toBe('200px');
+  });
+
+  it('centers the playhead only after switching between open MIDI regions', async () => {
+    storeState.playheadPosition = 16;
+    const view = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
+
+    expect(latestNoteScrollElement?.scrollLeft).toBe(0);
+
+    view.rerender(<PianoRoll onClose={vi.fn()} regionId="region-2" />);
+
+    await waitFor(() => expect(latestNoteScrollElement?.scrollLeft).toBe(540));
+  });
+
+  it('centers a cross-type audio switch without reserving a piano-key gutter', async () => {
+    storeState.playheadPosition = 20;
+    const view = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
+
+    view.rerender(
+      <PianoRoll
+        onClose={vi.fn()}
+        regionId="audio-1"
+        mode="audio-waveform"
+        audioRegion={audioRegion}
+      />
+    );
+
+    await waitFor(() => expect(latestNoteScrollElement?.scrollLeft).toBe(670));
+  });
+
+  it('centers audio-to-audio and audio-to-MIDI switches while the panel stays open', async () => {
+    storeState.playheadPosition = 20;
+    const view = render(
+      <PianoRoll
+        onClose={vi.fn()}
+        regionId="audio-1"
+        mode="audio-waveform"
+        audioRegion={audioRegion}
+      />
+    );
+
+    expect(latestNoteScrollElement?.scrollLeft).toBe(0);
+
+    view.rerender(
+      <PianoRoll
+        onClose={vi.fn()}
+        regionId="audio-2"
+        mode="audio-waveform"
+        audioRegion={secondAudioRegion}
+      />
+    );
+    await waitFor(() => expect(latestNoteScrollElement?.scrollLeft).toBe(670));
+
+    view.rerender(<PianoRoll onClose={vi.fn()} regionId="region-2" mode="midi-edit" />);
+    await waitFor(() => expect(latestNoteScrollElement?.scrollLeft).toBe(700));
   });
 });
