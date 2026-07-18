@@ -55,6 +55,7 @@ interface TrackGridItemProps {
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
   showHybridButtonForMidi?: boolean;
+  hybridButtonExcludedRegionIds?: string[];
   onOpenHybrid?: (regionId: string) => void;
   allTracks?: KGTrack[]; // Added to access all tracks for drag operations
   onKGOneClipDrop?: (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => void;
@@ -88,6 +89,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   onOpenSpectrogram,
   showHybridButtonForAudio,
   showHybridButtonForMidi,
+  hybridButtonExcludedRegionIds,
   onOpenHybrid,
   allTracks,
   onKGOneClipDrop,
@@ -859,7 +861,10 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             onOpenSpectrogram={audioRegion ? (regionId) => {
               onOpenSpectrogram?.(regionId);
             } : undefined}
-            showHybridButton={audioRegion ? showHybridButtonForAudio : showHybridButtonForMidi}
+            showHybridButton={
+              !hybridButtonExcludedRegionIds?.includes(region.id)
+              && (audioRegion ? showHybridButtonForAudio : showHybridButtonForMidi)
+            }
             onOpenHybrid={onOpenHybrid}
             midiRegion={midiRegion}
             audioRegion={audioRegion}

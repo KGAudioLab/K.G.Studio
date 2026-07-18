@@ -20,6 +20,7 @@ import type { PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric, SheetQuantization } from './sheetNotationTypes';
 import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import SheetMusicView from './SheetMusicView';
+import type { PianoRollMode } from '../../constants';
 
 const NOOP_SHEET_METRICS_CHANGE = (_metrics: SheetMeasureMetric[]) => {};
 
@@ -30,6 +31,7 @@ interface PianoRollContentProps {
   maxBars: number;
   timeSignature: { numerator: number; denominator: number };
   activeRegion: KGMidiRegion | null;
+  referenceMidiRegion?: KGMidiRegion;
   updateTrack: (track: KGTrack) => void;
   tracks: KGTrack[];
   onSetNoteUpdateTrigger?: (setNoteFn: React.Dispatch<React.SetStateAction<number>>) => void;
@@ -39,7 +41,7 @@ interface PianoRollContentProps {
   chordGuide: 'N' | 'T' | 'S' | 'D';
   chordGuideKeySignature?: KeySignature;
   chordGuideMode?: 'ionian' | 'aeolian';
-  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  mode?: PianoRollMode;
   audioRegion?: KGAudioRegion;
   trackId?: string;
   projectName?: string;
@@ -68,6 +70,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   maxBars,
   timeSignature,
   activeRegion,
+  referenceMidiRegion,
   updateTrack,
   tracks,
   onSetNoteUpdateTrigger,
@@ -317,6 +320,36 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     ));
   }, [isRecording, recordingNotes, activeRegion]);
 
+  const referenceNoteOverlays = useMemo(() => {
+    if (mode !== 'midi-reference' || sheetMusicViewEnabled || !referenceMidiRegion) {
+      return null;
+    }
+
+    const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
+    const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
+    const regionStartBeat = referenceMidiRegion.getStartFromBeat();
+
+    return referenceMidiRegion.getNotes().map(note => {
+      const startBeat = regionStartBeat + note.getStartBeat();
+      const endBeat = regionStartBeat + note.getEndBeat();
+      return (
+        <div
+          key={`reference-note-${referenceMidiRegion.getId()}-${note.getId()}`}
+          className="piano-grid-midi-reference-note"
+          data-reference-region-id={referenceMidiRegion.getId()}
+          data-reference-note-id={note.getId()}
+          style={{
+            left: startBeat * beatWidth,
+            top: (107 - note.getPitch()) * noteHeight,
+            width: (endBeat - startBeat) * beatWidth,
+            height: noteHeight,
+            borderColor: velocityToColor(note.getVelocity()),
+          }}
+        />
+      );
+    });
+  }, [mode, referenceMidiRegion, sheetMusicViewEnabled, tracks]);
+
   useEffect(() => {
     if (!sheetMusicViewEnabled) {
       return;
@@ -393,6 +426,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                   mode={mode}
                   onSpectrogramLoadingChange={handleSpectrogramLoadingChange}
                 >
+                  {referenceNoteOverlays}
                   {memoizedNotes}
                   {!isAudioView && recordingNoteOverlays}
                 </PianoGrid>

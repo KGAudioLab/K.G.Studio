@@ -5,7 +5,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import type { KGRegion } from '../../core/region/KGRegion';
-import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
+import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS, type PianoRollMode } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
 import TransposeSettingsPopup from '../TransposeSettingsPopup';
@@ -95,10 +95,11 @@ import { TrackType } from '../../core/track/KGTrack';
 interface PianoRollProps {
   onClose: () => void;
   regionId: string | null;
-  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  mode?: PianoRollMode;
   requestedSheetMusicViewEnabled?: boolean;
   pianoRollViewRequestVersion?: number;
   audioRegion?: KGAudioRegion;
+  referenceMidiRegion?: KGMidiRegion;
   trackId?: string;
   projectName?: string;
 }
@@ -117,10 +118,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   requestedSheetMusicViewEnabled = false,
   pianoRollViewRequestVersion = 0,
   audioRegion,
+  referenceMidiRegion,
   trackId,
   projectName,
 }) => {
-  const [currentMode, setCurrentMode] = useState<'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid'>(mode);
+  const [currentMode, setCurrentMode] = useState<PianoRollMode>(mode);
   const isSpectrogram = currentMode === 'spectrogram';
   const isAudioWaveform = currentMode === 'audio-waveform';
   const isAudioOnly = isAudioWaveform || isSpectrogram;
@@ -1910,13 +1912,13 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onSelectNoteByRank={activeRegion && !sheetMusicViewEnabled ? handleSelectNoteByRank : undefined}
         onExportMidi={
           activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
-          && (currentMode === 'midi-edit' || currentMode === 'hybrid')
+          && (currentMode === 'midi-edit' || currentMode === 'hybrid' || currentMode === 'midi-reference')
             ? handleExportMidi
             : undefined
         }
         onIntelligentArpeggiator={
           activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
-          && (currentMode === 'midi-edit' || currentMode === 'hybrid')
+          && (currentMode === 'midi-edit' || currentMode === 'hybrid' || currentMode === 'midi-reference')
             ? handleIntelligentArpeggiator
             : undefined
         }
@@ -1948,6 +1950,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         maxBars={maxBars}
         timeSignature={timeSignature}
         activeRegion={activeRegion}
+        referenceMidiRegion={referenceMidiRegion}
         updateTrack={updateTrack}
         tracks={tracks}
         onSetNoteUpdateTrigger={handleSetNoteUpdateTrigger}

@@ -18,7 +18,12 @@ import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
 import { toggleLoop } from '../util/loopUtil';
-import { PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants/uiConstants';
+import {
+  PIANO_ROLL_CONSTANTS,
+  PIANO_ROLL_MODE_MIDI_REFERENCE,
+  TOOLBAR_CONSTANTS,
+  type PianoRollMode,
+} from '../constants/uiConstants';
 import * as Tone from 'tone';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
@@ -140,8 +145,9 @@ interface ProjectState {
   showPianoRoll: boolean;
   pianoRollHeight: number;
   activeRegionId: string | null;
-  pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  pianoRollMode: PianoRollMode;
   hybridAudioRegionId: string | null;
+  midiReferenceRegionId: string | null;
   requestedSheetMusicViewEnabled: boolean;
   pianoRollViewRequestVersion: number;
   automationRedrawVersion: number;
@@ -250,6 +256,8 @@ interface ProjectState {
   openAudioWaveformViewer: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
+  openMidiReferenceMode: (mainRegionId: string, referenceRegionId: string) => void;
+  exitMidiReferenceMode: () => void;
   bumpAutomationRedrawVersion: () => void;
   bumpTrackAutomationRedrawVersion: () => void;
   bumpAudioWaveformRedrawVersion: () => void;
@@ -552,6 +560,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
+    midiReferenceRegionId: null,
     requestedSheetMusicViewEnabled: false,
     pianoRollViewRequestVersion: 0,
     automationRedrawVersion: 0,
@@ -1758,6 +1767,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'midi-edit',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: false,
         pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
       }));
@@ -1770,6 +1780,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'midi-edit',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: sheetMusicViewEnabled,
         pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
       }));
@@ -1781,6 +1792,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'audio-waveform',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: false,
       });
     },
@@ -1791,6 +1803,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'spectrogram',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: false,
       });
     },
@@ -1800,8 +1813,29 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         showPianoRoll: true,
         activeRegionId: midiRegionId,
         hybridAudioRegionId: audioRegionId,
+        midiReferenceRegionId: null,
         pianoRollMode: 'hybrid',
         requestedSheetMusicViewEnabled: false,
+      });
+    },
+
+    openMidiReferenceMode: (mainRegionId: string, referenceRegionId: string) => {
+      KGPianoRollState.instance().setSheetMusicViewEnabled(false);
+      set(state => ({
+        showPianoRoll: true,
+        activeRegionId: mainRegionId,
+        hybridAudioRegionId: null,
+        midiReferenceRegionId: referenceRegionId,
+        pianoRollMode: PIANO_ROLL_MODE_MIDI_REFERENCE,
+        requestedSheetMusicViewEnabled: false,
+        pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
+      }));
+    },
+
+    exitMidiReferenceMode: () => {
+      set({
+        midiReferenceRegionId: null,
+        pianoRollMode: 'midi-edit',
       });
     },
     bumpAutomationRedrawVersion: () => {
@@ -1823,6 +1857,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({
         activeRegionId: null,
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         pianoRollMode: 'midi-edit',
         requestedSheetMusicViewEnabled: false,
         pianoRollViewRequestVersion: 0,

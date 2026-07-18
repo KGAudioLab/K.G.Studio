@@ -254,8 +254,58 @@ describe('projectStore piano roll state', () => {
     expect(state.pianoRollMode).toBe('midi-edit');
     expect(state.activeRegionId).toBe('midi-b');
     expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.midiReferenceRegionId).toBeNull();
     expect(state.requestedSheetMusicViewEnabled).toBe(false);
     expect(state.pianoRollViewRequestVersion).toBe(1);
+  });
+
+  it('opens, replaces, and exits MIDI reference mode while preserving the main region', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().openMidiReferenceMode('midi-main', 'midi-reference-a');
+    });
+
+    let state = useProjectStore.getState();
+    expect(pianoRollStateMocks.setSheetMusicViewEnabled).toHaveBeenLastCalledWith(false);
+    expect(state.showPianoRoll).toBe(true);
+    expect(state.pianoRollMode).toBe('midi-reference');
+    expect(state.activeRegionId).toBe('midi-main');
+    expect(state.midiReferenceRegionId).toBe('midi-reference-a');
+    expect(state.hybridAudioRegionId).toBeNull();
+    expect(state.requestedSheetMusicViewEnabled).toBe(false);
+
+    act(() => {
+      useProjectStore.getState().openMidiReferenceMode('midi-main', 'midi-reference-b');
+    });
+
+    state = useProjectStore.getState();
+    expect(state.activeRegionId).toBe('midi-main');
+    expect(state.midiReferenceRegionId).toBe('midi-reference-b');
+
+    act(() => {
+      useProjectStore.getState().exitMidiReferenceMode();
+    });
+
+    state = useProjectStore.getState();
+    expect(state.showPianoRoll).toBe(true);
+    expect(state.activeRegionId).toBe('midi-main');
+    expect(state.pianoRollMode).toBe('midi-edit');
+    expect(state.midiReferenceRegionId).toBeNull();
+  });
+
+  it('clears MIDI reference state when opening an audio viewer', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().openMidiReferenceMode('midi-main', 'midi-reference');
+      useProjectStore.getState().openAudioWaveformViewer('audio-a');
+    });
+
+    const state = useProjectStore.getState();
+    expect(state.pianoRollMode).toBe('audio-waveform');
+    expect(state.activeRegionId).toBe('audio-a');
+    expect(state.midiReferenceRegionId).toBeNull();
   });
 
   it('opens a MIDI region in sheet music view when requested', async () => {

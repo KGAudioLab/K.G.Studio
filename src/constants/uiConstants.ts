@@ -50,6 +50,15 @@ export const PIANO_ROLL_CONSTANTS = {
   DRAG_THRESHOLD: 5,
 };
 
+export const PIANO_ROLL_MODE_MIDI_REFERENCE = 'midi-reference' as const;
+
+export type PianoRollMode =
+  | 'midi-edit'
+  | 'audio-waveform'
+  | 'spectrogram'
+  | 'hybrid'
+  | typeof PIANO_ROLL_MODE_MIDI_REFERENCE;
+
 // Playing/playback related constants
 export const PLAYING_CONSTANTS = {
   // Update rate for playback (10 FPS for performance evaluation)

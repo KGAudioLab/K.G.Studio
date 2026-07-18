@@ -33,7 +33,7 @@ export const splitSelectedRegionAtPlayhead = async ({
 
   if (
     showPianoRoll &&
-    pianoRollMode === 'midi-edit' &&
+    (pianoRollMode === 'midi-edit' || pianoRollMode === 'midi-reference') &&
     !sheetMusicViewEnabled &&
     activeRegionId &&
     selectedNoteIds.length > 0

@@ -9,6 +9,7 @@ import {
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
 import { useI18n } from '../../i18n/useI18n';
+import type { PianoRollMode } from '../../constants';
 
 interface PianoRollToolbarProps {
   showAudioSpectrogramToggle?: boolean;
@@ -34,7 +35,7 @@ interface PianoRollToolbarProps {
   chordGuide: 'N' | 'T' | 'S' | 'D';
   onChordGuideChange: (value: 'N' | 'T' | 'S' | 'D') => void;
   blinkButton?: string | null;
-  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  mode?: PianoRollMode;
   thresholdDb?: number;
   onThresholdChange?: (db: number) => void;
   power?: number;

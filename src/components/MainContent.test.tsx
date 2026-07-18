@@ -50,14 +50,17 @@ const storeState = {
   setActiveRegionId: vi.fn((regionId: string | null) => {
     storeState.activeRegionId = regionId;
   }),
-  pianoRollMode: 'midi-edit' as const,
+  pianoRollMode: 'midi-edit' as 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid' | 'midi-reference',
   requestedSheetMusicViewEnabled: false,
   pianoRollViewRequestVersion: 0,
   openMidiPianoRoll: vi.fn(),
   openAudioWaveformViewer: vi.fn(),
   openSpectrogramViewer: vi.fn(),
   openHybridMode: vi.fn(),
+  openMidiReferenceMode: vi.fn(),
+  exitMidiReferenceMode: vi.fn(),
   hybridAudioRegionId: null as string | null,
+  midiReferenceRegionId: null as string | null,
   addTrack: vi.fn(),
   addAudioTrack: vi.fn(),
   projectName: 'Test Project',
@@ -129,7 +132,19 @@ vi.mock('./track/TrackInfoPanel', () => ({
 }));
 
 vi.mock('./track/TrackGridPanel', () => ({
-  default: ({ onRegionClick }: { onRegionClick?: RegionClickHandler }) => (
+  default: ({
+    onRegionClick,
+    onOpenHybrid,
+    showHybridButtonForAudio,
+    showHybridButtonForMidi,
+    hybridButtonExcludedRegionIds = [],
+  }: {
+    onRegionClick?: RegionClickHandler;
+    onOpenHybrid?: (regionId: string) => void;
+    showHybridButtonForAudio?: boolean;
+    showHybridButtonForMidi?: boolean;
+    hybridButtonExcludedRegionIds?: string[];
+  }) => (
     <>
       <button type="button" onClick={() => onRegionClick?.('region-1', { shiftKey: false, metaKey: false, ctrlKey: false })}>
         select-midi-region
@@ -155,6 +170,18 @@ vi.mock('./track/TrackGridPanel', () => ({
       <button type="button" onClick={() => onRegionClick?.('audio-1', { shiftKey: true, metaKey: false, ctrlKey: false })}>
         shift-select-audio-region
       </button>
+      {showHybridButtonForMidi && !hybridButtonExcludedRegionIds.includes('region-1') && (
+        <button type="button" onClick={() => onOpenHybrid?.('region-1')}>add-midi-region-1</button>
+      )}
+      {showHybridButtonForMidi && !hybridButtonExcludedRegionIds.includes('region-2') && (
+        <button type="button" onClick={() => onOpenHybrid?.('region-2')}>add-midi-region-2</button>
+      )}
+      {showHybridButtonForMidi && !hybridButtonExcludedRegionIds.includes('region-3') && (
+        <button type="button" onClick={() => onOpenHybrid?.('region-3')}>add-midi-region-3</button>
+      )}
+      {showHybridButtonForAudio && !hybridButtonExcludedRegionIds.includes('audio-1') && (
+        <button type="button" onClick={() => onOpenHybrid?.('audio-1')}>add-audio-region</button>
+      )}
     </>
   ),
 }));
@@ -177,6 +204,9 @@ describe('MainContent', () => {
     storeState.activeRegionId = null;
     storeState.showPianoRoll = false;
     storeState.showGlobalTracks = false;
+    storeState.pianoRollMode = 'midi-edit';
+    storeState.hybridAudioRegionId = null;
+    storeState.midiReferenceRegionId = null;
     storeState.playheadPosition = 0;
     storeState.timeSignature = { numerator: 4, denominator: 4 };
     storeState.clearAllSelections.mockClear();
@@ -186,6 +216,9 @@ describe('MainContent', () => {
     storeState.openMidiPianoRoll.mockClear();
     storeState.openAudioWaveformViewer.mockClear();
     storeState.openSpectrogramViewer.mockClear();
+    storeState.openHybridMode.mockClear();
+    storeState.openMidiReferenceMode.mockClear();
+    storeState.exitMidiReferenceMode.mockClear();
     storeState.addTrack.mockClear();
     storeState.addAudioTrack.mockClear();
     storeState.setShowGlobalTracks.mockClear();
@@ -201,6 +234,49 @@ describe('MainContent', () => {
     expect(storeState.setActiveRegionId).toHaveBeenCalledWith('region-1');
     expect(storeState.showPianoRoll).toBe(false);
     expect(storeState.openMidiPianoRoll).not.toHaveBeenCalled();
+  });
+
+  it('adds another MIDI region as a reference without changing the main region', async () => {
+    storeState.showPianoRoll = true;
+    storeState.activeRegionId = 'region-1';
+
+    render(<MainContent />);
+
+    expect(screen.queryByRole('button', { name: 'add-midi-region-1' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-2' }));
+
+    expect(storeState.openMidiReferenceMode).toHaveBeenCalledWith('region-1', 'region-2');
+    expect(storeState.openHybridMode).not.toHaveBeenCalled();
+  });
+
+  it('replaces the MIDI reference while hiding main, current-reference, and audio add buttons', async () => {
+    const thirdMidiRegion = new KGMidiRegion('region-3', '1', 0, 'Region 3', 12, 4);
+    midiTrack.setRegions([midiRegion, anotherMidiRegion, thirdMidiRegion]);
+    storeState.showPianoRoll = true;
+    storeState.activeRegionId = 'region-1';
+    storeState.pianoRollMode = 'midi-reference';
+    storeState.midiReferenceRegionId = 'region-2';
+
+    render(<MainContent />);
+
+    expect(screen.queryByRole('button', { name: 'add-midi-region-1' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'add-midi-region-2' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'add-audio-region' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-3' }));
+
+    expect(storeState.openMidiReferenceMode).toHaveBeenCalledWith('region-1', 'region-3');
+  });
+
+  it('returns to regular MIDI edit mode when the reference region disappears', async () => {
+    midiTrack.setRegions([midiRegion]);
+    storeState.showPianoRoll = true;
+    storeState.activeRegionId = 'region-1';
+    storeState.pianoRollMode = 'midi-reference';
+    storeState.midiReferenceRegionId = 'region-2';
+
+    render(<MainContent />);
+
+    await waitFor(() => expect(storeState.exitMidiReferenceMode).toHaveBeenCalledOnce());
   });
 
   it('keeps piano roll open and preserves activeRegionId when deselecting all regions', () => {
