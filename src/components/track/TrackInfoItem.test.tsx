@@ -178,6 +178,34 @@ describe('TrackInfoItem audio import', () => {
     expect(screen.queryByRole('button', { name: '导出 MIDI' })).not.toBeInTheDocument();
   });
 
+  it('renders the more-actions menu outside the scrollable track panel', () => {
+    const midiTrack = new KGMidiTrack('Piano', 1);
+    midiTrack.setTrackIndex(0);
+    storeState.tracks = [midiTrack] as unknown as KGAudioTrack[];
+
+    const { container } = render(
+      <TrackInfoItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+
+    const menu = document.body.querySelector('.track-settings-menu') as HTMLDivElement;
+    expect(menu).toBeInTheDocument();
+    expect(container.contains(menu)).toBe(false);
+    expect(menu.style.position).toBe('fixed');
+    expect(menu.style.visibility).toBe('visible');
+  });
+
   it('opens the duplicate dialog and submits the selected options', () => {
     const midiTrack = new KGMidiTrack('Piano', 1);
     midiTrack.setTrackIndex(0);

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { KGTrack } from '../../core/track/KGTrack';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
@@ -103,7 +104,11 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const [showTransposePopup, setShowTransposePopup] = useState(false);
   const [showDuplicateTrackDialog, setShowDuplicateTrackDialog] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
   const automationDropdownRef = useRef<HTMLDivElement>(null);
+  const [settingsMenuStyle, setSettingsMenuStyle] = useState<React.CSSProperties>({
+    visibility: 'hidden',
+  });
   const suppressDragRef = useRef(false);
   const [volume, setVolume] = useState(track.getVolume());
   const [isEditingVolume, setIsEditingVolume] = useState(false);
@@ -123,7 +128,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
       if (
         showSettingsDropdown && 
         settingsDropdownRef.current && 
-        !settingsDropdownRef.current.contains(event.target as Node)
+        !settingsDropdownRef.current.contains(event.target as Node) &&
+        !settingsMenuRef.current?.contains(event.target as Node)
       ) {
         setShowSettingsDropdown(false);
         setShowTrackColorPalette(false);
@@ -142,6 +148,43 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showSettingsDropdown, showAutomationDropdown]);
+
+  React.useLayoutEffect(() => {
+    if (!showSettingsDropdown) {
+      return;
+    }
+
+    const updateSettingsMenuPosition = () => {
+      const anchor = settingsDropdownRef.current;
+      const menu = settingsMenuRef.current;
+      if (!anchor || !menu) {
+        return;
+      }
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const viewportPadding = 8;
+      const left = Math.min(
+        Math.max(viewportPadding, anchorRect.left),
+        Math.max(viewportPadding, window.innerWidth - menu.offsetWidth - viewportPadding),
+      );
+
+      setSettingsMenuStyle({
+        position: 'fixed',
+        top: anchorRect.bottom + 2,
+        left,
+        visibility: 'visible',
+      });
+    };
+
+    updateSettingsMenuPosition();
+    window.addEventListener('resize', updateSettingsMenuPosition);
+    window.addEventListener('scroll', updateSettingsMenuPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateSettingsMenuPosition);
+      window.removeEventListener('scroll', updateSettingsMenuPosition, true);
+    };
+  }, [showSettingsDropdown]);
 
   // Sync currentInstrument state with actual track instrument value
   const instrumentFromTrack = track instanceof KGMidiTrack ? track.getInstrument() : 'acoustic_grand_piano';
@@ -590,8 +633,12 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
             >
               <TbDots />
             </button>
-            {showSettingsDropdown && (
-              <div className="track-settings-menu">
+            {showSettingsDropdown && createPortal(
+              <div
+                ref={settingsMenuRef}
+                className="track-settings-menu"
+                style={settingsMenuStyle}
+              >
                 {track instanceof KGMidiTrack && (
                   <button
                     type="button"
@@ -658,7 +705,8 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
                     />
                   </div>
                 )}
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         </div>
