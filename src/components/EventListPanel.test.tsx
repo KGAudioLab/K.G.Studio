@@ -91,6 +91,7 @@ type MockStoreState = {
   activeRegionId: string | null;
   selectedRegionIds: string[];
   selectedTrackId: string | null;
+  maxBars: number;
   timeSignature: { numerator: number; denominator: number };
   selectedNoteIds: string[];
   selectedPitchBendIds: string[];
@@ -109,6 +110,7 @@ const storeState: MockStoreState = {
   activeRegionId: 'region-1',
   selectedRegionIds: ['region-1'],
   selectedTrackId: '1',
+  maxBars: 32,
   timeSignature: { numerator: 4, denominator: 4 },
   selectedNoteIds: [],
   selectedPitchBendIds: [],
@@ -293,6 +295,28 @@ describe('EventListPanel', () => {
     expect(screen.getByRole('button', { name: 'Global' })).toBeInTheDocument();
     expect(screen.getByText('Pitch Bend')).toBeInTheDocument();
     expect(screen.getByText('Raw 12288 | 0.500 | 1.00 st')).toBeInTheDocument();
+  });
+
+  it('renders the horizontal playhead in every populated scope table', () => {
+    render(<EventListPanel isVisible={true} />);
+
+    expect(screen.getByTestId('event-list-playhead')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Track' }));
+    expect(screen.getByTestId('event-list-playhead')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Global' }));
+    expect(screen.getByTestId('event-list-playhead')).toBeInTheDocument();
+  });
+
+  it('hides the playhead when filters leave no visible rows', () => {
+    render(<EventListPanel isVisible={true} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pitch Bends' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Controller' }));
+
+    expect(screen.queryByTestId('event-list-playhead')).not.toBeInTheDocument();
   });
 
   it('switches to Track tab and lists selected track regions', () => {

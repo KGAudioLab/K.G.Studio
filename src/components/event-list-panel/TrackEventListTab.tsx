@@ -30,6 +30,8 @@ import { isModifierKeyPressed } from '../../util/osUtil';
 import { showAlert } from '../../util/dialogUtil';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { useI18n } from '../../i18n/useI18n';
+import EventListPlayhead from './EventListPlayhead';
+import { normalizeEventListPlayheadBeat } from './eventListPlayheadUtil';
 
 interface TrackEventListTabProps {
   selectedTrack: KGMidiTrack | KGAudioTrack | null;
@@ -123,6 +125,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
   const { t } = useI18n();
   const {
     tracks,
+    maxBars,
     playheadPosition,
     timeSignature,
     selectedRegionIds,
@@ -713,6 +716,17 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           </div>
 
           <div className="event-list-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
+            <EventListPlayhead
+              rows={trackRows.map(row => ({
+                id: row.id,
+                beat: normalizeEventListPlayheadBeat(
+                  row.type === 'region' ? row.absoluteStartBeat : row.absoluteBeat,
+                  MIDI_EVENT_TICKS_PER_BEAT,
+                ),
+              }))}
+              playheadPosition={playheadPosition}
+              songEndBeat={maxBars * timeSignature.numerator}
+            />
             <table className="event-list-table">
               <thead>
                 <tr>
