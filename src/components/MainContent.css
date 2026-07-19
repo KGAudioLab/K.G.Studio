@@ -185,7 +185,8 @@
 
 .global-tracks-section {
   display: flex;
-  position: relative;
+  position: sticky;
+  top: 40px;
   width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
   min-width: calc(var(--track-info-panel-width) + var(--max-number-of-bars) * var(--track-grid-bar-width));
   z-index: 1003;
