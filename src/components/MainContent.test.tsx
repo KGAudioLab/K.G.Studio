@@ -225,6 +225,25 @@ describe('MainContent', () => {
     executeCommandMock.mockClear();
   });
 
+  it('starts the main-grid playhead in the bar numbers with a single triangle', () => {
+    const { container } = render(<MainContent />);
+    const barNumbers = container.querySelector('.bar-numbers');
+
+    expect(barNumbers?.querySelectorAll('.playhead')).toHaveLength(1);
+    expect(barNumbers?.querySelectorAll('.playhead-triangle')).toHaveLength(1);
+    expect(container.querySelectorAll('.playhead-triangle')).toHaveLength(1);
+  });
+
+  it('continues the playhead through visible global tracks without another triangle', () => {
+    storeState.showGlobalTracks = true;
+    const { container } = render(<MainContent />);
+    const globalTracksGrid = container.querySelector('.global-tracks-grid');
+
+    expect(globalTracksGrid?.querySelectorAll('.playhead')).toHaveLength(1);
+    expect(globalTracksGrid?.querySelectorAll('.playhead-triangle')).toHaveLength(0);
+    expect(container.querySelectorAll('.playhead-triangle')).toHaveLength(1);
+  });
+
   it('updates activeRegionId when selecting a region with piano roll closed', () => {
     render(<MainContent />);
 

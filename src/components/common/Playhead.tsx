@@ -4,13 +4,19 @@ import { useProjectStore } from '../../stores/projectStore';
 interface PlayheadProps {
   /** Context where the playhead is being rendered */
   context: 'main-grid' | 'piano-roll';
+  /** Whether to render the main-grid triangle marker */
+  showTriangle?: boolean;
   /** For piano roll context, the region start beat offset */
   regionStartBeat?: number;
   /** Optional exact pixel override for variable-width layouts */
   pixelPositionOverride?: number;
 }
 
-const Playhead: React.FC<PlayheadProps> = ({ context, pixelPositionOverride }) => {
+const Playhead: React.FC<PlayheadProps> = ({
+  context,
+  showTriangle = context === 'main-grid',
+  pixelPositionOverride,
+}) => {
   const { timeSignature, playheadPosition } = useProjectStore();
 
   // Calculate the pixel position based on context
@@ -77,7 +83,7 @@ const Playhead: React.FC<PlayheadProps> = ({ context, pixelPositionOverride }) =
   return (
     <>
       <div className="playhead" style={playheadStyle} />
-      {context === 'main-grid' && (
+      {context === 'main-grid' && showTriangle && (
         <div className="playhead-triangle" style={triangleStyle} />
       )}
     </>

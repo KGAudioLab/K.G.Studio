@@ -10,7 +10,7 @@ import { KGTrack } from '../core/track/KGTrack';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
-import { TrackCreateDialog } from './common';
+import { Playhead, TrackCreateDialog } from './common';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { DeleteTrackAutomationPointsCommand } from '../core/commands';
 import { useMainContentRegions } from '../hooks/useMainContentRegions';
@@ -393,6 +393,7 @@ const MainContent: React.FC<MainContentProps> = ({
           ref={viewport.barNumbersRef}
           onMouseDown={viewport.handleBarNumbersMouseDown}
         >
+          <Playhead context="main-grid" />
           {Array.from({ length: maxBars }, (_, index) => (
             <div
               key={index}

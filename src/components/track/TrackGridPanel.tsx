@@ -1191,7 +1191,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   return (
     <div className="grid-container" ref={gridContainerRef} onMouseDownCapture={startLassoSelection}>
       {/* Playhead */}
-      <Playhead context="main-grid" />
+      <Playhead context="main-grid" showTriangle={false} />
 
       {/* Track grids */}
       {tracks.map((track, index) => (

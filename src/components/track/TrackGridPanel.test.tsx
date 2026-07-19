@@ -46,7 +46,9 @@ vi.mock('../../stores/projectStore', () => ({
 }));
 
 vi.mock('../common', () => ({
-  Playhead: () => null,
+  Playhead: ({ showTriangle }: { showTriangle?: boolean }) => (
+    <div data-testid="track-grid-playhead" data-show-triangle={String(showTriangle)} />
+  ),
   FileImportModal: (props: Record<string, unknown>) => {
     fileImportModalProps = props;
     return null;
@@ -200,6 +202,12 @@ describe('TrackGridPanel lasso selection', () => {
 
     return { ...view, onRegionLassoSelection, onRegionCreated };
   };
+
+  it('renders the track-grid playhead segment without a triangle', () => {
+    const { getByTestId } = renderPanel();
+
+    expect(getByTestId('track-grid-playhead')).toHaveAttribute('data-show-triangle', 'false');
+  });
 
   const mockDroppedFileList = (files: File[]) => {
     const fileList = {

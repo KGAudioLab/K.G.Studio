@@ -281,6 +281,7 @@
 .global-tracks-grid {
   min-width: calc(var(--max-number-of-bars) * var(--track-grid-bar-width));
   background-color: #2d2d2d;
+  position: relative;
 }
 
 .global-track-grid-row {
