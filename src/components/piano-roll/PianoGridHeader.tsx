@@ -4,6 +4,7 @@ import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { useProjectStore } from '../../stores/projectStore';
 import { DEBUG_MODE } from '../../constants';
 import { getSnappedBeatPosition } from './pianoRollSnap';
+import { Playhead } from '../common';
 
 interface PianoGridHeaderProps {
   maxBars: number;
@@ -143,6 +144,9 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
       onMouseDown={handleMouseDown}
       onClick={handlePianoGridHeaderClick}
     >
+      <div className="piano-grid-header-playhead" aria-hidden="true">
+        <Playhead context="piano-roll" showTriangle />
+      </div>
       {Array.from({ length: maxBars }, (_, i) => (
         <div key={i} className="piano-bar-number">{i + 1}</div>
       ))}

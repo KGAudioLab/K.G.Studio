@@ -573,6 +573,16 @@
   padding-left: 0;
 }
 
+.piano-grid-header-playhead {
+  position: absolute;
+  inset: 0 0 0 calc(var(--region-piano-key-width) - 1px);
+  pointer-events: none;
+}
+
+.piano-grid-header.no-piano-keys .piano-grid-header-playhead {
+  left: 0;
+}
+
 .piano-bar-number {
   border-left: 1px solid #3a3a3a;
   padding-left: 10px;

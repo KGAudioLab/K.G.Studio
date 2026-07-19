@@ -4,8 +4,10 @@ import { useProjectStore } from '../../stores/projectStore';
 interface PlayheadProps {
   /** Context where the playhead is being rendered */
   context: 'main-grid' | 'piano-roll';
-  /** Whether to render the main-grid triangle marker */
+  /** Whether to render the triangle marker */
   showTriangle?: boolean;
+  /** Visual horizontal adjustment for layout-specific borders or gutters */
+  horizontalOffset?: number;
   /** For piano roll context, the region start beat offset */
   regionStartBeat?: number;
   /** Optional exact pixel override for variable-width layouts */
@@ -15,6 +17,7 @@ interface PlayheadProps {
 const Playhead: React.FC<PlayheadProps> = ({
   context,
   showTriangle = context === 'main-grid',
+  horizontalOffset = 0,
   pixelPositionOverride,
 }) => {
   const { timeSignature, playheadPosition } = useProjectStore();
@@ -54,9 +57,11 @@ const Playhead: React.FC<PlayheadProps> = ({
     return null;
   }
 
+  const renderedPixelPosition = pixelPosition + horizontalOffset;
+
   const playheadStyle: React.CSSProperties = {
     position: 'absolute',
-    left: `${pixelPosition}px`,
+    left: `${renderedPixelPosition}px`,
     top: 0,
     bottom: 0,
     width: '2px',
@@ -66,10 +71,10 @@ const Playhead: React.FC<PlayheadProps> = ({
     boxShadow: '0 0 4px rgba(78, 205, 196, 0.5)', // Subtle glow effect
   };
 
-  // Triangle indicator style (only for main-grid context)
+  // Triangle indicator style
   const triangleStyle: React.CSSProperties = {
     position: 'absolute',
-    left: `${pixelPosition - 5}px`, // Center the triangle on the playhead line
+    left: `${renderedPixelPosition - 5}px`, // Center the triangle on the playhead line
     top: '-2px', // Position slightly above the top
     width: 0,
     height: 0,
@@ -83,7 +88,7 @@ const Playhead: React.FC<PlayheadProps> = ({
   return (
     <>
       <div className="playhead" style={playheadStyle} />
-      {context === 'main-grid' && showTriangle && (
+      {showTriangle && (
         <div className="playhead-triangle" style={triangleStyle} />
       )}
     </>

@@ -326,7 +326,11 @@ const PianoGrid: React.FC<PianoGridProps> = ({
         )}
         
         {/* Playhead */}
-        <Playhead context="piano-roll" regionStartBeat={regionStartBeat} />
+        <Playhead
+          context="piano-roll"
+          regionStartBeat={regionStartBeat}
+          horizontalOffset={mode === 'audio-waveform' ? 0 : -1}
+        />
         
         {children}
         <SelectionBox 
