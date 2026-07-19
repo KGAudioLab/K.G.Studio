@@ -1,3 +1,20 @@
+# [0.22.0-build.20260719] (2026-07-19)
+
+* Merge pull request #65 from KGAudioLab/feat/2026-07-17-transpose (4bd4986)
+* docs: updated README files (1496fb9)
+* fix: render track actions menu above piano roll panel (dc2e6bf)
+* feat: implemented playhead for the event list panel (e18ba71)
+* feat: extend piano-roll playhead into bar numbers (71fa248)
+* feat: extend main-grid playhead to bar numbers (2cc4613)
+* feat: keep global tracks sticky in main grid (0250820)
+* feat: add MIDI reference mode to piano roll panel (83939b7)
+* feat: add configurable track duplication (97e6f2e)
+* feat: center playhead when switching regions (ce3034a)
+* fix: minor enhance abc notation debug utility (ab45a88)
+* fix: use key-aware enharmonic spelling in staff notation (9695496)
+* feat(debugger): support ranged ABC conversion from playhead (cc119b9)
+* feat: add MIDI transpose settings and chord auto-transposition (c8ae0a1)
+
 # [0.21.1-build.20260714] (2026-07-14)
 
 * Merge pull request #64 from KGAudioLab/feat/2026-07-10-enhance-midi-handling (0ab90f0)
