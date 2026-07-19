@@ -5,6 +5,7 @@ import GlobalKeySignatureLane from './GlobalKeySignatureLane';
 import GlobalMarkerLane from './GlobalMarkerLane';
 import GlobalTempoLane from './GlobalTempoLane';
 import { useI18n } from '../../i18n/useI18n';
+import { Playhead } from '../common';
 
 interface GlobalTrackDefinition {
   id: 'marker' | 'tempo' | 'signature' | 'chord';
@@ -123,6 +124,7 @@ const MainContentGlobalTracksSection: React.FC<MainContentGlobalTracksSectionPro
       </div>
       <div className={`global-tracks-grid-shell${isAnimated ? ' expanded' : ' collapsed'}`}>
         <div className="global-tracks-grid" aria-hidden="true">
+          <Playhead context="main-grid" showTriangle={false} />
           <GlobalMarkerLane {...markerLaneProps} />
           <GlobalTempoLane {...tempoLaneProps} />
           <GlobalKeySignatureLane {...keySignatureLaneProps} />

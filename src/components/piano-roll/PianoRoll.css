@@ -573,6 +573,16 @@
   padding-left: 0;
 }
 
+.piano-grid-header-playhead {
+  position: absolute;
+  inset: 0 0 0 calc(var(--region-piano-key-width) - 1px);
+  pointer-events: none;
+}
+
+.piano-grid-header.no-piano-keys .piano-grid-header-playhead {
+  left: 0;
+}
+
 .piano-bar-number {
   border-left: 1px solid #3a3a3a;
   padding-left: 10px;
@@ -854,6 +864,15 @@
   pointer-events: none;
   z-index: 2;
   transition: opacity 0.1s ease;
+}
+
+.piano-grid-midi-reference-note {
+  position: absolute;
+  box-sizing: border-box;
+  background-color: transparent;
+  border: 1px solid rgba(255, 77, 77, 0.8);
+  pointer-events: none;
+  z-index: 4;
 }
 
 .piano-grid-recording-note {

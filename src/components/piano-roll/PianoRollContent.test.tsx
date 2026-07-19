@@ -2,9 +2,10 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import PianoRollContent from './PianoRollContent';
-import { createMockMidiRegion } from '../../test/utils/mock-data';
+import { createMockMidiNote, createMockMidiRegion } from '../../test/utils/mock-data';
 import type { KeySignature } from '../../core/KGProject';
 import { parseSheetQuantization } from './sheetNotation';
+import { velocityToColor } from '../../util/velocityColor';
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector: (state: { isRecording: boolean; recordingNotes: [] }) => unknown) => (
@@ -176,5 +177,33 @@ describe('PianoRollContent', () => {
       sheetMusicTrackScopeEnabled: true,
       maxBars: 8,
     }));
+  });
+
+  it('renders MIDI reference notes as read-only absolute-timeline outlines', () => {
+    const activeRegion = createMockMidiRegion({
+      notes: [createMockMidiNote({ id: 'main-note', startBeat: 0, endBeat: 1 })],
+    });
+    const referenceMidiRegion = createMockMidiRegion({
+      id: 'reference-region',
+      startFromBeat: 8,
+      notes: [createMockMidiNote({ id: 'reference-note', startBeat: 1, endBeat: 3, pitch: 60 })],
+    });
+
+    const { container } = render(
+      <PianoRollContent
+        {...baseProps}
+        activeRegion={activeRegion}
+        referenceMidiRegion={referenceMidiRegion}
+        mode="midi-reference"
+      />
+    );
+
+    expect(screen.getAllByTestId('piano-note')).toHaveLength(1);
+    const referenceNote = container.querySelector('[data-reference-note-id="reference-note"]');
+    expect(referenceNote).toHaveClass('piano-grid-midi-reference-note');
+    expect(referenceNote).toHaveAttribute('data-reference-region-id', 'reference-region');
+    expect(referenceNote).toHaveStyle({ left: '360px', top: '940px', width: '80px', height: '20px' });
+    expect(referenceNote).toHaveStyle({ borderColor: velocityToColor(80) });
+    expect((referenceNote as HTMLElement).onclick).toBeNull();
   });
 });

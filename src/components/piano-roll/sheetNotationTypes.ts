@@ -17,6 +17,7 @@ export interface SheetQuantization {
 
 export interface SheetDisplayEvent {
   keys: string[];
+  midiPitches: number[];
   startBeat: number;
   endBeat: number;
   isRest: boolean;

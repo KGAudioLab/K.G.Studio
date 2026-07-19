@@ -10,6 +10,8 @@ const getPlayheadPosition = vi.fn(() => 0);
 const storeState = {
   setPlayheadPosition,
   requestMainContentScroll,
+  playheadPosition: 2,
+  timeSignature: { numerator: 4, denominator: 4 },
 };
 
 vi.mock('../../stores/projectStore', () => ({
@@ -103,6 +105,23 @@ describe('PianoGridHeader', () => {
     expect(setPlayheadPosition).toHaveBeenCalledWith(3);
     expect(requestMainContentScroll).toHaveBeenCalledTimes(1);
     expect(requestMainContentScroll).toHaveBeenCalledWith(3);
+  });
+
+  it('renders a playhead segment over the piano bar numbers', () => {
+    const { header } = renderHeader();
+    const playheadLayer = header.querySelector('.piano-grid-header-playhead');
+    const playhead = playheadLayer?.querySelector('.playhead');
+
+    expect(playheadLayer?.querySelectorAll('.playhead')).toHaveLength(1);
+    expect(playheadLayer?.querySelectorAll('.playhead-triangle')).toHaveLength(1);
+    expect(playhead).toHaveStyle({ left: '80px' });
+  });
+
+  it('removes the playhead gutter offset when piano keys are hidden', () => {
+    const { header } = renderHeader({ hasPianoKeys: false });
+
+    expect(header).toHaveClass('no-piano-keys');
+    expect(header.querySelector('.piano-grid-header-playhead')).toBeInTheDocument();
   });
 
   it('seeks to the same beat after horizontal scroll when the header rect already shifts with content', () => {

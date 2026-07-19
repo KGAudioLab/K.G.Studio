@@ -5,7 +5,6 @@ import type { KGMidiNote } from '../../core/midi/KGMidiNote';
 import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import type {
-  SheetDisplayEvent,
   SheetMeasureMetric,
   SheetMeasureModel,
   SheetQuantization,
@@ -36,10 +35,15 @@ export interface BuildSheetNotationOptions {
 }
 
 interface WorkingEvent {
-  keys: string[];
+  midiPitches: number[];
   startBeat: number;
   endBeat: number;
   isRest: boolean;
+}
+
+interface SplitWorkingEvent extends WorkingEvent {
+  tieStart: boolean;
+  tieEnd: boolean;
 }
 
 interface NormalizedNoteInput {
@@ -267,13 +271,25 @@ export function buildSheetMeasureModels({
 
   splitEvents.forEach(event => {
     const barIndex = Math.min(measures.length - 1, Math.max(0, Math.floor(event.startBeat / beatsPerBar)));
-    measures[barIndex].events.push(event);
+    const measure = measures[barIndex];
+    measure.events.push({
+      keys: event.isRest
+        ? ['b/4']
+        : event.midiPitches.map(pitch => midiPitchToVexKey(pitch, measure.keySignature)),
+      midiPitches: [...event.midiPitches],
+      startBeat: event.startBeat,
+      endBeat: event.endBeat,
+      isRest: event.isRest,
+      tieStart: event.tieStart,
+      tieEnd: event.tieEnd,
+    });
   });
 
   measures.forEach((measure) => {
     if (measure.events.length === 0) {
       measure.events.push({
         keys: ['b/4'],
+        midiPitches: [],
         startBeat: measure.startBeat,
         endBeat: measure.endBeat,
         isRest: true,
@@ -289,7 +305,7 @@ export function buildSheetMeasureModels({
 function normalizeNotes(notes: NormalizedNoteInput[], stepBeats: number, measureEndBeat: number): WorkingEvent[] {
   const clippedNotes = notes
     .map(note => ({
-      keys: [midiPitchToVexKey(note.pitch)],
+      midiPitches: [note.pitch],
       startBeat: quantizeBeat(note.startBeat, stepBeats),
       endBeat: quantizeBeat(note.endBeat, stepBeats),
       isRest: false,
@@ -303,7 +319,7 @@ function normalizeNotes(notes: NormalizedNoteInput[], stepBeats: number, measure
     .sort((a, b) => {
       if (a.startBeat !== b.startBeat) return a.startBeat - b.startBeat;
       if (a.endBeat !== b.endBeat) return a.endBeat - b.endBeat;
-      return a.keys[0].localeCompare(b.keys[0]);
+      return a.midiPitches[0] - b.midiPitches[0];
     });
 
   const merged: WorkingEvent[] = [];
@@ -316,7 +332,7 @@ function normalizeNotes(notes: NormalizedNoteInput[], stepBeats: number, measure
       Math.abs(previous.startBeat - note.startBeat) < EPSILON &&
       Math.abs(previous.endBeat - note.endBeat) < EPSILON
     ) {
-      previous.keys.push(...note.keys);
+      previous.midiPitches.push(...note.midiPitches);
       continue;
     }
 
@@ -357,7 +373,7 @@ function collectTrackScopeNotes(regions: KGMidiRegion[]): NormalizedNoteInput[] 
 
 function insertRests(events: WorkingEvent[], measureEndBeat: number): WorkingEvent[] {
   if (events.length === 0) {
-    return [{ keys: ['b/4'], startBeat: 0, endBeat: measureEndBeat, isRest: true }];
+    return [{ midiPitches: [], startBeat: 0, endBeat: measureEndBeat, isRest: true }];
   }
 
   const result: WorkingEvent[] = [];
@@ -366,7 +382,7 @@ function insertRests(events: WorkingEvent[], measureEndBeat: number): WorkingEve
   for (const event of events) {
     if (event.startBeat > cursorBeat + EPSILON) {
       result.push({
-        keys: ['b/4'],
+        midiPitches: [],
         startBeat: cursorBeat,
         endBeat: event.startBeat,
         isRest: true,
@@ -379,7 +395,7 @@ function insertRests(events: WorkingEvent[], measureEndBeat: number): WorkingEve
 
   if (cursorBeat < measureEndBeat - EPSILON) {
     result.push({
-      keys: ['b/4'],
+      midiPitches: [],
       startBeat: cursorBeat,
       endBeat: measureEndBeat,
       isRest: true,
@@ -389,8 +405,8 @@ function insertRests(events: WorkingEvent[], measureEndBeat: number): WorkingEve
   return result;
 }
 
-function splitAcrossBars(events: WorkingEvent[], beatsPerBar: number): SheetDisplayEvent[] {
-  const result: SheetDisplayEvent[] = [];
+function splitAcrossBars(events: WorkingEvent[], beatsPerBar: number): SplitWorkingEvent[] {
+  const result: SplitWorkingEvent[] = [];
 
   for (const event of events) {
     let segmentStart = event.startBeat;
@@ -402,7 +418,7 @@ function splitAcrossBars(events: WorkingEvent[], beatsPerBar: number): SheetDisp
       const segmentEnd = Math.min(eventEnd, barEnd);
 
       result.push({
-        keys: [...event.keys],
+        midiPitches: [...event.midiPitches],
         startBeat: segmentStart,
         endBeat: segmentEnd,
         isRest: event.isRest,
@@ -425,9 +441,11 @@ function clampBeat(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function midiPitchToVexKey(pitch: number): string {
+function midiPitchToVexKey(pitch: number, keySignature: KeySignature): string {
   const semitone = ((pitch % 12) + 12) % 12;
   const octave = Math.floor(pitch / 12) - 1;
-  const names = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+  const names = KEY_SIGNATURE_MAP[keySignature].flats > 0
+    ? ['c', 'db', 'd', 'eb', 'e', 'f', 'gb', 'g', 'ab', 'a', 'bb', 'b']
+    : ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
   return `${names[semitone]}/${octave}`;
 }

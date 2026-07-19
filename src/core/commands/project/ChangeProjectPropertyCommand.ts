@@ -9,6 +9,9 @@ import {
   syncAudioRegionLengthsToPlaybackDuration,
   type AudioRegionLengthSnapshot,
 } from '../../../util/globalTrackUtil';
+import { buildFollowKeyTransposePlan, type FollowKeyTransposePlan } from '../../../util/midiTransposeUtil';
+import { getKeySignatureTransposeDelta } from '../../../util/midiTransposeUtil';
+import { buildChordTransposePlan, type ChordTransposePlan } from '../../../util/chordTransposeUtil';
 
 /**
  * Interface defining properties that can be updated on a project
@@ -33,10 +36,14 @@ export class ChangeProjectPropertyCommand extends KGCommand {
   private targetProject: KGProject | null = null;
   private changedProperties: Set<keyof ProjectUpdateProperties> = new Set();
   private audioRegionLengthSnapshots: AudioRegionLengthSnapshot[] = [];
+  private keyTransposePlan: FollowKeyTransposePlan | null = null;
+  private chordTransposePlan: ChordTransposePlan | null = null;
+  private readonly transposeChords: boolean;
 
-  constructor(properties: ProjectUpdateProperties) {
+  constructor(properties: ProjectUpdateProperties, options: { transposeChords?: boolean } = {}) {
     super();
     this.newProperties = properties;
+    this.transposeChords = options.transposeChords ?? false;
   }
 
   private clampPlayheadToSongEndIfNeeded(): void {
@@ -130,6 +137,20 @@ export class ChangeProjectPropertyCommand extends KGCommand {
 
     // Update key signature
     if (this.newProperties.keySignature !== undefined && this.newProperties.keySignature !== this.originalProperties.keySignature) {
+      this.keyTransposePlan = buildFollowKeyTransposePlan(
+        this.targetProject,
+        this.originalProperties.keySignature!,
+        this.newProperties.keySignature,
+      );
+      this.chordTransposePlan = this.transposeChords
+        ? buildChordTransposePlan(
+          this.targetProject,
+          getKeySignatureTransposeDelta(this.originalProperties.keySignature!, this.newProperties.keySignature),
+          this.newProperties.keySignature,
+        )
+        : null;
+      this.keyTransposePlan.apply();
+      this.chordTransposePlan?.apply();
       this.targetProject.setKeySignature(this.newProperties.keySignature);
       this.changedProperties.add('keySignature');
       updatedProperties.push(`keySignature: "${this.originalProperties.keySignature}" → "${this.newProperties.keySignature}"`);
@@ -195,6 +216,8 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     // Restore key signature (only if it was changed)
     if (this.changedProperties.has('keySignature') && this.originalProperties.keySignature !== undefined) {
       this.targetProject.setKeySignature(this.originalProperties.keySignature);
+      this.chordTransposePlan?.undo();
+      this.keyTransposePlan?.undo();
       restoredProperties.push(`keySignature: "${this.originalProperties.keySignature}"`);
     }
 

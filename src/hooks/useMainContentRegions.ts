@@ -16,6 +16,7 @@ import { useProjectStore } from '../stores/projectStore';
 import { useRegionOperations } from './useRegionOperations';
 import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
 import { resolveRegionColor } from '../util/regionColor';
+import type { PianoRollMode } from '../constants';
 
 const DEFAULT_REGION_CLICK_OPTIONS: RegionClickOptions = {
   shiftKey: false,
@@ -38,7 +39,8 @@ interface UseMainContentRegionsParams {
   openAudioWaveformViewer: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
-  pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  openMidiReferenceMode: (mainRegionId: string, referenceRegionId: string) => void;
+  pianoRollMode: PianoRollMode;
   updateTrack: (track: KGTrack) => void;
   maxBars: number;
 }
@@ -86,6 +88,7 @@ export function useMainContentRegions({
   openAudioWaveformViewer,
   openSpectrogramViewer,
   openHybridMode,
+  openMidiReferenceMode,
   pianoRollMode,
   updateTrack,
   maxBars,
@@ -751,12 +754,17 @@ export function useMainContentRegions({
   }, [handleRegionClick, openSpectrogramViewer]);
 
   const handleOpenHybrid = useCallback((regionId: string) => {
-    if (pianoRollMode === 'midi-edit' && activeRegionId) {
+    const targetRegion = findProjectRegionById(regionId);
+    if (pianoRollMode === 'midi-edit' && activeRegionId && targetRegion instanceof KGAudioRegion) {
       openHybridMode(activeRegionId, regionId);
+    } else if (pianoRollMode === 'midi-edit' && activeRegionId && targetRegion instanceof KGMidiRegion) {
+      openMidiReferenceMode(activeRegionId, regionId);
     } else if ((pianoRollMode === 'audio-waveform' || pianoRollMode === 'spectrogram') && activeRegionId) {
       openHybridMode(regionId, activeRegionId);
+    } else if (pianoRollMode === 'midi-reference' && activeRegionId && targetRegion instanceof KGMidiRegion) {
+      openMidiReferenceMode(activeRegionId, regionId);
     }
-  }, [activeRegionId, openHybridMode, pianoRollMode]);
+  }, [activeRegionId, findProjectRegionById, openHybridMode, openMidiReferenceMode, pianoRollMode]);
 
   return {
     regions,

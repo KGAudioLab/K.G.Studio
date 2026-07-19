@@ -42,13 +42,18 @@ import {
 } from '../../util/midiUtil';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { parseChordSymbol } from '../../util/chordUtil';
-import { showAlert } from '../../util/dialogUtil';
+import { showAlert, showConfirm } from '../../util/dialogUtil';
 import { getSortedKeySignatureRegions, getSortedTempoRegions } from '../../util/globalTrackUtil';
 import { useI18n } from '../../i18n/useI18n';
+import { hasChordRegionsInTracks } from '../../util/chordTransposeUtil';
+import { getKeySignatureTransposeDelta } from '../../util/midiTransposeUtil';
+import EventListPlayhead from './EventListPlayhead';
+import { normalizeEventListPlayheadBeat } from './eventListPlayheadUtil';
 
 interface GlobalEventListTabProps {
   globalTracks: KGGlobalTrack[];
   selectedRegionIds: string[];
+  maxBars: number;
   timeSignature: { numerator: number; denominator: number };
   playheadPosition: number;
   refreshProjectState: () => void;
@@ -163,6 +168,7 @@ const buildValueValidationMessage = (
 const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
   globalTracks,
   selectedRegionIds,
+  maxBars,
   timeSignature,
   playheadPosition,
   refreshProjectState,
@@ -475,9 +481,33 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             return;
           }
           const keySignature = trimmedValue as KeySignature;
+          const changingKeyRows = targetRows.filter(
+            (targetRow): targetRow is KeySignatureRowData => targetRow.type === 'key-signature'
+              && targetRow.region.getKeySignature() !== keySignature,
+          );
+          const shouldAsk = changingKeyRows.some(targetRow => {
+            const startBeat = targetRow.region.getStartFromBeat();
+            return getKeySignatureTransposeDelta(targetRow.region.getKeySignature(), keySignature) !== 0
+              && hasChordRegionsInTracks(globalTracks, {
+                startBeat,
+                endBeat: startBeat + targetRow.region.getLength(),
+              });
+          });
+          const transposeChords = shouldAsk && await showConfirm(t('transpose.chords.confirmRange'), {
+            confirmLabel: t('transpose.chords.transposeAction'),
+            cancelLabel: t('transpose.chords.leaveAction'),
+          });
           for (const targetRow of targetRows) {
             if (targetRow.type === 'key-signature' && targetRow.region.getKeySignature() !== keySignature) {
-              KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(targetRow.id, keySignature));
+              try {
+                KGCore.instance().executeCommand(
+                  new UpdateKeySignatureRegionCommand(targetRow.id, keySignature, transposeChords),
+                  { rethrow: true },
+                );
+              } catch (error) {
+                await showAlert(t('transpose.error', { error: String(error) }));
+                return;
+              }
             }
           }
         } else if (parseChordSymbol(trimmedValue) === null) {
@@ -809,6 +839,14 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
       </div>
 
       <div className="event-list-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
+        <EventListPlayhead
+          rows={globalRows.map(row => ({
+            id: row.id,
+            beat: normalizeEventListPlayheadBeat(row.absoluteStartBeat, MIDI_EVENT_TICKS_PER_BEAT),
+          }))}
+          playheadPosition={playheadPosition}
+          songEndBeat={maxBars * timeSignature.numerator}
+        />
         <table className="event-list-table">
           <thead>
             <tr>

@@ -63,6 +63,7 @@ interface TrackGridPanelProps {
   onOpenSpectrogram?: (regionId: string) => void;
   showHybridButtonForAudio?: boolean;
   showHybridButtonForMidi?: boolean;
+  hybridButtonExcludedRegionIds?: string[];
   onOpenHybrid?: (regionId: string) => void;
   onExternalDropComplete?: (trackIndex: number, regionUI: RegionUI) => void;
 }
@@ -86,6 +87,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   onOpenSpectrogram,
   showHybridButtonForAudio,
   showHybridButtonForMidi,
+  hybridButtonExcludedRegionIds,
   onOpenHybrid,
   onExternalDropComplete,
 }) => {
@@ -1189,7 +1191,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
   return (
     <div className="grid-container" ref={gridContainerRef} onMouseDownCapture={startLassoSelection}>
       {/* Playhead */}
-      <Playhead context="main-grid" />
+      <Playhead context="main-grid" showTriangle={false} />
 
       {/* Track grids */}
       {tracks.map((track, index) => (
@@ -1216,6 +1218,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           onOpenSpectrogram={onOpenSpectrogram}
           showHybridButtonForAudio={showHybridButtonForAudio}
           showHybridButtonForMidi={showHybridButtonForMidi}
+          hybridButtonExcludedRegionIds={hybridButtonExcludedRegionIds}
           onOpenHybrid={onOpenHybrid}
           allTracks={tracks}
           onKGOneClipDrop={handleExternalDrop}

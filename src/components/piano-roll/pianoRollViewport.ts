@@ -13,6 +13,17 @@ export interface PendingModeSwitchRequest {
   alignment: ViewportSwitchAlignment;
   anchorBeat: number;
   clampScope: ViewportClampScope;
+  destinationHasPianoKeys?: boolean;
+}
+
+export interface RegionSwitchRequestOptions {
+  playheadBeat: number;
+  regionStartBeat: number;
+  regionEndBeat: number;
+  sourceSheetMusicViewEnabled: boolean;
+  destinationSheetMusicViewEnabled: boolean;
+  destinationSheetMusicTrackScopeEnabled: boolean;
+  destinationHasPianoKeys: boolean;
 }
 
 export interface ModeSwitchRequestOptions {
@@ -96,11 +107,39 @@ export function createPendingModeSwitchRequest({
   };
 }
 
-function getHorizontalViewportMetrics(container: HTMLDivElement, sheetMusicViewEnabled: boolean): {
+export function createPendingRegionSwitchRequest({
+  playheadBeat,
+  regionStartBeat,
+  regionEndBeat,
+  sourceSheetMusicViewEnabled,
+  destinationSheetMusicViewEnabled,
+  destinationSheetMusicTrackScopeEnabled,
+  destinationHasPianoKeys,
+}: RegionSwitchRequestOptions): PendingModeSwitchRequest | null {
+  if (getRegionPlayheadRelation(playheadBeat, regionStartBeat, regionEndBeat) !== 'inside') {
+    return null;
+  }
+
+  return {
+    sourceSheetMusicViewEnabled,
+    destinationSheetMusicViewEnabled,
+    destinationSheetMusicTrackScopeEnabled,
+    destinationHasPianoKeys,
+    alignment: 'center',
+    anchorBeat: playheadBeat,
+    clampScope: 'track',
+  };
+}
+
+function getHorizontalViewportMetrics(
+  container: HTMLDivElement,
+  sheetMusicViewEnabled: boolean,
+  hasPianoKeys: boolean
+): {
   visibleWidth: number;
   keysWidth: number;
 } {
-  const keysWidth = sheetMusicViewEnabled
+  const keysWidth = sheetMusicViewEnabled || !hasPianoKeys
     ? 0
     : (parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
@@ -217,7 +256,8 @@ export function getScrollLeftForViewportRequest({
 }: ScrollLeftForViewportRequestOptions): number {
   const { visibleWidth } = getHorizontalViewportMetrics(
     container,
-    request.destinationSheetMusicViewEnabled
+    request.destinationSheetMusicViewEnabled,
+    request.destinationHasPianoKeys ?? !request.destinationSheetMusicViewEnabled
   );
   const pixelPosition = getPixelForAbsoluteBeat(
     request.anchorBeat,

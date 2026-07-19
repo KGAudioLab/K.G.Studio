@@ -3,6 +3,7 @@ import { KGCore } from '../../KGCore';
 import { KGTrack, TrackType } from '../../track/KGTrack';
 import { KGMidiTrack, type InstrumentType } from '../../track/KGMidiTrack';
 import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
+import { isPercussionInstrument } from '../../instruments/instrumentResolver';
 
 /**
  * Interface defining properties that can be updated on a track
@@ -15,6 +16,7 @@ export interface TrackUpdateProperties {
   muted?: boolean;
   solo?: boolean;
   color?: string | null;
+  noTranspose?: boolean;
 }
 
 /**
@@ -58,6 +60,7 @@ export class UpdateTrackCommand extends KGCommand {
     // Store original instrument if it's a MIDI track
     if (this.targetTrack instanceof KGMidiTrack) {
       this.originalProperties.instrument = this.targetTrack.getInstrument();
+      this.originalProperties.noTranspose = this.targetTrack.getNoTranspose();
     }
 
     // Apply updates and track what actually changes
@@ -91,6 +94,22 @@ export class UpdateTrackCommand extends KGCommand {
         this.changedProperties.add('instrument');
         updatedProperties.push(`instrument: ${originalInstrument} → ${this.newProperties.instrument}`);
       }
+
+      const nextNoTranspose = this.newProperties.noTranspose
+        ?? (isPercussionInstrument(String(this.newProperties.instrument)) ? true : this.originalProperties.noTranspose);
+      if (nextNoTranspose !== undefined && nextNoTranspose !== this.originalProperties.noTranspose) {
+        this.targetTrack.setNoTranspose(nextNoTranspose);
+        this.changedProperties.add('noTranspose');
+        updatedProperties.push(`no transpose: ${this.originalProperties.noTranspose} → ${nextNoTranspose}`);
+      }
+    } else if (
+      this.newProperties.noTranspose !== undefined
+      && this.targetTrack instanceof KGMidiTrack
+      && this.newProperties.noTranspose !== this.originalProperties.noTranspose
+    ) {
+      this.targetTrack.setNoTranspose(this.newProperties.noTranspose);
+      this.changedProperties.add('noTranspose');
+      updatedProperties.push(`no transpose: ${this.originalProperties.noTranspose} → ${this.newProperties.noTranspose}`);
     }
 
     // Update volume
@@ -186,6 +205,11 @@ export class UpdateTrackCommand extends KGCommand {
       restoredProperties.push(`instrument: ${this.originalProperties.instrument}`);
     }
 
+    if (this.changedProperties.has('noTranspose') && this.targetTrack instanceof KGMidiTrack) {
+      this.targetTrack.setNoTranspose(this.originalProperties.noTranspose ?? false);
+      restoredProperties.push(`no transpose: ${this.originalProperties.noTranspose ?? false}`);
+    }
+
     // Restore volume (only if it was changed)
     if (this.changedProperties.has('volume') && this.originalProperties.volume !== undefined) {
       // Update the track model
@@ -248,6 +272,9 @@ export class UpdateTrackCommand extends KGCommand {
     }
     if ('color' in this.newProperties) {
       updatedProps.push('color');
+    }
+    if (this.newProperties.noTranspose !== undefined) {
+      updatedProps.push('no transpose');
     }
 
     if (updatedProps.length === 1) {

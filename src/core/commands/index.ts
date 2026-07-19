@@ -9,9 +9,15 @@ export { KGCommandHistory } from './KGCommandHistory';
 // Track commands
 export { AddTrackCommand } from './track/AddTrackCommand';
 export { AddAudioTrackCommand } from './track/AddAudioTrackCommand';
+export {
+  DuplicateTrackCommand,
+  generateDuplicateTrackName,
+  type DuplicateTrackOptions,
+} from './track/DuplicateTrackCommand';
 export { RemoveTrackCommand } from './track/RemoveTrackCommand';
 export { ReorderTracksCommand } from './track/ReorderTracksCommand';
 export { UpdateTrackCommand, type TrackUpdateProperties } from './track/UpdateTrackCommand';
+export { UpdateMidiTrackTransposeCommand } from './track/UpdateMidiTrackTransposeCommand';
 export {
   CreateTrackAutomationPointsCommand,
   type TrackAutomationPointCreationData,
@@ -27,6 +33,7 @@ export { MoveRegionCommand } from './region/MoveRegionCommand';
 export { MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand } from './region/TransformRegionsCommand';
 export { PasteRegionsCommand } from './region/PasteRegionsCommand';
 export { UpdateRegionCommand, type RegionUpdateProperties } from './region/UpdateRegionCommand';
+export { UpdateMidiRegionTransposeCommand } from './region/UpdateMidiRegionTransposeCommand';
 export { ImportAudioCommand } from './region/ImportAudioCommand';
 export { ImportMidiClipCommand } from './region/ImportMidiClipCommand';
 export { ImportChordRegionsCommand } from './region/ImportChordRegionsCommand';

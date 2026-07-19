@@ -6,7 +6,7 @@ import { splitSelectedRegionAtPlayhead } from './regionEditUtil';
 
 const storeState = {
   showPianoRoll: false,
-  pianoRollMode: 'midi-edit' as 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid',
+  pianoRollMode: 'midi-edit' as 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid' | 'midi-reference',
   activeRegionId: null as string | null,
   selectedNoteIds: [] as string[],
   setShowPianoRoll: vi.fn(),
@@ -124,7 +124,7 @@ describe('splitSelectedRegionAtPlayhead', () => {
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
   });
 
-  it('splits selected notes when the piano roll is open in midi-edit view', async () => {
+  it.each(['midi-edit', 'midi-reference'] as const)('splits selected notes when the piano roll is open in %s view', async (pianoRollMode) => {
     const note = new KGMidiNote('note-1', 1, 5, 60, 100);
     const region = createMockMidiRegion({
       id: 'region-1',
@@ -135,6 +135,7 @@ describe('splitSelectedRegionAtPlayhead', () => {
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
     storeState.showPianoRoll = true;
+    storeState.pianoRollMode = pianoRollMode;
     storeState.activeRegionId = 'region-1';
     storeState.selectedNoteIds = ['note-1'];
     const refreshProjectState = vi.fn();

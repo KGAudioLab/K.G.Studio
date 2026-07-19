@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const debuggerMocks = vi.hoisted(() => ({
+  selectedItems: [] as Array<Record<string, unknown>>,
+  convertRegionToABCNotation: vi.fn(() => 'X:1\nC |'),
+  playheadPosition: 0,
+  beatsPerBar: 4,
+}));
+
 vi.mock('./KGCore', () => ({
   KGCore: {
     instance: () => ({
-      getSelectedItems: () => [],
-      getCurrentProject: () => ({}),
+      getSelectedItems: () => debuggerMocks.selectedItems,
+      getCurrentProject: () => ({
+        getTimeSignature: () => ({ numerator: debuggerMocks.beatsPerBar, denominator: 4 }),
+      }),
+      getPlayheadPosition: () => debuggerMocks.playheadPosition,
     }),
   },
 }));
@@ -14,7 +24,7 @@ vi.mock('./region/KGMidiRegion', () => ({
 }));
 
 vi.mock('../util/abcNotationUtil', () => ({
-  convertRegionToABCNotation: vi.fn(),
+  convertRegionToABCNotation: debuggerMocks.convertRegionToABCNotation,
   convertBeatRangeChordProgressionToABCNotation: vi.fn(),
 }));
 
@@ -40,6 +50,15 @@ vi.mock('../stores/projectStore', () => ({
 }));
 
 import { KGDebugger } from './KGDebugger';
+
+function createMockMidiRegion(startFromBeat = 4): Record<string, unknown> {
+  return {
+    getCurrentType: () => 'KGMidiRegion',
+    getName: () => 'Test Region',
+    getStartFromBeat: () => startFromBeat,
+    getNotes: () => [],
+  };
+}
 
 class MockFileSystemFileHandle {
   public kind = 'file' as const;
@@ -111,6 +130,93 @@ vi.stubGlobal('navigator', {
   storage: {
     getDirectory: vi.fn(() => Promise.resolve(mockRoot)),
   },
+});
+
+describe('KGDebugger ABC notation conversion', () => {
+  let debuggerInstance: KGDebugger;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    (KGDebugger as unknown as { _instance: KGDebugger | null })._instance = null;
+    debuggerMocks.selectedItems.length = 0;
+    debuggerMocks.convertRegionToABCNotation.mockClear();
+    debuggerMocks.playheadPosition = 0;
+    debuggerMocks.beatsPerBar = 4;
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    debuggerInstance = KGDebugger.instance();
+    logSpy.mockClear();
+    errorSpy.mockClear();
+  });
+
+  it('preserves unbounded conversion when length is omitted', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(6);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6);
+  });
+
+  it('converts through startFromBeat plus length', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(6, 8);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, 14);
+  });
+
+  it('forwards asCMajor while preserving the actual key signature header', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(6, 8, true);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, 14, true);
+  });
+
+  it('supports asCMajor for an unbounded conversion', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(6, undefined, true);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, undefined, true);
+  });
+
+  it('uses the region start when length is provided without startFromBeat', () => {
+    const region = createMockMidiRegion(10);
+    debuggerMocks.selectedItems.push(region);
+
+    debuggerInstance.convertSelectedRegionToABCNotation(undefined, 4);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 10, 14);
+  });
+
+  it('uses the playhead rounded to its containing bar when startFromBeat is negative', () => {
+    const region = createMockMidiRegion();
+    debuggerMocks.selectedItems.push(region);
+    debuggerMocks.playheadPosition = 7.6;
+
+    debuggerInstance.convertSelectedRegionToABCNotation(-1, 4);
+
+    expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 8, 12);
+    expect(logSpy).toHaveBeenCalledWith('📍 Negative start requested; using playhead bar at beat: 8');
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid length %s',
+    (length) => {
+      debuggerMocks.selectedItems.push(createMockMidiRegion());
+
+      debuggerInstance.convertSelectedRegionToABCNotation(4, length);
+
+      expect(errorSpy).toHaveBeenCalledWith('❌ Conversion length must be a positive, finite number.');
+      expect(debuggerMocks.convertRegionToABCNotation).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('KGDebugger OPFS du', () => {

@@ -12,6 +12,7 @@ import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 import { getNextChordCandidateIndex } from './chordGuideUtil';
 import { getMatchingChordGuideCandidatesForPitch } from '../../util/chordGuideDataUtil';
+import type { PianoRollMode } from '../../constants';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -40,7 +41,7 @@ interface PianoGridProps {
   spectrogramPower?: number;
   spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
-  mode?: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  mode?: PianoRollMode;
   onSpectrogramLoadingChange?: (loading: boolean) => void;
 }
 
@@ -325,7 +326,11 @@ const PianoGrid: React.FC<PianoGridProps> = ({
         )}
         
         {/* Playhead */}
-        <Playhead context="piano-roll" regionStartBeat={regionStartBeat} />
+        <Playhead
+          context="piano-roll"
+          regionStartBeat={regionStartBeat}
+          horizontalOffset={mode === 'audio-waveform' ? 0 : -1}
+        />
         
         {children}
         <SelectionBox 

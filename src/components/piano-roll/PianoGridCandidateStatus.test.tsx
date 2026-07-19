@@ -10,7 +10,9 @@ import chordGuideDataJson from '../../../public/resources/modes/chord_guide.json
 const chordGuideData = chordGuideDataJson as ChordGuideData;
 
 vi.mock('../common', () => ({
-  Playhead: () => null,
+  Playhead: ({ horizontalOffset }: { horizontalOffset?: number }) => (
+    <div data-testid="piano-grid-playhead" data-horizontal-offset={horizontalOffset} />
+  ),
 }));
 
 import PianoGrid from './PianoGrid';
@@ -32,7 +34,7 @@ describe('PianoGrid chord-guide hover candidate state', () => {
 
   it('tracks the hovered candidate, updates on candidate cycling, and clears on mouse leave', async () => {
     const gridRef = { current: null as HTMLDivElement | null };
-    const { container } = render(
+    const { container, getByTestId } = render(
       <PianoGrid
         gridRef={gridRef}
         onDoubleClick={() => {}}
@@ -49,6 +51,8 @@ describe('PianoGrid chord-guide hover candidate state', () => {
         {null}
       </PianoGrid>
     );
+
+    expect(getByTestId('piano-grid-playhead')).toHaveAttribute('data-horizontal-offset', '-1');
 
     const pianoGrid = container.querySelector('.piano-grid') as HTMLDivElement;
     pianoGrid.getBoundingClientRect = () => ({
@@ -92,5 +96,29 @@ describe('PianoGrid chord-guide hover candidate state', () => {
     await waitFor(() => {
       expect(KGPianoRollState.instance().getCurrentHoveredChordGuideCandidate()).toBeNull();
     });
+  });
+
+  it('does not offset the grid playhead when the piano-key gutter is absent', () => {
+    const gridRef = { current: null as HTMLDivElement | null };
+    const { getByTestId } = render(
+      <PianoGrid
+        gridRef={gridRef}
+        onDoubleClick={() => {}}
+        onClick={() => {}}
+        onMouseDown={() => {}}
+        isBoxSelecting={false}
+        selectionBox={{ startX: 0, startY: 0, endX: 0, endY: 0 }}
+        selectedMode="ionian"
+        keySignature="C major"
+        chordGuide="T"
+        chordGuideKeySignature="C major"
+        chordGuideMode="ionian"
+        mode="audio-waveform"
+      >
+        {null}
+      </PianoGrid>
+    );
+
+    expect(getByTestId('piano-grid-playhead')).toHaveAttribute('data-horizontal-offset', '0');
   });
 });

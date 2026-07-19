@@ -24,6 +24,11 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
 
 ## Dernières mises à jour
 
+- **2026.07.18** : introduction de nouveaux workflows puissants pour l'arrangement et l'édition MIDI :
+  - **Transposition flexible et adaptée à la tonalité** — appliquez des réglages de transposition indépendants au niveau de la piste ou de la région, transposez le contenu sur une plage allant jusqu'à trois octaves et, si vous le souhaitez, suivez les changements d'armure. Le contenu de la piste d'accords peut désormais être transposé automatiquement lorsque la tonalité du projet ou une région d'armure change, afin de préserver l'intention harmonique de l'arrangement.
+  - **Mode Référence MIDI** — superposez une seconde région MIDI dans le piano roll sous forme de référence en lecture seule, alignée sur la timeline, afin de coordonner plus facilement mélodies, harmonies, voicings et relations rythmiques lors de l'édition d'une autre partie.
+  - **Améliorations diverses** — visibilité et navigation de la tête de lecture affinées, pistes globales fixes, duplication de piste configurable, orthographe enharmonique adaptée à la tonalité dans les partitions et superposition des menus de l'éditeur améliorée.
+
 - **2026.07.12** : développement des workflows de création, d'édition et de lecture MIDI :
   - **Arpégiateur intelligent** — apprenez un motif à partir de notes d'exemple et générez des variations guidées par des accords ou du MIDI, tout en conservant les hauteurs chromatiques d'origine et avec annulation atomique.
   - **Édition et export MIDI accélérés** — sélectionnez les notes par rang de hauteur sur des plages configurables, puis exportez une région, une piste complète ou l'ensemble du projet au format MIDI standard.
@@ -53,11 +58,6 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
 - **2026.05.10** : ajout de la **vue en notation musicale (sheet music)**. Le piano roll propose désormais un mode complet de notation standard. Basculez entre les vues Piano Roll et Sheet Music à l'aide du bouton dans la barre d'outils du piano roll. En mode partition, les notes sont gravées via VexFlow avec sélection automatique de la clé (sol ou fa) selon l'instrument actif, affichage de l'armure, groupement automatique des crochets, liaisons entre mesures et quantification configurable pour la résolution des valeurs de notes. Activez **Track Scope** pour afficher toutes les régions MIDI de la piste comme une partition continue plutôt qu'une seule région isolée.
 
 - **2026.05.09** : ajout de **l'enregistrement audio**. Vous pouvez désormais enregistrer directement depuis votre microphone dans une piste audio. Un aperçu de forme d'onde en direct se développe en temps réel pendant l'enregistrement, et la région est ajoutée à la timeline comme région audio standard à l'arrêt. Ajout également de la **sélection des périphériques audio I/O** dans les paramètres afin de choisir votre entrée micro et votre sortie audio préférées.
-
-- **2026.05.08** : ajout de **l'automation MIDI**. Vous pouvez dessiner et modifier des courbes de pitch bend et de MIDI CC (CC1 Modulation, CC2 Breath, CC7 Volume, CC11 Expression, CC64 Sustain) dans une lane d'automation éditable sous la grille piano. Ajout de **l'automation au niveau de la piste** : chaque piste dispose désormais d'un panneau d'automation dédié où vous pouvez voir et modifier les mêmes courbes directement sur la timeline. Les entrées de contrôleurs MIDI en temps réel (pitch wheel, pédales CC) sont enregistrées et relues avec interpolation par lane. Ajout du **panneau Event List** : une barre latérale à onglets (Notes / Pitch Bend / Controller) pour inspecter et modifier en ligne tous les événements de la région MIDI active. Ajout également de la **sélection multiple de régions** avec lasso et déplacement/redimensionnement de groupe, ainsi que de la **fusion de régions MIDI**.
-<div align="center">
-  <img src="./public/snapshots/2026-05-08-automations.png" alt="K.G.Studio Logo" width="640" />
-</div>
 
 Pour consulter l'historique complet des versions, voir les [**Notes de version**](./docs/RELEASE_NOTES.md).
 

@@ -5,11 +5,12 @@ import './MainContent.css';
 import { useProjectStore } from '../stores/projectStore';
 import { KGCore } from '../core/KGCore';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGTrack } from '../core/track/KGTrack';
 import TrackInfoPanel from './track/TrackInfoPanel';
 import TrackGridPanel from './track/TrackGridPanel';
 import PianoRoll from './piano-roll/PianoRoll';
-import { TrackCreateDialog } from './common';
+import { Playhead, TrackCreateDialog } from './common';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { DeleteTrackAutomationPointsCommand } from '../core/commands';
 import { useMainContentRegions } from '../hooks/useMainContentRegions';
@@ -62,7 +63,10 @@ const MainContent: React.FC<MainContentProps> = ({
     openAudioWaveformViewer,
     openSpectrogramViewer,
     openHybridMode,
+    openMidiReferenceMode,
+    exitMidiReferenceMode,
     hybridAudioRegionId,
+    midiReferenceRegionId,
     addTrack,
     addAudioTrack,
     projectName,
@@ -100,6 +104,7 @@ const MainContent: React.FC<MainContentProps> = ({
     openAudioWaveformViewer,
     openSpectrogramViewer,
     openHybridMode,
+    openMidiReferenceMode,
     pianoRollMode,
     updateTrack,
     maxBars,
@@ -323,8 +328,31 @@ const MainContent: React.FC<MainContentProps> = ({
     }
   }, [globalTracks, mainContentRegions, refreshProjectState, selectedRegionIds, timeSignature.numerator, tracks]);
 
+  useEffect(() => {
+    if (pianoRollMode !== 'midi-reference' || !midiReferenceRegionId) {
+      return;
+    }
+
+    const referenceExists = tracks.some(track => (
+      track.getRegions().some(region => (
+        region instanceof KGMidiRegion && region.getId() === midiReferenceRegionId
+      ))
+    ));
+    if (!referenceExists) {
+      exitMidiReferenceMode();
+    }
+  }, [exitMidiReferenceMode, midiReferenceRegionId, pianoRollMode, tracks]);
+
   const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
-  const showHybridButtonForMidi = showPianoRoll && (pianoRollMode === 'audio-waveform' || pianoRollMode === 'spectrogram');
+  const showHybridButtonForMidi = showPianoRoll && (
+    pianoRollMode === 'midi-edit'
+    || pianoRollMode === 'audio-waveform'
+    || pianoRollMode === 'spectrogram'
+    || pianoRollMode === 'midi-reference'
+  );
+  const hybridButtonExcludedRegionIds = pianoRollMode === 'midi-reference'
+    ? [activeRegionId, midiReferenceRegionId].filter((id): id is string => id !== null)
+    : activeRegionId ? [activeRegionId] : [];
   const beatTicksPerBar = Math.max(0, timeSignature.numerator - 1);
 
   return (
@@ -365,6 +393,7 @@ const MainContent: React.FC<MainContentProps> = ({
           ref={viewport.barNumbersRef}
           onMouseDown={viewport.handleBarNumbersMouseDown}
         >
+          <Playhead context="main-grid" />
           {Array.from({ length: maxBars }, (_, index) => (
             <div
               key={index}
@@ -422,6 +451,7 @@ const MainContent: React.FC<MainContentProps> = ({
             onOpenSpectrogram={mainContentRegions.handleOpenSpectrogram}
             showHybridButtonForAudio={showHybridButtonForAudio}
             showHybridButtonForMidi={showHybridButtonForMidi}
+            hybridButtonExcludedRegionIds={hybridButtonExcludedRegionIds}
             onOpenHybrid={mainContentRegions.handleOpenHybrid}
             onExternalDropComplete={mainContentRegions.handleExternalDropComplete}
           />
@@ -449,6 +479,19 @@ const MainContent: React.FC<MainContentProps> = ({
               const region = track.getRegions().find(candidate => candidate.getId() === audioId);
               if (region && region.getCurrentType() === 'KGAudioRegion') {
                 return region as unknown as KGAudioRegion;
+              }
+            }
+            return undefined;
+          })()}
+          referenceMidiRegion={(() => {
+            if (pianoRollMode !== 'midi-reference' || !midiReferenceRegionId) {
+              return undefined;
+            }
+
+            for (const track of tracks) {
+              const region = track.getRegions().find(candidate => candidate.getId() === midiReferenceRegionId);
+              if (region instanceof KGMidiRegion) {
+                return region;
               }
             }
             return undefined;

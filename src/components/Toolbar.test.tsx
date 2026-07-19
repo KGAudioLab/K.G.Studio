@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Toolbar from './Toolbar';
 import { createDefaultGlobalTracks } from '../core/global-track';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
+import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGProject } from '../core/KGProject';
 import { KGProjectStorage } from '../core/io/KGProjectStorage';
 import { showAlert, showConfirm } from '../util/dialogUtil';
@@ -309,6 +310,26 @@ describe('Toolbar settings side-panel behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select E minor' }));
     expect(storeState.setKeySignature).toHaveBeenCalledWith('E minor');
     expect(storeState.setStatus).toHaveBeenCalledWith('Key signature changed to E minor');
+  });
+
+  it('offers to transpose global chords with a project key change', async () => {
+    const chordTrack = storeState.globalTracks.find(track => track.getType() === 'chord')!;
+    chordTrack.setRegions([
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, 4),
+    ]);
+    vi.mocked(showConfirm).mockResolvedValue(true);
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByRole('button', { name: /choose key signature/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select G major' }));
+
+    await waitFor(() => {
+      expect(showConfirm).toHaveBeenCalledWith(
+        'The global chord track is not empty. Transpose all chords to the new project key?',
+        { confirmLabel: 'Transpose', cancelLabel: 'Leave unchanged' },
+      );
+      expect(storeState.setKeySignature).toHaveBeenCalledWith('G major', { transposeChords: true });
+    });
   });
 
   it('shows the effective region key at the playhead and updates that region instead of the project default', () => {

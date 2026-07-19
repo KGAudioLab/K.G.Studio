@@ -11,14 +11,19 @@ import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGRegion } from '../core/region/KGRegion';
-import { AddTrackCommand, AddAudioTrackCommand, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand, UpdateRegionCommand, type RegionUpdateProperties } from '../core/commands';
+import { AddTrackCommand, AddAudioTrackCommand, DuplicateTrackCommand, type DuplicateTrackOptions, RemoveTrackCommand, ReorderTracksCommand, UpdateTrackCommand, type TrackUpdateProperties, PasteRegionsCommand, PasteNotesCommand, ChangeProjectPropertyCommand, ImportAudioCommand, UpdateRegionCommand, type RegionUpdateProperties } from '../core/commands';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioFileStorage } from '../core/io/KGAudioFileStorage';
 import { ConfigManager } from '../core/config/ConfigManager';
 import { upgradeProjectToLatest } from '../core/project-upgrader/KGProjectUpgrader';
 import { toggleLoop } from '../util/loopUtil';
-import { PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../constants/uiConstants';
+import {
+  PIANO_ROLL_CONSTANTS,
+  PIANO_ROLL_MODE_MIDI_REFERENCE,
+  TOOLBAR_CONSTANTS,
+  type PianoRollMode,
+} from '../constants/uiConstants';
 import * as Tone from 'tone';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
@@ -140,8 +145,9 @@ interface ProjectState {
   showPianoRoll: boolean;
   pianoRollHeight: number;
   activeRegionId: string | null;
-  pianoRollMode: 'midi-edit' | 'audio-waveform' | 'spectrogram' | 'hybrid';
+  pianoRollMode: PianoRollMode;
   hybridAudioRegionId: string | null;
+  midiReferenceRegionId: string | null;
   requestedSheetMusicViewEnabled: boolean;
   pianoRollViewRequestVersion: number;
   automationRedrawVersion: number;
@@ -206,6 +212,7 @@ interface ProjectState {
   setSavedProjectName: (name: string) => void;
   addTrack: () => Promise<void>;
   addAudioTrack: () => Promise<void>;
+  duplicateTrack: (sourceTrackId: number, options: DuplicateTrackOptions) => Promise<void>;
   importAudioToTrack: (trackId: string, file: File) => Promise<void>;
   openAudioImportModal: (trackId: string) => void;
   closeAudioImportModal: () => void;
@@ -231,7 +238,7 @@ interface ProjectState {
   setMaxBars: (maxBars: number) => void;
   setBarWidthMultiplier: (multiplier: number) => void;
   setTimeSignature: (timeSignature: TimeSignature) => void;
-  setKeySignature: (keySignature: KeySignature) => void;
+  setKeySignature: (keySignature: KeySignature, options?: { transposeChords?: boolean }) => void;
   setSelectedMode: (selectedMode: string) => void;
 
   // Selection actions
@@ -249,6 +256,8 @@ interface ProjectState {
   openAudioWaveformViewer: (regionId: string) => void;
   openSpectrogramViewer: (regionId: string) => void;
   openHybridMode: (midiRegionId: string, audioRegionId: string) => void;
+  openMidiReferenceMode: (mainRegionId: string, referenceRegionId: string) => void;
+  exitMidiReferenceMode: () => void;
   bumpAutomationRedrawVersion: () => void;
   bumpTrackAutomationRedrawVersion: () => void;
   bumpAudioWaveformRedrawVersion: () => void;
@@ -551,6 +560,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     activeRegionId: null,
     pianoRollMode: 'midi-edit' as const,
     hybridAudioRegionId: null,
+    midiReferenceRegionId: null,
     requestedSheetMusicViewEnabled: false,
     pianoRollViewRequestVersion: 0,
     automationRedrawVersion: 0,
@@ -682,6 +692,24 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error) {
         console.error('Error adding audio track:', error);
         get().setStatus('Failed to add audio track');
+      }
+    },
+
+    duplicateTrack: async (sourceTrackId: number, options: DuplicateTrackOptions) => {
+      try {
+        const command = new DuplicateTrackCommand(sourceTrackId, options, trackId => get().setSelectedTrack(trackId));
+        KGCore.instance().executeCommand(command, { rethrow: true });
+        get().refreshProjectState();
+        get().bumpTrackAutomationRedrawVersion();
+        get().bumpAudioWaveformRedrawVersion();
+
+        const duplicate = command.getDuplicateTrack();
+        get().setStatus(translate('track.duplicate.status', { name: duplicate?.getName() ?? '' }));
+      } catch (error) {
+        console.error('Failed to duplicate track:', error);
+        const message = translate('track.duplicate.error');
+        get().setStatus(message);
+        await showAlert(message);
       }
     },
 
@@ -1649,11 +1677,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
-    setKeySignature: (keySignature: KeySignature) => {
+    setKeySignature: (keySignature: KeySignature, options?: { transposeChords?: boolean }) => {
       try {
         // Create and execute the change project property command
-        const command = new ChangeProjectPropertyCommand({ keySignature });
-        KGCore.instance().executeCommand(command);
+        const command = new ChangeProjectPropertyCommand({ keySignature }, options);
+        KGCore.instance().executeCommand(command, { rethrow: true });
 
         // Update the store state
         set({ keySignature });
@@ -1662,6 +1690,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error) {
         console.error('Error setting key signature:', error);
         get().setStatus('Failed to set key signature');
+        throw error;
       }
     },
 
@@ -1738,6 +1767,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'midi-edit',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: false,
         pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
       }));
@@ -1750,6 +1780,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'midi-edit',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: sheetMusicViewEnabled,
         pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
       }));
@@ -1761,6 +1792,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'audio-waveform',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: false,
       });
     },
@@ -1771,6 +1803,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         activeRegionId: regionId,
         pianoRollMode: 'spectrogram',
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         requestedSheetMusicViewEnabled: false,
       });
     },
@@ -1780,8 +1813,29 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         showPianoRoll: true,
         activeRegionId: midiRegionId,
         hybridAudioRegionId: audioRegionId,
+        midiReferenceRegionId: null,
         pianoRollMode: 'hybrid',
         requestedSheetMusicViewEnabled: false,
+      });
+    },
+
+    openMidiReferenceMode: (mainRegionId: string, referenceRegionId: string) => {
+      KGPianoRollState.instance().setSheetMusicViewEnabled(false);
+      set(state => ({
+        showPianoRoll: true,
+        activeRegionId: mainRegionId,
+        hybridAudioRegionId: null,
+        midiReferenceRegionId: referenceRegionId,
+        pianoRollMode: PIANO_ROLL_MODE_MIDI_REFERENCE,
+        requestedSheetMusicViewEnabled: false,
+        pianoRollViewRequestVersion: state.pianoRollViewRequestVersion + 1,
+      }));
+    },
+
+    exitMidiReferenceMode: () => {
+      set({
+        midiReferenceRegionId: null,
+        pianoRollMode: 'midi-edit',
       });
     },
     bumpAutomationRedrawVersion: () => {
@@ -1803,6 +1857,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({
         activeRegionId: null,
         hybridAudioRegionId: null,
+        midiReferenceRegionId: null,
         pianoRollMode: 'midi-edit',
         requestedSheetMusicViewEnabled: false,
         pianoRollViewRequestVersion: 0,

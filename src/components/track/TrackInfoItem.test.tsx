@@ -11,6 +11,7 @@ import { translate } from '../../i18n/translate';
 const storeState = {
   selectedTrackId: null as string | null,
   setSelectedTrack: vi.fn(),
+  duplicateTrack: vi.fn(),
   removeTrack: vi.fn(),
   toggleInstrumentSelectionForTrack: vi.fn(),
   importAudioToTrack: vi.fn(),
@@ -91,6 +92,7 @@ describe('TrackInfoItem audio import', () => {
     fileImportModalProps = null;
     storeState.selectedTrackId = null;
     storeState.setSelectedTrack.mockReset();
+    storeState.duplicateTrack.mockReset();
     storeState.removeTrack.mockReset();
     storeState.toggleInstrumentSelectionForTrack.mockReset();
     storeState.importAudioToTrack.mockReset();
@@ -174,6 +176,67 @@ describe('TrackInfoItem audio import', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
     expect(screen.queryByRole('button', { name: '导出 MIDI' })).not.toBeInTheDocument();
+  });
+
+  it('renders the more-actions menu outside the scrollable track panel', () => {
+    const midiTrack = new KGMidiTrack('Piano', 1);
+    midiTrack.setTrackIndex(0);
+    storeState.tracks = [midiTrack] as unknown as KGAudioTrack[];
+
+    const { container } = render(
+      <TrackInfoItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+
+    const menu = document.body.querySelector('.track-settings-menu') as HTMLDivElement;
+    expect(menu).toBeInTheDocument();
+    expect(container.contains(menu)).toBe(false);
+    expect(menu.style.position).toBe('fixed');
+    expect(menu.style.visibility).toBe('visible');
+  });
+
+  it('opens the duplicate dialog and submits the selected options', () => {
+    const midiTrack = new KGMidiTrack('Piano', 1);
+    midiTrack.setTrackIndex(0);
+    midiTrack.addRegion(new KGMidiRegion('region-1', '1', 0, 'Verse', 0, 4));
+    storeState.tracks = [midiTrack] as unknown as KGAudioTrack[];
+
+    render(
+      <TrackInfoItem
+        track={midiTrack}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        onTrackNameEdit={vi.fn()}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDrop={vi.fn()}
+        onDragEnd={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+    fireEvent.click(screen.getByRole('button', { name: '复制轨道...' }));
+    expect(screen.getByRole('dialog', { name: '复制轨道' })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('自动化'));
+    fireEvent.click(screen.getByLabelText('区域'));
+    fireEvent.click(screen.getByRole('button', { name: '复制' }));
+
+    expect(storeState.duplicateTrack).toHaveBeenCalledWith(1, {
+      includeAutomation: true,
+      includeRegions: true,
+    });
   });
 
   it('uses the localized delete-track confirmation message when the track has regions', async () => {

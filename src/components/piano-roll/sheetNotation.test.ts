@@ -75,6 +75,49 @@ describe('sheetNotation', () => {
     expect(projectKeySignatureToVexFlow('F# major')).toBe('F#');
   });
 
+  it('spells MIDI pitches with flats or sharps according to the effective key signature', () => {
+    const region = createMockMidiRegion({
+      length: 4,
+      notes: [61, 63, 66, 68, 69, 70].map((pitch, index) => createMockMidiNote({
+        id: `note-${index}`,
+        pitch,
+        startBeat: 0,
+        endBeat: 1,
+      })),
+    });
+
+    const buildKeys = (keySignature: 'F minor' | 'C# minor') => buildSheetMeasureModels({
+      region,
+      timeSignature: { numerator: 4, denominator: 4 },
+      quantization: parseSheetQuantization('16,48'),
+      defaultKeySignature: keySignature,
+    })[0].events.find(event => !event.isRest)?.keys;
+
+    expect(buildKeys('F minor')).toEqual(['db/4', 'eb/4', 'gb/4', 'ab/4', 'a/4', 'bb/4']);
+    expect(buildKeys('C# minor')).toEqual(['c#/4', 'd#/4', 'f#/4', 'g#/4', 'a/4', 'a#/4']);
+  });
+
+  it('respells notes per measure when the effective key signature changes', () => {
+    const region = createMockMidiRegion({
+      length: 8,
+      notes: [
+        createMockMidiNote({ id: 'sharp-note', pitch: 68, startBeat: 0, endBeat: 1 }),
+        createMockMidiNote({ id: 'flat-note', pitch: 68, startBeat: 4, endBeat: 5 }),
+      ],
+    });
+
+    const measures = buildSheetMeasureModels({
+      region,
+      timeSignature: { numerator: 4, denominator: 4 },
+      quantization: parseSheetQuantization('16,48'),
+      defaultKeySignature: 'C# minor',
+      resolveKeySignatureAtBar: barIndex => (barIndex === 0 ? 'C# minor' : 'F minor'),
+    });
+
+    expect(measures[0].events.find(event => !event.isRest)?.keys).toEqual(['g#/4']);
+    expect(measures[1].events.find(event => !event.isRest)?.keys).toEqual(['ab/4']);
+  });
+
   it('estimates extra width for cancelled naturals and new accidentals on key changes', () => {
     expect(getSheetKeySignatureChangeModifierWidth('C major', 'G major')).toBeGreaterThan(0);
     expect(getSheetKeySignatureChangeModifierWidth('G major', 'C major')).toBeGreaterThan(0);

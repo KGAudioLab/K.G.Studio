@@ -23,6 +23,7 @@ const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
     activeRegionId,
     selectedRegionIds,
     selectedTrackId,
+    maxBars,
     timeSignature,
     playheadPosition,
     refreshProjectState,
@@ -93,6 +94,7 @@ const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
           <GlobalEventListTab
             globalTracks={globalTracks}
             selectedRegionIds={selectedRegionIds}
+            maxBars={maxBars}
             timeSignature={timeSignature}
             playheadPosition={playheadPosition}
             refreshProjectState={refreshProjectState}

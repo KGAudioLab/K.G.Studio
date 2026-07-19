@@ -41,6 +41,8 @@ import { mergeSelectedMidiRegions, splitSelectedRegionAtPlayhead } from '../util
 import { showAlert, showChoice, showConfirm, showPrompt, showTimeSigPrompt } from '../util/dialogUtil';
 import { UpdateKeySignatureRegionCommand, UpdateTempoRegionCommand } from '../core/commands';
 import { useI18n } from '../i18n/useI18n';
+import { hasChordRegionsInTracks } from '../util/chordTransposeUtil';
+import { getKeySignatureTransposeDelta } from '../util/midiTransposeUtil';
 
 const Toolbar: React.FC = () => {
   const { t } = useI18n();
@@ -736,19 +738,46 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleKeySignatureChange = (newKeySignature: string) => {
+  const handleKeySignatureChange = async (newKeySignature: string) => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Key signature changed from", displayedKeySignature, "to", newKeySignature);
     }
 
-    if (activeKeySignatureRegion) {
-      KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(
-        activeKeySignatureRegion.getId(),
-        newKeySignature as KeySignature
-      ));
-      refreshProjectState();
-    } else {
-      setKeySignature(newKeySignature as KeySignature);
+    try {
+      const nextKeySignature = newKeySignature as KeySignature;
+      if (activeKeySignatureRegion) {
+        const scope = {
+          startBeat: activeKeySignatureRegion.getStartFromBeat(),
+          endBeat: activeKeySignatureRegion.getStartFromBeat() + activeKeySignatureRegion.getLength(),
+        };
+        const shouldAsk = getKeySignatureTransposeDelta(activeKeySignatureRegion.getKeySignature(), nextKeySignature) !== 0
+          && hasChordRegionsInTracks(globalTracks, scope);
+        const transposeChords = shouldAsk && await showConfirm(t('transpose.chords.confirmRange'), {
+          confirmLabel: t('transpose.chords.transposeAction'),
+          cancelLabel: t('transpose.chords.leaveAction'),
+        });
+        KGCore.instance().executeCommand(new UpdateKeySignatureRegionCommand(
+          activeKeySignatureRegion.getId(),
+          nextKeySignature,
+          transposeChords,
+        ), { rethrow: true });
+        refreshProjectState();
+      } else {
+        const shouldAsk = getKeySignatureTransposeDelta(keySignature, nextKeySignature) !== 0
+          && hasChordRegionsInTracks(globalTracks);
+        const transposeChords = shouldAsk && await showConfirm(t('transpose.chords.confirmProject'), {
+          confirmLabel: t('transpose.chords.transposeAction'),
+          cancelLabel: t('transpose.chords.leaveAction'),
+        });
+        if (transposeChords) {
+          setKeySignature(nextKeySignature, { transposeChords: true });
+        } else {
+          setKeySignature(nextKeySignature);
+        }
+      }
+    } catch (error) {
+      void showAlert(t('transpose.error', { error: String(error) }));
+      return;
     }
     setStatus(t('toolbar.status.keySignatureChanged', { value: newKeySignature }));
     setShowKeySignatureDropdown(false);

@@ -36,6 +36,8 @@ import { UpdateNotePropertiesCommand } from '../../core/commands/note/UpdateNote
 import { UpdatePitchBendPropertiesCommand } from '../../core/commands/note/UpdatePitchBendPropertiesCommand';
 import { showAlert } from '../../util/dialogUtil';
 import { useI18n } from '../../i18n/useI18n';
+import EventListPlayhead from './EventListPlayhead';
+import { normalizeEventListPlayheadBeat } from './eventListPlayheadUtil';
 
 interface RegionEventListTabProps {
   activeMidiRegion: KGMidiRegion | null;
@@ -184,6 +186,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
     selectedControllerEventIds,
     selectedRegionIds,
     activeRegionId,
+    maxBars,
     timeSignature,
     playheadPosition,
     updateTrack,
@@ -1017,6 +1020,17 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
           </div>
 
           <div className="event-list-table-shell" onMouseDown={handleTableBackgroundMouseDown}>
+            <EventListPlayhead
+              rows={eventRows.map(row => ({
+                id: row.id,
+                beat: normalizeEventListPlayheadBeat(
+                  row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat,
+                  MIDI_EVENT_TICKS_PER_BEAT,
+                ),
+              }))}
+              playheadPosition={playheadPosition}
+              songEndBeat={maxBars * timeSignature.numerator}
+            />
             <table className="event-list-table">
               <thead>
                 <tr>
