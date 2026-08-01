@@ -19,4 +19,10 @@ describe('translate', () => {
     expect(translate('toolbar.status.bpmChanged', { value: 120 }, 'fr_fr')).toBe('BPM changé à 120');
     expect(translate('toolbar.status.bpmChanged', { value: 120 }, 'zh_cn')).toBe('BPM 已改为 120');
   });
+
+  it('translates chord-to-MIDI overlap options', () => {
+    expect(translate('dialog.chordToMidi.createRegion', undefined, 'fr_fr')).toBe('Créer une nouvelle région MIDI');
+    expect(translate('dialog.chordToMidi.addToRegion', undefined, 'zh_cn')).toBe('将音符添加到现有片段');
+    expect(translate('dialog.chordToMidi.replaceInRegion', undefined, 'zh_hk')).toBe('取代現有片段中的音符');
+  });
 });

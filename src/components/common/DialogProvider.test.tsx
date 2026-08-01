@@ -22,6 +22,7 @@ import {
   showAudioToMidiOptions,
   showChoice,
   showChordDetectionOptions,
+  showChordToMidiImportOptions,
   showMidiChordDetectionOptions,
   showNoteRankSelectionOptions,
   showTempoApply,
@@ -37,6 +38,60 @@ function finishDialogCloseAnimation() {
 
 beforeEach(() => {
   mockKgoneEnabled.value = false;
+});
+
+describe('DialogProvider chord-to-MIDI import dialog', () => {
+  it('renders radio choices with Create selected and applies the selected action', async () => {
+    let resolved: unknown = 'pending';
+
+    render(
+      <DialogProvider>
+        <button type="button" onClick={async () => {
+          resolved = await showChordToMidiImportOptions(
+            'A MIDI region already overlaps the selected chord range. How would you like to convert these chords?',
+          );
+        }}>
+          Open chord import
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open chord import' }));
+
+    expect(screen.getByText('Convert Chords to MIDI')).toBeInTheDocument();
+    expect(screen.getByText('A MIDI region already overlaps the selected chord range. How would you like to convert these chords?')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Create a New MIDI Region' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Add Notes to the Existing Region' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Replace Notes in the Existing Region' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Replace Notes in the Existing Region' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toBe('replace'));
+  });
+
+  it('resolves cancellation without applying an action', async () => {
+    let resolved: unknown = 'pending';
+
+    render(
+      <DialogProvider>
+        <button type="button" onClick={async () => {
+          resolved = await showChordToMidiImportOptions('Choose a conversion method.');
+        }}>
+          Open chord import
+        </button>
+      </DialogProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open chord import' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    finishDialogCloseAnimation();
+
+    await waitFor(() => expect(resolved).toBeNull());
+  });
 });
 
 describe('DialogProvider chord detection dialog', () => {

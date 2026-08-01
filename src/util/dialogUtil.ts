@@ -63,6 +63,8 @@ export interface IntelligentArpeggiatorOptionsResult {
   tieBreak: 'higher' | 'lower';
 }
 
+export type ChordToMidiImportAction = 'create' | 'add' | 'replace';
+
 export interface ChoiceOption {
   label: string;
   value: string;
@@ -88,6 +90,7 @@ let _showNoteRankSelectionOptionsFn: ((
   defaultValue?: NoteRankSelectionOptionsResult,
 ) => Promise<NoteRankSelectionOptionsResult | null>) | null = null;
 let _showIntelligentArpeggiatorOptionsFn: ((message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult) => Promise<IntelligentArpeggiatorOptionsResult | null>) | null = null;
+let _showChordToMidiImportOptionsFn: ((message: string) => Promise<ChordToMidiImportAction | null>) | null = null;
 
 export function registerDialogFns(
   alertFn: (message: string) => Promise<void>,
@@ -110,6 +113,7 @@ export function registerDialogFns(
     defaultValue?: NoteRankSelectionOptionsResult,
   ) => Promise<NoteRankSelectionOptionsResult | null>,
   intelligentArpeggiatorOptionsFn?: (message: string, sources: ChoiceOption[], defaultValue?: IntelligentArpeggiatorOptionsResult) => Promise<IntelligentArpeggiatorOptionsResult | null>,
+  chordToMidiImportOptionsFn?: (message: string) => Promise<ChordToMidiImportAction | null>,
 ) {
   _showAlertFn = alertFn;
   _showConfirmFn = confirmFn;
@@ -123,6 +127,7 @@ export function registerDialogFns(
   if (audioToMidiOptionsFn) _showAudioToMidiOptionsFn = audioToMidiOptionsFn;
   if (noteRankSelectionOptionsFn) _showNoteRankSelectionOptionsFn = noteRankSelectionOptionsFn;
   if (intelligentArpeggiatorOptionsFn) _showIntelligentArpeggiatorOptionsFn = intelligentArpeggiatorOptionsFn;
+  if (chordToMidiImportOptionsFn) _showChordToMidiImportOptionsFn = chordToMidiImportOptionsFn;
 }
 
 export function showAlert(message: string): Promise<void> {
@@ -152,6 +157,13 @@ export function showChoice(message: string, choices: ChoiceOption[]): Promise<st
     return Promise.resolve(window.confirm(message) ? choices[0]?.value ?? null : null);
   }
   return _showChoiceFn(message, choices);
+}
+
+export function showChordToMidiImportOptions(message: string): Promise<ChordToMidiImportAction | null> {
+  if (!_showChordToMidiImportOptionsFn) {
+    return Promise.resolve(window.confirm(message) ? 'create' : null);
+  }
+  return _showChordToMidiImportOptionsFn(message);
 }
 
 export function showTimeSigPrompt(message: string, defaultValue?: TimeSigResult): Promise<TimeSigResult | null> {

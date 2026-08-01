@@ -592,7 +592,11 @@ export function useMainContentRegions({
     }
 
     pendingAutoSelectionRegionIdRef.current = regionUI.id;
-    setRegions(previousRegions => [...previousRegions, regionUI]);
+    setRegions(previousRegions => (
+      previousRegions.some(region => region.id === regionUI.id)
+        ? previousRegions.map(region => region.id === regionUI.id ? regionUI : region)
+        : [...previousRegions, regionUI]
+    ));
   }, [maxBars, setSelectedTrack, tracks, updateTrack]);
 
   const handleRegionUpdated = useCallback((

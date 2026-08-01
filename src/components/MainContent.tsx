@@ -17,15 +17,14 @@ import { useMainContentRegions } from '../hooks/useMainContentRegions';
 import { useMainContentGlobalTracks } from '../hooks/useMainContentGlobalTracks';
 import { useMainContentViewport } from '../hooks/useMainContentViewport';
 import MainContentGlobalTracksSection from './global-track/MainContentGlobalTracksSection';
-import { ImportChordRegionsCommand } from '../core/commands';
 import { TrackType } from '../core/track/KGTrack';
 import { KGChordRegion } from '../core/region/KGChordRegion';
 import { showAlert } from '../util/dialogUtil';
 import {
   buildChordRegionImportPlan,
-  CHORD_REGION_IMPORT_REGION_NAME,
   resolveChordRegionImportSelection,
 } from '../util/chordRegionImportUtil';
+import { runChordRegionImport } from '../util/chordRegionImportWorkflow';
 import { useI18n } from '../i18n/useI18n';
 
 interface MainContentProps {
@@ -298,35 +297,23 @@ const MainContent: React.FC<MainContentProps> = ({
     }
 
     try {
-      const command = new ImportChordRegionsCommand(
-        targetTrack.getId().toString(),
-        trackIndex,
-        planResult.plan.startBeat,
-        planResult.plan.lengthInBeats,
-        planResult.plan.notes,
-        CHORD_REGION_IMPORT_REGION_NAME,
-      );
-      KGCore.instance().executeCommand(command, { rethrow: true });
-
-      const createdRegion = command.getCreatedRegion();
-      if (!createdRegion) {
-        refreshProjectState();
-        return;
-      }
+      const result = await runChordRegionImport(targetTrack, trackIndex, planResult.plan);
+      if (!result) return;
+      const affectedRegion = result.affectedRegion;
 
       mainContentRegions.handleExternalDropComplete(trackIndex, {
-        id: createdRegion.getId(),
+        id: affectedRegion.getId(),
         trackId: targetTrack.getId().toString(),
         trackIndex,
-        barNumber: (createdRegion.getStartFromBeat() / timeSignature.numerator) + 1,
-        length: createdRegion.getLength() / timeSignature.numerator,
-        name: createdRegion.getName(),
+        barNumber: (affectedRegion.getStartFromBeat() / timeSignature.numerator) + 1,
+        length: affectedRegion.getLength() / timeSignature.numerator,
+        name: affectedRegion.getName(),
       });
     } catch (error) {
       console.error('[ChordImport] Gesture import failed:', error);
       await showAlert('Unable to import the selected chord regions into a MIDI region. Please try again.');
     }
-  }, [globalTracks, mainContentRegions, refreshProjectState, selectedRegionIds, timeSignature.numerator, tracks]);
+  }, [globalTracks, mainContentRegions, selectedRegionIds, timeSignature.numerator, tracks]);
 
   useEffect(() => {
     if (pianoRollMode !== 'midi-reference' || !midiReferenceRegionId) {

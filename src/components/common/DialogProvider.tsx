@@ -5,6 +5,7 @@ import { ConfigManager } from '../../core/config/ConfigManager';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { useI18n } from '../../i18n/useI18n';
 import { registerDialogFns } from '../../util/dialogUtil';
+import ChordToMidiImportOptions from './ChordToMidiImportOptions';
 import type {
   AudioToMidiOptionsResult,
   ChoiceOption,
@@ -17,10 +18,11 @@ import type {
   TempoApplyResult,
   TempoDetectionOptionsResult,
   TimeSigResult,
+  ChordToMidiImportAction,
 } from '../../util/dialogUtil';
 
 interface DialogInfo {
-  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply' | 'audio-to-midi' | 'note-rank-selection' | 'intelligent-arpeggiator';
+  type: 'alert' | 'confirm' | 'prompt' | 'timesig' | 'choice' | 'chord-detection' | 'midi-chord-detection' | 'tempo-detection' | 'tempo-apply' | 'audio-to-midi' | 'note-rank-selection' | 'intelligent-arpeggiator' | 'chord-to-midi-import';
   message: string;
   options?: ConfirmOptions | PromptOptions;
   defaultValue?: string;
@@ -90,6 +92,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const [intelligentArpeggiatorOptions, setIntelligentArpeggiatorOptions] = useState<IntelligentArpeggiatorOptionsResult>(DEFAULT_INTELLIGENT_ARPEGGIATOR_OPTIONS);
   const [audioToMidiTargetTracks, setAudioToMidiTargetTracks] = useState<ChoiceOption[]>([]);
   const [autoAlignRegionToBeat, setAutoAlignRegionToBeat] = useState(false);
+  const [chordToMidiImportAction, setChordToMidiImportAction] = useState<ChordToMidiImportAction>('create');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resolveRef = useRef<((value: any) => void) | null>(null);
   const pendingValueRef = useRef<unknown>(undefined);
@@ -214,6 +217,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setDialog({ type: 'intelligent-arpeggiator', message, intelligentArpeggiatorSources: sources });
   }), []);
 
+  const openChordToMidiImportOptions = useCallback((message: string): Promise<ChordToMidiImportAction | null> => new Promise((resolve) => {
+    resolveRef.current = resolve;
+    setChordToMidiImportAction('create');
+    setDialog({ type: 'chord-to-midi-import', message });
+  }), []);
+
   const close = useCallback((value: unknown) => {
     pendingValueRef.current = value;
     setIsClosing(true);
@@ -235,6 +244,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
     setIntelligentArpeggiatorOptions(DEFAULT_INTELLIGENT_ARPEGGIATOR_OPTIONS);
     setAudioToMidiTargetTracks([]);
     setAutoAlignRegionToBeat(false);
+    setChordToMidiImportAction('create');
     if (resolveRef.current) {
       resolveRef.current(pendingValueRef.current);
       resolveRef.current = null;
@@ -259,6 +269,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       openAudioToMidiOptions,
       openNoteRankSelectionOptions,
       openIntelligentArpeggiatorOptions,
+      openChordToMidiImportOptions,
     );
   }
 
@@ -277,6 +288,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isAudioToMidi = dialog.type === 'audio-to-midi';
   const isNoteRankSelection = dialog.type === 'note-rank-selection';
   const isIntelligentArpeggiator = dialog.type === 'intelligent-arpeggiator';
+  const isChordToMidiImport = dialog.type === 'chord-to-midi-import';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
   const isKGOneEnabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
 
@@ -294,6 +306,8 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
           ? t('dialog.title.selectNoteByRank')
         : isIntelligentArpeggiator
           ? t('dialog.title.intelligentArpeggiator')
+        : isChordToMidiImport
+          ? t('dialog.title.convertChordsToMidi')
         : (isChordDetection || isMidiChordDetection)
         ? t('dialog.title.chordDetection')
         : isPrompt
@@ -306,11 +320,11 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && mouseDownOnOverlay.current) {
-      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi || isNoteRankSelection || isIntelligentArpeggiator) ? null : false);
+      close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi || isNoteRankSelection || isIntelligentArpeggiator || isChordToMidiImport) ? null : false);
     }
   };
 
-  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi || isNoteRankSelection || isIntelligentArpeggiator) ? null : false);
+  const handleCancel = () => close(isAlert ? undefined : (isPrompt || isTimeSig || isChoice || isChordDetection || isMidiChordDetection || isTempoDetection || isTempoApply || isAudioToMidi || isNoteRankSelection || isIntelligentArpeggiator || isChordToMidiImport) ? null : false);
 
   const handleConfirm = () => {
     if (isAlert) { close(undefined); return; }
@@ -340,6 +354,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
       return;
     }
     if (isIntelligentArpeggiator) { close(intelligentArpeggiatorOptions); return; }
+    if (isChordToMidiImport) { close(chordToMidiImportAction); return; }
     if (isTempoApply) {
       close({
         action: dialog.choices?.[dialog.choices.length - 1]?.value ?? '',
@@ -440,6 +455,12 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                   if (e.key === 'Escape') handleCancel();
                 }}
                 autoFocus
+              />
+            )}
+            {isChordToMidiImport && (
+              <ChordToMidiImportOptions
+                value={chordToMidiImportAction}
+                onChange={setChordToMidiImportAction}
               />
             )}
             {isTimeSig && (
@@ -889,7 +910,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={handleConfirm}
-                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply && !isAudioToMidi && !isNoteRankSelection && !isIntelligentArpeggiator}
+                autoFocus={!isPrompt && !isTimeSig && !isChordDetection && !isMidiChordDetection && !isTempoDetection && !isTempoApply && !isAudioToMidi && !isNoteRankSelection && !isIntelligentArpeggiator && !isChordToMidiImport}
               >
                 {isAlert
                   ? t('dialog.ok')
@@ -898,7 +919,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                       ? t('dialog.ok')
                       : (isChordDetection || isMidiChordDetection || isTempoDetection || isAudioToMidi)
                         ? t('dialog.ok')
-                        : (isNoteRankSelection ? t('dialog.apply') : isIntelligentArpeggiator ? t('dialog.generate') : t('settings.yes'))))}
+                        : (isNoteRankSelection || isChordToMidiImport) ? t('dialog.apply') : isIntelligentArpeggiator ? t('dialog.generate') : t('settings.yes')))}
               </button>
             )}
           </div>

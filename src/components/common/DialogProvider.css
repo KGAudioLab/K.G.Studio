@@ -232,6 +232,44 @@
   accent-color: #5a9fd4;
 }
 
+.dialog-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.dialog-radio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #d0d0d0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dialog-radio-row:hover {
+  background-color: #333;
+  border-color: #4a4a4a;
+}
+
+.dialog-radio-row:has(input:checked) {
+  background-color: rgba(90, 159, 212, 0.12);
+  border-color: #5a9fd4;
+}
+
+.dialog-radio-row input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #5a9fd4;
+}
+
 .dialog-compact-checkbox-row {
   flex: 1 1 0;
   min-width: 0;
