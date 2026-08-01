@@ -9,6 +9,7 @@ import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { createDefaultGlobalTracks, GlobalTrackType } from '../core/global-track';
 import { createMockMidiTrack } from '../test/utils/mock-data';
+import { KGMainContentState } from '../core/state/KGMainContentState';
 
 const executeCommandMock = vi.fn();
 const midiRegion = new KGMidiRegion('region-1', '1', 0, 'Region 1', 0, 4);
@@ -222,6 +223,10 @@ describe('MainContent', () => {
     storeState.addTrack.mockClear();
     storeState.addAudioTrack.mockClear();
     storeState.setShowGlobalTracks.mockClear();
+    storeState.setPlayheadPosition.mockClear();
+    storeState.requestPianoRollScroll.mockClear();
+    KGMainContentState.instance().setSnapping(true);
+    KGMainContentState.instance().setSnappingMode('bar');
     executeCommandMock.mockClear();
   });
 
@@ -232,6 +237,29 @@ describe('MainContent', () => {
     expect(barNumbers?.querySelectorAll('.playhead')).toHaveLength(1);
     expect(barNumbers?.querySelectorAll('.playhead-triangle')).toHaveLength(1);
     expect(container.querySelectorAll('.playhead-triangle')).toHaveLength(1);
+  });
+
+  it('places the playhead on the nearest beat in beat snapping mode', () => {
+    KGMainContentState.instance().setSnappingMode('beat');
+    const { container } = render(<MainContent />);
+    const barNumbers = container.querySelector('.bar-numbers') as HTMLDivElement;
+    vi.spyOn(barNumbers, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 320,
+      bottom: 20,
+      width: 320,
+      height: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.mouseDown(barNumbers, { clientX: 50, button: 0 });
+    fireEvent.mouseUp(document, { clientX: 50, button: 0 });
+
+    expect(storeState.setPlayheadPosition).toHaveBeenCalledWith(5);
+    expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(5);
   });
 
   it('continues the playhead through visible global tracks without another triangle', () => {

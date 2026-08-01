@@ -1,3 +1,5 @@
+import type { MainContentSnappingMode } from '../KGProject';
+
 /**
  * KGMainContentState - State management for the main content area
  * Implements the singleton pattern for global access
@@ -7,6 +9,7 @@ export class KGMainContentState {
 
   private activeTool: string = "pointer";
   private snapping: boolean = true;
+  private snappingMode: MainContentSnappingMode = 'beat';
 
   private constructor() {
     console.log("KGMainContentState initialized");
@@ -34,5 +37,13 @@ export class KGMainContentState {
 
   public setSnapping(enabled: boolean): void {
     this.snapping = enabled;
+  }
+
+  public getSnappingMode(): MainContentSnappingMode {
+    return this.snappingMode;
+  }
+
+  public setSnappingMode(mode: MainContentSnappingMode): void {
+    this.snappingMode = mode;
   }
 }

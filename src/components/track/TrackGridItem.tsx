@@ -15,6 +15,7 @@ import { TrackType } from '../../core/track/KGTrack';
 import { buildRegionSurfaceColors, resolveRegionColor } from '../../util/regionColor';
 import { isAcceptedMidiImportFile } from '../../util/midiUtil';
 import { isAcceptedAudioImportFile } from '../../util/audioImportUtil';
+import { snapBarValue } from '../../util/mainContentSnapUtil';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -441,16 +442,21 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     
     // If the mouse was moved and we have current values, calculate the new values
     if (mouseMoved.current && currentResizeWidth.current !== null && currentResizeLeft.current !== null) {
-      const snap = KGMainContentState.instance().isSnappingEnabled();
+      const mainContentState = KGMainContentState.instance();
+      const snapSettings = {
+        enabled: mainContentState.isSnappingEnabled(),
+        mode: mainContentState.getSnappingMode(),
+        beatsPerBar: storeTimeSignature.numerator,
+      };
 
       if (resizeAction === 'end') {
         // End resize: snap length to nearest bar, or use raw value
         const rawLength = currentResizeWidth.current / barWidth;
-        newLength = Math.max(REGION_CONSTANTS.MIN_REGION_LENGTH, snap ? Math.round(rawLength) : rawLength);
+        newLength = Math.max(REGION_CONSTANTS.MIN_REGION_LENGTH, snapBarValue(rawLength, snapSettings));
       } else if (resizeAction === 'start') {
         // Start resize: snap bar number, or use raw value
         const rawBarNumber = currentResizeLeft.current / barWidth + 1;
-        newBarNumber = Math.max(1, snap ? Math.round(rawBarNumber) : rawBarNumber);
+        newBarNumber = Math.max(1, snapBarValue(rawBarNumber, snapSettings));
 
         // Calculate the difference from the initial position
         const barDiff = initialBarNumberRef.current! - newBarNumber;
@@ -639,9 +645,13 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     if (mouseMoved.current && currentDragLeft.current !== null && currentDragTop.current !== null) {
       const isBulkEdit = isBulkRegionEdit(regionId);
       // Calculate the new bar number; snap to nearest integer when snapping is on
-      const snap = KGMainContentState.instance().isSnappingEnabled();
+      const mainContentState = KGMainContentState.instance();
       const rawBarNumber = (currentDragLeft.current / barWidth) + 1;
-      finalBarNumber = Math.max(1, snap ? Math.round(rawBarNumber) : rawBarNumber);
+      finalBarNumber = Math.max(1, snapBarValue(rawBarNumber, {
+        enabled: mainContentState.isSnappingEnabled(),
+        mode: mainContentState.getSnappingMode(),
+        beatsPerBar: storeTimeSignature.numerator,
+      }));
       
       // Calculate the closest track based on vertical position
       if (!isBulkEdit && allTracks && allTracks.length > 0 && gridContainerRef.current) {

@@ -301,6 +301,7 @@ describe('TrackGridPanel lasso selection', () => {
     currentTracks = [];
     currentMaxBars = 8;
     KGMainContentState.instance().setSnapping(true);
+    KGMainContentState.instance().setSnappingMode('bar');
   });
 
   it('selects intersecting regions across multiple track rows', () => {
@@ -931,6 +932,39 @@ describe('TrackGridPanel lasso selection', () => {
 
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
     expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(12);
+  });
+
+  it('places dropped audio on the nearest beat when beat snapping is selected', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+    KGMainContentState.instance().setSnapping(true);
+    KGMainContentState.instance().setSnappingMode('beat');
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('beat-snapped.wav')], 100);
+
+    await vi.waitFor(() => {
+      expect(executeCommandMock).toHaveBeenCalled();
+    });
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(10);
   });
 
   it('preserves fractional bar placement when snapping is disabled for dropped audio files', async () => {

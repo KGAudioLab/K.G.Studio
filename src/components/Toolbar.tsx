@@ -14,7 +14,7 @@ import {
   FaFolderOpen, FaSave, FaDownload, FaUpload, FaPlus,
   FaCog, FaMagnet, FaCut, FaCircle, FaCompress
 } from 'react-icons/fa';
-import { KGProject, type KeySignature } from '../core/KGProject';
+import { KGProject, type KeySignature, type MainContentSnappingMode } from '../core/KGProject';
 import { GlobalTrackType } from '../core/global-track';
 import { KGMidiInput } from '../core/midi-input/KGMidiInput';
 import { KGKeySignatureRegion } from '../core/region/KGKeySignatureRegion';
@@ -55,6 +55,7 @@ const Toolbar: React.FC = () => {
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
     isLooping, toggleLoop,
+    isSnappingEnabled, snappingMode, setMainContentSnapping,
     globalTracks,
     canUndo, canRedo, undoDescription, redoDescription, undo, redo,
     toggleChatBox, toggleSettings, toggleKGOnePanel, toggleEventListPanel, activateSidePanel, showKGOnePanel, showEventListPanel, showChatBox, showSettings, setShowSettings, cleanupProjectState, toggleMetronome, isMetronomeEnabled,
@@ -70,7 +71,7 @@ const Toolbar: React.FC = () => {
 
   // State for main content tools
   const [activeMainTool, setActiveMainTool] = React.useState<'pointer' | 'pencil'>('pointer');
-  const [isSnapping, setIsSnapping] = React.useState(true);
+  const [showSnappingDropdown, setShowSnappingDropdown] = React.useState(false);
 
   // State for key signature dropdown
   const [showKeySignatureDropdown, setShowKeySignatureDropdown] = React.useState(false);
@@ -125,6 +126,11 @@ const Toolbar: React.FC = () => {
     { label: t('toolbar.export.midi'), value: 'midi' },
     { label: t('toolbar.export.wav'), value: 'wav' },
     { label: t('toolbar.export.mp3'), value: 'mp3' },
+  ];
+  const snappingOptions = [
+    { label: t('toolbar.snap.off'), value: 'off' },
+    { label: t('toolbar.snap.bar'), value: 'bar' },
+    { label: t('toolbar.snap.beat'), value: 'beat' },
   ];
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
@@ -794,12 +800,25 @@ const Toolbar: React.FC = () => {
 
   // Handle snapping toggle
   const handleSnappingToggle = () => {
-    const newValue = !isSnapping;
-    setIsSnapping(newValue);
-    KGMainContentState.instance().setSnapping(newValue);
-    if (DEBUG_MODE.TOOLBAR) {
-      console.log(`Snapping ${newValue ? 'enabled' : 'disabled'}`);
+    if (!isSnappingEnabled) {
+      setMainContentSnapping(true, snappingMode);
+      setShowSnappingDropdown(false);
+      return;
     }
+
+    setShowSnappingDropdown(open => !open);
+    if (DEBUG_MODE.TOOLBAR) {
+      console.log('Opened snapping options');
+    }
+  };
+
+  const handleSnappingOptionChange = (value: string) => {
+    if (value === 'off') {
+      setMainContentSnapping(false, snappingMode);
+      return;
+    }
+
+    setMainContentSnapping(true, value as MainContentSnappingMode);
   };
 
   // Handle copy button click
@@ -1158,13 +1177,29 @@ const Toolbar: React.FC = () => {
           >
             <FaCompress />
           </button>
-          <button
-            title={t('toolbar.button.snapToGrid')}
-            className={`tool-button ${isSnapping ? 'active' : ''}`}
-            onClick={handleSnappingToggle}
-          >
-            <FaMagnet />
-          </button>
+          <div className="snap-dropdown-anchor" onMouseDown={event => event.stopPropagation()}>
+            <button
+              title={t('toolbar.button.snapToGrid')}
+              aria-haspopup="menu"
+              aria-expanded={showSnappingDropdown}
+              className={`tool-button ${isSnappingEnabled ? 'active' : ''}`}
+              onClick={handleSnappingToggle}
+            >
+              <FaMagnet />
+            </button>
+            <div className="snap-dropdown-positioner">
+              <KGDropdown
+                options={snappingOptions}
+                value={isSnappingEnabled ? snappingMode : 'off'}
+                onChange={handleSnappingOptionChange}
+                label={t('toolbar.button.snapToGrid')}
+                hideButton={true}
+                isOpen={showSnappingDropdown}
+                onToggle={setShowSnappingDropdown}
+                className="snap-dropdown"
+              />
+            </div>
+          </div>
           <div className="toolbar-separator"></div>
           <button title={t('toolbar.button.copy')} onClick={handleCopyClick}><FaCopy /></button>
           <button title={t('toolbar.button.paste')} onClick={handlePasteClick}><FaPaste /></button>

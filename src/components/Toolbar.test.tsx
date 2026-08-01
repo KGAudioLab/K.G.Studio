@@ -34,6 +34,9 @@ const storeState = {
   setBarWidthMultiplier: vi.fn(),
   isLooping: false,
   toggleLoop: vi.fn(),
+  isSnappingEnabled: true,
+  snappingMode: 'beat' as 'bar' | 'beat',
+  setMainContentSnapping: vi.fn(),
   canUndo: false,
   canRedo: false,
   undoDescription: null,
@@ -242,10 +245,42 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.globalTracks = createDefaultGlobalTracks();
     storeState.setKeySignature.mockClear();
     storeState.refreshProjectState.mockClear();
+    storeState.setMainContentSnapping.mockClear();
+    storeState.isSnappingEnabled = true;
+    storeState.snappingMode = 'beat';
     executeCommandMock.mockClear();
     vi.mocked(KGProjectStorage.getInstance).mockReset();
     vi.mocked(showConfirm).mockReset();
     vi.mocked(showAlert).mockReset();
+  });
+
+  it('opens snapping options from an active magnet and applies all menu choices', () => {
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByTitle('Snap to Grid'));
+    expect(screen.getByText('Off')).toBeInTheDocument();
+    expect(screen.getByText('Snap to Bar')).toBeInTheDocument();
+    expect(screen.getByText('Snap to Beat')).toHaveClass('active');
+
+    fireEvent.click(screen.getByText('Snap to Bar'));
+    expect(storeState.setMainContentSnapping).toHaveBeenCalledWith(true, 'bar');
+
+    fireEvent.click(screen.getByTitle('Snap to Grid'));
+    fireEvent.click(screen.getByText('Off'));
+    expect(storeState.setMainContentSnapping).toHaveBeenCalledWith(false, 'beat');
+  });
+
+  it('re-enables the remembered mode directly when the magnet is off', () => {
+    storeState.isSnappingEnabled = false;
+    storeState.snappingMode = 'bar';
+    render(<Toolbar />);
+
+    const magnet = screen.getByTitle('Snap to Grid');
+    expect(magnet).not.toHaveClass('active');
+    fireEvent.click(magnet);
+
+    expect(storeState.setMainContentSnapping).toHaveBeenCalledWith(true, 'bar');
+    expect(screen.queryByText('Off')).not.toBeInTheDocument();
   });
 
   it('suppresses active styling for side-panel buttons while Settings is visible', () => {

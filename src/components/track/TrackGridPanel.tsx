@@ -37,6 +37,7 @@ import {
   getAudioImportDecodeFailureMessage,
   isAcceptedAudioImportFile,
 } from '../../util/audioImportUtil';
+import { snapBarValue } from '../../util/mainContentSnapUtil';
 
 const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
   shiftKey: event.shiftKey,
@@ -119,9 +120,12 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const relativeX = clientX - gridRect.left;
     const barWidth = gridContainerRef.current.clientWidth / maxBars;
     const rawBar = relativeX / barWidth + 1;
-    const snap = KGMainContentState.instance().isSnappingEnabled();
-
-    return Math.max(1, snap ? Math.round(rawBar) : rawBar);
+    const mainContentState = KGMainContentState.instance();
+    return Math.max(1, snapBarValue(rawBar, {
+      enabled: mainContentState.isSnappingEnabled(),
+      mode: mainContentState.getSnappingMode(),
+      beatsPerBar: timeSignature.numerator,
+    }));
   };
 
   const importAudioFileToTrackAtBar = async (
@@ -490,9 +494,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
     // For audio tracks, show the file import modal instead of creating a blank region
     if (track.getType() === TrackType.Wave) {
-      const snap = KGMainContentState.instance().isSnappingEnabled();
+      const mainContentState = KGMainContentState.instance();
       const rawBar = relativeX / barWidth + 1;
-      const snappedBarNumber = Math.max(1, snap ? Math.round(rawBar) : rawBar);
+      const snappedBarNumber = Math.max(1, snapBarValue(rawBar, {
+        enabled: mainContentState.isSnappingEnabled(),
+        mode: mainContentState.getSnappingMode(),
+        beatsPerBar: timeSignature.numerator,
+      }));
       pendingAudioImportRef.current = { barNumber: snappedBarNumber, trackIndex };
       setShowAudioImportModal(true);
       return;
@@ -712,7 +720,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const secondsPerBeat = 60 / bpm;
         const clipOffset = coreRegion.getClipStartOffsetSeconds();
         const audioDuration = coreRegion.getAudioDurationSeconds();
-        const snap = KGMainContentState.instance().isSnappingEnabled();
+        const mainContentState = KGMainContentState.instance();
 
         // Left edge changed — calculate new clip offset
         if (clampedBarNumber !== oldBarNumber) {
@@ -725,9 +733,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
             // Dragged past audio start — snap to earliest allowed position
             const maxLeftExtensionBeats = clipOffset / secondsPerBeat;
             const minStartBeat = oldStartBeat - maxLeftExtensionBeats;
-            clampedBarNumber = snap
-              ? Math.ceil(minStartBeat / beatsPerBar) + 1
-              : (minStartBeat / beatsPerBar) + 1;
+            clampedBarNumber = snapBarValue((minStartBeat / beatsPerBar) + 1, {
+              enabled: mainContentState.isSnappingEnabled(),
+              mode: mainContentState.getSnappingMode(),
+              beatsPerBar,
+            }, 'ceil');
             const oldEndBarNumber = oldBarNumber + (coreRegion.getLength() / beatsPerBar);
             clampedLength = oldEndBarNumber - clampedBarNumber;
             newClipStartOffsetSeconds = 0;
@@ -741,7 +751,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const maxDurationSeconds = audioDuration - effectiveClipOffset;
         const maxLengthBars = (maxDurationSeconds / secondsPerBeat) / beatsPerBar;
         if (clampedLength > maxLengthBars) {
-          clampedLength = snap ? Math.floor(maxLengthBars) : maxLengthBars;
+          clampedLength = snapBarValue(maxLengthBars, {
+            enabled: mainContentState.isSnappingEnabled(),
+            mode: mainContentState.getSnappingMode(),
+            beatsPerBar,
+          }, 'floor');
           if (clampedLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
             clampedLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
           }

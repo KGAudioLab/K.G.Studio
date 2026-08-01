@@ -36,6 +36,8 @@ const toneMocks = vi.hoisted(() => {
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 let mockIsMetronomeEnabled = false;
 let mockShowGlobalTracks = false;
+let mockIsSnappingEnabled = true;
+let mockSnappingMode: 'bar' | 'beat' = 'beat';
 let mockPlayheadPosition = 0;
 let mockSelectedItems: Array<{ getId: () => string; select: () => void; deselect: () => void; isSelected: () => boolean }> = [];
 let mockCopiedItems: Array<{ getId: () => string }> = [];
@@ -58,6 +60,14 @@ const mockProject = {
   getShowGlobalTracks: () => mockShowGlobalTracks,
   setShowGlobalTracks: vi.fn((value: boolean) => {
     mockShowGlobalTracks = value;
+  }),
+  getIsSnappingEnabled: () => mockIsSnappingEnabled,
+  setIsSnappingEnabled: vi.fn((value: boolean) => {
+    mockIsSnappingEnabled = value;
+  }),
+  getSnappingMode: () => mockSnappingMode,
+  setSnappingMode: vi.fn((value: 'bar' | 'beat') => {
+    mockSnappingMode = value;
   }),
   getPlayheadPosition: () => mockPlayheadPosition,
   setPlayheadPosition: vi.fn((position: number) => {
@@ -225,9 +235,13 @@ describe('projectStore piano roll state', () => {
     mockCore.clearSelectedItems.mockClear();
     mockCore.addSelectedItems.mockClear();
     mockIsMetronomeEnabled = false;
+    mockIsSnappingEnabled = true;
+    mockSnappingMode = 'beat';
     mockShowGlobalTracks = false;
     mockProject.setIsMetronomeEnabled.mockClear();
     mockProject.setShowGlobalTracks.mockClear();
+    mockProject.setIsSnappingEnabled.mockClear();
+    mockProject.setSnappingMode.mockClear();
     mockProject.setPlayheadPosition.mockClear();
     configValues.set('audio.input_device_id', 'default');
   });
@@ -382,6 +396,20 @@ describe('projectStore piano roll state', () => {
     const state = useProjectStore.getState();
     expect(mockProject.setShowGlobalTracks).toHaveBeenCalledWith(true);
     expect(state.showGlobalTracks).toBe(true);
+  });
+
+  it('persists and synchronizes main-content snapping settings', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setMainContentSnapping(false, 'bar');
+    });
+
+    const state = useProjectStore.getState();
+    expect(mockProject.setIsSnappingEnabled).toHaveBeenCalledWith(false);
+    expect(mockProject.setSnappingMode).toHaveBeenCalledWith('bar');
+    expect(state.isSnappingEnabled).toBe(false);
+    expect(state.snappingMode).toBe('bar');
   });
 
   it('tracks playback preparation around startPlaying success', async () => {
@@ -718,6 +746,8 @@ describe('projectStore piano roll state', () => {
       setShowGlobalTracks: vi.fn(),
       getLoopingRange: () => [0, 0] as [number, number],
       getPianoRollZoom: () => 1,
+      getIsSnappingEnabled: () => true,
+      getSnappingMode: () => 'beat' as const,
     };
     currentProject = project as unknown as typeof mockProject;
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
@@ -778,6 +808,8 @@ describe('projectStore piano roll state', () => {
       setShowGlobalTracks: vi.fn(),
       getLoopingRange: () => [0, 0] as [number, number],
       getPianoRollZoom: () => 1,
+      getIsSnappingEnabled: () => true,
+      getSnappingMode: () => 'beat' as const,
     };
     currentProject = project as unknown as typeof mockProject;
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());

@@ -9,6 +9,7 @@ import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 
 // Type for valid key signatures
 export type KeySignature = keyof typeof KEY_SIGNATURE_MAP;
+export type MainContentSnappingMode = 'bar' | 'beat';
 
 /**
  * KGProject - Class representing a project in the DAW
@@ -67,10 +68,18 @@ export class KGProject {
   private playheadPosition: number = 0;
 
   @Expose()
+  @WithDefault(true)
+  private isSnappingEnabled: boolean = true;
+
+  @Expose()
+  @WithDefault('beat')
+  private snappingMode: MainContentSnappingMode = 'beat';
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 17;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 18;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -225,6 +234,22 @@ export class KGProject {
 
   public setPlayheadPosition(playheadPosition: number): void {
     this.playheadPosition = playheadPosition;
+  }
+
+  public getIsSnappingEnabled(): boolean {
+    return this.isSnappingEnabled;
+  }
+
+  public setIsSnappingEnabled(isSnappingEnabled: boolean): void {
+    this.isSnappingEnabled = isSnappingEnabled;
+  }
+
+  public getSnappingMode(): MainContentSnappingMode {
+    return this.snappingMode;
+  }
+
+  public setSnappingMode(snappingMode: MainContentSnappingMode): void {
+    this.snappingMode = snappingMode;
   }
 
   public getIsLooping(): boolean {

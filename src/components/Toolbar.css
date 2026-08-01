@@ -236,6 +236,24 @@
   left: 0;
 }
 
+.snap-dropdown-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.snap-dropdown-positioner {
+  position: absolute;
+  top: 100%;
+  left: 5px;
+  z-index: 10000;
+}
+
+.snap-dropdown .quant-dropdown {
+  left: 0;
+  right: auto;
+  width: 130px;
+}
+
 .key-signature-popup-anchor {
   display: inline-flex;
 }

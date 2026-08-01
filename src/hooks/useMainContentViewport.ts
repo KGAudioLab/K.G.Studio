@@ -7,6 +7,7 @@ import { BAR_NUMBERS_CONSTANTS, DEBUG_MODE, TOOLBAR_CONSTANTS } from '../constan
 import { ChangeLoopSettingsCommand } from '../core/commands';
 import { KGCore } from '../core/KGCore';
 import { useProjectStore } from '../stores/projectStore';
+import { snapBarValue } from '../util/mainContentSnapUtil';
 
 interface UseMainContentViewportParams {
   barWidthMultiplier: number;
@@ -221,8 +222,12 @@ export function useMainContentViewport({
       getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width'),
       10
     ) || 40;
-    const snap = KGMainContentState.instance().isSnappingEnabled();
-    const barIndex = snap ? Math.round(relativeX / barWidth) : relativeX / barWidth;
+    const mainContentState = KGMainContentState.instance();
+    const barIndex = snapBarValue(relativeX / barWidth, {
+      enabled: mainContentState.isSnappingEnabled(),
+      mode: mainContentState.getSnappingMode(),
+      beatsPerBar: timeSignature.numerator,
+    });
     const clampedBarIndex = Math.max(0, barIndex);
     return clampedBarIndex * timeSignature.numerator;
   }, [timeSignature]);

@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
-import { KGProject, type KeySignature } from '../core/KGProject';
+import { KGProject, type KeySignature, type MainContentSnappingMode } from '../core/KGProject';
 import { KGGlobalTrack } from '../core/global-track';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { beatsToTimeString } from '../util/timeUtil';
 import { KGAudioInterface } from '../core/audio-interface/KGAudioInterface';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
+import { KGMainContentState } from '../core/state/KGMainContentState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGRegion } from '../core/region/KGRegion';
@@ -126,6 +127,8 @@ interface ProjectState {
   isLooping: boolean;
   isMetronomeEnabled: boolean;
   showGlobalTracks: boolean;
+  isSnappingEnabled: boolean;
+  snappingMode: MainContentSnappingMode;
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
   isPlaying: boolean;
@@ -240,6 +243,7 @@ interface ProjectState {
   setTimeSignature: (timeSignature: TimeSignature) => void;
   setKeySignature: (keySignature: KeySignature, options?: { transposeChords?: boolean }) => void;
   setSelectedMode: (selectedMode: string) => void;
+  setMainContentSnapping: (enabled: boolean, mode?: MainContentSnappingMode) => void;
 
   // Selection actions
   syncSelectionFromCore: () => void;
@@ -431,6 +435,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Get initial ChatBox state from config
   const configManager = ConfigManager.instance();
   KGPianoRollState.instance().setPianoRollZoom(currentProject.getPianoRollZoom());
+  KGMainContentState.instance().setSnapping(currentProject.getIsSnappingEnabled());
+  KGMainContentState.instance().setSnappingMode(currentProject.getSnappingMode());
   const initialChatBoxState = configManager.getIsInitialized()
     ? (configManager.get('chatbox.default_open') as boolean) ?? false
     : false;
@@ -539,6 +545,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     isLooping: currentProject.getIsLooping(),
     isMetronomeEnabled: currentProject.getIsMetronomeEnabled(),
     showGlobalTracks: currentProject.getShowGlobalTracks(),
+    isSnappingEnabled: currentProject.getIsSnappingEnabled(),
+    snappingMode: currentProject.getSnappingMode(),
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
     isPlaying: KGCore.instance().getIsPlaying(),
@@ -1088,6 +1096,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           isLooping: projectToLoad.getIsLooping(),
           isMetronomeEnabled: projectToLoad.getIsMetronomeEnabled(),
           showGlobalTracks: projectToLoad.getShowGlobalTracks(),
+          isSnappingEnabled: projectToLoad.getIsSnappingEnabled(),
+          snappingMode: projectToLoad.getSnappingMode(),
           pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
           loopingRange: projectToLoad.getLoopingRange(),
           activeTrackAutomationTrackId: null,
@@ -1126,6 +1136,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         KGPianoRollState.instance().setLastEditedNoteLength(1);
         KGPianoRollState.instance().setLastEditedNoteVelocity(127);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
+        KGMainContentState.instance().setSnapping(projectToLoad.getIsSnappingEnabled());
+        KGMainContentState.instance().setSnappingMode(projectToLoad.getSnappingMode());
 
         // Add a status message
         KGCore.instance().setStatus(`Project "${projectToLoad.getName()}" loaded with audio setup`);
@@ -1710,6 +1722,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
+    setMainContentSnapping: (enabled: boolean, mode?: MainContentSnappingMode) => {
+      const project = KGCore.instance().getCurrentProject();
+      const nextMode = mode ?? project.getSnappingMode();
+      project.setIsSnappingEnabled(enabled);
+      project.setSnappingMode(nextMode);
+      KGMainContentState.instance().setSnapping(enabled);
+      KGMainContentState.instance().setSnappingMode(nextMode);
+      set({ isSnappingEnabled: enabled, snappingMode: nextMode });
+    },
+
     // Selection actions
     syncSelectionFromCore,
 
@@ -2115,6 +2137,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         selectedMode: project.getSelectedMode(),
         isMetronomeEnabled: project.getIsMetronomeEnabled(),
         showGlobalTracks: project.getShowGlobalTracks(),
+        isSnappingEnabled: project.getIsSnappingEnabled(),
+        snappingMode: project.getSnappingMode(),
         playheadPosition: core.getPlayheadPosition(),
         currentTime: formatCurrentTime(project, core.getPlayheadPosition()),
       });
@@ -2123,6 +2147,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       updateTimeSignatureCSS(project.getTimeSignature());
       updateMaxBarsCSS(project.getMaxBars());
       updateBarWidthMultiplierCSS(project.getBarWidthMultiplier());
+      KGMainContentState.instance().setSnapping(project.getIsSnappingEnabled());
+      KGMainContentState.instance().setSnappingMode(project.getSnappingMode());
 
       // Sync all related state
       const actions = get();
