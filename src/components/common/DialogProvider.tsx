@@ -44,7 +44,7 @@ const DEFAULT_AUDIO_CHORD_DETECTION_OPTIONS: ChordDetectionOptionsResult = {
 };
 
 const DEFAULT_MIDI_CHORD_DETECTION_OPTIONS: MidiChordDetectionOptionsResult = {
-  enableSevenths: false,
+  enableSevenths: true,
   shortNoteSuppression: 'medium',
   harmonicFocus: 'favor-sustained-notes',
 };

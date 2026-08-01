@@ -186,7 +186,7 @@ export function showMidiChordDetectionOptions(
 ): Promise<MidiChordDetectionOptionsResult | null> {
   if (!_showMidiChordDetectionOptionsFn) {
     return Promise.resolve(defaultValue ?? {
-      enableSevenths: false,
+      enableSevenths: true,
       shortNoteSuppression: 'medium',
       harmonicFocus: 'favor-sustained-notes',
     });

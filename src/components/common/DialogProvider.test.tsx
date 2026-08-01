@@ -151,11 +151,7 @@ describe('DialogProvider MIDI chord detection dialog', () => {
         <button
           type="button"
           onClick={async () => {
-            await showMidiChordDetectionOptions('Tune MIDI chord detection settings before processing.', {
-              enableSevenths: false,
-              shortNoteSuppression: 'medium',
-              harmonicFocus: 'favor-sustained-notes',
-            });
+            await showMidiChordDetectionOptions('Tune MIDI chord detection settings before processing.');
           }}
         >
           Open MIDI
@@ -169,6 +165,7 @@ describe('DialogProvider MIDI chord detection dialog', () => {
     expect(screen.getByText('Experimental Feature')).toBeInTheDocument();
     expect(screen.getByText(/Voicing density, overlaps, and ornamental notes/)).toBeInTheDocument();
     expect(screen.queryByText('Recommended Source Material')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Chord Detail: Enable sevenths')).toBeChecked();
   });
 });
 

@@ -67,6 +67,7 @@ import {
 } from '../../util/audioTempoDetectionActions';
 import {
   DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+  buildMidiChordRegionSpans,
   buildMidiChordWindowsForRegion,
   detectChordsFromMidi,
   type DetectedMidiChord,
@@ -777,7 +778,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     if (chordWindows.length === 0) {
       await showAlert(audioRegion
         ? 'The selected audio region has no audible span to analyze.'
-        : 'The selected MIDI region has no bars to analyze.'
+        : 'The selected MIDI region has no beats to analyze.'
       );
       return;
     }
@@ -859,7 +860,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         });
       }
 
-      const replacements = detectedChords
+      const chordRegionResults = audioRegion
+        ? detectedChords
+        : buildMidiChordRegionSpans(detectedChords as DetectedMidiChord[]);
+      const replacements = chordRegionResults
         .filter(result => result.symbol !== 'N' && result.endBeat > result.startBeat)
         .map(result => ({
           startBeat: result.startBeat,

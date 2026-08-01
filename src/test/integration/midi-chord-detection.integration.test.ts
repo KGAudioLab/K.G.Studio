@@ -7,6 +7,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import {
   DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+  buildMidiChordRegionSpans,
   buildMidiChordWindowsForRegion,
   detectChordsFromMidi,
 } from '../../util/midiChordDetection';
@@ -42,7 +43,7 @@ function getFixtureRegion(project: KGProject): KGMidiRegion {
 }
 
 describe('midi chord detection fixture', () => {
-  it('detects the expected bar-locked progression with triads only', () => {
+  it('detects each beat and coalesces the expected triad progression by bar', () => {
     const project = loadFixtureProject();
     const region = getFixtureRegion(project);
     const windows = buildMidiChordWindowsForRegion(project, region);
@@ -50,10 +51,13 @@ describe('midi chord detection fixture', () => {
       project,
       region,
       windows,
-      options: DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+      options: {
+        ...DEFAULT_MIDI_CHORD_DETECTION_OPTIONS,
+        enableSevenths: false,
+      },
     });
 
-    expect(results.map(result => result.symbol)).toEqual([
+    const expectedProgression = [
       'Am',
       'F',
       'Dm',
@@ -62,10 +66,20 @@ describe('midi chord detection fixture', () => {
       'C',
       'Dm',
       'E',
-    ]);
+    ];
+    expect(results.map(result => result.symbol)).toEqual(
+      expectedProgression.flatMap(symbol => Array(4).fill(symbol) as string[]),
+    );
+    expect(buildMidiChordRegionSpans(results)).toEqual(
+      expectedProgression.map((symbol, barIndex) => ({
+        startBeat: barIndex * 4,
+        endBeat: (barIndex + 1) * 4,
+        symbol,
+      })),
+    );
   });
 
-  it('detects the expected bar-locked progression with sevenths enabled', () => {
+  it('detects each beat and coalesces the expected seventh progression by bar', () => {
     const project = loadFixtureProject();
     const region = getFixtureRegion(project);
     const windows = buildMidiChordWindowsForRegion(project, region);
@@ -79,7 +93,7 @@ describe('midi chord detection fixture', () => {
       },
     });
 
-    expect(results.map(result => result.symbol)).toEqual([
+    const expectedProgression = [
       'Am',
       'F',
       'Dm',
@@ -88,6 +102,16 @@ describe('midi chord detection fixture', () => {
       'C',
       'Dm',
       'E7',
-    ]);
+    ];
+    expect(results.map(result => result.symbol)).toEqual(
+      expectedProgression.flatMap(symbol => Array(4).fill(symbol) as string[]),
+    );
+    expect(buildMidiChordRegionSpans(results)).toEqual(
+      expectedProgression.map((symbol, barIndex) => ({
+        startBeat: barIndex * 4,
+        endBeat: (barIndex + 1) * 4,
+        symbol,
+      })),
+    );
   });
 });

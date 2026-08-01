@@ -42,12 +42,13 @@ interface WeightedMidiNote {
 }
 
 interface ChordTemplate {
-  symbolSuffix: '' | 'm' | '7' | 'maj7' | 'm7';
-  quality: 'major' | 'minor';
+  symbolSuffix: '' | 'm' | 'sus2' | 'sus4' | '5' | 'aug' | 'dim' | '7' | 'maj7' | 'm7' | '7sus2' | '7sus4' | 'm7b5' | 'dim7';
+  quality: 'major' | 'minor' | 'suspended' | 'power' | 'augmented' | 'diminished';
   intervals: number[];
 }
 
 interface ScoredChordCandidate {
+  root: number;
   symbol: string;
   score: number;
 }
@@ -61,9 +62,18 @@ const DEFAULT_SHORT_NOTE_THRESHOLDS: Record<MidiChordDetectionOptions['shortNote
 const CHORD_TEMPLATES: ChordTemplate[] = [
   { symbolSuffix: '', quality: 'major', intervals: [0, 4, 7] },
   { symbolSuffix: 'm', quality: 'minor', intervals: [0, 3, 7] },
+  { symbolSuffix: 'sus2', quality: 'suspended', intervals: [0, 2, 7] },
+  { symbolSuffix: 'sus4', quality: 'suspended', intervals: [0, 5, 7] },
+  { symbolSuffix: '5', quality: 'power', intervals: [0, 7] },
+  { symbolSuffix: 'aug', quality: 'augmented', intervals: [0, 4, 8] },
+  { symbolSuffix: 'dim', quality: 'diminished', intervals: [0, 3, 6] },
   { symbolSuffix: '7', quality: 'major', intervals: [0, 4, 7, 10] },
   { symbolSuffix: 'maj7', quality: 'major', intervals: [0, 4, 7, 11] },
   { symbolSuffix: 'm7', quality: 'minor', intervals: [0, 3, 7, 10] },
+  { symbolSuffix: '7sus2', quality: 'suspended', intervals: [0, 2, 7, 10] },
+  { symbolSuffix: '7sus4', quality: 'suspended', intervals: [0, 5, 7, 10] },
+  { symbolSuffix: 'm7b5', quality: 'diminished', intervals: [0, 3, 6, 10] },
+  { symbolSuffix: 'dim7', quality: 'diminished', intervals: [0, 3, 6, 9] },
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -174,14 +184,38 @@ function scoreChordTemplate(
   const focusWeight = options.harmonicFocus === 'favor-sustained-notes' ? 0.78 : 0.6;
   const contextWeight = 1 - focusWeight;
   const rootPc = root;
-  const thirdPc = chordPitchClasses[1];
-  const fifthPc = chordPitchClasses[2];
+  const characteristicPc = chordPitchClasses[1];
+  const fifthPc = chordPitchClasses[2] ?? null;
   const seventhPc = chordPitchClasses[3] ?? null;
+
+  if (template.quality === 'power') {
+    let sustainedOutsideWeight = 0;
+    let fullOutsideWeight = 0;
+    for (let pitchClass = 0; pitchClass < 12; pitchClass++) {
+      if (!chordPitchClassSet.has(pitchClass)) {
+        sustainedOutsideWeight += sustainedWeights[pitchClass];
+        fullOutsideWeight += fullWeights[pitchClass];
+      }
+    }
+
+    const hasClearRoot = sustainedWeights[rootPc] >= 0.15 || fullWeights[rootPc] >= 0.15;
+    const hasClearFifth = sustainedWeights[characteristicPc] >= 0.15 || fullWeights[characteristicPc] >= 0.15;
+    if (
+      !hasClearRoot
+      || !hasClearFifth
+      || sustainedOutsideWeight > 0.12
+      || fullOutsideWeight > 0.18
+    ) {
+      return Number.NEGATIVE_INFINITY;
+    }
+  }
 
   let score = 0;
   score += (sustainedWeights[rootPc] * 1.7 + fullWeights[rootPc] * 1.1) * focusWeight;
-  score += (sustainedWeights[thirdPc] * 1.55 + fullWeights[thirdPc] * 1.0) * focusWeight;
-  score += (sustainedWeights[fifthPc] * 1.2 + fullWeights[fifthPc] * 0.8) * focusWeight;
+  score += (sustainedWeights[characteristicPc] * 1.55 + fullWeights[characteristicPc] * 1.0) * focusWeight;
+  if (fifthPc !== null) {
+    score += (sustainedWeights[fifthPc] * 1.2 + fullWeights[fifthPc] * 0.8) * focusWeight;
+  }
 
   if (seventhPc !== null) {
     score += (sustainedWeights[seventhPc] * 0.95 + fullWeights[seventhPc] * 1.0) * contextWeight;
@@ -196,7 +230,7 @@ function scoreChordTemplate(
   }
   score -= outsidePenalty;
 
-  if (sustainedWeights[thirdPc] < 0.08 && fullWeights[thirdPc] < 0.09) {
+  if (sustainedWeights[characteristicPc] < 0.08 && fullWeights[characteristicPc] < 0.09) {
     score -= 0.28;
   }
 
@@ -225,15 +259,15 @@ function buildChordCandidates(
 ): { best: ScoredChordCandidate; second: ScoredChordCandidate } {
   const allowedTemplates = options.enableSevenths
     ? CHORD_TEMPLATES
-    : CHORD_TEMPLATES.filter(template => template.symbolSuffix === '' || template.symbolSuffix === 'm');
-  let best: ScoredChordCandidate = { symbol: 'N', score: Number.NEGATIVE_INFINITY };
-  let second: ScoredChordCandidate = { symbol: 'N', score: Number.NEGATIVE_INFINITY };
+    : CHORD_TEMPLATES.filter(template => template.intervals.length < 4);
+  let best: ScoredChordCandidate = { root: 0, symbol: 'N', score: Number.NEGATIVE_INFINITY };
+  let second: ScoredChordCandidate = { root: 0, symbol: 'N', score: Number.NEGATIVE_INFINITY };
 
   for (let root = 0; root < 12; root++) {
     for (const template of allowedTemplates) {
       const symbol = `${ROOT_NAMES[root]}${template.symbolSuffix}`;
       const score = scoreChordTemplate(root, template, sustainedWeights, fullWeights, bassPitchClass, options);
-      const candidate = { symbol, score };
+      const candidate = { root, symbol, score };
       if (candidate.score > best.score) {
         second = best;
         best = candidate;
@@ -270,17 +304,7 @@ function analyzeMidiChordWindow(
   const bassPitchClass = getBassPitchClass(sustainedNotes);
   const { best, second } = buildChordCandidates(sustainedWeights, fullWeights, bassPitchClass, options);
 
-  const rootName = best.symbol.endsWith('maj7')
-    ? best.symbol.slice(0, -4)
-    : best.symbol.endsWith('m7')
-      ? best.symbol.slice(0, -2)
-      : best.symbol.endsWith('7')
-        ? best.symbol.slice(0, -1)
-        : best.symbol.endsWith('m')
-          ? best.symbol.slice(0, -1)
-          : best.symbol;
-  const rootPitchClass = ROOT_NAMES.indexOf(rootName as typeof ROOT_NAMES[number]);
-  const rootWeight = rootPitchClass >= 0 ? sustainedWeights[rootPitchClass] + fullWeights[rootPitchClass] : 0;
+  const rootWeight = sustainedWeights[best.root] + fullWeights[best.root];
   const confidence = clamp((best.score - second.score) + (rootWeight * 0.65), 0, 1);
 
   if (best.score < 0.16 || confidence < 0.12) {
@@ -295,7 +319,7 @@ function analyzeMidiChordWindow(
 }
 
 export const DEFAULT_MIDI_CHORD_DETECTION_OPTIONS: MidiChordDetectionOptions = {
-  enableSevenths: false,
+  enableSevenths: true,
   shortNoteSuppression: 'medium',
   harmonicFocus: 'favor-sustained-notes',
 };
@@ -311,31 +335,63 @@ export function buildMidiChordWindowsForRegion(
   }
 
   const beatsPerBar = project.getTimeSignature().numerator;
-  const startBarIndex = Math.floor(regionStartBeat / beatsPerBar);
+  const startBeatIndex = Math.floor(regionStartBeat);
   const lastBeatExclusive = regionEndBeat - 1e-9;
-  const endBarIndexExclusive = Math.max(
-    startBarIndex + 1,
-    Math.ceil(Math.max(regionStartBeat, lastBeatExclusive) / beatsPerBar),
+  const endBeatIndexExclusive = Math.max(
+    startBeatIndex + 1,
+    Math.ceil(Math.max(regionStartBeat, lastBeatExclusive)),
   );
 
   const windows: MidiChordWindow[] = [];
-  for (let barIndex = startBarIndex; barIndex < endBarIndexExclusive; barIndex++) {
-    const barStartBeat = barIndex * beatsPerBar;
-    const barEndBeat = barStartBeat + beatsPerBar;
-    const overlapStartBeat = Math.max(regionStartBeat, barStartBeat);
-    const overlapEndBeat = Math.min(regionEndBeat, barEndBeat);
+  for (let beatIndex = startBeatIndex; beatIndex < endBeatIndexExclusive; beatIndex++) {
+    const beatStart = beatIndex;
+    const beatEnd = beatStart + 1;
+    const overlapStartBeat = Math.max(regionStartBeat, beatStart);
+    const overlapEndBeat = Math.min(regionEndBeat, beatEnd);
     if (overlapEndBeat <= overlapStartBeat) {
       continue;
     }
 
     windows.push({
-      barIndex,
+      barIndex: Math.floor(beatIndex / beatsPerBar),
       startBeat: overlapStartBeat,
       endBeat: overlapEndBeat,
     });
   }
 
   return windows;
+}
+
+export function buildMidiChordRegionSpans(
+  results: DetectedMidiChord[],
+): Array<{ startBeat: number; endBeat: number; symbol: string }> {
+  const spans: Array<{ barIndex: number; startBeat: number; endBeat: number; symbol: string }> = [];
+
+  for (const result of results) {
+    if (result.symbol === 'N' || result.endBeat <= result.startBeat) {
+      continue;
+    }
+
+    const previous = spans[spans.length - 1];
+    if (
+      previous
+      && previous.symbol === result.symbol
+      && previous.barIndex === result.barIndex
+      && Math.abs(previous.endBeat - result.startBeat) < 1e-9
+    ) {
+      previous.endBeat = result.endBeat;
+      continue;
+    }
+
+    spans.push({
+      barIndex: result.barIndex,
+      startBeat: result.startBeat,
+      endBeat: result.endBeat,
+      symbol: result.symbol,
+    });
+  }
+
+  return spans.map(({ startBeat, endBeat, symbol }) => ({ startBeat, endBeat, symbol }));
 }
 
 export function detectChordsFromMidi(request: MidiChordDetectionRequest): DetectedMidiChord[] {
