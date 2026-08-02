@@ -644,13 +644,21 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleBackToBeginningClick = () => {
+  const handleBackToBeginningClick = async () => {
     if (DEBUG_MODE.TOOLBAR) {
       console.log("Back to beginning button clicked");
     }
-    setPlayheadPosition(0);
-    requestMainContentScroll(0);
-    requestPianoRollScroll(0);
+    try {
+      if (isPlaying || isRecording) {
+        await stopTransport();
+      }
+      setPlayheadPosition(0);
+      requestMainContentScroll(0);
+      requestPianoRollScroll(0);
+    } catch (error) {
+      console.error('Failed to return to beginning:', error);
+      setStatus(t('toolbar.status.failedStopPlayback'));
+    }
   };
 
   const handleLoopToggle = () => {

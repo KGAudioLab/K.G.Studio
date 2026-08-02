@@ -42,6 +42,7 @@ import { beatRangeToSeconds, beatToSeconds, findGlobalTrackByType, getEffectiveB
 
 interface PreparePlaybackOptions {
   allowStartBeforeLoopStart?: boolean;
+  scheduleFullLoop?: boolean;
 }
 
 /**
@@ -509,7 +510,17 @@ export class KGAudioInterface {
         this.setPlaybackOrigin(project, startPosition);
       }
 
-      this.scheduleTempoChanges(project, Math.max(startPosition, scheduleStartBeat), scheduleEndBeat);
+      const playbackWindowStartBeat = isLooping && options?.scheduleFullLoop
+        ? scheduleStartBeat
+        : Math.max(startPosition, scheduleStartBeat);
+
+      if (isLooping && options?.scheduleFullLoop) {
+        const eventId = Tone.Transport.schedule(() => {
+          Tone.Transport.bpm.value = getEffectiveBpmAtBeat(project, scheduleStartBeat);
+        }, this.projectBeatToTransportTime(scheduleStartBeat));
+        this.scheduledEvents.add(eventId);
+      }
+      this.scheduleTempoChanges(project, playbackWindowStartBeat, scheduleEndBeat);
 
       if (startPosition < 0) {
         this.delayedTransportStartSeconds = Math.abs(startPosition) * (60 / project.getBpm());
@@ -535,10 +546,20 @@ export class KGAudioInterface {
         const audioBus = this.trackAudioBuses.get(trackId);
         const playerBus = this.trackAudioPlayerBuses.get(trackId);
         const interpolationIntervalMs = (configManager.get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10;
-        const automationWindowStartBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
+        const initialAutomationBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
+        const automationWindowStartBeat = isLooping && options?.scheduleFullLoop
+          ? scheduleStartBeat
+          : initialAutomationBeat;
 
-        this.applyTrackAutomationAtBeat(track, automationWindowStartBeat);
-        this.scheduleTrackAutomation(track, automationWindowStartBeat, scheduleEndBeat, interpolationIntervalMs, getEffectiveBpmAtBeat(project, automationWindowStartBeat));
+        this.applyTrackAutomationAtBeat(track, initialAutomationBeat);
+        this.scheduleTrackAutomation(
+          track,
+          automationWindowStartBeat,
+          scheduleEndBeat,
+          interpolationIntervalMs,
+          getEffectiveBpmAtBeat(project, automationWindowStartBeat),
+          isLooping && options?.scheduleFullLoop
+        );
 
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
@@ -604,8 +625,8 @@ export class KGAudioInterface {
                     return; // Skip notes outside the loop range
                   }
 
-                  // Only schedule notes that start at or after the playback start position
-                  if (noteStartBeat < startPosition) {
+                  // In a full-loop schedule, retain earlier notes for future wraps.
+                  if (noteStartBeat < playbackWindowStartBeat) {
                     return; // Skip notes that would have already finished before playback starts
                   }
                   trackNotes.push({
@@ -760,68 +781,75 @@ export class KGAudioInterface {
               // Clip offset: where playback starts within the audio file
               const clipStartOffsetSeconds = audioRegion.getClipStartOffsetSeconds();
               const audioDurationSeconds = audioRegion.getAudioDurationSeconds();
+              const audioFileId = audioRegion.getAudioFileId();
+
+              const scheduleRegionResume = (
+                resumeBeat: number,
+                maximumEndBeat: number,
+                once: boolean
+              ): void => {
+                const offsetSeconds = beatRangeToSeconds(project, regionStartBeat, resumeBeat);
+                const remainingSeconds = beatRangeToSeconds(project, resumeBeat, regionEndBeat);
+                const maximumDurationSeconds = beatRangeToSeconds(project, resumeBeat, maximumEndBeat);
+                const availableAudioSeconds = audioDurationSeconds - clipStartOffsetSeconds - offsetSeconds;
+                const effectiveRemainingSeconds = Math.min(
+                  remainingSeconds,
+                  maximumDurationSeconds,
+                  availableAudioSeconds
+                );
+
+                if (effectiveRemainingSeconds <= 0 || !playerBus.hasBuffer(audioFileId)) {
+                  return;
+                }
+
+                // Resume just after the transport boundary so Tone cannot miss
+                // the event, compensating both source offset and duration.
+                const safeResumeBeat = Math.min(
+                  resumeBeat + resumeSafetyOffsetBeats,
+                  regionEndBeat,
+                  maximumEndBeat
+                );
+                const extraOffsetSeconds = beatRangeToSeconds(project, resumeBeat, safeResumeBeat);
+                const adjustedRemainingSeconds = Math.max(0, effectiveRemainingSeconds - extraOffsetSeconds);
+                if (adjustedRemainingSeconds <= 0) {
+                  return;
+                }
+
+                const scheduleResume = once
+                  ? Tone.Transport.scheduleOnce.bind(Tone.Transport)
+                  : Tone.Transport.schedule.bind(Tone.Transport);
+                const eventId = scheduleResume((time) => {
+                  // Start the source even when the track is currently muted or
+                  // excluded by solo. The player bus gain controls audibility.
+                  playerBus.schedulePlayback(
+                    time + playbackDelay,
+                    audioFileId,
+                    clipStartOffsetSeconds + offsetSeconds + extraOffsetSeconds,
+                    adjustedRemainingSeconds
+                  );
+                }, this.projectBeatToTransportTime(safeResumeBeat));
+                this.scheduledEvents.add(eventId);
+              };
 
               // Skip regions that start before playback start position
               if (regionStartBeat < startPosition) {
-                // Region starts before playhead — calculate offset into the audio file
-                const offsetSeconds = beatRangeToSeconds(project, regionStartBeat, startPosition);
-                const remainingSeconds = beatRangeToSeconds(project, startPosition, regionEndBeat);
-                const audioFileId = audioRegion.getAudioFileId();
-
-                // Cap duration at loop boundary to prevent overlap on loop re-trigger
-                let effectiveRemainingSeconds = remainingSeconds;
-                if (isLooping) {
-                  const maxDurationBeats = scheduleEndBeat - startPosition;
-                  const maxDurationSeconds = beatRangeToSeconds(project, startPosition, startPosition + maxDurationBeats);
-                  effectiveRemainingSeconds = Math.min(remainingSeconds, maxDurationSeconds);
+                const isFullLoopSeek = isLooping && options?.scheduleFullLoop;
+                if (!isFullLoopSeek || startPosition > scheduleStartBeat) {
+                  scheduleRegionResume(startPosition, isLooping ? scheduleEndBeat : regionEndBeat, Boolean(isFullLoopSeek));
+                }
+                if (!(isLooping && options?.scheduleFullLoop)) {
+                  return;
                 }
 
-                // Cap at available audio after clip offset
-                effectiveRemainingSeconds = Math.min(
-                  effectiveRemainingSeconds,
-                  audioDurationSeconds - clipStartOffsetSeconds - offsetSeconds
-                );
-
-                if (effectiveRemainingSeconds > 0 && playerBus.hasBuffer(audioFileId)) {
-                  // Resume slightly after the current transport boundary and
-                  // compensate the source offset/duration. Scheduling exactly
-                  // at the playhead here can intermittently miss the callback,
-                  // which leaves the playhead moving but the clip silent.
-                  const safeResumeBeat = Math.min(
-                    startPosition + resumeSafetyOffsetBeats,
-                    regionEndBeat
-                  );
-                  const extraOffsetSeconds = beatRangeToSeconds(project, startPosition, safeResumeBeat);
-                  const adjustedOffsetSeconds = clipStartOffsetSeconds + offsetSeconds + extraOffsetSeconds;
-                  const adjustedRemainingSeconds = Math.max(
-                    0,
-                    effectiveRemainingSeconds - extraOffsetSeconds
-                  );
-
-                  if (adjustedRemainingSeconds <= 0) {
-                    return;
-                  }
-
-                  const regionStartTime = this.projectBeatToTransportTime(safeResumeBeat);
-
-                  const eventId = Tone.Transport.schedule((time) => {
-                    // Start the source even when the track is currently muted or
-                    // excluded by solo. The player bus gain controls audibility,
-                    // allowing a later unmute/solo change to reveal this clip at
-                    // its current playback position.
-                    playerBus.schedulePlayback(
-                      time + playbackDelay,
-                      audioFileId,
-                      adjustedOffsetSeconds,
-                      adjustedRemainingSeconds
-                    );
-                  }, regionStartTime);
-                  this.scheduledEvents.add(eventId);
+                if (regionStartBeat < scheduleStartBeat) {
+                  // The source begins before the loop. Re-enter it from the
+                  // loop-start offset on every wrap instead of scheduling its
+                  // out-of-loop project start at transport time zero.
+                  scheduleRegionResume(scheduleStartBeat, scheduleEndBeat, false);
+                  return;
                 }
-                return;
               }
 
-              const audioFileId = audioRegion.getAudioFileId();
               // Effective duration: region length in seconds, capped at available audio after clip offset
               const regionLengthSeconds = beatRangeToSeconds(project, regionStartBeat, regionEndBeat);
               let effectiveDurationSeconds = Math.min(
@@ -862,6 +890,7 @@ export class KGAudioInterface {
       console.log(`Prepared playback from position ${startPosition} with ${this.scheduledEvents.size} events`);
     } catch (error) {
       console.error('Error preparing playback:', error);
+      throw error;
     }
   }
 
@@ -1465,7 +1494,8 @@ export class KGAudioInterface {
     windowStartBeat: number,
     windowEndBeat: number,
     interpolationIntervalMs: number,
-    bpm: number
+    bpm: number,
+    includeWindowStart = false
   ): void {
     const trackId = track.getId().toString();
     const audioBus = this.trackAudioBuses.get(trackId);
@@ -1479,7 +1509,7 @@ export class KGAudioInterface {
 
     bakeTrackAutomationPointsInWindow(volumePoints, 'volume', windowStartBeat, windowEndBeat, interpolationIntervalMs, bpm)
       .forEach(({ beat, value }) => {
-        if (beat <= windowStartBeat) {
+        if (includeWindowStart ? beat < windowStartBeat : beat <= windowStartBeat) {
           return;
         }
 
@@ -1497,7 +1527,7 @@ export class KGAudioInterface {
 
     bakeTrackAutomationPointsInWindow(panPoints, 'pan', windowStartBeat, windowEndBeat, interpolationIntervalMs, bpm)
       .forEach(({ beat, value }) => {
-        if (beat <= windowStartBeat) {
+        if (includeWindowStart ? beat < windowStartBeat : beat <= windowStartBeat) {
           return;
         }
 

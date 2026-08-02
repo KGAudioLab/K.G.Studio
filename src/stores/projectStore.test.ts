@@ -8,6 +8,7 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { createDefaultGlobalTracks } from '../core/global-track';
 import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
+import type { KGProject } from '../core/KGProject';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
@@ -138,6 +139,7 @@ const mockCore = {
   setPlayheadPosition: vi.fn((position: number) => {
     mockPlayheadPosition = position;
   }),
+  seekDuringPlayback: vi.fn().mockResolvedValue(true),
   getIsPlaying: () => false,
   startPlaying: vi.fn().mockResolvedValue(undefined),
   stopPlaying: vi.fn().mockResolvedValue(undefined),
@@ -203,6 +205,8 @@ describe('projectStore piano roll state', () => {
     mockCore.stopPlaying.mockResolvedValue(undefined);
     mockCore.executeCommand.mockReset();
     mockCore.setPlayheadPosition.mockClear();
+    mockCore.seekDuringPlayback.mockReset();
+    mockCore.seekDuringPlayback.mockResolvedValue(true);
     mockCore.undo.mockReset();
     mockCore.undo.mockReturnValue(true);
     mockCore.redo.mockReset();
@@ -484,6 +488,59 @@ describe('projectStore piano roll state', () => {
     });
   });
 
+  it('restarts active playback from an accepted user seek', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true, isRecording: false });
+
+    const accepted = await useProjectStore.getState().seekPlayheadPosition(12);
+
+    expect(accepted).toBe(true);
+    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(12);
+    expect(mockCore.seekDuringPlayback).toHaveBeenCalledWith(12);
+    expect(useProjectStore.getState().isPlaying).toBe(true);
+  });
+
+  it('ignores active-playback seeks outside the half-open loop range', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({
+      isPlaying: true,
+      isRecording: false,
+      isLooping: true,
+      loopingRange: [2, 3],
+      timeSignature: { numerator: 4, denominator: 4 },
+    });
+
+    await expect(useProjectStore.getState().seekPlayheadPosition(7)).resolves.toBe(false);
+    await expect(useProjectStore.getState().seekPlayheadPosition(16)).resolves.toBe(false);
+
+    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().playheadPosition).toBe(0);
+  });
+
+  it('ignores user seeks while recording', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true, isRecording: true });
+
+    await expect(useProjectStore.getState().seekPlayheadPosition(8)).resolves.toBe(false);
+
+    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
+  });
+
+  it('stops at the requested target and reports a playback failure when restart fails', async () => {
+    mockCore.seekDuringPlayback.mockRejectedValueOnce(new Error('restart failed'));
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true, isRecording: false });
+
+    await expect(useProjectStore.getState().seekPlayheadPosition(10)).resolves.toBe(false);
+
+    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(10);
+    expect(useProjectStore.getState().isPlaying).toBe(false);
+    expect(useProjectStore.getState().playheadPosition).toBe(10);
+    expect(mockCore.setStatus).toHaveBeenCalled();
+  });
+
   it('starts and stops audio-track recording without requiring a selected region', async () => {
     const { KGAudioTrack } = await import('../core/track/KGAudioTrack');
     const audioTrack = new KGAudioTrack('Audio 1', 1);
@@ -763,7 +820,7 @@ describe('projectStore piano roll state', () => {
     expect(maxBars).toBe(33);
     expect(state.maxBars).toBe(33);
     expect(audioRegion.getLength()).toBeCloseTo(8);
-    expect(getAudioRegionDisplayLengthBeats(project as any, audioRegion)).toBeCloseTo(8);
+    expect(getAudioRegionDisplayLengthBeats(project as unknown as KGProject, audioRegion)).toBeCloseTo(8);
   });
 
   it('does not auto-shrink max bars after BPM increase', async () => {

@@ -5,6 +5,7 @@ import Playhead from './Playhead';
 
 const storeState = {
   playheadPosition: 2,
+  playheadSeekPreviewPosition: null as number | null,
   timeSignature: { numerator: 4, denominator: 4 },
 };
 
@@ -15,6 +16,7 @@ vi.mock('../../stores/projectStore', () => ({
 describe('Playhead', () => {
   beforeEach(() => {
     document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
+    storeState.playheadSeekPreviewPosition = null;
   });
 
   it('applies a layout-specific horizontal offset to the rendered line', () => {
@@ -33,5 +35,13 @@ describe('Playhead', () => {
     const { container } = render(<Playhead context="piano-roll" showTriangle />);
 
     expect(container.querySelectorAll('.playhead-triangle')).toHaveLength(1);
+  });
+
+  it('renders the drag preview position ahead of playback updates', () => {
+    storeState.playheadSeekPreviewPosition = 5;
+
+    const { container } = render(<Playhead context="piano-roll" />);
+
+    expect(container.querySelector('.playhead')).toHaveStyle({ left: '200px' });
   });
 });

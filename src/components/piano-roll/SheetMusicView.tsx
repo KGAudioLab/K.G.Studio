@@ -66,7 +66,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   quantization,
   onMetricsChange,
 }) => {
-  const setPlayheadPosition = useProjectStore(state => state.setPlayheadPosition);
+  const seekPlayheadPosition = useProjectStore(state => state.seekPlayheadPosition);
   const requestMainContentScroll = useProjectStore(state => state.requestMainContentScroll);
   const globalTracks = useProjectStore(state => state.globalTracks);
   const [metrics, setMetrics] = useState<SheetMeasureMetric[]>([]);
@@ -297,8 +297,11 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       ? targetBeat
       : activeRegion.getStartFromBeat() + targetBeat;
 
-    setPlayheadPosition(absoluteBeat);
-    requestMainContentScroll(absoluteBeat);
+    void seekPlayheadPosition(absoluteBeat).then(accepted => {
+      if (accepted) {
+        requestMainContentScroll(absoluteBeat);
+      }
+    });
   };
 
   return (

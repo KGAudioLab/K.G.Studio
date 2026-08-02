@@ -4,13 +4,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PianoGridHeader from './PianoGridHeader';
 
 const setPlayheadPosition = vi.fn();
+const seekPlayheadPosition = vi.fn(async (position: number) => {
+  setPlayheadPosition(position);
+  return true;
+});
+const setPlayheadSeekPreviewPosition = vi.fn(() => true);
 const requestMainContentScroll = vi.fn();
 const getPlayheadPosition = vi.fn(() => 0);
 
 const storeState = {
   setPlayheadPosition,
+  seekPlayheadPosition,
+  setPlayheadSeekPreviewPosition,
   requestMainContentScroll,
   playheadPosition: 2,
+  playheadSeekPreviewPosition: null,
+  isPlaying: false,
+  isRecording: false,
   timeSignature: { numerator: 4, denominator: 4 },
 };
 
@@ -91,20 +101,22 @@ describe('PianoGridHeader', () => {
   beforeEach(() => {
     document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
     setPlayheadPosition.mockClear();
+    seekPlayheadPosition.mockClear();
+    setPlayheadSeekPreviewPosition.mockClear();
     requestMainContentScroll.mockClear();
     getPlayheadPosition.mockClear();
     getPlayheadPosition.mockReturnValue(0);
+    storeState.isPlaying = false;
+    storeState.isRecording = false;
   });
 
-  it('seeks to the expected beat without horizontal scroll', () => {
+  it('seeks to the expected beat without horizontal scroll', async () => {
     const { header } = renderHeader();
 
     fireEvent.click(header, { clientX: 280 });
 
-    expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
-    expect(setPlayheadPosition).toHaveBeenCalledWith(3);
-    expect(requestMainContentScroll).toHaveBeenCalledTimes(1);
-    expect(requestMainContentScroll).toHaveBeenCalledWith(3);
+    expect(seekPlayheadPosition).toHaveBeenCalledWith(3);
+    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(3));
   });
 
   it('renders a playhead segment over the piano bar numbers', () => {
@@ -124,25 +136,22 @@ describe('PianoGridHeader', () => {
     expect(header.querySelector('.piano-grid-header-playhead')).toBeInTheDocument();
   });
 
-  it('seeks to the same beat after horizontal scroll when the header rect already shifts with content', () => {
+  it('seeks to the same beat after horizontal scroll when the header rect already shifts with content', async () => {
     const { header } = renderHeader({ scrollLeft: 160 });
 
     fireEvent.click(header, { clientX: 280 });
 
-    expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
-    expect(setPlayheadPosition).toHaveBeenCalledWith(7);
-    expect(requestMainContentScroll).toHaveBeenCalledTimes(1);
-    expect(requestMainContentScroll).toHaveBeenCalledWith(7);
+    expect(seekPlayheadPosition).toHaveBeenCalledWith(7);
+    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(7));
   });
 
-  it('does not subtract a gutter when piano keys are hidden', () => {
+  it('does not subtract a gutter when piano keys are hidden', async () => {
     const { header } = renderHeader({ hasPianoKeys: false });
 
     fireEvent.click(header, { clientX: 180 });
 
-    expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
-    expect(setPlayheadPosition).toHaveBeenCalledWith(2);
-    expect(requestMainContentScroll).toHaveBeenCalledWith(2);
+    expect(seekPlayheadPosition).toHaveBeenCalledWith(2);
+    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(2));
   });
 
   it('uses the same corrected math on mousedown for drag-to-seek', () => {
@@ -153,6 +162,25 @@ describe('PianoGridHeader', () => {
     expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
     expect(setPlayheadPosition).toHaveBeenCalledWith(5);
     expect(requestMainContentScroll).not.toHaveBeenCalled();
+  });
+
+  it('previews an active-playback drag and seeks only once on release', async () => {
+    storeState.isPlaying = true;
+    const { header } = renderHeader();
+
+    fireEvent.mouseDown(header, { button: 0, clientX: 280 });
+    fireEvent.mouseMove(document, { clientX: 320 });
+
+    expect(setPlayheadSeekPreviewPosition).toHaveBeenNthCalledWith(1, 3);
+    expect(setPlayheadSeekPreviewPosition).toHaveBeenNthCalledWith(2, 4);
+    expect(seekPlayheadPosition).not.toHaveBeenCalled();
+
+    fireEvent.mouseUp(document, { clientX: 320, button: 0 });
+    fireEvent.click(header, { clientX: 320 });
+
+    expect(setPlayheadSeekPreviewPosition).toHaveBeenLastCalledWith(null);
+    await vi.waitFor(() => expect(seekPlayheadPosition).toHaveBeenCalledTimes(1));
+    expect(seekPlayheadPosition).toHaveBeenCalledWith(4);
   });
 
   it('ignores clicks inside the visible piano-key gutter before it fully scrolls out of view', () => {

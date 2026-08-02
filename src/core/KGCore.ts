@@ -52,6 +52,7 @@ export class KGCore {
   private playbackIntervalId: number | null = null;
   private playbackStartTime: number = 0;
   private playbackStartPosition: number = 0;
+  private playbackSeekGeneration: number = 0;
   
   // Callback for external state updates (e.g., store)
   private playheadUpdateCallback: ((position: number) => void) | null = null;
@@ -356,11 +357,73 @@ export class KGCore {
   }
 
   public async stopPlaying(): Promise<void> {
+    this.playbackSeekGeneration += 1;
     // Stop the timer first
     this.stopPlaybackUpdates();
     
     // Stop playback (wait for completion)
     await this.stop();
+  }
+
+  /**
+   * Restart active playback from an explicit project beat without exposing an
+   * intermediate stopped state to UI listeners. Ordinary playhead updates must
+   * continue to use setPlayheadPosition so transport timer ticks do not restart
+   * playback.
+   */
+  public async seekDuringPlayback(position: number): Promise<boolean> {
+    if (!this.isPlaying) {
+      this.setPlayheadPosition(position);
+      return true;
+    }
+
+    if (this.currentProject.getIsLooping()) {
+      const [startBar, endBarOriginal] = this.currentProject.getLoopingRange();
+      const endBar = startBar === 0 && endBarOriginal === 0
+        ? this.currentProject.getMaxBars()
+        : endBarOriginal;
+      const beatsPerBar = this.currentProject.getTimeSignature().numerator;
+      const loopStartBeat = startBar * beatsPerBar;
+      const loopEndBeat = (endBar + 1) * beatsPerBar;
+
+      if (position < loopStartBeat || position >= loopEndBeat) {
+        return false;
+      }
+    }
+
+    const audioInterface = KGAudioInterface.instance();
+    const seekGeneration = ++this.playbackSeekGeneration;
+    this.stopPlaybackUpdates();
+    audioInterface.stopPlayback();
+    this.setPlayheadPosition(position);
+
+    try {
+      await audioInterface.startAudioContext();
+      if (seekGeneration !== this.playbackSeekGeneration) {
+        return false;
+      }
+
+      audioInterface.preparePlayback(this.currentProject, position, {
+        allowStartBeforeLoopStart: false,
+        scheduleFullLoop: this.currentProject.getIsLooping(),
+      });
+      audioInterface.setTransportPosition(position);
+      audioInterface.startPlayback();
+      this.isPlaying = true;
+      this.playbackStartTime = performance.now();
+      this.playbackStartPosition = position;
+      this.startPlaybackUpdates();
+      return true;
+    } catch (error) {
+      if (seekGeneration !== this.playbackSeekGeneration) {
+        return false;
+      }
+      audioInterface.stopPlayback();
+      this.isPlaying = false;
+      this.playbackStateChangeCallback?.(false);
+      console.error('Failed to seek during playback:', error);
+      throw error;
+    }
   }
 
   // Timer management for regular playback updates

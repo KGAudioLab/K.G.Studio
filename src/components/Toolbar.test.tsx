@@ -233,6 +233,11 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.activateSidePanel.mockClear();
     storeState.setShowSettings.mockClear();
     storeState.setStatus.mockClear();
+    storeState.stopTransport.mockReset();
+    storeState.stopTransport.mockResolvedValue(undefined);
+    storeState.setPlayheadPosition.mockClear();
+    storeState.requestMainContentScroll.mockClear();
+    storeState.requestPianoRollScroll.mockClear();
     storeState.cleanupProjectState.mockClear();
     storeState.loadProject.mockReset();
     storeState.loadProject.mockResolvedValue(undefined);
@@ -242,6 +247,8 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.showEventListPanel = false;
     storeState.keySignature = 'C major';
     storeState.playheadPosition = 0;
+    storeState.isPlaying = false;
+    storeState.isRecording = false;
     storeState.globalTracks = createDefaultGlobalTracks();
     storeState.setKeySignature.mockClear();
     storeState.refreshProjectState.mockClear();
@@ -252,6 +259,21 @@ describe('Toolbar settings side-panel behavior', () => {
     vi.mocked(KGProjectStorage.getInstance).mockReset();
     vi.mocked(showConfirm).mockReset();
     vi.mocked(showAlert).mockReset();
+  });
+
+  it('stops playback before returning the playhead to the beginning', async () => {
+    storeState.isPlaying = true;
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByTitle('Back to beginning'));
+
+    await waitFor(() => expect(storeState.stopTransport).toHaveBeenCalledTimes(1));
+    expect(storeState.setPlayheadPosition).toHaveBeenCalledWith(0);
+    expect(storeState.stopTransport.mock.invocationCallOrder[0]).toBeLessThan(
+      storeState.setPlayheadPosition.mock.invocationCallOrder[0]
+    );
+    expect(storeState.requestMainContentScroll).toHaveBeenCalledWith(0);
+    expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(0);
   });
 
   it('opens snapping options from an active magnet and applies all menu choices', () => {

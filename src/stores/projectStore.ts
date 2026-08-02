@@ -77,6 +77,17 @@ function clampPlayheadPosition(project: KGProject, position: number): number {
   return Math.max(0, Math.min(position, maxBeat));
 }
 
+function isPlayheadWithinLoopRange(
+  position: number,
+  loopingRange: [number, number],
+  maxBars: number,
+  beatsPerBar: number
+): boolean {
+  const [startBar, endBarOriginal] = loopingRange;
+  const endBar = startBar === 0 && endBarOriginal === 0 ? maxBars : endBarOriginal;
+  return position >= startBar * beatsPerBar && position < (endBar + 1) * beatsPerBar;
+}
+
 function getProjectGlobalTracks(project: KGProject): KGGlobalTrack[] {
   return (project.getGlobalTracks?.() ?? []) as KGGlobalTrack[];
 }
@@ -131,6 +142,7 @@ interface ProjectState {
   snappingMode: MainContentSnappingMode;
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
+  playheadSeekPreviewPosition: number | null;
   isPlaying: boolean;
   isPreparingPlayback: boolean;
   autoScrollEnabled: boolean;
@@ -230,6 +242,8 @@ interface ProjectState {
   refreshStatus: () => void;
   loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
   setPlayheadPosition: (position: number) => void;
+  seekPlayheadPosition: (position: number) => Promise<boolean>;
+  setPlayheadSeekPreviewPosition: (position: number | null) => boolean;
   setAutoScrollEnabled: (enabled: boolean) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
@@ -549,6 +563,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     snappingMode: currentProject.getSnappingMode(),
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
+    playheadSeekPreviewPosition: null,
     isPlaying: KGCore.instance().getIsPlaying(),
     isPreparingPlayback: false,
     autoScrollEnabled: true,
@@ -1157,6 +1172,80 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         playheadPosition: clampedPosition,
         currentTime: formatCurrentTime(project, clampedPosition)
       });
+    },
+
+    seekPlayheadPosition: async (position: number) => {
+      const state = get();
+      if (state.isRecording) {
+        return false;
+      }
+
+      const core = KGCore.instance();
+      const project = core.getCurrentProject();
+      const clampedPosition = clampPlayheadPosition(project, position);
+
+      if (state.isPlaying && state.isLooping && !isPlayheadWithinLoopRange(
+        position,
+        state.loopingRange,
+        state.maxBars,
+        state.timeSignature.numerator
+      )) {
+        return false;
+      }
+
+      project.setPlayheadPosition(clampedPosition);
+
+      if (!state.isPlaying) {
+        get().setPlayheadPosition(clampedPosition);
+        return true;
+      }
+
+      set({
+        playheadPosition: clampedPosition,
+        currentTime: formatCurrentTime(project, clampedPosition),
+      });
+
+      try {
+        const accepted = await core.seekDuringPlayback(clampedPosition);
+        if (!accepted) {
+          return false;
+        }
+        set({ isPlaying: true, autoScrollEnabled: true });
+        return true;
+      } catch {
+        set({
+          isPlaying: false,
+          currentStatus: translate('toolbar.status.playbackFailedStart'),
+        });
+        core.setStatus(translate('toolbar.status.playbackFailedStart'));
+        return false;
+      }
+    },
+
+    setPlayheadSeekPreviewPosition: (position: number | null) => {
+      if (position === null) {
+        set({ playheadSeekPreviewPosition: null });
+        return true;
+      }
+
+      const state = get();
+      if (state.isRecording) {
+        return false;
+      }
+
+      const project = KGCore.instance().getCurrentProject();
+      const clampedPosition = clampPlayheadPosition(project, position);
+      if (state.isPlaying && state.isLooping && !isPlayheadWithinLoopRange(
+        position,
+        state.loopingRange,
+        state.maxBars,
+        state.timeSignature.numerator
+      )) {
+        return false;
+      }
+
+      set({ playheadSeekPreviewPosition: clampedPosition });
+      return true;
     },
 
     setAutoScrollEnabled: (enabled: boolean) => {

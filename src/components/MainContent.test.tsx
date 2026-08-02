@@ -30,6 +30,10 @@ const storeState = {
   updateTrackProperties: vi.fn(),
   timeSignature: { numerator: 4, denominator: 4 },
   setPlayheadPosition: vi.fn(),
+  seekPlayheadPosition: vi.fn(async (position: number) => {
+    storeState.setPlayheadPosition(position);
+    return true;
+  }),
   playheadPosition: 0,
   isPlaying: false,
   autoScrollEnabled: false,
@@ -224,6 +228,7 @@ describe('MainContent', () => {
     storeState.addAudioTrack.mockClear();
     storeState.setShowGlobalTracks.mockClear();
     storeState.setPlayheadPosition.mockClear();
+    storeState.seekPlayheadPosition.mockClear();
     storeState.requestPianoRollScroll.mockClear();
     KGMainContentState.instance().setSnapping(true);
     KGMainContentState.instance().setSnappingMode('bar');
@@ -239,7 +244,7 @@ describe('MainContent', () => {
     expect(container.querySelectorAll('.playhead-triangle')).toHaveLength(1);
   });
 
-  it('places the playhead on the nearest beat in beat snapping mode', () => {
+  it('places the playhead on the nearest beat in beat snapping mode', async () => {
     KGMainContentState.instance().setSnappingMode('beat');
     const { container } = render(<MainContent />);
     const barNumbers = container.querySelector('.bar-numbers') as HTMLDivElement;
@@ -258,8 +263,10 @@ describe('MainContent', () => {
     fireEvent.mouseDown(barNumbers, { clientX: 50, button: 0 });
     fireEvent.mouseUp(document, { clientX: 50, button: 0 });
 
-    expect(storeState.setPlayheadPosition).toHaveBeenCalledWith(5);
-    expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(5);
+    expect(storeState.seekPlayheadPosition).toHaveBeenCalledWith(5);
+    await waitFor(() => {
+      expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(5);
+    });
   });
 
   it('continues the playhead through visible global tracks without another triangle', () => {

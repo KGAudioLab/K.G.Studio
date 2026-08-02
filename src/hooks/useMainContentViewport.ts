@@ -19,7 +19,7 @@ interface UseMainContentViewportParams {
   maxBars: number;
   isLooping: boolean;
   loopingRange: [number, number];
-  setPlayheadPosition: (beatPosition: number) => void;
+  seekPlayheadPosition: (beatPosition: number) => Promise<boolean>;
   requestPianoRollScroll: (beatPosition: number) => void;
   editingRegionIds: string[];
   findProjectRegionById: (regionId: string) => KGGlobalRegion | import('../core/region/KGRegion').KGRegion | null;
@@ -42,7 +42,7 @@ export function useMainContentViewport({
   maxBars,
   isLooping,
   loopingRange,
-  setPlayheadPosition,
+  seekPlayheadPosition,
   requestPianoRollScroll,
   editingRegionIds,
   findProjectRegionById,
@@ -347,8 +347,11 @@ export function useMainContentViewport({
         } else {
           const clickPosition = calculatePlayheadFromMouse(event.clientX);
           if (clickPosition !== null) {
-            setPlayheadPosition(clickPosition);
-            requestPianoRollScroll(clickPosition);
+            void seekPlayheadPosition(clickPosition).then(accepted => {
+              if (accepted) {
+                requestPianoRollScroll(clickPosition);
+              }
+            });
 
             if (DEBUG_MODE.MAIN_CONTENT) {
               console.log(`Single click on bar numbers - Set playhead to: ${clickPosition}`);
@@ -370,7 +373,7 @@ export function useMainContentViewport({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, requestPianoRollScroll, setPlayheadPosition]);
+  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, requestPianoRollScroll, seekPlayheadPosition]);
 
   const isBarInLoopRange = useCallback((barIndex: number) => {
     if (!isLooping) {
