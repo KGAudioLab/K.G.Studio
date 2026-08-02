@@ -1017,6 +1017,31 @@
 
 .piano-roll-zoom-popup input[type="range"] {
   width: 120px;
+  flex: 0 0 120px;
+}
+
+.piano-roll-velocity-input {
+  width: 44px;
+  flex: 0 0 44px;
+  box-sizing: border-box;
+  background-color: #1e1e1e;
+  border: 1px solid #555;
+  border-radius: 2px;
+  color: #e0e0e0;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 1px 4px;
+  text-align: center;
+  outline: none;
+}
+
+.piano-roll-velocity-input:focus {
+  border-color: #4a6b8a;
+}
+
+.piano-roll-velocity-input::placeholder {
+  color: #888;
+  opacity: 1;
 }
 
 .piano-roll-zoom-value {

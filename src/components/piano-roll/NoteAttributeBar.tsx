@@ -51,7 +51,12 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
   // Velocity slider popup state
   const [velocityOpen, setVelocityOpen] = useState(false);
   const [sliderValue, setSliderValue] = useState(64);
+  const [velocityInputValue, setVelocityInputValue] = useState('64');
   const velocitySessionRef = useRef<VelocitySession | null>(null);
+  const velocityInputRef = useRef<HTMLInputElement>(null);
+  const velocityDirtyRef = useRef(false);
+  const lastValidVelocityRef = useRef<number | null>(null);
+  const currentVelocityValueRef = useRef(64);
 
   const barRef = useRef<HTMLDivElement>(null);
   const commitVelocityRef = useRef<(() => void) | null>(null);
@@ -97,9 +102,35 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
 
   // ── Velocity slider helpers ─────────────────────────────────────────────────
 
+  const closeVelocityEditor = () => {
+    velocitySessionRef.current = null;
+    velocityDirtyRef.current = false;
+    lastValidVelocityRef.current = null;
+    setVelocityOpen(false);
+  };
+
+  const previewVelocity = (value: number, inputValue: string = String(value)) => {
+    setSliderValue(value);
+    setVelocityInputValue(inputValue);
+    currentVelocityValueRef.current = value;
+    lastValidVelocityRef.current = value;
+    velocityDirtyRef.current = true;
+
+    // Live-apply to notes so colors update immediately
+    velocitySessionRef.current?.notes.forEach(n => n.setVelocity(value));
+    const track = tracks.find(t => t.getId().toString() === activeRegion?.getTrackId());
+    if (track) updateTrack(track);
+  };
+
   const commitVelocity = () => {
     const session = velocitySessionRef.current;
     if (!session || !activeRegion) { setVelocityOpen(false); return; }
+
+    const committedVelocity = lastValidVelocityRef.current;
+    if (!velocityDirtyRef.current || committedVelocity === null) {
+      closeVelocityEditor();
+      return;
+    }
 
     // Build snapshots from original velocities captured at open time
     const snapshots = session.notes.map((n, i) => ({
@@ -109,7 +140,7 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
       startBeat: n.getStartBeat(),
       endBeat: n.getEndBeat(),
     }));
-    const updates = session.notes.map(n => ({ noteId: n.getId(), velocity: sliderValue }));
+    const updates = session.notes.map(n => ({ noteId: n.getId(), velocity: committedVelocity }));
 
     // Restore originals so the command's execute() applies cleanly
     session.notes.forEach((n, i) => n.setVelocity(session.originalVelocities[i]));
@@ -120,8 +151,7 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
     const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
     if (track) updateTrack(track);
 
-    velocitySessionRef.current = null;
-    setVelocityOpen(false);
+    closeVelocityEditor();
   };
 
   const cancelVelocity = () => {
@@ -131,8 +161,7 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
       const track = tracks.find(t => t.getId().toString() === activeRegion?.getTrackId());
       if (track) updateTrack(track);
     }
-    velocitySessionRef.current = null;
-    setVelocityOpen(false);
+    closeVelocityEditor();
   };
 
   // Keep ref current so the outside-click handler always calls the latest commit
@@ -140,15 +169,46 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
 
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
-    setSliderValue(val);
-    // Live-apply to notes so colors update immediately
-    velocitySessionRef.current?.notes.forEach(n => n.setVelocity(val));
-    const track = tracks.find(t => t.getId().toString() === activeRegion?.getTrackId());
-    if (track) updateTrack(track);
+    previewVelocity(val);
   };
 
   const handleSliderKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') cancelVelocity();
+  };
+
+  const handleVelocityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setVelocityInputValue(raw);
+
+    if (!/^\d+$/.test(raw)) return;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0 || value > 127) return;
+
+    previewVelocity(value, raw);
+  };
+
+  const handleVelocityInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      commitVelocity();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelVelocity();
+      return;
+    }
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    const parsedValue = /^\d+$/.test(velocityInputValue) ? Number(velocityInputValue) : NaN;
+    const baseValue = Number.isInteger(parsedValue) && parsedValue >= 0 && parsedValue <= 127
+      ? parsedValue
+      : (lastValidVelocityRef.current ?? currentVelocityValueRef.current);
+    previewVelocity(clamp(baseValue + (e.key === 'ArrowUp' ? 1 : -1), 0, 127));
   };
 
   // ── Outside-click handler ───────────────────────────────────────────────────
@@ -168,6 +228,12 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [openTextField, velocityOpen]);
+
+  useEffect(() => {
+    if (!velocityOpen) return;
+    velocityInputRef.current?.focus();
+    velocityInputRef.current?.select();
+  }, [velocityOpen]);
 
   if (isSpectrogram || selectedNotes.length === 0) {
     return <div className="note-attribute-bar" ref={barRef} />;
@@ -223,7 +289,11 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
       originalVelocities: selectedNotes.map(n => n.getVelocity()),
       notes: [...selectedNotes],
     };
+    velocityDirtyRef.current = false;
+    lastValidVelocityRef.current = null;
+    currentVelocityValueRef.current = velocityDefault;
     setSliderValue(velocityDefault);
+    setVelocityInputValue(velocity === '--' ? '' : String(velocityDefault));
     setVelocityOpen(true);
   };
 
@@ -294,9 +364,18 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
                 value={sliderValue}
                 onChange={handleSliderChange}
                 onKeyDown={handleSliderKeyDown}
-                autoFocus
               />
-              <span className="piano-roll-zoom-value">{sliderValue}</span>
+              <input
+                ref={velocityInputRef}
+                type="text"
+                inputMode="numeric"
+                className="piano-roll-velocity-input"
+                aria-label="Velocity"
+                value={velocityInputValue}
+                placeholder="--"
+                onChange={handleVelocityInputChange}
+                onKeyDown={handleVelocityInputKeyDown}
+              />
             </div>
           )}
         </div>
