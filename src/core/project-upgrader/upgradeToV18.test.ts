@@ -4,10 +4,10 @@ import { KGProject } from '../KGProject';
 import { upgradeProjectToLatest } from './KGProjectUpgrader';
 
 describe('upgradeToV18', () => {
-  it('defaults fresh v18 projects to enabled beat snapping', () => {
+  it('defaults fresh projects to enabled beat snapping', () => {
     const project = new KGProject();
 
-    expect(project.getProjectStructureVersion()).toBe(18);
+    expect(project.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     expect(project.getIsSnappingEnabled()).toBe(true);
     expect(project.getSnappingMode()).toBe('beat');
   });
@@ -24,7 +24,7 @@ describe('upgradeToV18', () => {
 
       upgradeProjectToLatest(legacy);
 
-      expect(legacy.getProjectStructureVersion()).toBe(18);
+      expect(legacy.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
       expect(legacy.getIsSnappingEnabled()).toBe(true);
       expect(legacy.getSnappingMode()).toBe('bar');
     }

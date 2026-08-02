@@ -6,10 +6,12 @@ import { KGChordTrack, KGGlobalTrack, KGMarkerTrack, KGSignatureTrack, KGTempoTr
 import { type TimeSignature, WithDefault } from '../types/projectTypes';
 import { TIME_CONSTANTS, KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
+import type { PianoRollSnapValue } from './state/KGPianoRollState';
 
 // Type for valid key signatures
 export type KeySignature = keyof typeof KEY_SIGNATURE_MAP;
 export type MainContentSnappingMode = 'bar' | 'beat';
+export type ProjectRightPanel = 'musicGenerator' | 'musicAssistant' | 'eventList' | null;
 
 /**
  * KGProject - Class representing a project in the DAW
@@ -76,10 +78,17 @@ export class KGProject {
   private snappingMode: MainContentSnappingMode = 'beat';
 
   @Expose()
+  private rightPanel: ProjectRightPanel = 'musicAssistant';
+
+  @Expose()
+  @WithDefault('none')
+  private pianoRollSnapping: PianoRollSnapValue = 'none';
+
+  @Expose()
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 18;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 19;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -250,6 +259,22 @@ export class KGProject {
 
   public setSnappingMode(snappingMode: MainContentSnappingMode): void {
     this.snappingMode = snappingMode;
+  }
+
+  public getRightPanel(): ProjectRightPanel {
+    return this.rightPanel;
+  }
+
+  public setRightPanel(rightPanel: ProjectRightPanel): void {
+    this.rightPanel = rightPanel;
+  }
+
+  public getPianoRollSnapping(): PianoRollSnapValue {
+    return this.pianoRollSnapping;
+  }
+
+  public setPianoRollSnapping(pianoRollSnapping: PianoRollSnapValue): void {
+    this.pianoRollSnapping = pianoRollSnapping;
   }
 
   public getIsLooping(): boolean {

@@ -13,6 +13,7 @@ import type { KGProject } from '../core/KGProject';
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
   setPianoRollZoom: vi.fn(),
+  setCurrentSnap: vi.fn(),
 }));
 
 const audioStorageMocks = vi.hoisted(() => ({
@@ -39,7 +40,10 @@ let mockIsMetronomeEnabled = false;
 let mockShowGlobalTracks = false;
 let mockIsSnappingEnabled = true;
 let mockSnappingMode: 'bar' | 'beat' = 'beat';
+let mockRightPanel: 'musicGenerator' | 'musicAssistant' | 'eventList' | null = 'musicAssistant';
+const mockPianoRollSnapping = 'none' as const;
 let mockPlayheadPosition = 0;
+let mockProjectName = 'Test Project';
 let mockSelectedItems: Array<{ getId: () => string; select: () => void; deselect: () => void; isSelected: () => boolean }> = [];
 let mockCopiedItems: Array<{ getId: () => string }> = [];
 const selectionChangedCallbacks: Array<() => void> = [];
@@ -51,7 +55,7 @@ const mockProject = {
   getGlobalTracks: () => createDefaultGlobalTracks(),
   getBpm: () => 120,
   getKeySignature: () => 'C major',
-  getName: () => 'Test Project',
+  getName: () => mockProjectName,
   getSelectedMode: () => 'major',
   getIsLooping: () => false,
   getIsMetronomeEnabled: () => mockIsMetronomeEnabled,
@@ -70,6 +74,12 @@ const mockProject = {
   setSnappingMode: vi.fn((value: 'bar' | 'beat') => {
     mockSnappingMode = value;
   }),
+  getRightPanel: () => mockRightPanel,
+  setRightPanel: vi.fn((value: typeof mockRightPanel) => {
+    mockRightPanel = value;
+  }),
+  getPianoRollSnapping: () => mockPianoRollSnapping,
+  setPianoRollSnapping: vi.fn(),
   getPlayheadPosition: () => mockPlayheadPosition,
   setPlayheadPosition: vi.fn((position: number) => {
     mockPlayheadPosition = position;
@@ -196,9 +206,11 @@ describe('projectStore piano roll state', () => {
     vi.resetModules();
     pianoRollStateMocks.setSheetMusicViewEnabled.mockReset();
     pianoRollStateMocks.setPianoRollZoom.mockReset();
+    pianoRollStateMocks.setCurrentSnap.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
     currentProject = mockProject;
     mockPlayheadPosition = 0;
+    mockProjectName = 'Test Project';
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
@@ -241,13 +253,16 @@ describe('projectStore piano roll state', () => {
     mockIsMetronomeEnabled = false;
     mockIsSnappingEnabled = true;
     mockSnappingMode = 'beat';
+    mockRightPanel = 'musicAssistant';
     mockShowGlobalTracks = false;
     mockProject.setIsMetronomeEnabled.mockClear();
     mockProject.setShowGlobalTracks.mockClear();
     mockProject.setIsSnappingEnabled.mockClear();
     mockProject.setSnappingMode.mockClear();
+    mockProject.setRightPanel.mockClear();
     mockProject.setPlayheadPosition.mockClear();
     configValues.set('audio.input_device_id', 'default');
+    configValues.delete('chatbox.default_open');
   });
 
   it('clears hybrid state when opening a MIDI region', async () => {
@@ -375,6 +390,52 @@ describe('projectStore piano roll state', () => {
     const state = useProjectStore.getState();
     expect(state.isMetronomeEnabled).toBe(true);
     expect(state.showGlobalTracks).toBe(true);
+  });
+
+  it.each([
+    ['musicGenerator', true, false, false],
+    ['musicAssistant', false, true, false],
+    ['eventList', false, false, true],
+    [null, false, false, false],
+  ] as const)(
+    'restores the %s right-panel preference from the project',
+    async (rightPanel, showKGOnePanel, showChatBox, showEventListPanel) => {
+      mockRightPanel = rightPanel;
+      const { useProjectStore } = await import('./projectStore');
+
+      expect(useProjectStore.getState()).toMatchObject({
+        showKGOnePanel,
+        showChatBox,
+        showEventListPanel,
+      });
+    },
+  );
+
+  it('restores piano-roll snapping from the project', async () => {
+    await import('./projectStore');
+
+    expect(pianoRollStateMocks.setCurrentSnap).toHaveBeenCalledWith('none');
+  });
+
+  it('does not let the global chat preference override a loaded project', async () => {
+    configValues.set('chatbox.default_open', false);
+    const { useProjectStore } = await import('./projectStore');
+
+    await useProjectStore.getState().initializeFromConfig();
+
+    expect(mockProject.setRightPanel).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().showChatBox).toBe(true);
+  });
+
+  it('applies the global chat preference to a new unsaved project', async () => {
+    mockProjectName = 'Untitled Project';
+    configValues.set('chatbox.default_open', false);
+    const { useProjectStore } = await import('./projectStore');
+
+    await useProjectStore.getState().initializeFromConfig();
+
+    expect(mockProject.setRightPanel).toHaveBeenCalledWith(null);
+    expect(useProjectStore.getState().showChatBox).toBe(false);
   });
 
   it('persists metronome toggles to the project and audio interface', async () => {
@@ -690,7 +751,6 @@ describe('projectStore piano roll state', () => {
     const { useProjectStore } = await import('./projectStore');
 
     act(() => {
-      useProjectStore.getState().toggleChatBox();
       useProjectStore.getState().setShowSettings(true);
     });
 
@@ -730,7 +790,6 @@ describe('projectStore piano roll state', () => {
 
     act(() => {
       useProjectStore.getState().toggleChatBox();
-      useProjectStore.getState().toggleChatBox();
       useProjectStore.getState().setShowSettings(true);
       useProjectStore.getState().setShowSettings(false);
     });
@@ -760,6 +819,18 @@ describe('projectStore piano roll state', () => {
     expect(state.showKGOnePanel).toBe(false);
     expect(state.settingsReturnSidePanel).toBeNull();
     expect(state.lastActiveSidePanel).toBe('eventList');
+  });
+
+  it('persists panel activation and hiding to the current project', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => useProjectStore.getState().activateSidePanel('kgone'));
+    expect(mockProject.setRightPanel).toHaveBeenLastCalledWith('musicGenerator');
+    expect(useProjectStore.getState().showKGOnePanel).toBe(true);
+
+    act(() => useProjectStore.getState().toggleKGOnePanel());
+    expect(mockProject.setRightPanel).toHaveBeenLastCalledWith(null);
+    expect(useProjectStore.getState().showKGOnePanel).toBe(false);
   });
 
   it('refreshes expanded max bars after BPM reduction', async () => {
@@ -803,6 +874,8 @@ describe('projectStore piano roll state', () => {
       setShowGlobalTracks: vi.fn(),
       getLoopingRange: () => [0, 0] as [number, number],
       getPianoRollZoom: () => 1,
+      getPianoRollSnapping: () => 'none' as const,
+      getRightPanel: () => 'musicAssistant' as const,
       getIsSnappingEnabled: () => true,
       getSnappingMode: () => 'beat' as const,
     };
@@ -865,6 +938,8 @@ describe('projectStore piano roll state', () => {
       setShowGlobalTracks: vi.fn(),
       getLoopingRange: () => [0, 0] as [number, number],
       getPianoRollZoom: () => 1,
+      getPianoRollSnapping: () => 'none' as const,
+      getRightPanel: () => 'musicAssistant' as const,
       getIsSnappingEnabled: () => true,
       getSnappingMode: () => 'beat' as const,
     };

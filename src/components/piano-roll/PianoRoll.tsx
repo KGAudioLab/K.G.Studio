@@ -993,6 +993,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     const nextValue = value as PianoRollSnapValue;
     setSnapping(nextValue);
     KGPianoRollState.instance().setCurrentSnap(nextValue);
+    KGCore.instance().getCurrentProject().setPianoRollSnapping(nextValue);
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Selected snapping: ${value}`);
     }

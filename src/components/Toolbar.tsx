@@ -24,6 +24,7 @@ import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { plainToInstance } from 'class-transformer';
 import { FaPencil, FaCopy, FaPaste, FaTrash, FaWandMagicSparkles, FaListUl } from 'react-icons/fa6';
 import { KGMainContentState } from '../core/state/KGMainContentState';
+import { ConfigManager } from '../core/config/ConfigManager';
 import { regionDeleteManager } from '../util/regionDeleteUtil';
 import { handleCopyOperation, handlePasteOperation } from '../util/copyPasteUtil';
 import { convertProjectToMidi, convertMidiToProject } from '../util/midiUtil';
@@ -273,8 +274,10 @@ const Toolbar: React.FC = () => {
     clearChatHistoryAndUI();
 
     const newProject = new KGProject();
+    const defaultChatBoxOpen = (ConfigManager.instance().get('chatbox.default_open') as boolean) ?? true;
+    newProject.setRightPanel(defaultChatBoxOpen ? 'musicAssistant' : null);
     const { loadProject: storeLoadProject } = useProjectStore.getState();
-    storeLoadProject(newProject);
+    void storeLoadProject(newProject);
 
     setStatus(t('toolbar.status.newProjectCreated', { name: newProject.getName() }));
 

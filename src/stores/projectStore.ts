@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
-import { KGProject, type KeySignature, type MainContentSnappingMode } from '../core/KGProject';
+import { KGProject, type KeySignature, type MainContentSnappingMode, type ProjectRightPanel } from '../core/KGProject';
 import { KGGlobalTrack } from '../core/global-track';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
@@ -39,6 +39,7 @@ import { UserInstrumentRegistry } from '../core/instruments/UserInstrumentRegist
 import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { showAlert } from '../util/dialogUtil';
 import { translate } from '../i18n/translate';
+import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -119,6 +120,24 @@ function getSidePanelVisibilityState(activePanel: SidePanelType | null) {
     showChatBox: activePanel === 'chat',
     showEventListPanel: activePanel === 'eventList',
   };
+}
+
+function projectRightPanelToSidePanel(rightPanel: ProjectRightPanel): SidePanelType | null {
+  switch (rightPanel) {
+    case 'musicGenerator': return 'kgone';
+    case 'musicAssistant': return 'chat';
+    case 'eventList': return 'eventList';
+    default: return null;
+  }
+}
+
+function sidePanelToProjectRightPanel(sidePanel: SidePanelType | null): ProjectRightPanel {
+  switch (sidePanel) {
+    case 'kgone': return 'musicGenerator';
+    case 'chat': return 'musicAssistant';
+    case 'eventList': return 'eventList';
+    default: return null;
+  }
 }
 
 // Define the store state interface
@@ -446,14 +465,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Initialize CSS variable for bar width multiplier on store creation
   updateBarWidthMultiplierCSS(currentProject.getBarWidthMultiplier());
 
-  // Get initial ChatBox state from config
-  const configManager = ConfigManager.instance();
+  // Initialize project-scoped editor preferences.
   KGPianoRollState.instance().setPianoRollZoom(currentProject.getPianoRollZoom());
+  KGPianoRollState.instance().setCurrentSnap(currentProject.getPianoRollSnapping());
   KGMainContentState.instance().setSnapping(currentProject.getIsSnappingEnabled());
   KGMainContentState.instance().setSnappingMode(currentProject.getSnappingMode());
-  const initialChatBoxState = configManager.getIsInitialized()
-    ? (configManager.get('chatbox.default_open') as boolean) ?? false
-    : false;
+  const initialSidePanel = projectRightPanelToSidePanel(currentProject.getRightPanel());
 
   // Set up playhead update callback to keep store in sync during playback
   KGCore.instance().setPlayheadUpdateCallback((position: number) => {
@@ -593,15 +610,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     audioWaveformRedrawVersion: 0,
 
     // Initial ChatBox state
-    showChatBox: initialChatBoxState,
+    showChatBox: initialSidePanel === 'chat',
     toolFastForwardEnabled: false,
 
     // Initial K.G.One panel state
-    showKGOnePanel: false,
+    showKGOnePanel: initialSidePanel === 'kgone',
 
     // Initial Event List panel state
-    showEventListPanel: false,
-    lastActiveSidePanel: initialChatBoxState ? 'chat' : null,
+    showEventListPanel: initialSidePanel === 'eventList',
+    lastActiveSidePanel: initialSidePanel,
     settingsReturnSidePanel: null,
 
     // Initial Instrument Selection panel state
@@ -1035,6 +1052,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const timeSignature = projectToLoad.getTimeSignature();
         const bpm = projectToLoad.getBpm();
         const keySignature = projectToLoad.getKeySignature();
+        const restoredSidePanel = projectRightPanelToSidePanel(projectToLoad.getRightPanel());
         const tracks = projectToLoad.getTracks();
         const missingUserInstruments = [...new Set(tracks
           .filter((track): track is KGMidiTrack => track instanceof KGMidiTrack)
@@ -1113,6 +1131,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           showGlobalTracks: projectToLoad.getShowGlobalTracks(),
           isSnappingEnabled: projectToLoad.getIsSnappingEnabled(),
           snappingMode: projectToLoad.getSnappingMode(),
+          ...getSidePanelVisibilityState(restoredSidePanel),
+          lastActiveSidePanel: restoredSidePanel,
+          settingsReturnSidePanel: null,
+          showSettings: false,
           pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
           loopingRange: projectToLoad.getLoopingRange(),
           activeTrackAutomationTrackId: null,
@@ -1151,6 +1173,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         KGPianoRollState.instance().setLastEditedNoteLength(1);
         KGPianoRollState.instance().setLastEditedNoteVelocity(127);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
+        KGPianoRollState.instance().setCurrentSnap(projectToLoad.getPianoRollSnapping());
         KGMainContentState.instance().setSnapping(projectToLoad.getIsSnappingEnabled());
         KGMainContentState.instance().setSnappingMode(projectToLoad.getSnappingMode());
 
@@ -1989,6 +2012,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // ChatBox action implementations
     activateSidePanel: (panel: SidePanelType) => {
+      KGCore.instance().getCurrentProject().setRightPanel(sidePanelToProjectRightPanel(panel));
       set({
         ...getSidePanelVisibilityState(panel),
         lastActiveSidePanel: panel,
@@ -2003,6 +2027,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showChatBox: false });
     },
 
@@ -2013,6 +2038,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showChatBox: false });
     },
 
@@ -2031,6 +2057,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showKGOnePanel: false });
     },
 
@@ -2041,6 +2068,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showEventListPanel: false });
     },
 
@@ -2212,6 +2240,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     refreshProjectState: () => {
       const core = KGCore.instance();
       const project = core.getCurrentProject();
+      const restoredSidePanel = projectRightPanelToSidePanel(project.getRightPanel());
 
       // Force new array reference to trigger React re-renders
       set({
@@ -2228,6 +2257,8 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         showGlobalTracks: project.getShowGlobalTracks(),
         isSnappingEnabled: project.getIsSnappingEnabled(),
         snappingMode: project.getSnappingMode(),
+        ...getSidePanelVisibilityState(restoredSidePanel),
+        lastActiveSidePanel: restoredSidePanel,
         playheadPosition: core.getPlayheadPosition(),
         currentTime: formatCurrentTime(project, core.getPlayheadPosition()),
       });
@@ -2238,6 +2269,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       updateBarWidthMultiplierCSS(project.getBarWidthMultiplier());
       KGMainContentState.instance().setSnapping(project.getIsSnappingEnabled());
       KGMainContentState.instance().setSnappingMode(project.getSnappingMode());
+      KGPianoRollState.instance().setCurrentSnap(project.getPianoRollSnapping());
 
       // Sync all related state
       const actions = get();
@@ -2259,9 +2291,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Initialize store with configuration values
     initializeFromConfig: async () => {
       const configManager = ConfigManager.instance();
-      if (configManager.getIsInitialized()) {
-        const defaultChatBoxOpen = (configManager.get('chatbox.default_open') as boolean) ?? false;
-        set({ showChatBox: defaultChatBoxOpen });
+      const project = KGCore.instance().getCurrentProject();
+      if (configManager.getIsInitialized() && project.getName() === RESERVED_PROJECT_NAME) {
+        const defaultChatBoxOpen = (configManager.get('chatbox.default_open') as boolean) ?? true;
+        const panel: SidePanelType | null = defaultChatBoxOpen ? 'chat' : null;
+        project.setRightPanel(sidePanelToProjectRightPanel(panel));
+        set({
+          ...getSidePanelVisibilityState(panel),
+          lastActiveSidePanel: panel,
+        });
       }
     }
   };
