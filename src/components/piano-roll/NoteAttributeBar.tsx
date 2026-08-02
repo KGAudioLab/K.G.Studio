@@ -350,8 +350,8 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
       {/* Velocity */}
       <span className="attr-item">
         <span className="attr-label">Velocity:</span>
-        <div className="quant-dropdown-container">
-          <button className="quant-button" onClick={handleVelocityClick}>
+        <div className="quant-dropdown-container piano-roll-velocity-control">
+          <button className="quant-button piano-roll-velocity-button" onClick={handleVelocityClick}>
             {velocity}
           </button>
           {velocityOpen && (

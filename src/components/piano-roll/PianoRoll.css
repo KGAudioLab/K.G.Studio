@@ -138,6 +138,16 @@
   padding: 2px 6px;
 }
 
+.note-attribute-bar .piano-roll-velocity-control {
+  width: 36px;
+}
+
+.note-attribute-bar .piano-roll-velocity-button {
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+}
+
 .note-attr-popup {
   position: absolute;
   top: 100%;

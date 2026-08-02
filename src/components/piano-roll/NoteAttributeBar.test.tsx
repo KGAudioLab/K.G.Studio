@@ -58,6 +58,16 @@ describe('NoteAttributeBar velocity editor', () => {
     mocks.commandConstructor.mockClear();
   });
 
+  it('uses a fixed-width anchor only for the velocity popup', () => {
+    renderBar([createNote('note-1', 80)]);
+
+    const velocityButton = screen.getByRole('button', { name: '80' });
+    expect(velocityButton).toHaveClass('piano-roll-velocity-button');
+    expect(velocityButton.parentElement).toHaveClass('piano-roll-velocity-control');
+    expect(screen.getByRole('button', { name: '60' })).not.toHaveClass('piano-roll-velocity-button');
+    expect(screen.getByRole('button', { name: '1.00' })).not.toHaveClass('piano-roll-velocity-button');
+  });
+
   it('previews typed values and commits them as one command on Enter', () => {
     const note = createNote('note-1', 80);
     renderBar([note]);
