@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-let mockState = { isPreparingPlayback: false };
+let mockState = { isPreparingPlayback: false, projectName: 'Test Project' };
 let mockActiveLoadCount = 0;
 let loadingListener: ((evt: { type: 'start' | 'end'; instrument: string }) => void) | null = null;
 
@@ -58,12 +58,34 @@ vi.mock('./core/KGCore', () => ({
   },
 }));
 
-import { GlobalLoadingOverlayContainer, PlaybackPreparationOverlayContainer } from './App';
+import { GlobalLoadingOverlayContainer, PlaybackPreparationOverlayContainer, ProjectTitleSync } from './App';
+
+describe('ProjectTitleSync', () => {
+  beforeEach(() => {
+    mockState = { isPreparingPlayback: false, projectName: 'Test Project' };
+    document.title = 'K.G.Studio';
+  });
+
+  it('sets the title from the initial project name', () => {
+    render(<ProjectTitleSync />);
+
+    expect(document.title).toBe('K.G.Studio - Test Project');
+  });
+
+  it('updates the title when the project name changes', () => {
+    const { rerender } = render(<ProjectTitleSync />);
+
+    mockState = { ...mockState, projectName: 'Renamed Project' };
+    rerender(<ProjectTitleSync />);
+
+    expect(document.title).toBe('K.G.Studio - Renamed Project');
+  });
+});
 
 describe('PlaybackPreparationOverlayContainer', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockState = { isPreparingPlayback: false };
+    mockState = { isPreparingPlayback: false, projectName: 'Test Project' };
     mockActiveLoadCount = 0;
     loadingListener = null;
   });
@@ -75,14 +97,14 @@ describe('PlaybackPreparationOverlayContainer', () => {
   it('does not appear if preparation finishes before the delay', () => {
     const { rerender } = render(<PlaybackPreparationOverlayContainer />);
 
-    mockState = { isPreparingPlayback: true };
+    mockState = { ...mockState, isPreparingPlayback: true };
     rerender(<PlaybackPreparationOverlayContainer />);
 
     act(() => {
       vi.advanceTimersByTime(100);
     });
 
-    mockState = { isPreparingPlayback: false };
+    mockState = { ...mockState, isPreparingPlayback: false };
     rerender(<PlaybackPreparationOverlayContainer />);
 
     act(() => {
@@ -95,7 +117,7 @@ describe('PlaybackPreparationOverlayContainer', () => {
   it('appears after 150ms while preparation is still in progress', () => {
     const { rerender } = render(<PlaybackPreparationOverlayContainer />);
 
-    mockState = { isPreparingPlayback: true };
+    mockState = { ...mockState, isPreparingPlayback: true };
     rerender(<PlaybackPreparationOverlayContainer />);
 
     act(() => {
@@ -112,14 +134,14 @@ describe('PlaybackPreparationOverlayContainer', () => {
   it('hides once preparation completes after becoming visible', () => {
     const { rerender } = render(<PlaybackPreparationOverlayContainer />);
 
-    mockState = { isPreparingPlayback: true };
+    mockState = { ...mockState, isPreparingPlayback: true };
     rerender(<PlaybackPreparationOverlayContainer />);
     act(() => {
       vi.advanceTimersByTime(150);
     });
     expect(screen.getByText('Preparing playback...')).toBeInTheDocument();
 
-    mockState = { isPreparingPlayback: false };
+    mockState = { ...mockState, isPreparingPlayback: false };
     rerender(<PlaybackPreparationOverlayContainer />);
 
     expect(screen.queryByText('Preparing playback...')).not.toBeInTheDocument();
