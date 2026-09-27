@@ -332,10 +332,8 @@ const MainContent: React.FC<MainContentProps> = ({
 
   const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
   const showHybridButtonForMidi = showPianoRoll && (
-    pianoRollMode === 'midi-edit'
-    || pianoRollMode === 'audio-waveform'
+    pianoRollMode === 'audio-waveform'
     || pianoRollMode === 'spectrogram'
-    || pianoRollMode === 'midi-reference'
   );
   const hybridButtonExcludedRegionIds = pianoRollMode === 'midi-reference'
     ? [activeRegionId, midiReferenceRegionId].filter((id): id is string => id !== null)

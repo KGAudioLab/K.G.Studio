@@ -293,20 +293,18 @@ describe('MainContent', () => {
     expect(storeState.openMidiPianoRoll).not.toHaveBeenCalled();
   });
 
-  it('adds another MIDI region as a reference without changing the main region', async () => {
+  it('hides add buttons on MIDI regions while editing a MIDI region', () => {
     storeState.showPianoRoll = true;
     storeState.activeRegionId = 'region-1';
 
     render(<MainContent />);
 
     expect(screen.queryByRole('button', { name: 'add-midi-region-1' })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-2' }));
-
-    expect(storeState.openMidiReferenceMode).toHaveBeenCalledWith('region-1', 'region-2');
-    expect(storeState.openHybridMode).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'add-midi-region-2' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'add-audio-region' })).toBeInTheDocument();
   });
 
-  it('replaces the MIDI reference while hiding main, current-reference, and audio add buttons', async () => {
+  it('hides add buttons on MIDI regions while showing a MIDI reference', () => {
     const thirdMidiRegion = new KGMidiRegion('region-3', '1', 0, 'Region 3', 12, 4);
     midiTrack.setRegions([midiRegion, anotherMidiRegion, thirdMidiRegion]);
     storeState.showPianoRoll = true;
@@ -318,10 +316,21 @@ describe('MainContent', () => {
 
     expect(screen.queryByRole('button', { name: 'add-midi-region-1' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'add-midi-region-2' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'add-midi-region-3' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'add-audio-region' })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-3' }));
+  });
 
-    expect(storeState.openMidiReferenceMode).toHaveBeenCalledWith('region-1', 'region-3');
+  it('shows add buttons on MIDI regions while viewing an audio region', async () => {
+    storeState.showPianoRoll = true;
+    storeState.activeRegionId = 'audio-1';
+    storeState.pianoRollMode = 'audio-waveform';
+
+    render(<MainContent />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-1' }));
+
+    expect(storeState.openHybridMode).toHaveBeenCalledWith('region-1', 'audio-1');
+    expect(storeState.openMidiReferenceMode).not.toHaveBeenCalled();
   });
 
   it('returns to regular MIDI edit mode when the reference region disappears', async () => {
