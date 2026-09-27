@@ -1,3 +1,16 @@
+# [0.22.1-build.20260927] (2026-09-27)
+
+* Merge pull request #66 from KGAudioLab/feat/2026-07-17-transpose (517c63b)
+* feat: persist right panel and piano roll snapping (3173401)
+* fix: gap between snapping button and the dropdown options (ce1d38c)
+* fix: MIDI note velocity pop-up jittering problem when the velocity number length changes (27bcbd3)
+* feat(piano-roll): add numeric velocity input (15131a3)
+* fix: support playhead seeking during active playback (b741256)
+* feat: sync page title with project name (fc381c4)
+* feat: add persistent bar and beat timeline snapping (a94fcc2)
+* feat: add overlap options for chord-to-MIDI conversion (0f36a23)
+* feat: improve beat-level MIDI chord detection (9144144)
+
 # [0.22.0-build.20260719] (2026-07-19)
 
 * Merge pull request #65 from KGAudioLab/feat/2026-07-17-transpose (4bd4986)
