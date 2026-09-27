@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
-import { KGProject, type KeySignature } from '../core/KGProject';
+import { KGProject, type KeySignature, type MainContentSnappingMode, type ProjectRightPanel } from '../core/KGProject';
 import { KGGlobalTrack } from '../core/global-track';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { beatsToTimeString } from '../util/timeUtil';
 import { KGAudioInterface } from '../core/audio-interface/KGAudioInterface';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
+import { KGMainContentState } from '../core/state/KGMainContentState';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGRegion } from '../core/region/KGRegion';
@@ -38,6 +39,7 @@ import { UserInstrumentRegistry } from '../core/instruments/UserInstrumentRegist
 import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { showAlert } from '../util/dialogUtil';
 import { translate } from '../i18n/translate';
+import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -76,6 +78,17 @@ function clampPlayheadPosition(project: KGProject, position: number): number {
   return Math.max(0, Math.min(position, maxBeat));
 }
 
+function isPlayheadWithinLoopRange(
+  position: number,
+  loopingRange: [number, number],
+  maxBars: number,
+  beatsPerBar: number
+): boolean {
+  const [startBar, endBarOriginal] = loopingRange;
+  const endBar = startBar === 0 && endBarOriginal === 0 ? maxBars : endBarOriginal;
+  return position >= startBar * beatsPerBar && position < (endBar + 1) * beatsPerBar;
+}
+
 function getProjectGlobalTracks(project: KGProject): KGGlobalTrack[] {
   return (project.getGlobalTracks?.() ?? []) as KGGlobalTrack[];
 }
@@ -109,6 +122,24 @@ function getSidePanelVisibilityState(activePanel: SidePanelType | null) {
   };
 }
 
+function projectRightPanelToSidePanel(rightPanel: ProjectRightPanel): SidePanelType | null {
+  switch (rightPanel) {
+    case 'musicGenerator': return 'kgone';
+    case 'musicAssistant': return 'chat';
+    case 'eventList': return 'eventList';
+    default: return null;
+  }
+}
+
+function sidePanelToProjectRightPanel(sidePanel: SidePanelType | null): ProjectRightPanel {
+  switch (sidePanel) {
+    case 'kgone': return 'musicGenerator';
+    case 'chat': return 'musicAssistant';
+    case 'eventList': return 'eventList';
+    default: return null;
+  }
+}
+
 // Define the store state interface
 interface ProjectState {
   // State
@@ -126,8 +157,11 @@ interface ProjectState {
   isLooping: boolean;
   isMetronomeEnabled: boolean;
   showGlobalTracks: boolean;
+  isSnappingEnabled: boolean;
+  snappingMode: MainContentSnappingMode;
   loopingRange: [number, number]; // [startBar, endBar] - bar indices (0-based)
   playheadPosition: number; // in beats
+  playheadSeekPreviewPosition: number | null;
   isPlaying: boolean;
   isPreparingPlayback: boolean;
   autoScrollEnabled: boolean;
@@ -227,6 +261,8 @@ interface ProjectState {
   refreshStatus: () => void;
   loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
   setPlayheadPosition: (position: number) => void;
+  seekPlayheadPosition: (position: number) => Promise<boolean>;
+  setPlayheadSeekPreviewPosition: (position: number | null) => boolean;
   setAutoScrollEnabled: (enabled: boolean) => void;
   startPlaying: () => Promise<void>;
   stopPlaying: () => Promise<void>;
@@ -240,6 +276,7 @@ interface ProjectState {
   setTimeSignature: (timeSignature: TimeSignature) => void;
   setKeySignature: (keySignature: KeySignature, options?: { transposeChords?: boolean }) => void;
   setSelectedMode: (selectedMode: string) => void;
+  setMainContentSnapping: (enabled: boolean, mode?: MainContentSnappingMode) => void;
 
   // Selection actions
   syncSelectionFromCore: () => void;
@@ -428,12 +465,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   // Initialize CSS variable for bar width multiplier on store creation
   updateBarWidthMultiplierCSS(currentProject.getBarWidthMultiplier());
 
-  // Get initial ChatBox state from config
-  const configManager = ConfigManager.instance();
+  // Initialize project-scoped editor preferences.
   KGPianoRollState.instance().setPianoRollZoom(currentProject.getPianoRollZoom());
-  const initialChatBoxState = configManager.getIsInitialized()
-    ? (configManager.get('chatbox.default_open') as boolean) ?? false
-    : false;
+  KGPianoRollState.instance().setCurrentSnap(currentProject.getPianoRollSnapping());
+  KGMainContentState.instance().setSnapping(currentProject.getIsSnappingEnabled());
+  KGMainContentState.instance().setSnappingMode(currentProject.getSnappingMode());
+  const initialSidePanel = projectRightPanelToSidePanel(currentProject.getRightPanel());
 
   // Set up playhead update callback to keep store in sync during playback
   KGCore.instance().setPlayheadUpdateCallback((position: number) => {
@@ -539,8 +576,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     isLooping: currentProject.getIsLooping(),
     isMetronomeEnabled: currentProject.getIsMetronomeEnabled(),
     showGlobalTracks: currentProject.getShowGlobalTracks(),
+    isSnappingEnabled: currentProject.getIsSnappingEnabled(),
+    snappingMode: currentProject.getSnappingMode(),
     loopingRange: currentProject.getLoopingRange(),
     playheadPosition: KGCore.instance().getPlayheadPosition(),
+    playheadSeekPreviewPosition: null,
     isPlaying: KGCore.instance().getIsPlaying(),
     isPreparingPlayback: false,
     autoScrollEnabled: true,
@@ -570,15 +610,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     audioWaveformRedrawVersion: 0,
 
     // Initial ChatBox state
-    showChatBox: initialChatBoxState,
+    showChatBox: initialSidePanel === 'chat',
     toolFastForwardEnabled: false,
 
     // Initial K.G.One panel state
-    showKGOnePanel: false,
+    showKGOnePanel: initialSidePanel === 'kgone',
 
     // Initial Event List panel state
-    showEventListPanel: false,
-    lastActiveSidePanel: initialChatBoxState ? 'chat' : null,
+    showEventListPanel: initialSidePanel === 'eventList',
+    lastActiveSidePanel: initialSidePanel,
     settingsReturnSidePanel: null,
 
     // Initial Instrument Selection panel state
@@ -1012,6 +1052,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const timeSignature = projectToLoad.getTimeSignature();
         const bpm = projectToLoad.getBpm();
         const keySignature = projectToLoad.getKeySignature();
+        const restoredSidePanel = projectRightPanelToSidePanel(projectToLoad.getRightPanel());
         const tracks = projectToLoad.getTracks();
         const missingUserInstruments = [...new Set(tracks
           .filter((track): track is KGMidiTrack => track instanceof KGMidiTrack)
@@ -1088,6 +1129,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           isLooping: projectToLoad.getIsLooping(),
           isMetronomeEnabled: projectToLoad.getIsMetronomeEnabled(),
           showGlobalTracks: projectToLoad.getShowGlobalTracks(),
+          isSnappingEnabled: projectToLoad.getIsSnappingEnabled(),
+          snappingMode: projectToLoad.getSnappingMode(),
+          ...getSidePanelVisibilityState(restoredSidePanel),
+          lastActiveSidePanel: restoredSidePanel,
+          settingsReturnSidePanel: null,
+          showSettings: false,
           pianoRollHeight: PIANO_ROLL_CONSTANTS.PIANO_ROLL_HEIGHT,
           loopingRange: projectToLoad.getLoopingRange(),
           activeTrackAutomationTrackId: null,
@@ -1126,6 +1173,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         KGPianoRollState.instance().setLastEditedNoteLength(1);
         KGPianoRollState.instance().setLastEditedNoteVelocity(127);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
+        KGPianoRollState.instance().setCurrentSnap(projectToLoad.getPianoRollSnapping());
+        KGMainContentState.instance().setSnapping(projectToLoad.getIsSnappingEnabled());
+        KGMainContentState.instance().setSnappingMode(projectToLoad.getSnappingMode());
 
         // Add a status message
         KGCore.instance().setStatus(`Project "${projectToLoad.getName()}" loaded with audio setup`);
@@ -1145,6 +1195,80 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         playheadPosition: clampedPosition,
         currentTime: formatCurrentTime(project, clampedPosition)
       });
+    },
+
+    seekPlayheadPosition: async (position: number) => {
+      const state = get();
+      if (state.isRecording) {
+        return false;
+      }
+
+      const core = KGCore.instance();
+      const project = core.getCurrentProject();
+      const clampedPosition = clampPlayheadPosition(project, position);
+
+      if (state.isPlaying && state.isLooping && !isPlayheadWithinLoopRange(
+        position,
+        state.loopingRange,
+        state.maxBars,
+        state.timeSignature.numerator
+      )) {
+        return false;
+      }
+
+      project.setPlayheadPosition(clampedPosition);
+
+      if (!state.isPlaying) {
+        get().setPlayheadPosition(clampedPosition);
+        return true;
+      }
+
+      set({
+        playheadPosition: clampedPosition,
+        currentTime: formatCurrentTime(project, clampedPosition),
+      });
+
+      try {
+        const accepted = await core.seekDuringPlayback(clampedPosition);
+        if (!accepted) {
+          return false;
+        }
+        set({ isPlaying: true, autoScrollEnabled: true });
+        return true;
+      } catch {
+        set({
+          isPlaying: false,
+          currentStatus: translate('toolbar.status.playbackFailedStart'),
+        });
+        core.setStatus(translate('toolbar.status.playbackFailedStart'));
+        return false;
+      }
+    },
+
+    setPlayheadSeekPreviewPosition: (position: number | null) => {
+      if (position === null) {
+        set({ playheadSeekPreviewPosition: null });
+        return true;
+      }
+
+      const state = get();
+      if (state.isRecording) {
+        return false;
+      }
+
+      const project = KGCore.instance().getCurrentProject();
+      const clampedPosition = clampPlayheadPosition(project, position);
+      if (state.isPlaying && state.isLooping && !isPlayheadWithinLoopRange(
+        position,
+        state.loopingRange,
+        state.maxBars,
+        state.timeSignature.numerator
+      )) {
+        return false;
+      }
+
+      set({ playheadSeekPreviewPosition: clampedPosition });
+      return true;
     },
 
     setAutoScrollEnabled: (enabled: boolean) => {
@@ -1710,6 +1834,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       }
     },
 
+    setMainContentSnapping: (enabled: boolean, mode?: MainContentSnappingMode) => {
+      const project = KGCore.instance().getCurrentProject();
+      const nextMode = mode ?? project.getSnappingMode();
+      project.setIsSnappingEnabled(enabled);
+      project.setSnappingMode(nextMode);
+      KGMainContentState.instance().setSnapping(enabled);
+      KGMainContentState.instance().setSnappingMode(nextMode);
+      set({ isSnappingEnabled: enabled, snappingMode: nextMode });
+    },
+
     // Selection actions
     syncSelectionFromCore,
 
@@ -1878,6 +2012,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // ChatBox action implementations
     activateSidePanel: (panel: SidePanelType) => {
+      KGCore.instance().getCurrentProject().setRightPanel(sidePanelToProjectRightPanel(panel));
       set({
         ...getSidePanelVisibilityState(panel),
         lastActiveSidePanel: panel,
@@ -1892,6 +2027,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showChatBox: false });
     },
 
@@ -1902,6 +2038,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showChatBox: false });
     },
 
@@ -1920,6 +2057,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showKGOnePanel: false });
     },
 
@@ -1930,6 +2068,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         return;
       }
 
+      KGCore.instance().getCurrentProject().setRightPanel(null);
       set({ showEventListPanel: false });
     },
 
@@ -2101,6 +2240,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     refreshProjectState: () => {
       const core = KGCore.instance();
       const project = core.getCurrentProject();
+      const restoredSidePanel = projectRightPanelToSidePanel(project.getRightPanel());
 
       // Force new array reference to trigger React re-renders
       set({
@@ -2115,6 +2255,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         selectedMode: project.getSelectedMode(),
         isMetronomeEnabled: project.getIsMetronomeEnabled(),
         showGlobalTracks: project.getShowGlobalTracks(),
+        isSnappingEnabled: project.getIsSnappingEnabled(),
+        snappingMode: project.getSnappingMode(),
+        ...getSidePanelVisibilityState(restoredSidePanel),
+        lastActiveSidePanel: restoredSidePanel,
         playheadPosition: core.getPlayheadPosition(),
         currentTime: formatCurrentTime(project, core.getPlayheadPosition()),
       });
@@ -2123,6 +2267,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       updateTimeSignatureCSS(project.getTimeSignature());
       updateMaxBarsCSS(project.getMaxBars());
       updateBarWidthMultiplierCSS(project.getBarWidthMultiplier());
+      KGMainContentState.instance().setSnapping(project.getIsSnappingEnabled());
+      KGMainContentState.instance().setSnappingMode(project.getSnappingMode());
+      KGPianoRollState.instance().setCurrentSnap(project.getPianoRollSnapping());
 
       // Sync all related state
       const actions = get();
@@ -2144,9 +2291,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     // Initialize store with configuration values
     initializeFromConfig: async () => {
       const configManager = ConfigManager.instance();
-      if (configManager.getIsInitialized()) {
-        const defaultChatBoxOpen = (configManager.get('chatbox.default_open') as boolean) ?? false;
-        set({ showChatBox: defaultChatBoxOpen });
+      const project = KGCore.instance().getCurrentProject();
+      if (configManager.getIsInitialized() && project.getName() === RESERVED_PROJECT_NAME) {
+        const defaultChatBoxOpen = (configManager.get('chatbox.default_open') as boolean) ?? true;
+        const panel: SidePanelType | null = defaultChatBoxOpen ? 'chat' : null;
+        project.setRightPanel(sidePanelToProjectRightPanel(panel));
+        set({
+          ...getSidePanelVisibilityState(panel),
+          lastActiveSidePanel: panel,
+        });
       }
     }
   };

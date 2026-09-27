@@ -102,6 +102,7 @@ describe('TrackGridItem preview behavior', () => {
     storeState.timeSignature = { numerator: 4, denominator: 4 };
     KGMainContentState.instance().setActiveTool('pointer');
     KGMainContentState.instance().setSnapping(true);
+    KGMainContentState.instance().setSnappingMode('bar');
   });
 
   const createGridContainerRef = () => {

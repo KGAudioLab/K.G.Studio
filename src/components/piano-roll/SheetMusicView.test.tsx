@@ -9,6 +9,10 @@ import { createDefaultGlobalTracks } from '../../core/global-track';
 import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
 
 const setPlayheadPosition = vi.fn();
+const seekPlayheadPosition = vi.fn(async (position: number) => {
+  setPlayheadPosition(position);
+  return true;
+});
 const requestMainContentScroll = vi.fn();
 const vexflowMocks = vi.hoisted(() => ({
   addKeySignatureMock: vi.fn(),
@@ -18,6 +22,7 @@ const vexflowMocks = vi.hoisted(() => ({
 const storeState = {
   playheadPosition: 0,
   setPlayheadPosition,
+  seekPlayheadPosition,
   requestMainContentScroll,
   globalTracks: createDefaultGlobalTracks(),
 };
@@ -26,6 +31,7 @@ vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector: (state: {
     playheadPosition: number;
     setPlayheadPosition: typeof setPlayheadPosition;
+    seekPlayheadPosition: typeof seekPlayheadPosition;
     requestMainContentScroll: typeof requestMainContentScroll;
     globalTracks: typeof storeState.globalTracks;
   }) => unknown) => selector(storeState),
@@ -180,6 +186,7 @@ describe('SheetMusicView', () => {
 
   beforeEach(() => {
     setPlayheadPosition.mockClear();
+    seekPlayheadPosition.mockClear();
     requestMainContentScroll.mockClear();
     onMetricsChange.mockClear();
     vexflowMocks.addKeySignatureMock.mockClear();
@@ -188,7 +195,7 @@ describe('SheetMusicView', () => {
     storeState.globalTracks = createDefaultGlobalTracks();
   });
 
-  it('maps header clicks in region scope without adding scroll offset', () => {
+  it('maps header clicks in region scope without adding scroll offset', async () => {
     const activeRegion = createMockMidiRegion({
       startFromBeat: 16,
       length: 8,
@@ -231,13 +238,11 @@ describe('SheetMusicView', () => {
 
     fireEvent.click(header, { clientX: 100 + headerPixel });
 
-    expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
-    expect(requestMainContentScroll).toHaveBeenCalledTimes(1);
-    expect(setPlayheadPosition).toHaveBeenCalledWith(22);
-    expect(requestMainContentScroll).toHaveBeenCalledWith(22);
+    expect(seekPlayheadPosition).toHaveBeenCalledWith(22);
+    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(22));
   });
 
-  it('maps header clicks in track scope to absolute beats', () => {
+  it('maps header clicks in track scope to absolute beats', async () => {
     const activeRegion = createMockMidiRegion({
       startFromBeat: 16,
       length: 8,
@@ -291,10 +296,8 @@ describe('SheetMusicView', () => {
 
     fireEvent.click(header, { clientX: 100 + headerPixel });
 
-    expect(setPlayheadPosition).toHaveBeenCalledTimes(1);
-    expect(requestMainContentScroll).toHaveBeenCalledTimes(1);
-    expect(setPlayheadPosition).toHaveBeenCalledWith(3);
-    expect(requestMainContentScroll).toHaveBeenCalledWith(3);
+    expect(seekPlayheadPosition).toHaveBeenCalledWith(3);
+    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(3));
   });
 
   it('renders the playhead container', () => {

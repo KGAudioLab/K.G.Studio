@@ -7,6 +7,7 @@ import { BAR_NUMBERS_CONSTANTS, DEBUG_MODE, TOOLBAR_CONSTANTS } from '../constan
 import { ChangeLoopSettingsCommand } from '../core/commands';
 import { KGCore } from '../core/KGCore';
 import { useProjectStore } from '../stores/projectStore';
+import { snapBarValue } from '../util/mainContentSnapUtil';
 
 interface UseMainContentViewportParams {
   barWidthMultiplier: number;
@@ -18,7 +19,7 @@ interface UseMainContentViewportParams {
   maxBars: number;
   isLooping: boolean;
   loopingRange: [number, number];
-  setPlayheadPosition: (beatPosition: number) => void;
+  seekPlayheadPosition: (beatPosition: number) => Promise<boolean>;
   requestPianoRollScroll: (beatPosition: number) => void;
   editingRegionIds: string[];
   findProjectRegionById: (regionId: string) => KGGlobalRegion | import('../core/region/KGRegion').KGRegion | null;
@@ -41,7 +42,7 @@ export function useMainContentViewport({
   maxBars,
   isLooping,
   loopingRange,
-  setPlayheadPosition,
+  seekPlayheadPosition,
   requestPianoRollScroll,
   editingRegionIds,
   findProjectRegionById,
@@ -221,8 +222,12 @@ export function useMainContentViewport({
       getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width'),
       10
     ) || 40;
-    const snap = KGMainContentState.instance().isSnappingEnabled();
-    const barIndex = snap ? Math.round(relativeX / barWidth) : relativeX / barWidth;
+    const mainContentState = KGMainContentState.instance();
+    const barIndex = snapBarValue(relativeX / barWidth, {
+      enabled: mainContentState.isSnappingEnabled(),
+      mode: mainContentState.getSnappingMode(),
+      beatsPerBar: timeSignature.numerator,
+    });
     const clampedBarIndex = Math.max(0, barIndex);
     return clampedBarIndex * timeSignature.numerator;
   }, [timeSignature]);
@@ -342,8 +347,11 @@ export function useMainContentViewport({
         } else {
           const clickPosition = calculatePlayheadFromMouse(event.clientX);
           if (clickPosition !== null) {
-            setPlayheadPosition(clickPosition);
-            requestPianoRollScroll(clickPosition);
+            void seekPlayheadPosition(clickPosition).then(accepted => {
+              if (accepted) {
+                requestPianoRollScroll(clickPosition);
+              }
+            });
 
             if (DEBUG_MODE.MAIN_CONTENT) {
               console.log(`Single click on bar numbers - Set playhead to: ${clickPosition}`);
@@ -365,7 +373,7 @@ export function useMainContentViewport({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, requestPianoRollScroll, setPlayheadPosition]);
+  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, requestPianoRollScroll, seekPlayheadPosition]);
 
   const isBarInLoopRange = useCallback((barIndex: number) => {
     if (!isLooping) {

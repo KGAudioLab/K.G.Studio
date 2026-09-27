@@ -33,6 +33,7 @@ const pianoRollState = {
 
 const mockProject = {
   setPianoRollZoom: vi.fn(),
+  setPianoRollSnapping: vi.fn(),
 };
 
 const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0 });
@@ -74,7 +75,11 @@ const storeState = {
   automationRedrawVersion: 0,
 };
 
-let latestToolbarProps: { zoom: number; onZoomChange: (value: number) => void } | null = null;
+let latestToolbarProps: {
+  zoom: number;
+  onZoomChange: (value: number) => void;
+  onSnappingSelect: (value: string) => void;
+} | null = null;
 let latestNoteScrollElement: HTMLDivElement | null = null;
 
 vi.mock('../../stores/projectStore', () => ({
@@ -146,7 +151,7 @@ vi.mock('./PianoRollContent', () => ({
   ),
 }));
 vi.mock('./PianoRollToolbar', () => ({
-  default: (props: { zoom: number; onZoomChange: (value: number) => void }) => {
+  default: (props: { zoom: number; onZoomChange: (value: number) => void; onSnappingSelect: (value: string) => void }) => {
     latestToolbarProps = props;
     return <div data-testid="toolbar">{props.zoom}x</div>;
   },
@@ -169,8 +174,10 @@ describe('PianoRoll zoom persistence', () => {
     latestNoteScrollElement = null;
     pianoRollState.zoom = 1;
     mockProject.setPianoRollZoom.mockReset();
+    mockProject.setPianoRollSnapping.mockReset();
     pianoRollState.getPianoRollZoom.mockClear();
     pianoRollState.setPianoRollZoom.mockClear();
+    pianoRollState.setCurrentSnap.mockClear();
     storeState.pianoRollHeight = 500;
     storeState.playheadPosition = 0;
     storeState.setPianoRollHeight.mockClear();
@@ -203,6 +210,15 @@ describe('PianoRoll zoom persistence', () => {
     );
 
     expect(latestToolbarProps?.zoom).toBe(3);
+  });
+
+  it('persists snapping selections to both piano-roll and project state', () => {
+    render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
+
+    latestToolbarProps?.onSnappingSelect('1/16');
+
+    expect(pianoRollState.setCurrentSnap).toHaveBeenCalledWith('1/16');
+    expect(mockProject.setPianoRollSnapping).toHaveBeenCalledWith('1/16');
   });
 
   it('resizes only the piano-roll height from its upper edge within the 200px pane limits', () => {

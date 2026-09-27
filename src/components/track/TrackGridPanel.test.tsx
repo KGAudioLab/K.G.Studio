@@ -16,6 +16,9 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 const executeCommandMock = vi.fn();
 const getCreatedRegionMock = vi.fn();
 const showAlertMock = vi.fn();
+const showChordToMidiImportOptionsMock = vi.fn<
+  (message: string) => Promise<'create' | 'add' | 'replace' | null>
+>(async () => 'create');
 let fileImportModalProps: Record<string, unknown> | null = null;
 const storeAudioFileMock = vi.fn<(projectName: string, fileId: string, file: File) => Promise<void>>(async () => undefined);
 const loadAudioBufferForTrackMock = vi.fn<(trackId: string, fileId: string, toneBuffer: unknown) => void>();
@@ -118,6 +121,7 @@ vi.mock('tone', () => ({
 
 vi.mock('../../util/dialogUtil', () => ({
   showAlert: (...args: unknown[]) => showAlertMock(...args),
+  showChordToMidiImportOptions: (message: string) => showChordToMidiImportOptionsMock(message),
 }));
 
 vi.mock('../../util/miscUtil', async () => {
@@ -283,6 +287,8 @@ describe('TrackGridPanel lasso selection', () => {
     executeCommandMock.mockReset();
     getCreatedRegionMock.mockReset();
     showAlertMock.mockReset();
+    showChordToMidiImportOptionsMock.mockReset();
+    showChordToMidiImportOptionsMock.mockResolvedValue('create');
     fileImportModalProps = null;
     storeAudioFileMock.mockReset();
     loadAudioBufferForTrackMock.mockReset();
@@ -295,6 +301,7 @@ describe('TrackGridPanel lasso selection', () => {
     currentTracks = [];
     currentMaxBars = 8;
     KGMainContentState.instance().setSnapping(true);
+    KGMainContentState.instance().setSnappingMode('bar');
   });
 
   it('selects intersecting regions across multiple track rows', () => {
@@ -404,12 +411,86 @@ describe('TrackGridPanel lasso selection', () => {
       expect(onExternalDropComplete).toHaveBeenCalledTimes(1);
     });
 
+    expect(showChordToMidiImportOptionsMock).toHaveBeenCalledWith(
+      'A MIDI region already overlaps the selected chord range. How would you like to convert these chords?',
+    );
+
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
     expect(command.getDescription()).toContain('Import chord progression');
     const createdRegion = command.getCreatedRegion();
     expect(createdRegion?.getStartFromBeat()).toBe(0);
     expect(createdRegion?.getLength()).toBe(8);
     expect(createdRegion?.getNotes().map((note: KGMidiNote) => note.getPitch())).toEqual([48, 60, 64, 67, 41, 53, 57, 60]);
+  });
+
+  it('does not prompt when a MIDI region only touches the converted chord range', async () => {
+    const touchingRegion = createMockMidiRegion({ id: 'touching', trackId: '1', trackIndex: 0, startFromBeat: 8, length: 4 });
+    const trackA = createMockMidiTrack({ id: 1, regions: [touchingRegion] });
+    trackA.setTrackIndex(0);
+    currentTracks = [trackA];
+    const onExternalDropComplete = vi.fn();
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[trackA]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+        onExternalDropComplete={onExternalDropComplete}
+      />
+    );
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    fireEvent.drop(targetGrid, {
+      dataTransfer: {
+        types: [CHORD_REGION_IMPORT_MIME_TYPE],
+        getData: () => JSON.stringify({ draggedRegionId: 'chord-1', selectedRegionIds: ['chord-1', 'chord-2'] }),
+      },
+    });
+
+    await vi.waitFor(() => expect(onExternalDropComplete).toHaveBeenCalledTimes(1));
+    expect(showChordToMidiImportOptionsMock).not.toHaveBeenCalled();
+  });
+
+  it('does not import when the overlap dialog is cancelled', async () => {
+    const overlappingRegion = createMockMidiRegion({ id: 'overlapping', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 4 });
+    const trackA = createMockMidiTrack({ id: 1, regions: [overlappingRegion] });
+    trackA.setTrackIndex(0);
+    currentTracks = [trackA];
+    showChordToMidiImportOptionsMock.mockResolvedValue(null);
+    const onExternalDropComplete = vi.fn();
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[trackA]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+        onExternalDropComplete={onExternalDropComplete}
+      />
+    );
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-1"]') as HTMLDivElement;
+    fireEvent.drop(targetGrid, {
+      dataTransfer: {
+        types: [CHORD_REGION_IMPORT_MIME_TYPE],
+        getData: () => JSON.stringify({ draggedRegionId: 'chord-1', selectedRegionIds: ['chord-1'] }),
+      },
+    });
+
+    await vi.waitFor(() => expect(showChordToMidiImportOptionsMock).toHaveBeenCalledTimes(1));
+    expect(executeCommandMock).not.toHaveBeenCalled();
+    expect(onExternalDropComplete).not.toHaveBeenCalled();
   });
 
   it('shows a polite dialog when dropping chord regions onto an audio track', async () => {
@@ -851,6 +932,39 @@ describe('TrackGridPanel lasso selection', () => {
 
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
     expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(12);
+  });
+
+  it('places dropped audio on the nearest beat when beat snapping is selected', async () => {
+    const audioTrack = new KGAudioTrack('Audio Track', 2);
+    audioTrack.setTrackIndex(0);
+    currentTracks = [audioTrack];
+    KGMainContentState.instance().setSnapping(true);
+    KGMainContentState.instance().setSnappingMode('beat');
+
+    const view = render(
+      <TrackGridPanel
+        tracks={[audioTrack]}
+        regions={[]}
+        maxBars={8}
+        timeSignature={{ numerator: 4, denominator: 4 }}
+        draggedTrackIndex={null}
+        dragOverTrackIndex={null}
+        selectedRegionId={null}
+        projectName="Test"
+        onRegionCreated={vi.fn()}
+      />
+    );
+    configureGridContainer(view.container);
+
+    const targetGrid = view.container.querySelector('[data-test-id="track-grid-2"]') as HTMLDivElement;
+    dispatchFileDrop(targetGrid, [createAudioFile('beat-snapped.wav')], 100);
+
+    await vi.waitFor(() => {
+      expect(executeCommandMock).toHaveBeenCalled();
+    });
+
+    const command = executeCommandMock.mock.calls.at(-1)?.[0];
+    expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(10);
   });
 
   it('preserves fractional bar placement when snapping is disabled for dropped audio files', async () => {

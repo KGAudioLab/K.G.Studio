@@ -175,6 +175,18 @@ describe('KGProjectStorage', () => {
     expect(loaded!.getPianoRollZoom()).toBe(5);
   });
 
+  it('preserves right-panel and piano-roll snapping preferences when saving and loading', async () => {
+    const project = createTestProject('UI Preferences');
+    project.setRightPanel('eventList');
+    project.setPianoRollSnapping('1/16');
+
+    await storage.save('UI Preferences', project);
+    const loaded = await storage.load('UI Preferences');
+
+    expect(loaded?.getRightPanel()).toBe('eventList');
+    expect(loaded?.getPianoRollSnapping()).toBe('1/16');
+  });
+
   it('preserves playhead position when saving and loading', async () => {
     const project = createTestProject('Playhead Song');
     project.setPlayheadPosition(18.5);

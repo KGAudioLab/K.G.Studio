@@ -89,6 +89,7 @@ describe('KGAudioInterface preroll playback', () => {
     MockTransport.stop.mockClear();
     MockTransport.clear.mockClear();
     MockTransport.schedule.mockClear();
+    MockTransport.scheduleOnce.mockClear();
     MockTransport.bpm.value = 120;
     ;(MockTransport as typeof MockTransport & { seconds?: number }).seconds = 0;
 
@@ -249,6 +250,27 @@ describe('KGAudioInterface preroll playback', () => {
     expect(scheduledTimes).toContain(0);
   });
 
+  it('schedules the full loop when playback seeks into its middle', () => {
+    const notes = [
+      createMockMidiNote({ id: 'note-before-seek', startBeat: 2, endBeat: 3 }),
+      createMockMidiNote({ id: 'note-after-seek', startBeat: 6, endBeat: 7 }),
+    ];
+    const region = createMockMidiRegion({ notes, length: 8 });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ tracks: [track] });
+    project.setIsLooping(true);
+    project.setLoopingRange([0, 1]);
+    const audio = KGAudioInterface.instance();
+    const audioBus = createMockAudioBus();
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+
+    audio.preparePlayback(project, 5, { scheduleFullLoop: true });
+
+    const scheduledTimes = MockTransport.schedule.mock.calls.map(([, time]) => transportTimeToBeats(time));
+    expect(scheduledTimes).toContain(2);
+    expect(scheduledTimes).toContain(6);
+  });
+
   it('schedules post-tempo-change notes using playback-local transport time', () => {
     const notes = [
       createMockMidiNote({ id: 'note-1', startBeat: 4, endBeat: 5 }),
@@ -321,6 +343,7 @@ describe('KGAudioInterface audio-track mute and solo playback', () => {
     vi.clearAllMocks();
     MockTransport.position = 0;
     MockTransport.schedule.mockClear();
+    MockTransport.scheduleOnce.mockClear();
     MockTransport.bpm.value = 120;
 
     vi.mocked(ConfigManager.instance).mockReturnValue({
@@ -383,6 +406,48 @@ describe('KGAudioInterface audio-track mute and solo playback', () => {
     scheduledCallback?.(1);
 
     expect(playerBus.schedulePlayback).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes an active loop clip once and schedules its normal start for later iterations', () => {
+    const project = createAudioProject();
+    project.setIsLooping(true);
+    project.setLoopingRange([0, 1]);
+    const audio = KGAudioInterface.instance();
+    const playerBus = createMockPlayerBus();
+    ;(audio as unknown as { trackAudioPlayerBuses: Map<string, unknown> }).trackAudioPlayerBuses.set('1', playerBus);
+
+    audio.preparePlayback(project, 2, { scheduleFullLoop: true });
+
+    expect(MockTransport.scheduleOnce).toHaveBeenCalledTimes(1);
+    expect(MockTransport.schedule.mock.calls.some(([, time]) => transportTimeToBeats(time) === 1)).toBe(true);
+  });
+
+  it('re-enters a clip that begins before the loop using the loop-start source offset', () => {
+    const track = new KGAudioTrack('Audio', 1);
+    track.setRegions([
+      new KGAudioRegion('audio-region', '1', 0, 'Long Clip', 0, 16, 'audio-file', 'clip.wav', 10),
+    ]);
+    const project = createMockProject();
+    project.setTracks([track]);
+    project.setIsLooping(true);
+    project.setLoopingRange([1, 2]);
+    const audio = KGAudioInterface.instance();
+    const playerBus = createMockPlayerBus();
+    ;(audio as unknown as { trackAudioPlayerBuses: Map<string, unknown> }).trackAudioPlayerBuses.set('1', playerBus);
+
+    audio.preparePlayback(project, 8, { scheduleFullLoop: true });
+
+    expect(MockTransport.scheduleOnce).toHaveBeenCalledTimes(1);
+    const recurringResume = MockTransport.schedule.mock.calls.find(([, time]) => {
+      const beat = transportTimeToBeats(time);
+      return beat > 0 && beat < 0.1;
+    });
+    expect(recurringResume).toBeDefined();
+    expect(MockTransport.schedule.mock.calls.some(([, time]) => transportTimeToBeats(time) < 0)).toBe(false);
+
+    (recurringResume?.[0] as ((time: number) => void) | undefined)?.(1);
+    expect(playerBus.schedulePlayback).toHaveBeenCalledTimes(1);
+    expect(playerBus.schedulePlayback.mock.calls[0][2]).toBeCloseTo(2.005, 5);
   });
 
   it('starts an audio-region source when another track solos it out', () => {

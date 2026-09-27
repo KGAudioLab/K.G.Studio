@@ -8,7 +8,7 @@ import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI } from '..
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, REGION_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { isModifierKeyPressed } from '../../util/osUtil';
-import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand, ImportAudioCommand, ImportMidiClipCommand, ImportChordRegionsCommand, AddTrackCommand, ReorderTracksCommand } from '../../core/commands';
+import { CreateRegionCommand, ResizeRegionCommand, MoveRegionCommand, MoveMultipleRegionsCommand, ResizeMultipleRegionsCommand, ImportAudioCommand, ImportMidiClipCommand, AddTrackCommand, ReorderTracksCommand } from '../../core/commands';
 import { KGCore } from '../../core/KGCore';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
@@ -29,14 +29,15 @@ import { KGChordRegion } from '../../core/region/KGChordRegion';
 import {
   buildChordRegionImportPlan,
   CHORD_REGION_IMPORT_MIME_TYPE,
-  CHORD_REGION_IMPORT_REGION_NAME,
   type ChordRegionImportPayload,
 } from '../../util/chordRegionImportUtil';
+import { runChordRegionImport } from '../../util/chordRegionImportWorkflow';
 import {
   AUDIO_IMPORT_ACCEPTED_TYPES,
   getAudioImportDecodeFailureMessage,
   isAcceptedAudioImportFile,
 } from '../../util/audioImportUtil';
+import { snapBarValue } from '../../util/mainContentSnapUtil';
 
 const getRegionClickOptions = (event: Pick<MouseEvent | React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
   shiftKey: event.shiftKey,
@@ -119,9 +120,12 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const relativeX = clientX - gridRect.left;
     const barWidth = gridContainerRef.current.clientWidth / maxBars;
     const rawBar = relativeX / barWidth + 1;
-    const snap = KGMainContentState.instance().isSnappingEnabled();
-
-    return Math.max(1, snap ? Math.round(rawBar) : rawBar);
+    const mainContentState = KGMainContentState.instance();
+    return Math.max(1, snapBarValue(rawBar, {
+      enabled: mainContentState.isSnappingEnabled(),
+      mode: mainContentState.getSnappingMode(),
+      beatsPerBar: timeSignature.numerator,
+    }));
   };
 
   const importAudioFileToTrackAtBar = async (
@@ -490,9 +494,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
     // For audio tracks, show the file import modal instead of creating a blank region
     if (track.getType() === TrackType.Wave) {
-      const snap = KGMainContentState.instance().isSnappingEnabled();
+      const mainContentState = KGMainContentState.instance();
       const rawBar = relativeX / barWidth + 1;
-      const snappedBarNumber = Math.max(1, snap ? Math.round(rawBar) : rawBar);
+      const snappedBarNumber = Math.max(1, snapBarValue(rawBar, {
+        enabled: mainContentState.isSnappingEnabled(),
+        mode: mainContentState.getSnappingMode(),
+        beatsPerBar: timeSignature.numerator,
+      }));
       pendingAudioImportRef.current = { barNumber: snappedBarNumber, trackIndex };
       setShowAudioImportModal(true);
       return;
@@ -712,7 +720,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const secondsPerBeat = 60 / bpm;
         const clipOffset = coreRegion.getClipStartOffsetSeconds();
         const audioDuration = coreRegion.getAudioDurationSeconds();
-        const snap = KGMainContentState.instance().isSnappingEnabled();
+        const mainContentState = KGMainContentState.instance();
 
         // Left edge changed — calculate new clip offset
         if (clampedBarNumber !== oldBarNumber) {
@@ -725,9 +733,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
             // Dragged past audio start — snap to earliest allowed position
             const maxLeftExtensionBeats = clipOffset / secondsPerBeat;
             const minStartBeat = oldStartBeat - maxLeftExtensionBeats;
-            clampedBarNumber = snap
-              ? Math.ceil(minStartBeat / beatsPerBar) + 1
-              : (minStartBeat / beatsPerBar) + 1;
+            clampedBarNumber = snapBarValue((minStartBeat / beatsPerBar) + 1, {
+              enabled: mainContentState.isSnappingEnabled(),
+              mode: mainContentState.getSnappingMode(),
+              beatsPerBar,
+            }, 'ceil');
             const oldEndBarNumber = oldBarNumber + (coreRegion.getLength() / beatsPerBar);
             clampedLength = oldEndBarNumber - clampedBarNumber;
             newClipStartOffsetSeconds = 0;
@@ -741,7 +751,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const maxDurationSeconds = audioDuration - effectiveClipOffset;
         const maxLengthBars = (maxDurationSeconds / secondsPerBeat) / beatsPerBar;
         if (clampedLength > maxLengthBars) {
-          clampedLength = snap ? Math.floor(maxLengthBars) : maxLengthBars;
+          clampedLength = snapBarValue(maxLengthBars, {
+            enabled: mainContentState.isSnappingEnabled(),
+            mode: mainContentState.getSnappingMode(),
+            beatsPerBar,
+          }, 'floor');
           if (clampedLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
             clampedLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
           }
@@ -1156,30 +1170,22 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
 
     try {
-      const command = new ImportChordRegionsCommand(
-        track.getId().toString(),
-        trackIndex,
-        planResult.plan.startBeat,
-        planResult.plan.lengthInBeats,
-        planResult.plan.notes,
-        CHORD_REGION_IMPORT_REGION_NAME,
-      );
-      KGCore.instance().executeCommand(command, { rethrow: true });
-
-      const created = command.getCreatedRegion();
-      if (!created || !onExternalDropComplete) {
+      const result = await runChordRegionImport(track, trackIndex, planResult.plan);
+      if (!result) return;
+      const affectedRegion = result.affectedRegion;
+      if (!onExternalDropComplete) {
         refreshProjectState();
         return;
       }
 
       const beatsPerBar = timeSignature.numerator;
       const regionUI: RegionUI = {
-        id: created.getId(),
+        id: affectedRegion.getId(),
         trackId: track.getId().toString(),
         trackIndex,
-        barNumber: (created.getStartFromBeat() / beatsPerBar) + 1,
-        length: created.getLength() / beatsPerBar,
-        name: created.getName(),
+        barNumber: (affectedRegion.getStartFromBeat() / beatsPerBar) + 1,
+        length: affectedRegion.getLength() / beatsPerBar,
+        name: affectedRegion.getName(),
       };
       onExternalDropComplete(trackIndex, regionUI);
     } catch (error) {

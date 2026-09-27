@@ -18,7 +18,7 @@ describe('upgradeToV17', () => {
 
     upgradeProjectToLatest(project);
 
-    expect(project.getProjectStructureVersion()).toBe(17);
+    expect(project.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     expect(track.getTransposeSettings()).toEqual({ followKeySignature: false, transpose: 0 });
     expect(track.getNoTranspose()).toBe(true);
     expect(melodicTrack.getNoTranspose()).toBe(false);

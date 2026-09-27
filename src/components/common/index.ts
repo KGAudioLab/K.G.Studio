@@ -11,6 +11,7 @@ export {
   showAlert,
   showAudioToMidiOptions,
   showChordDetectionOptions,
+  showChordToMidiImportOptions,
   showConfirm,
   showPrompt,
   showTempoApply,
@@ -20,6 +21,7 @@ export {
 export type {
   AudioToMidiOptionsResult,
   ChordDetectionOptionsResult,
+  ChordToMidiImportAction,
   ConfirmOptions,
   PromptOptions,
   TempoApplyResult,

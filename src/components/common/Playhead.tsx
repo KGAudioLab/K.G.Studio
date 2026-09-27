@@ -20,7 +20,8 @@ const Playhead: React.FC<PlayheadProps> = ({
   horizontalOffset = 0,
   pixelPositionOverride,
 }) => {
-  const { timeSignature, playheadPosition } = useProjectStore();
+  const { timeSignature, playheadPosition, playheadSeekPreviewPosition } = useProjectStore();
+  const displayedPlayheadPosition = playheadSeekPreviewPosition ?? playheadPosition;
 
   // Calculate the pixel position based on context
   const getPixelPosition = (): number => {
@@ -31,7 +32,7 @@ const Playhead: React.FC<PlayheadProps> = ({
     if (context === 'main-grid') {
       // In main grid, convert beats to bars, then bars to pixels
       const beatsPerBar = timeSignature.numerator;
-      const barPosition = playheadPosition / beatsPerBar;
+      const barPosition = displayedPlayheadPosition / beatsPerBar;
       
       // Get bar width from CSS variable
       const barWidth = parseInt(
@@ -46,7 +47,7 @@ const Playhead: React.FC<PlayheadProps> = ({
         getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
       ) || 40;
       
-      return playheadPosition * beatWidth;
+      return displayedPlayheadPosition * beatWidth;
     }
   };
 

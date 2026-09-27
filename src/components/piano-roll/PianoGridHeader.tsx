@@ -18,10 +18,19 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
   hasPianoKeys = true,
 }) => {
   // Get store access for playhead position updates
-  const { setPlayheadPosition, requestMainContentScroll } = useProjectStore();
+  const {
+    isPlaying,
+    isRecording,
+    setPlayheadPosition,
+    seekPlayheadPosition,
+    setPlayheadSeekPreviewPosition,
+    requestMainContentScroll,
+  } = useProjectStore();
   
   // Refs for drag functionality
   const isDraggingRef = useRef(false);
+  const dragTargetRef = useRef<number | null>(null);
+  const suppressNextClickRef = useRef(false);
   const headerElementRef = useRef<HTMLDivElement | null>(null);
 
   // Utility function to calculate playhead position from mouse coordinates
@@ -58,16 +67,26 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     // Only handle left mouse button
     if (e.button !== 0) return;
     
-    isDraggingRef.current = true;
-    
     // Calculate and set initial playhead position
     const newPosition = calculatePlayheadFromMouse(e.clientX);
-    if (newPosition !== null) {
-      setPlayheadPosition(newPosition);
-      
-      if (DEBUG_MODE.PIANO_ROLL) {
-        console.log(`Piano Grid Header drag started - Initial position: ${newPosition}`);
+    if (newPosition === null || isRecording) {
+      return;
+    }
+
+    isDraggingRef.current = true;
+    dragTargetRef.current = null;
+
+    if (isPlaying) {
+      if (setPlayheadSeekPreviewPosition(newPosition)) {
+        dragTargetRef.current = newPosition;
       }
+    } else {
+      setPlayheadPosition(newPosition);
+      dragTargetRef.current = newPosition;
+    }
+      
+    if (DEBUG_MODE.PIANO_ROLL) {
+      console.log(`Piano Grid Header drag started - Initial position: ${newPosition}`);
     }
     
     // Prevent text selection during drag
@@ -77,7 +96,8 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
   // Handle click (when not dragging) - this will be the fallback for simple clicks
   const handlePianoGridHeaderClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // If we were dragging, don't process as a click
-    if (isDraggingRef.current) {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
       return;
     }
     
@@ -96,8 +116,11 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
         console.log(`Destination bar: ${destinationBarNumber} (beat ${newPosition})`);
       }
 
-      setPlayheadPosition(newPosition);
-      requestMainContentScroll(newPosition);
+      void seekPlayheadPosition(newPosition).then(accepted => {
+        if (accepted) {
+          requestMainContentScroll(newPosition);
+        }
+      });
     }
   };
 
@@ -108,7 +131,17 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
       
       const newPosition = calculatePlayheadFromMouse(e.clientX);
       if (newPosition !== null) {
-        setPlayheadPosition(newPosition);
+        if (isPlaying) {
+          if (setPlayheadSeekPreviewPosition(newPosition)) {
+            dragTargetRef.current = newPosition;
+          } else {
+            dragTargetRef.current = null;
+            setPlayheadSeekPreviewPosition(null);
+          }
+        } else {
+          setPlayheadPosition(newPosition);
+          dragTargetRef.current = newPosition;
+        }
         
         if (DEBUG_MODE.PIANO_ROLL) {
           console.log(`Piano Grid Header drag - Position: ${newPosition}`);
@@ -119,7 +152,21 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     const handleMouseUp = () => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
-        
+        suppressNextClickRef.current = true;
+        const target = dragTargetRef.current;
+        dragTargetRef.current = null;
+
+        if (isPlaying) {
+          setPlayheadSeekPreviewPosition(null);
+          if (target !== null) {
+            void seekPlayheadPosition(target).then(accepted => {
+              if (accepted) {
+                requestMainContentScroll(target);
+              }
+            });
+          }
+        }
+
         if (DEBUG_MODE.PIANO_ROLL) {
           console.log('Piano Grid Header drag ended');
         }
@@ -134,8 +181,18 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      if (isDraggingRef.current) {
+        setPlayheadSeekPreviewPosition(null);
+      }
     };
-  }, [calculatePlayheadFromMouse, setPlayheadPosition]);
+  }, [
+    calculatePlayheadFromMouse,
+    isPlaying,
+    requestMainContentScroll,
+    seekPlayheadPosition,
+    setPlayheadPosition,
+    setPlayheadSeekPreviewPosition,
+  ]);
 
   return (
     <div 

@@ -8,10 +8,12 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { createDefaultGlobalTracks } from '../core/global-track';
 import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
+import type { KGProject } from '../core/KGProject';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
   setPianoRollZoom: vi.fn(),
+  setCurrentSnap: vi.fn(),
 }));
 
 const audioStorageMocks = vi.hoisted(() => ({
@@ -36,7 +38,12 @@ const toneMocks = vi.hoisted(() => {
 let mockTracks: KGTrack[] = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
 let mockIsMetronomeEnabled = false;
 let mockShowGlobalTracks = false;
+let mockIsSnappingEnabled = true;
+let mockSnappingMode: 'bar' | 'beat' = 'beat';
+let mockRightPanel: 'musicGenerator' | 'musicAssistant' | 'eventList' | null = 'musicAssistant';
+const mockPianoRollSnapping = 'none' as const;
 let mockPlayheadPosition = 0;
+let mockProjectName = 'Test Project';
 let mockSelectedItems: Array<{ getId: () => string; select: () => void; deselect: () => void; isSelected: () => boolean }> = [];
 let mockCopiedItems: Array<{ getId: () => string }> = [];
 const selectionChangedCallbacks: Array<() => void> = [];
@@ -48,7 +55,7 @@ const mockProject = {
   getGlobalTracks: () => createDefaultGlobalTracks(),
   getBpm: () => 120,
   getKeySignature: () => 'C major',
-  getName: () => 'Test Project',
+  getName: () => mockProjectName,
   getSelectedMode: () => 'major',
   getIsLooping: () => false,
   getIsMetronomeEnabled: () => mockIsMetronomeEnabled,
@@ -59,6 +66,20 @@ const mockProject = {
   setShowGlobalTracks: vi.fn((value: boolean) => {
     mockShowGlobalTracks = value;
   }),
+  getIsSnappingEnabled: () => mockIsSnappingEnabled,
+  setIsSnappingEnabled: vi.fn((value: boolean) => {
+    mockIsSnappingEnabled = value;
+  }),
+  getSnappingMode: () => mockSnappingMode,
+  setSnappingMode: vi.fn((value: 'bar' | 'beat') => {
+    mockSnappingMode = value;
+  }),
+  getRightPanel: () => mockRightPanel,
+  setRightPanel: vi.fn((value: typeof mockRightPanel) => {
+    mockRightPanel = value;
+  }),
+  getPianoRollSnapping: () => mockPianoRollSnapping,
+  setPianoRollSnapping: vi.fn(),
   getPlayheadPosition: () => mockPlayheadPosition,
   setPlayheadPosition: vi.fn((position: number) => {
     mockPlayheadPosition = position;
@@ -128,6 +149,7 @@ const mockCore = {
   setPlayheadPosition: vi.fn((position: number) => {
     mockPlayheadPosition = position;
   }),
+  seekDuringPlayback: vi.fn().mockResolvedValue(true),
   getIsPlaying: () => false,
   startPlaying: vi.fn().mockResolvedValue(undefined),
   stopPlaying: vi.fn().mockResolvedValue(undefined),
@@ -184,15 +206,19 @@ describe('projectStore piano roll state', () => {
     vi.resetModules();
     pianoRollStateMocks.setSheetMusicViewEnabled.mockReset();
     pianoRollStateMocks.setPianoRollZoom.mockReset();
+    pianoRollStateMocks.setCurrentSnap.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
     currentProject = mockProject;
     mockPlayheadPosition = 0;
+    mockProjectName = 'Test Project';
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
     mockCore.stopPlaying.mockResolvedValue(undefined);
     mockCore.executeCommand.mockReset();
     mockCore.setPlayheadPosition.mockClear();
+    mockCore.seekDuringPlayback.mockReset();
+    mockCore.seekDuringPlayback.mockResolvedValue(true);
     mockCore.undo.mockReset();
     mockCore.undo.mockReturnValue(true);
     mockCore.redo.mockReset();
@@ -225,11 +251,18 @@ describe('projectStore piano roll state', () => {
     mockCore.clearSelectedItems.mockClear();
     mockCore.addSelectedItems.mockClear();
     mockIsMetronomeEnabled = false;
+    mockIsSnappingEnabled = true;
+    mockSnappingMode = 'beat';
+    mockRightPanel = 'musicAssistant';
     mockShowGlobalTracks = false;
     mockProject.setIsMetronomeEnabled.mockClear();
     mockProject.setShowGlobalTracks.mockClear();
+    mockProject.setIsSnappingEnabled.mockClear();
+    mockProject.setSnappingMode.mockClear();
+    mockProject.setRightPanel.mockClear();
     mockProject.setPlayheadPosition.mockClear();
     configValues.set('audio.input_device_id', 'default');
+    configValues.delete('chatbox.default_open');
   });
 
   it('clears hybrid state when opening a MIDI region', async () => {
@@ -359,6 +392,52 @@ describe('projectStore piano roll state', () => {
     expect(state.showGlobalTracks).toBe(true);
   });
 
+  it.each([
+    ['musicGenerator', true, false, false],
+    ['musicAssistant', false, true, false],
+    ['eventList', false, false, true],
+    [null, false, false, false],
+  ] as const)(
+    'restores the %s right-panel preference from the project',
+    async (rightPanel, showKGOnePanel, showChatBox, showEventListPanel) => {
+      mockRightPanel = rightPanel;
+      const { useProjectStore } = await import('./projectStore');
+
+      expect(useProjectStore.getState()).toMatchObject({
+        showKGOnePanel,
+        showChatBox,
+        showEventListPanel,
+      });
+    },
+  );
+
+  it('restores piano-roll snapping from the project', async () => {
+    await import('./projectStore');
+
+    expect(pianoRollStateMocks.setCurrentSnap).toHaveBeenCalledWith('none');
+  });
+
+  it('does not let the global chat preference override a loaded project', async () => {
+    configValues.set('chatbox.default_open', false);
+    const { useProjectStore } = await import('./projectStore');
+
+    await useProjectStore.getState().initializeFromConfig();
+
+    expect(mockProject.setRightPanel).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().showChatBox).toBe(true);
+  });
+
+  it('applies the global chat preference to a new unsaved project', async () => {
+    mockProjectName = 'Untitled Project';
+    configValues.set('chatbox.default_open', false);
+    const { useProjectStore } = await import('./projectStore');
+
+    await useProjectStore.getState().initializeFromConfig();
+
+    expect(mockProject.setRightPanel).toHaveBeenCalledWith(null);
+    expect(useProjectStore.getState().showChatBox).toBe(false);
+  });
+
   it('persists metronome toggles to the project and audio interface', async () => {
     const { useProjectStore } = await import('./projectStore');
 
@@ -382,6 +461,20 @@ describe('projectStore piano roll state', () => {
     const state = useProjectStore.getState();
     expect(mockProject.setShowGlobalTracks).toHaveBeenCalledWith(true);
     expect(state.showGlobalTracks).toBe(true);
+  });
+
+  it('persists and synchronizes main-content snapping settings', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setMainContentSnapping(false, 'bar');
+    });
+
+    const state = useProjectStore.getState();
+    expect(mockProject.setIsSnappingEnabled).toHaveBeenCalledWith(false);
+    expect(mockProject.setSnappingMode).toHaveBeenCalledWith('bar');
+    expect(state.isSnappingEnabled).toBe(false);
+    expect(state.snappingMode).toBe('bar');
   });
 
   it('tracks playback preparation around startPlaying success', async () => {
@@ -454,6 +547,59 @@ describe('projectStore piano roll state', () => {
       resolveStart?.();
       await startPromise;
     });
+  });
+
+  it('restarts active playback from an accepted user seek', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true, isRecording: false });
+
+    const accepted = await useProjectStore.getState().seekPlayheadPosition(12);
+
+    expect(accepted).toBe(true);
+    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(12);
+    expect(mockCore.seekDuringPlayback).toHaveBeenCalledWith(12);
+    expect(useProjectStore.getState().isPlaying).toBe(true);
+  });
+
+  it('ignores active-playback seeks outside the half-open loop range', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({
+      isPlaying: true,
+      isRecording: false,
+      isLooping: true,
+      loopingRange: [2, 3],
+      timeSignature: { numerator: 4, denominator: 4 },
+    });
+
+    await expect(useProjectStore.getState().seekPlayheadPosition(7)).resolves.toBe(false);
+    await expect(useProjectStore.getState().seekPlayheadPosition(16)).resolves.toBe(false);
+
+    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().playheadPosition).toBe(0);
+  });
+
+  it('ignores user seeks while recording', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true, isRecording: true });
+
+    await expect(useProjectStore.getState().seekPlayheadPosition(8)).resolves.toBe(false);
+
+    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
+  });
+
+  it('stops at the requested target and reports a playback failure when restart fails', async () => {
+    mockCore.seekDuringPlayback.mockRejectedValueOnce(new Error('restart failed'));
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true, isRecording: false });
+
+    await expect(useProjectStore.getState().seekPlayheadPosition(10)).resolves.toBe(false);
+
+    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(10);
+    expect(useProjectStore.getState().isPlaying).toBe(false);
+    expect(useProjectStore.getState().playheadPosition).toBe(10);
+    expect(mockCore.setStatus).toHaveBeenCalled();
   });
 
   it('starts and stops audio-track recording without requiring a selected region', async () => {
@@ -605,7 +751,6 @@ describe('projectStore piano roll state', () => {
     const { useProjectStore } = await import('./projectStore');
 
     act(() => {
-      useProjectStore.getState().toggleChatBox();
       useProjectStore.getState().setShowSettings(true);
     });
 
@@ -645,7 +790,6 @@ describe('projectStore piano roll state', () => {
 
     act(() => {
       useProjectStore.getState().toggleChatBox();
-      useProjectStore.getState().toggleChatBox();
       useProjectStore.getState().setShowSettings(true);
       useProjectStore.getState().setShowSettings(false);
     });
@@ -675,6 +819,18 @@ describe('projectStore piano roll state', () => {
     expect(state.showKGOnePanel).toBe(false);
     expect(state.settingsReturnSidePanel).toBeNull();
     expect(state.lastActiveSidePanel).toBe('eventList');
+  });
+
+  it('persists panel activation and hiding to the current project', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => useProjectStore.getState().activateSidePanel('kgone'));
+    expect(mockProject.setRightPanel).toHaveBeenLastCalledWith('musicGenerator');
+    expect(useProjectStore.getState().showKGOnePanel).toBe(true);
+
+    act(() => useProjectStore.getState().toggleKGOnePanel());
+    expect(mockProject.setRightPanel).toHaveBeenLastCalledWith(null);
+    expect(useProjectStore.getState().showKGOnePanel).toBe(false);
   });
 
   it('refreshes expanded max bars after BPM reduction', async () => {
@@ -718,6 +874,10 @@ describe('projectStore piano roll state', () => {
       setShowGlobalTracks: vi.fn(),
       getLoopingRange: () => [0, 0] as [number, number],
       getPianoRollZoom: () => 1,
+      getPianoRollSnapping: () => 'none' as const,
+      getRightPanel: () => 'musicAssistant' as const,
+      getIsSnappingEnabled: () => true,
+      getSnappingMode: () => 'beat' as const,
     };
     currentProject = project as unknown as typeof mockProject;
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
@@ -733,7 +893,7 @@ describe('projectStore piano roll state', () => {
     expect(maxBars).toBe(33);
     expect(state.maxBars).toBe(33);
     expect(audioRegion.getLength()).toBeCloseTo(8);
-    expect(getAudioRegionDisplayLengthBeats(project as any, audioRegion)).toBeCloseTo(8);
+    expect(getAudioRegionDisplayLengthBeats(project as unknown as KGProject, audioRegion)).toBeCloseTo(8);
   });
 
   it('does not auto-shrink max bars after BPM increase', async () => {
@@ -778,6 +938,10 @@ describe('projectStore piano roll state', () => {
       setShowGlobalTracks: vi.fn(),
       getLoopingRange: () => [0, 0] as [number, number],
       getPianoRollZoom: () => 1,
+      getPianoRollSnapping: () => 'none' as const,
+      getRightPanel: () => 'musicAssistant' as const,
+      getIsSnappingEnabled: () => true,
+      getSnappingMode: () => 'beat' as const,
     };
     currentProject = project as unknown as typeof mockProject;
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());

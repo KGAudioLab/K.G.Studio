@@ -170,6 +170,8 @@ function App() {
 
   return (
     <div className="daw-container">
+      <ProjectTitleSync />
+
       {/* Top Toolbar */}
       <Toolbar />
 
@@ -207,6 +209,16 @@ function App() {
 }
 
 export default App;
+
+export const ProjectTitleSync: React.FC = () => {
+  const projectName = useProjectStore(state => state.projectName);
+
+  useEffectReact(() => {
+    document.title = `K.G.Studio - ${projectName}`;
+  }, [projectName]);
+
+  return null;
+};
 
 // Local component to subscribe to pool events and manage a counter
 export const GlobalLoadingOverlayContainer: React.FC = () => {
