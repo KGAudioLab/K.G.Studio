@@ -298,6 +298,24 @@ describe('KGAudioInterface preroll playback', () => {
     expect(scheduledTimes).toContain(5);
   });
 
+  it('logs non-zero note transport times in Tone tick notation', () => {
+    const note = createMockMidiNote({ startTick: 1, endTick: 2 });
+    const region = createMockMidiRegion({ notes: [note] });
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+    const audio = KGAudioInterface.instance();
+    const audioBus = createMockAudioBus();
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+    audio.preparePlayback(project, 0);
+
+    expect(consoleLog).toHaveBeenCalledWith(
+      'Scheduling note C4 at tick 960, Tone time: 960i, duration: 0.5, delay: 0.2s'
+    );
+    consoleLog.mockRestore();
+  });
+
   it('keeps post-tempo-change note spacing correct for nonzero playback starts', () => {
     const notes = [
       createMockMidiNote({ id: 'note-1', startTick: 4, endTick: 5 }),

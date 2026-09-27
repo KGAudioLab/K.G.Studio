@@ -749,12 +749,15 @@ export class KGAudioInterface {
 
           trackNotes.forEach(({ note, absoluteStartTick, absoluteEndTick }) => {
             const noteStartTime = this.projectTickToTransportTime(absoluteStartTick);
+            const formattedNoteStartTime = typeof noteStartTime === 'number'
+              ? Number(noteStartTime.toFixed(3))
+              : noteStartTime;
             const noteDurationSeconds = tickRangeToSeconds(project, absoluteStartTick, absoluteEndTick);
             const velocity = note.getVelocity() / 127;
             const noteName = pitchToNoteNameString(note.getPitch());
 
             console.log(
-              `Scheduling note ${noteName} at tick ${Number(absoluteStartTick.toFixed ? absoluteStartTick.toFixed(3) : absoluteStartTick.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDurationSeconds).toFixed(3))}, delay: ${playbackDelay}s`
+              `Scheduling note ${noteName} at tick ${Number(absoluteStartTick.toFixed ? absoluteStartTick.toFixed(3) : absoluteStartTick.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${formattedNoteStartTime}, duration: ${Number(Number(noteDurationSeconds).toFixed(3))}, delay: ${playbackDelay}s`
             );
 
             const eventId = Tone.Transport.schedule((time) => {
