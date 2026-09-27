@@ -23,11 +23,12 @@ import {
   type PianoRollSnapValue,
 } from '../../core/state/KGPianoRollState';
 import { ConfigManager } from '../../core/config/ConfigManager';
-import { beatsToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
+import { ticksToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
 import { downloadBlob } from '../../util/miscUtil';
 import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand, UpdateMidiRegionTransposeCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
+import { pixelsToTicks, ticksToPixels } from '../../core/timing';
 import {
   showAlert,
   showAudioToMidiOptions,
@@ -73,6 +74,7 @@ import {
   type DetectedMidiChord,
   type MidiChordDetectionOptions,
 } from '../../util/midiChordDetection';
+import { getNoteValueStepTicks, quantizeTickLength, quantizeTickPosition } from './pianoRollSnap';
 import type { AudioChordDetectionWorkerMessage } from '../../workers/audioChordDetectionWorker';
 import type { AudioToMidiWorkerResult } from '../../workers/audioToMidiWorker';
 import type { PianoRollAutomationType } from './pianoRollAutomation';
@@ -139,7 +141,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     keySignature,
     selectedMode,
     setSelectedMode,
-    playheadPosition,
+    playheadTick,
     isPlaying,
     autoScrollEnabled,
     bpm,
@@ -240,10 +242,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       activeRegion.getNotes().map(note => ({
         id: note.getId(),
         pitch: note.getPitch(),
-        startBeat: note.getStartBeat(),
-        endBeat: note.getEndBeat(),
+        startTick: note.getStartTick(),
+        endTick: note.getEndTick(),
       })),
-      activeRegion.getLength(),
+      activeRegion.getLengthTicks(),
       options,
     );
 
@@ -323,17 +325,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       ? { type: 'chord' as const }
       : { type: 'midi' as const, trackId: options.sourceId.replace(/^midi:/, '') };
     const project = KGCore.instance().getCurrentProject();
-    const plan = buildIntelligentArpeggiatorPlan(project, activeRegion, playheadPosition, { source, exampleBars: options.exampleBars, generateBars: options.generateBars, tieBreak: options.tieBreak });
+    const plan = buildIntelligentArpeggiatorPlan(project, activeRegion, playheadTick, { source, exampleBars: options.exampleBars, generateBars: options.generateBars, tieBreak: options.tieBreak });
     if ('error' in plan) { await showAlert(plan.error); return; }
     try {
-      KGCore.instance().executeCommand(new GenerateIntelligentArpeggiatorCommand(activeRegion.getId(), plan.notes, plan.endBeat));
+      KGCore.instance().executeCommand(new GenerateIntelligentArpeggiatorCommand(activeRegion.getId(), plan.notes, plan.endTick));
       refreshProjectState();
       setStatus(t('pianoRoll.intelligentArpeggiatorGenerated', { count: plan.notes.length }));
     } catch (error) {
       console.error('Intelligent arpeggiator failed:', error);
       await showAlert(t('pianoRoll.intelligentArpeggiatorFailed'));
     }
-  }, [activeRegion, availableMidiTracks, parentMidiTrack, playheadPosition, refreshProjectState, setStatus, t]);
+  }, [activeRegion, availableMidiTracks, parentMidiTrack, playheadTick, refreshProjectState, setStatus, t]);
   const editableTitleRegion = useMemo<KGMidiRegion | KGAudioRegion | null>(() => {
     if (isHybrid) {
       return null;
@@ -360,8 +362,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   );
   const chordGuideContext = useMemo(() => {
     const project = KGCore.instance().getCurrentProject();
-    return resolveChordGuideContext(project, playheadPosition);
-  }, [playheadPosition]);
+    return resolveChordGuideContext(project, playheadTick);
+  }, [playheadTick]);
   const effectiveChordGuideKeySignature = chordGuideContext.keySignature;
   const chordGuideMode = chordGuideContext.mode;
 
@@ -426,9 +428,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     ) {
       pendingModeSwitchRequestRef.current = activeRegion
         ? createPendingModeSwitchRequest({
-            playheadBeat: playheadPosition,
-            regionStartBeat: activeRegion.getStartFromBeat(),
-            regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+            playheadBeat: playheadTick,
+            regionStartTick: activeRegion.getStartTick(),
+            regionEndTick: activeRegion.getStartTick() + activeRegion.getLengthTicks(),
             sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
             destinationSheetMusicViewEnabled: requestedSheetMusicViewEnabled,
             destinationSheetMusicTrackScopeEnabled: requestedSheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
@@ -442,7 +444,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     activeRegion,
     isAudioOnly,
     pianoRollViewRequestVersion,
-    playheadPosition,
+    playheadTick,
     requestedSheetMusicViewEnabled,
     sheetMusicTrackScopeEnabled,
     sheetMusicViewEnabled,
@@ -732,11 +734,11 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         }, [pcm.buffer]);
       });
 
-      const regionLengthBeats = analysisSpan.regionEndBeat - analysisSpan.regionStartBeat;
+      const regionLengthBeats = analysisSpan.regionEndTick - analysisSpan.regionStartTick;
       const importCommand = new ImportMidiClipCommand(
         targetTrack.getId().toString(),
         targetTrack.getTrackIndex(),
-        analysisSpan.regionStartBeat,
+        analysisSpan.regionStartTick,
         regionLengthBeats,
         detectedNotes,
         `Converted from ${sourceAudioTrack?.getName() ?? audioRegion.getName()}`,
@@ -864,17 +866,17 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         ? detectedChords
         : buildMidiChordRegionSpans(detectedChords as DetectedMidiChord[]);
       const replacements = chordRegionResults
-        .filter(result => result.symbol !== 'N' && result.endBeat > result.startBeat)
+        .filter(result => result.symbol !== 'N' && result.endTick > result.startTick)
         .map(result => ({
-          startBeat: result.startBeat,
-          length: result.endBeat - result.startBeat,
+          startTick: result.startTick,
+          length: result.endTick - result.startTick,
           symbol: result.symbol,
         }));
 
-      const spanStartBeat = chordWindows[0].startBeat;
-      const spanEndBeat = chordWindows[chordWindows.length - 1].endBeat;
+      const spanStartTick = chordWindows[0].startTick;
+      const spanEndTick = chordWindows[chordWindows.length - 1].endTick;
       KGCore.instance().executeCommand(
-        new ReplaceChordRegionsInRangeCommand(spanStartBeat, spanEndBeat, replacements),
+        new ReplaceChordRegionsInRangeCommand(spanStartTick, spanEndTick, replacements),
       );
       refreshProjectState();
     } catch (error) {
@@ -953,7 +955,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         autoAlignRegionToBeat: applyResult.autoAlignRegionToBeat,
         project,
         regionId: audioRegion.getId(),
-        regionStartBeat: audioRegion.getStartFromBeat(),
+        regionStartTick: audioRegion.getStartTick(),
         regionTrackId: audioRegion.getTrackId(),
         regionTrackIndex: audioRegion.getTrackIndex(),
         refreshProjectState,
@@ -1081,50 +1083,33 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       console.log(`Quantizing ${selectedNotes.length} selected notes with value: ${quantValue}`);
     }
 
-    // Parse the quantization value (e.g., "1/4", "1/8", "1/16", "1/32")
-    const denominator = parseInt(quantValue.split('/')[1]);
-    if (isNaN(denominator)) {
+    const quantizationStep = getNoteValueStepTicks(quantValue);
+    if (quantizationStep === null) {
       console.error(`Invalid quantization value: ${quantValue}`);
       return;
     }
 
-    // Calculate the quantization step in beats
-    // In a 4/4 time signature, a quarter note (1/4) is 1 beat
-    // In a 6/8 time signature, an eighth note (1/8) is 1 beat
-    const { numerator, denominator: timeSigDenominator } = timeSignature;
-
-    // Calculate beats per whole note based on time signature
-    // In 4/4, a whole note is 4 beats
-    // In 6/8, a whole note is 6 beats (because each beat is an eighth note)
-    const beatsPerWholeNote = numerator * (4 / timeSigDenominator);
-
-    // Calculate the quantization step in beats
-    // quantizationStep should ALWAYS be 4 / denominator regardless of time signature
-    const quantizationStep = 4 / denominator;
-
     if (DEBUG_MODE.PIANO_ROLL) {
-      console.log(`Time signature: ${numerator}/${timeSigDenominator}`);
-      console.log(`Beats per whole note: ${beatsPerWholeNote}`);
-      console.log(`Quantization step: ${quantizationStep} beats`);
+      console.log(`Quantization step: ${quantizationStep} ticks`);
     }
 
     // Apply quantization to each selected note
     selectedNotes.forEach(note => {
-      // Get the current start beat
-      const currentStartBeat = note.getStartBeat();
+      // Get the current start tick
+      const currentStartTick = note.getStartTick();
 
-      // Calculate the quantized start beat
-      const quantizedStartBeat = Math.round(currentStartBeat / quantizationStep) * quantizationStep;
+      const quantizedStartTick = quantizeTickPosition(currentStartTick, quantValue);
+      if (quantizedStartTick === null) return;
 
       // Calculate the duration of the note
-      const duration = note.getEndBeat() - currentStartBeat;
+      const duration = note.getEndTick() - currentStartTick;
 
-      // Set the new start beat and maintain the duration
-      note.setStartBeat(quantizedStartBeat);
-      note.setEndBeat(quantizedStartBeat + duration);
+      // Set the new start tick and maintain the duration
+      note.setStartTick(quantizedStartTick);
+      note.setEndTick(quantizedStartTick + duration);
 
       if (DEBUG_MODE.PIANO_ROLL) {
-        console.log(`Quantized note ${note.getId()}: ${currentStartBeat} -> ${quantizedStartBeat}`);
+        console.log(`Quantized note ${note.getId()}: ${currentStartTick} -> ${quantizedStartTick}`);
       }
     });
 
@@ -1142,7 +1127,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         console.log('Triggered note update to re-render quantized notes');
       }
     }
-  }, [activeRegion, timeSignature, updateTrack, tracks]);
+  }, [activeRegion, updateTrack, tracks]);
 
   // Quantize selected notes length based on the selected quantization value
   const quantizeNoteLength = useCallback((quantValue: string) => {
@@ -1169,65 +1154,34 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       console.log(`Quantizing length of ${selectedNotes.length} selected notes with value: ${quantValue}`);
     }
 
-    // Parse the quantization value (e.g., "1/1", "1/2", "1/4", "1/8", "1/16", "1/32")
-    const denominator = parseInt(quantValue.split('/')[1]);
-    if (isNaN(denominator)) {
+    const quantizationStep = getNoteValueStepTicks(quantValue);
+    if (quantizationStep === null) {
       console.error(`Invalid quantization value: ${quantValue}`);
       return;
     }
 
-    // Calculate the quantization step in beats
-    // In a 4/4 time signature, a quarter note (1/4) is 1 beat
-    // In a 6/8 time signature, an eighth note (1/8) is 1 beat
-    const { numerator, denominator: timeSigDenominator } = timeSignature;
-
-    // Calculate beats per whole note based on time signature
-    // In 4/4, a whole note is 4 beats
-    // In 6/8, a whole note is 6 beats (because each beat is an eighth note)
-    const beatsPerWholeNote = numerator * (4 / timeSigDenominator);
-
-    // Calculate the quantization step in beats
-    // quantizationStep should ALWAYS be 4 / denominator regardless of time signature
-    const quantizationStep = 4 / denominator;
-
     if (DEBUG_MODE.PIANO_ROLL) {
-      console.log(`Time signature: ${numerator}/${timeSigDenominator}`);
-      console.log(`Beats per whole note: ${beatsPerWholeNote}`);
-      console.log(`Length quantization step: ${quantizationStep} beats`);
+      console.log(`Length quantization step: ${quantizationStep} ticks`);
     }
 
     // Apply quantization to each selected note
     selectedNotes.forEach(note => {
-      // Get the current start and end beats
-      const startBeat = note.getStartBeat();
-      const currentEndBeat = note.getEndBeat();
+      // Get the current start and end ticks
+      const startTick = note.getStartTick();
+      const currentEndTick = note.getEndTick();
 
       // Calculate the current duration
-      const currentDuration = currentEndBeat - startBeat;
+      const currentDuration = currentEndTick - startTick;
 
-      // Calculate the quantized duration
-      // If the current duration is less than the quantization step,
-      // extend it to match the quantization step exactly
-      // Otherwise, round to the nearest multiple of quantizationStep
-      let quantizedDuration;
+      const quantizedDuration = quantizeTickLength(
+        currentDuration,
+        quantValue,
+        PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH,
+      );
+      if (quantizedDuration === null) return;
 
-      if (currentDuration < quantizationStep) {
-        // For notes shorter than the quantization step, extend to exactly one step
-        quantizedDuration = quantizationStep;
-
-        if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Extending short note ${note.getId()} from ${currentDuration} to ${quantizedDuration}`);
-        }
-      } else {
-        // For longer notes, round to nearest multiple of quantizationStep
-        quantizedDuration = Math.round(currentDuration / quantizationStep) * quantizationStep;
-      }
-
-      // Ensure minimum note length
-      quantizedDuration = Math.max(PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH, quantizedDuration);
-
-      // Set the new end beat while maintaining the start beat
-      note.setEndBeat(startBeat + quantizedDuration);
+      // Set the new end tick while maintaining the start tick
+      note.setEndTick(startTick + quantizedDuration);
 
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Quantized note length ${note.getId()}: ${currentDuration} -> ${quantizedDuration}`);
@@ -1248,7 +1202,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         console.log('Triggered note update to re-render quantized note lengths');
       }
     }
-  }, [activeRegion, timeSignature, updateTrack, tracks]);
+  }, [activeRegion, updateTrack, tracks]);
 
   // Handle quantization selection
   const handleQuantSelect = useCallback((type: 'position' | 'length', value: string) => {
@@ -1290,7 +1244,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       ) || TOOLBAR_CONSTANTS.BASE_BAR_WIDTH;
 
       if (visibleMusicWidth > 0 && beatWidth > 0) {
-        pendingZoomAnchorBeatRef.current = (container.scrollLeft + visibleMusicWidth / 2) / beatWidth;
+        pendingZoomAnchorBeatRef.current = pixelsToTicks(container.scrollLeft + visibleMusicWidth / 2, beatWidth);
       } else {
         pendingZoomAnchorBeatRef.current = null;
       }
@@ -1317,9 +1271,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const handleSheetMusicViewToggle = useCallback(() => {
     if (activeRegion) {
       pendingModeSwitchRequestRef.current = createPendingModeSwitchRequest({
-        playheadBeat: playheadPosition,
-        regionStartBeat: activeRegion.getStartFromBeat(),
-        regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+        playheadBeat: playheadTick,
+        regionStartTick: activeRegion.getStartTick(),
+        regionEndTick: activeRegion.getStartTick() + activeRegion.getLengthTicks(),
         sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
         destinationSheetMusicViewEnabled: !sheetMusicViewEnabled,
         destinationSheetMusicTrackScopeEnabled: !sheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
@@ -1333,7 +1287,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       KGPianoRollState.instance().setSheetMusicViewEnabled(next);
       return next;
     });
-  }, [activeRegion, playheadPosition, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
+  }, [activeRegion, playheadTick, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
 
   const handleSheetQuantizationChange = useCallback((value: string) => {
     setSheetQuantization(value);
@@ -1343,9 +1297,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const handleSheetMusicTrackScopeToggle = useCallback(() => {
     if (activeRegion) {
       pendingModeSwitchRequestRef.current = createPendingModeSwitchRequest({
-        playheadBeat: playheadPosition,
-        regionStartBeat: activeRegion.getStartFromBeat(),
-        regionEndBeat: activeRegion.getStartFromBeat() + activeRegion.getLength(),
+        playheadBeat: playheadTick,
+        regionStartTick: activeRegion.getStartTick(),
+        regionEndTick: activeRegion.getStartTick() + activeRegion.getLengthTicks(),
         sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
         destinationSheetMusicViewEnabled: sheetMusicViewEnabled,
         destinationSheetMusicTrackScopeEnabled: !sheetMusicTrackScopeEnabled,
@@ -1359,7 +1313,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       KGPianoRollState.instance().setSheetMusicTrackScopeEnabled(next);
       return next;
     });
-  }, [activeRegion, playheadPosition, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
+  }, [activeRegion, playheadTick, sheetMusicTrackScopeEnabled, sheetMusicViewEnabled]);
 
   const handleAudioSpectrogramToggle = useCallback(() => {
     if (isHybrid || !audioRegion) {
@@ -1375,8 +1329,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         current.length === metrics.length &&
         current.every((metric, index) => (
           metric.barIndex === metrics[index].barIndex &&
-          metric.startBeat === metrics[index].startBeat &&
-          metric.endBeat === metrics[index].endBeat &&
+          metric.startTick === metrics[index].startTick &&
+          metric.endTick === metrics[index].endTick &&
           metric.leftPx === metrics[index].leftPx &&
           metric.widthPx === metrics[index].widthPx
         ))
@@ -1455,15 +1409,15 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     const playheadPixel = sheetMusicViewEnabled && activeRegion
       ? getSheetPlayheadPixel(
           sheetMusicTrackScopeEnabled
-            ? Math.max(0, playheadPosition)
-            : Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
+            ? Math.max(0, playheadTick)
+            : Math.max(0, playheadTick - activeRegion.getStartTick()),
           sheetMeasureMetrics
         )
       : (() => {
           const beatWidth = parseInt(
             getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
           ) || 40;
-          return playheadPosition * beatWidth;
+          return ticksToPixels(playheadTick, beatWidth);
         })();
 
     // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
@@ -1480,7 +1434,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     pianoRollExpectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
-  }, [playheadPosition, isPlaying, autoScrollEnabled, sheetMusicViewEnabled, sheetMusicTrackScopeEnabled, sheetMeasureMetrics, activeRegion]);
+  }, [playheadTick, isPlaying, autoScrollEnabled, sheetMusicViewEnabled, sheetMusicTrackScopeEnabled, sheetMeasureMetrics, activeRegion]);
 
   // Handle scroll requests from main content bar numbers clicks
   useEffect(() => {
@@ -1493,14 +1447,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       ? getSheetPlayheadPixel(
           sheetMusicTrackScopeEnabled
             ? Math.max(0, pianoRollScrollRequest)
-            : Math.max(0, pianoRollScrollRequest - activeRegion.getStartFromBeat()),
+            : Math.max(0, pianoRollScrollRequest - activeRegion.getStartTick()),
           sheetMeasureMetrics
         )
       : (() => {
           const beatWidth = parseInt(
             getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
           ) || 40;
-          return pianoRollScrollRequest * beatWidth;
+          return ticksToPixels(pianoRollScrollRequest, beatWidth);
         })();
 
     // Center the playhead in the visible grid area (excluding the 60px sticky piano keys panel)
@@ -1536,7 +1490,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')
       ) || 60;
       const visibleMusicWidth = Math.max(0, container.clientWidth - keysWidth);
-      const targetPixel = anchorBeat * beatWidth;
+      const targetPixel = ticksToPixels(anchorBeat, beatWidth);
       const targetScrollLeft = targetPixel - visibleMusicWidth / 2;
       const clampedScrollLeft = Math.max(
         0,
@@ -1567,14 +1521,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       return;
     }
 
-    const startBeat = activeEditorRegion.getStartFromBeat();
+    const startTick = activeEditorRegion.getStartTick();
     const isInitialOpen = previousRegionId === null;
 
     if (!isInitialOpen) {
       const request = createPendingRegionSwitchRequest({
-        playheadBeat: playheadPosition,
-        regionStartBeat: startBeat,
-        regionEndBeat: startBeat + activeEditorRegion.getLength(),
+        playheadBeat: playheadTick,
+        regionStartTick: startTick,
+        regionEndTick: startTick + activeEditorRegion.getLengthTicks(),
         sourceSheetMusicViewEnabled: sheetMusicViewEnabled,
         destinationSheetMusicViewEnabled: requestedSheetMusicViewEnabled,
         destinationSheetMusicTrackScopeEnabled: requestedSheetMusicViewEnabled && sheetMusicTrackScopeEnabled,
@@ -1594,10 +1548,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     if (activeEditorRegion instanceof KGMidiRegion) {
 
       if (DEBUG_MODE.PIANO_ROLL) {
-        console.log(`Scrolling to region's starting position: startBeat=${startBeat}`);
+        console.log(`Scrolling to region's starting position: startTick=${startTick}`);
       }
 
-      const scrollPosition = getRegionStartScrollLeft(startBeat);
+      const scrollPosition = getRegionStartScrollLeft(startTick);
       const clampedScrollLeft = Math.max(
         0,
         Math.min(scrollPosition, container.scrollWidth - container.clientWidth)
@@ -1610,7 +1564,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   }, [
     activeEditorRegion,
     mode,
-    playheadPosition,
+    playheadTick,
     requestedSheetMusicViewEnabled,
     sheetMusicTrackScopeEnabled,
     sheetMusicViewEnabled,
@@ -1641,9 +1595,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       request,
       container,
       sheetMeasureMetrics,
-      activeRegionStartBeat: activeEditorRegion.getStartFromBeat(),
-      activeRegionEndBeat: activeEditorRegion.getStartFromBeat() + activeEditorRegion.getLength(),
-      songEndBeat: maxBars * timeSignature.numerator,
+      activeRegionStartTick: activeEditorRegion.getStartTick(),
+      activeRegionEndTick: activeEditorRegion.getStartTick() + activeEditorRegion.getLengthTicks(),
+      songEndTick: maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator),
     });
 
     pianoRollExpectedScrollLeftRef.current = targetScrollLeft;
@@ -1837,8 +1791,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     if (!activeRegion) return "EDIT NOTE CLIP";
 
     // Calculate the bar and beat position of the region
-    const startBeat = activeRegion.getStartFromBeat();
-    const { bar, beatInBar } = beatsToBar(startBeat, timeSignature);
+    const startTick = activeRegion.getStartTick();
+    const { bar, beatInBar } = ticksToBar(startTick, timeSignature);
 
     // Format as 1-indexed bar and beat (bar + 1, beatInBar + 1)
     const barNumber = bar + 1;

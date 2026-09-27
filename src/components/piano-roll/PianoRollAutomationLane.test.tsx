@@ -6,6 +6,7 @@ import { createMockMidiControllerEvent, createMockMidiPitchBend, createMockMidiR
 import { I18nContext } from '../../i18n/I18nProvider';
 import type { ResolvedLocaleCode } from '../../i18n/types';
 import { translate } from '../../i18n/translate';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 const coreMock = {
   selectedItems: [] as Array<{ getId(): string }>,
@@ -82,7 +83,7 @@ describe('PianoRollAutomationLane', () => {
     const region = createMockMidiRegion({
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 4,
+      startTick: 4,
       pitchBends: [
         createMockMidiPitchBend({ id: 'bend-1', beat: 0.5, value: 8192 }),
         createMockMidiPitchBend({ id: 'bend-2', beat: 1.5, value: 12288 }),
@@ -116,7 +117,7 @@ describe('PianoRollAutomationLane', () => {
       id: 'region-1',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 4,
+      startTick: 4,
       pitchBends: [],
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
@@ -144,7 +145,7 @@ describe('PianoRollAutomationLane', () => {
     await waitFor(() => {
       expect(coreMock.executeCommand).toHaveBeenCalledTimes(1);
       expect(region.getPitchBends()).toHaveLength(1);
-      expect(region.getPitchBends()[0].getBeat()).toBe(-1);
+      expect(region.getPitchBends()[0].getTick()).toBe(-TICKS_PER_QUARTER);
       expect(coreMock.addSelectedItems).toHaveBeenCalled();
       expect(storeState.bumpAutomationRedrawVersion).toHaveBeenCalled();
     });
@@ -155,7 +156,7 @@ describe('PianoRollAutomationLane', () => {
       id: 'region-raw',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 4,
+      startTick: 4,
       pitchBends: [],
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
@@ -183,7 +184,7 @@ describe('PianoRollAutomationLane', () => {
 
     await waitFor(() => {
       expect(region.getPitchBends()).toHaveLength(1);
-      expect(region.getPitchBends()[0].getBeat()).toBeCloseTo(-1.75);
+      expect(region.getPitchBends()[0].getTick()).toBeCloseTo(-1.75 * TICKS_PER_QUARTER);
     });
   });
 
@@ -197,7 +198,7 @@ describe('PianoRollAutomationLane', () => {
     const region = createMockMidiRegion({
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 0,
+      startTick: 0,
       controllerEventsByType,
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
@@ -234,7 +235,7 @@ describe('PianoRollAutomationLane', () => {
     const region = createMockMidiRegion({
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 0,
+      startTick: 0,
       controllerEventsByType,
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
@@ -258,7 +259,7 @@ describe('PianoRollAutomationLane', () => {
     const region = createMockMidiRegion({
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 0,
+      startTick: 0,
       pitchBends: [
         createMockMidiPitchBend({ id: 'bend-1', beat: 0, value: 8192 }),
         createMockMidiPitchBend({ id: 'bend-2', beat: 2, value: 12288 }),
@@ -296,7 +297,7 @@ describe('PianoRollAutomationLane', () => {
     const region = createMockMidiRegion({
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 0,
+      startTick: 0,
       pitchBends: [],
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
@@ -329,7 +330,7 @@ describe('PianoRollAutomationLane', () => {
     const region = createMockMidiRegion({
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 4,
+      startTick: 4,
       pitchBends: [createMockMidiPitchBend({ id: 'bend-1', beat: 0.5, value: 8192 })],
     });
     storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];

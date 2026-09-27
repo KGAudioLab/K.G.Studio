@@ -1,5 +1,6 @@
 import React from 'react';
 import { useProjectStore } from '../../stores/projectStore';
+import { ticksToPixels } from '../../core/timing';
 
 interface PlayheadProps {
   /** Context where the playhead is being rendered */
@@ -8,8 +9,8 @@ interface PlayheadProps {
   showTriangle?: boolean;
   /** Visual horizontal adjustment for layout-specific borders or gutters */
   horizontalOffset?: number;
-  /** For piano roll context, the region start beat offset */
-  regionStartBeat?: number;
+  /** For piano roll context, the region start tick offset */
+  regionStartTick?: number;
   /** Optional exact pixel override for variable-width layouts */
   pixelPositionOverride?: number;
 }
@@ -20,8 +21,8 @@ const Playhead: React.FC<PlayheadProps> = ({
   horizontalOffset = 0,
   pixelPositionOverride,
 }) => {
-  const { timeSignature, playheadPosition, playheadSeekPreviewPosition } = useProjectStore();
-  const displayedPlayheadPosition = playheadSeekPreviewPosition ?? playheadPosition;
+  const { timeSignature, playheadTick, playheadSeekPreviewPosition } = useProjectStore();
+  const displayedPlayheadTick = playheadSeekPreviewPosition ?? playheadTick;
 
   // Calculate the pixel position based on context
   const getPixelPosition = (): number => {
@@ -31,8 +32,8 @@ const Playhead: React.FC<PlayheadProps> = ({
 
     if (context === 'main-grid') {
       // In main grid, convert beats to bars, then bars to pixels
-      const beatsPerBar = timeSignature.numerator;
-      const barPosition = displayedPlayheadPosition / beatsPerBar;
+      const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+      const barPosition = displayedPlayheadTick / ticksPerBar;
       
       // Get bar width from CSS variable
       const barWidth = parseInt(
@@ -41,13 +42,12 @@ const Playhead: React.FC<PlayheadProps> = ({
       
       return barPosition * barWidth;
     } else {
-      // In piano roll, use beat-based positioning
-      // Get beat width from CSS variable
+      // In piano roll, the CSS width represents one quarter note.
       const beatWidth = parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
       ) || 40;
       
-      return displayedPlayheadPosition * beatWidth;
+      return ticksToPixels(displayedPlayheadTick, beatWidth);
     }
   };
 

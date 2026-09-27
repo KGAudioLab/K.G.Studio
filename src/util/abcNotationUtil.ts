@@ -10,15 +10,16 @@ import { KGProject, type KeySignature } from '../core/KGProject';
 import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
-import { beatsToTicks, getTicksPerBar, reduceFraction, ticksToBeats } from './mathUtil';
+import { getTicksPerBar, reduceFraction } from './mathUtil';
+import { TICKS_PER_QUARTER } from '../core/timing';
 import type { TimeSignature } from '../types/projectTypes';
 import { KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { getChordMidiPitches, parseChordSymbol } from './chordUtil';
-import { getEffectiveBpmAtBeat, getEffectiveKeySignatureAtBeat, findGlobalTrackByType } from './globalTrackUtil';
+import { getEffectiveBpmAtTick, getEffectiveKeySignatureAtTick, findGlobalTrackByType } from './globalTrackUtil';
 import { GlobalTrackType } from '../core/global-track';
 
 // MIDI timing constants
-const TICKS_PER_QUARTER_NOTE = 480;
+const TICKS_PER_QUARTER_NOTE = TICKS_PER_QUARTER;
 const TICKS_PER_SIXTEENTH_NOTE = TICKS_PER_QUARTER_NOTE / 4; // 120 ticks
 
 /**
@@ -66,8 +67,8 @@ const NATURAL_PITCH_CLASSES: Record<ABCPitchSpelling['letter'], number> = {
 
 export interface ChordProgressionSegment {
   symbol: string;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
 }
 
 // Define valid quantization fraction types
@@ -272,8 +273,8 @@ function resolveRegionTrackMetadata(region: KGMidiRegion, project: KGProject): {
 
 function formatABCHeader(region: KGMidiRegion, project: KGProject, beat: number): string {
   const timeSignature = project.getTimeSignature();
-  const bpm = getEffectiveBpmAtBeat(project, beat);
-  const keySignature = getEffectiveKeySignatureAtBeat(project, beat);
+  const bpm = getEffectiveBpmAtTick(project, beat);
+  const keySignature = getEffectiveKeySignatureAtTick(project, beat);
   const { trackId, trackName, instrumentName } = resolveRegionTrackMetadata(region, project);
   
   // Get ABC notation key signature from the key signature map
@@ -295,8 +296,8 @@ function formatABCHeader(region: KGMidiRegion, project: KGProject, beat: number)
 
 function formatABCSharedHeader(project: KGProject, beat: number): string {
   const timeSignature = project.getTimeSignature();
-  const bpm = getEffectiveBpmAtBeat(project, beat);
-  const keySignature = getEffectiveKeySignatureAtBeat(project, beat);
+  const bpm = getEffectiveBpmAtTick(project, beat);
+  const keySignature = getEffectiveKeySignatureAtTick(project, beat);
   const abcKeySignature = KEY_SIGNATURE_MAP[keySignature]?.abcNotationKeySignature || 'C';
 
   return [
@@ -342,23 +343,22 @@ function getChordRootMidi(symbol: string): number | null {
   return middleCOctaveMidi > 64 ? middleCOctaveMidi - 12 : middleCOctaveMidi;
 }
 
-function formatBeatsToABCLength(lengthBeats: number, timeSignature: TimeSignature): string {
-  const ticks = beatsToTicks(lengthBeats, timeSignature);
-  return convertTicksToABCLength(ticks, timeSignature);
+function formatTicksToABCLength(lengthTicks: number, timeSignature: TimeSignature): string {
+  return convertTicksToABCLength(lengthTicks, timeSignature);
 }
 
 function splitSegmentAtBarBoundaries(
-  startBeat: number,
-  endBeat: number,
-  beatsPerBar: number,
-): Array<{ startBeat: number; endBeat: number }> {
-  const segments: Array<{ startBeat: number; endBeat: number }> = [];
-  let currentStart = startBeat;
+  startTick: number,
+  endTick: number,
+  ticksPerBar: number,
+): Array<{ startTick: number; endTick: number }> {
+  const segments: Array<{ startTick: number; endTick: number }> = [];
+  let currentStart = startTick;
 
-  while (currentStart < endBeat) {
-    const nextBarBeat = Math.floor(currentStart / beatsPerBar + 1) * beatsPerBar;
-    const currentEnd = Math.min(endBeat, nextBarBeat);
-    segments.push({ startBeat: currentStart, endBeat: currentEnd });
+  while (currentStart < endTick) {
+    const nextBarBeat = Math.floor(currentStart / ticksPerBar + 1) * ticksPerBar;
+    const currentEnd = Math.min(endTick, nextBarBeat);
+    segments.push({ startTick: currentStart, endTick: currentEnd });
     currentStart = currentEnd;
   }
 
@@ -370,13 +370,13 @@ function formatTimedChordTokens(
   segments: ChordProgressionSegment[],
   timeSignature: TimeSignature,
 ): string {
-  const beatsPerBar = timeSignature.numerator;
+  const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
   const tokens: string[] = [];
 
   segments.forEach((segment, index) => {
-    const splitSegments = splitSegmentAtBarBoundaries(segment.startBeat, segment.endBeat, beatsPerBar);
+    const splitSegments = splitSegmentAtBarBoundaries(segment.startTick, segment.endTick, ticksPerBar);
     splitSegments.forEach((part) => {
-      const length = formatBeatsToABCLength(part.endBeat - part.startBeat, timeSignature);
+      const length = formatTicksToABCLength(part.endTick - part.startTick, timeSignature);
       tokens.push(`[${values[index]}]${length}`);
       tokens.push('|');
     });
@@ -387,10 +387,10 @@ function formatTimedChordTokens(
 
 export function getChordProgressionSegmentsForBeatRange(
   project: KGProject,
-  startBeat: number,
-  endBeat: number,
+  startTick: number,
+  endTick: number,
 ): ChordProgressionSegment[] {
-  if (endBeat <= startBeat) {
+  if (endTick <= startTick) {
     return [];
   }
 
@@ -403,15 +403,15 @@ export function getChordProgressionSegmentsForBeatRange(
     .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
     .map((region) => ({
       region,
-      startBeat: Math.max(startBeat, region.getStartFromBeat()),
-      endBeat: Math.min(endBeat, region.getStartFromBeat() + region.getLength()),
+      startTick: Math.max(startTick, region.getStartTick()),
+      endTick: Math.min(endTick, region.getStartTick() + region.getLengthTicks()),
     }))
-    .filter(({ startBeat: segmentStart, endBeat: segmentEnd }) => segmentEnd > segmentStart)
-    .sort((left, right) => left.startBeat - right.startBeat)
-    .map(({ region, startBeat: segmentStart, endBeat: segmentEnd }) => ({
+    .filter(({ startTick: segmentStart, endTick: segmentEnd }) => segmentEnd > segmentStart)
+    .sort((left, right) => left.startTick - right.startTick)
+    .map(({ region, startTick: segmentStart, endTick: segmentEnd }) => ({
       symbol: region.getSymbol(),
-      startBeat: segmentStart,
-      endBeat: segmentEnd,
+      startTick: segmentStart,
+      endTick: segmentEnd,
     }));
 }
 
@@ -430,7 +430,7 @@ export function formatChordProgressionNoteLine(
   segments: ChordProgressionSegment[],
   timeSignature: TimeSignature,
   resolveKeySignature: (beat: number) => KeySignature = () => 'C major',
-  initialKeySignature: KeySignature = resolveKeySignature(segments[0]?.startBeat ?? 0),
+  initialKeySignature: KeySignature = resolveKeySignature(segments[0]?.startTick ?? 0),
 ): string {
   let previousKeySignature = initialKeySignature;
   const tokens: string[] = [];
@@ -447,11 +447,11 @@ export function formatChordProgressionNoteLine(
     }
 
     splitSegmentAtBarBoundaries(
-      segment.startBeat,
-      segment.endBeat,
-      timeSignature.numerator,
+      segment.startTick,
+      segment.endTick,
+      getTicksPerBar(timeSignature),
     ).forEach((part) => {
-      const keySignature = resolveKeySignature(part.startBeat);
+      const keySignature = resolveKeySignature(part.startTick);
       if (previousKeySignature !== keySignature) {
         tokens.push(`[K:${KEY_SIGNATURE_MAP[keySignature].abcNotationKeySignature}]`);
         previousKeySignature = keySignature;
@@ -461,7 +461,7 @@ export function formatChordProgressionNoteLine(
       const chordNotes = pitches
         .map(pitch => midiPitchToABCNote(pitch, keySignature, accidentalState))
         .join(' ');
-      const length = formatBeatsToABCLength(part.endBeat - part.startBeat, timeSignature);
+      const length = formatTicksToABCLength(part.endTick - part.startTick, timeSignature);
       tokens.push(`[${chordNotes}]${length}`);
       tokens.push('|');
     });
@@ -472,11 +472,11 @@ export function formatChordProgressionNoteLine(
 
 export function convertBeatRangeChordProgressionToABCNotation(
   project: KGProject,
-  startBeat: number,
-  endBeat: number,
+  startTick: number,
+  endTick: number,
 ): string {
-  const segments = getChordProgressionSegmentsForBeatRange(project, startBeat, endBeat);
-  const header = formatABCSharedHeader(project, startBeat);
+  const segments = getChordProgressionSegmentsForBeatRange(project, startTick, endTick);
+  const header = formatABCSharedHeader(project, startTick);
 
   if (segments.length === 0) {
     return [
@@ -494,8 +494,8 @@ export function convertBeatRangeChordProgressionToABCNotation(
   const chordNotes = formatChordProgressionNoteLine(
     segments,
     timeSignature,
-    beat => getEffectiveKeySignatureAtBeat(project, beat),
-    getEffectiveKeySignatureAtBeat(project, startBeat),
+    beat => getEffectiveKeySignatureAtTick(project, beat),
+    getEffectiveKeySignatureAtTick(project, startTick),
   );
 
   return [
@@ -515,16 +515,16 @@ export function convertBeatRangeChordProgressionToABCNotation(
 /**
  * Format ABC notation body with notes
  * @param notes - Array of MIDI notes to convert
- * @param relativeStartBeat - Start position relative to region
+ * @param relativeStartTick - Start position relative to region
  * @param timeSignature - Project time signature
  * @returns ABC body string
  */
 function formatABCBody(
   notes: KGMidiNote[],
-  relativeStartBeat: number,
+  relativeStartTick: number,
   timeSignature: TimeSignature,
   project: KGProject,
-  regionStartBeat: number,
+  regionStartTick: number,
   initialKeySignature: KeySignature,
   asCMajor: boolean,
 ): string {
@@ -539,12 +539,8 @@ function formatABCBody(
   const abcNotes: ABCNote[] = [];
   
   for (const note of notes) {
-    const startBeats = note.getStartBeat();
-    const endBeats = note.getEndBeat();
-    
-    // Convert beats to ticks
-    const startTicks = beatsToTicks(startBeats, timeSignature);
-    const endTicks = beatsToTicks(endBeats, timeSignature);
+    const startTicks = note.getStartTick();
+    const endTicks = note.getEndTick();
     
     // Quantize to closest 1/16 beat (120 ticks)
     const quantizedStartTicks = Math.round(startTicks / TICKS_PER_SIXTEENTH_NOTE) * TICKS_PER_SIXTEENTH_NOTE;
@@ -618,7 +614,7 @@ function formatABCBody(
 
   // Step 6: Insert rests where needed
   const finalNotes: ABCNote[] = [];
-  const relativeStartTicks = beatsToTicks(relativeStartBeat, timeSignature);
+  const relativeStartTicks = Math.round(relativeStartTick);
   
   for (let i = 0; i < abcNotes.length; i++) {
     const currentNote = abcNotes[i];
@@ -709,8 +705,8 @@ function formatABCBody(
       previousBarIndex = currentBarIndex;
     }
 
-    const absoluteBeat = regionStartBeat + ticksToBeats(note.startTick, timeSignature);
-    const effectiveKeySignature = getEffectiveKeySignatureAtBeat(project, absoluteBeat);
+    const absoluteTick = regionStartTick + note.startTick;
+    const effectiveKeySignature = getEffectiveKeySignatureAtTick(project, absoluteTick);
     if (effectiveKeySignature !== activeKeySignature) {
       activeKeySignature = effectiveKeySignature;
       accidentalState.clear();
@@ -761,46 +757,46 @@ function formatABCBody(
 /**
  * Convert a MIDI region to ABC notation
  * @param region - The MIDI region to convert
- * @param startFromBeat - Absolute beat position to start conversion from
+ * @param startTick - Absolute beat position to start conversion from
  * @returns ABC notation as plain text string
  */
 export function convertRegionToABCNotation(
   region: KGMidiRegion,
-  startFromBeat: number,
-  endBeat?: number,
+  startTick: number,
+  endTick?: number,
   asCMajor: boolean = false,
 ): string {
   // Get project information
   const project = KGCore.instance().getCurrentProject();
   const timeSignature = project.getTimeSignature();
-  const beatsPerBar = timeSignature.numerator;
+  const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
   
-  // Round startFromBeat to floor bar beats and endBeat to next bar beats
-  const roundedStartBeat = Math.floor(startFromBeat / beatsPerBar) * beatsPerBar;
-  const roundedEndBeat = endBeat !== undefined ? Math.ceil(endBeat / beatsPerBar) * beatsPerBar : undefined;
+  // Round startTick to floor bar beats and endTick to next bar beats
+  const roundedStartTick = Math.floor(startTick / ticksPerBar) * ticksPerBar;
+  const roundedEndTick = endTick !== undefined ? Math.ceil(endTick / ticksPerBar) * ticksPerBar : undefined;
   
   // Convert absolute beats to relative position within the region
-  const relativeStartBeat = roundedStartBeat - region.getStartFromBeat();
-  const relativeEndBeat = roundedEndBeat !== undefined ? roundedEndBeat - region.getStartFromBeat() : undefined;
+  const relativeStartTick = roundedStartTick - region.getStartTick();
+  const relativeEndTick = roundedEndTick !== undefined ? roundedEndTick - region.getStartTick() : undefined;
   
   // Filter notes based on the rounded range
   const allNotes = region.getNotes();
-  let filteredNotes = allNotes.filter(note => note.getStartBeat() >= relativeStartBeat);
+  let filteredNotes = allNotes.filter(note => note.getStartTick() >= relativeStartTick);
   
-  // If endBeat is specified, also filter by end range
-  if (relativeEndBeat !== undefined) {
-    filteredNotes = filteredNotes.filter(note => note.getStartBeat() < relativeEndBeat);
+  // If endTick is specified, also filter by end range
+  if (relativeEndTick !== undefined) {
+    filteredNotes = filteredNotes.filter(note => note.getStartTick() < relativeEndTick);
   }
   
   // Generate ABC notation
-  const initialKeySignature = getEffectiveKeySignatureAtBeat(project, roundedStartBeat);
-  const header = formatABCHeader(region, project, roundedStartBeat);
+  const initialKeySignature = getEffectiveKeySignatureAtTick(project, roundedStartTick);
+  const header = formatABCHeader(region, project, roundedStartTick);
   const body = formatABCBody(
     filteredNotes,
-    relativeStartBeat,
+    relativeStartTick,
     timeSignature,
     project,
-    region.getStartFromBeat(),
+    region.getStartTick(),
     initialKeySignature,
     asCMajor,
   );

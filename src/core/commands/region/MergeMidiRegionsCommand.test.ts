@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { MergeMidiRegionsCommand } from './MergeMidiRegionsCommand';
 import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../../test/utils/mock-data';
+import { quarterNotesToTicks } from '../../timing';
+
+const q = quarterNotesToTicks;
 
 const storeState = {
   showPianoRoll: false,
@@ -54,25 +57,25 @@ describe('MergeMidiRegionsCommand', () => {
       id: 'region-a',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 4,
+      startTick: 4,
       length: 2,
-      notes: [createMockMidiNote({ id: 'note-a', startBeat: 0.5, endBeat: 1.5, pitch: 60 })],
+      notes: [createMockMidiNote({ id: 'note-a', startTick: 0.5, endTick: 1.5, pitch: 60 })],
     });
     const regionB = createMockMidiRegion({
       id: 'region-b',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 8,
+      startTick: 8,
       length: 4,
-      notes: [createMockMidiNote({ id: 'note-b', startBeat: 1, endBeat: 2, pitch: 67 })],
+      notes: [createMockMidiNote({ id: 'note-b', startTick: 1, endTick: 2, pitch: 67 })],
     });
     const regionC = createMockMidiRegion({
       id: 'region-c',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 14,
+      startTick: 14,
       length: 2,
-      notes: [createMockMidiNote({ id: 'note-c', startBeat: 0, endBeat: 1, pitch: 72 })],
+      notes: [createMockMidiNote({ id: 'note-c', startTick: 0, endTick: 1, pitch: 72 })],
     });
     const track = createMockMidiTrack({ id: 1, regions: [regionA, regionB, regionC] });
     track.setTrackIndex(0);
@@ -83,23 +86,23 @@ describe('MergeMidiRegionsCommand', () => {
     command.execute();
 
     expect(track.getRegions()).toEqual([regionA]);
-    expect(regionA.getStartFromBeat()).toBe(4);
-    expect(regionA.getLength()).toBe(12);
+    expect(regionA.getStartTick()).toBe(q(4));
+    expect(regionA.getLengthTicks()).toBe(q(12));
 
     const mergedNotes = regionA.getNotes();
     expect(mergedNotes).toHaveLength(3);
-    expect(mergedNotes.map(note => [note.getId(), note.getStartBeat(), note.getEndBeat()])).toEqual([
-      ['note-a', 0.5, 1.5],
-      ['note-b', 5, 6],
-      ['note-c', 10, 11],
+    expect(mergedNotes.map(note => [note.getId(), note.getStartTick(), note.getEndTick()])).toEqual([
+      ['note-a', q(0.5), q(1.5)],
+      ['note-b', q(5), q(6)],
+      ['note-c', q(10), q(11)],
     ]);
     expect(mockCore.clearSelectedItems).toHaveBeenCalledTimes(1);
     expect(mockCore.addSelectedItem).toHaveBeenCalledWith(regionA);
   });
 
   it('retargets the piano roll to the surviving region when the active region is removed', () => {
-    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 4 });
-    const regionB = createMockMidiRegion({ id: 'region-b', trackId: '1', trackIndex: 0, startFromBeat: 6, length: 4 });
+    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startTick: 0, length: 4 });
+    const regionB = createMockMidiRegion({ id: 'region-b', trackId: '1', trackIndex: 0, startTick: 6, length: 4 });
     const track = createMockMidiTrack({ id: 1, regions: [regionA, regionB] });
     track.setTrackIndex(0);
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
@@ -119,23 +122,23 @@ describe('MergeMidiRegionsCommand', () => {
       id: 'region-a',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 4,
+      startTick: 4,
       length: 4,
-      notes: [createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1 })],
+      notes: [createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1 })],
     });
     const regionB = createMockMidiRegion({
       id: 'region-b',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 10,
+      startTick: 10,
       length: 2,
-      notes: [createMockMidiNote({ id: 'note-b', startBeat: 0.5, endBeat: 1.5 })],
+      notes: [createMockMidiNote({ id: 'note-b', startTick: 0.5, endTick: 1.5 })],
     });
     const otherRegion = createMockMidiRegion({
       id: 'region-x',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 20,
+      startTick: 20,
       length: 2,
     });
     const track = createMockMidiTrack({ id: 1, regions: [regionA, regionB, otherRegion] });
@@ -151,13 +154,13 @@ describe('MergeMidiRegionsCommand', () => {
     command.undo();
 
     expect(track.getRegions()).toEqual([regionA, regionB, otherRegion]);
-    expect(regionA.getLength()).toBe(4);
-    expect(regionA.getNotes().map(note => [note.getId(), note.getStartBeat(), note.getEndBeat()])).toEqual([
-      ['note-a', 0, 1],
+    expect(regionA.getLengthTicks()).toBe(q(4));
+    expect(regionA.getNotes().map(note => [note.getId(), note.getStartTick(), note.getEndTick()])).toEqual([
+      ['note-a', 0, q(1)],
     ]);
-    expect(regionB.getLength()).toBe(2);
-    expect(regionB.getNotes().map(note => [note.getId(), note.getStartBeat(), note.getEndBeat()])).toEqual([
-      ['note-b', 0.5, 1.5],
+    expect(regionB.getLengthTicks()).toBe(q(2));
+    expect(regionB.getNotes().map(note => [note.getId(), note.getStartTick(), note.getEndTick()])).toEqual([
+      ['note-b', q(0.5), q(1.5)],
     ]);
     expect(mockCore.addSelectedItems).toHaveBeenCalledWith([regionA, regionB]);
     expect(storeState.setShowPianoRoll).toHaveBeenCalledWith(true);

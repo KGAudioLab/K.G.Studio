@@ -20,14 +20,15 @@ export class DeleteKeySignatureRegionCommand extends KGCommand {
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     if (!track) {
       throw new Error('Signature global track not found');
     }
 
-    const regions = getSortedKeySignatureRegions(track, beatsPerBar);
-    this.previousRegions = cloneKeySignatureRegions(regions, beatsPerBar);
+    const regions = getSortedKeySignatureRegions(track, ticksPerBar);
+    this.previousRegions = cloneKeySignatureRegions(regions, ticksPerBar);
 
     const targetIndex = regions.findIndex(region => region.getId() === this.regionId);
     if (targetIndex === -1) {
@@ -47,14 +48,14 @@ export class DeleteKeySignatureRegionCommand extends KGCommand {
 
     if (targetIndex === 0) {
       const nextRegion = nextRegions[1];
-      nextRegion.setBarRange(0, nextRegion.getLengthBars() + deletedLengthBars, beatsPerBar);
+      nextRegion.setBarRange(0, nextRegion.getLengthBars() + deletedLengthBars, ticksPerBar);
       nextRegions.splice(0, 1);
       track.setRegions(nextRegions);
       return;
     }
 
     const previousRegion = nextRegions[targetIndex - 1];
-    previousRegion.setLengthBars(previousRegion.getLengthBars() + deletedLengthBars, beatsPerBar);
+    previousRegion.setLengthBars(previousRegion.getLengthBars() + deletedLengthBars, ticksPerBar);
     nextRegions.splice(targetIndex, 1);
     track.setRegions(nextRegions);
   }
@@ -66,8 +67,9 @@ export class DeleteKeySignatureRegionCommand extends KGCommand {
       throw new Error('Signature global track not found during undo');
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    track.setRegions(cloneKeySignatureRegions(this.previousRegions, beatsPerBar));
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    track.setRegions(cloneKeySignatureRegions(this.previousRegions, ticksPerBar));
   }
 
   getDescription(): string {
@@ -86,17 +88,18 @@ export class DeleteMultipleKeySignatureRegionsCommand extends KGCommand {
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     if (!track) {
       throw new Error('Signature global track not found');
     }
 
-    const regions = getSortedKeySignatureRegions(track, beatsPerBar);
-    this.previousRegions = cloneKeySignatureRegions(regions, beatsPerBar);
+    const regions = getSortedKeySignatureRegions(track, ticksPerBar);
+    this.previousRegions = cloneKeySignatureRegions(regions, ticksPerBar);
 
     const remainingIds = new Set(this.regionIds);
-    let workingRegions = cloneKeySignatureRegions(regions, beatsPerBar);
+    let workingRegions = cloneKeySignatureRegions(regions, ticksPerBar);
 
     for (const regionId of this.regionIds) {
       const targetIndex = workingRegions.findIndex(region => region.getId() === regionId);
@@ -115,13 +118,13 @@ export class DeleteMultipleKeySignatureRegionsCommand extends KGCommand {
 
       if (targetIndex === 0) {
         const nextRegion = workingRegions[1];
-        nextRegion.setBarRange(0, nextRegion.getLengthBars() + deletedLengthBars, beatsPerBar);
+        nextRegion.setBarRange(0, nextRegion.getLengthBars() + deletedLengthBars, ticksPerBar);
         workingRegions.splice(0, 1);
         continue;
       }
 
       const previousRegion = workingRegions[targetIndex - 1];
-      previousRegion.setLengthBars(previousRegion.getLengthBars() + deletedLengthBars, beatsPerBar);
+      previousRegion.setLengthBars(previousRegion.getLengthBars() + deletedLengthBars, ticksPerBar);
       workingRegions.splice(targetIndex, 1);
     }
 
@@ -135,8 +138,9 @@ export class DeleteMultipleKeySignatureRegionsCommand extends KGCommand {
       throw new Error('Signature global track not found during undo');
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    track.setRegions(cloneKeySignatureRegions(this.previousRegions, beatsPerBar));
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    track.setRegions(cloneKeySignatureRegions(this.previousRegions, ticksPerBar));
   }
 
   getDescription(): string {

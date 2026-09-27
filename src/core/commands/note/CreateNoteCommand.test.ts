@@ -59,8 +59,8 @@ describe('CreateNoteCommand', () => {
     // Create command
     command = new CreateNoteCommand(
       'test-region', // regionId
-      0,            // startBeat
-      1,            // endBeat
+      0,            // startTick
+      1,            // endTick
       60,           // pitch (middle C)
       80            // velocity
     );
@@ -106,8 +106,8 @@ describe('CreateNoteCommand', () => {
       // Verify the note has correct properties
       const addedNote = addNoteSpy.mock.calls[0][0] as KGMidiNote;
       expect(addedNote).toBeInstanceOf(KGMidiNote);
-      expect(addedNote.getStartBeat()).toBe(0);
-      expect(addedNote.getEndBeat()).toBe(1);
+      expect(addedNote.getStartTick()).toBe(0);
+      expect(addedNote.getEndTick()).toBe(1);
       expect(addedNote.getPitch()).toBe(60);
       expect(addedNote.getVelocity()).toBe(80);
     });

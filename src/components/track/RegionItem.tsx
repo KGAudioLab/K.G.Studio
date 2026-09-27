@@ -11,7 +11,7 @@ import { KGMainContentState } from '../../core/state/KGMainContentState';
 import type { AudioRecordingPeak } from '../../core/audio-interface/KGAudioRecorder';
 import type { RegionPreviewContentStyle } from '../interfaces';
 import { KGCore } from '../../core/KGCore';
-import { beatRangeToSeconds } from '../../util/globalTrackUtil';
+import { tickRangeToSeconds } from '../../util/globalTrackUtil';
 
 const DRAG_START_THRESHOLD_PX = 4;
 const getRegionClickOptions = (event: Pick<React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
@@ -144,12 +144,12 @@ const RegionItem: React.FC<RegionItemProps> = ({
     }
 
     // Calculate note dimensions and positioning
-    const regionLengthInBeats = midiRegion.getLength();
-    const beatsPerBar = timeSignature.numerator;
-    const regionLengthInBars = regionLengthInBeats / beatsPerBar;
+    const regionLengthTicks = midiRegion.getLengthTicks();
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const regionLengthInBars = regionLengthTicks / ticksPerBar;
 
     // Calculate beats per pixel
-    const beatsPerPixel = regionLengthInBeats / width;
+    const beatsPerPixel = regionLengthTicks / width;
 
     // Analyze the pitch range of notes in the region
     const notePitches = notes.map(note => note.getPitch());
@@ -231,16 +231,16 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
     // Render each note
     notes.forEach(note => {
-      const startBeat = note.getStartBeat();
-      const endBeat = note.getEndBeat();
+      const startTick = note.getStartTick();
+      const endTick = note.getEndTick();
       const pitch = note.getPitch();
 
       // Only render notes within our display pitch range
       if (pitch < displayMinPitch || pitch > displayMaxPitch) return;
 
       // Calculate note position and size
-      const noteStartX = startBeat / beatsPerPixel;
-      const noteWidth = (endBeat - startBeat) / beatsPerPixel;
+      const noteStartX = startTick / beatsPerPixel;
+      const noteWidth = (endTick - startTick) / beatsPerPixel;
 
       // Calculate Y position based on pitch using dynamic spacing
       // Higher pitches should be at the top (lower Y values)
@@ -285,13 +285,13 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const clipStartSample = Math.floor(clipStartOffsetSeconds * sampleRate);
 
     const currentProject = KGCore.instance().getCurrentProject();
-    const regionLengthBeats = audioRegion ? audioRegion.getLength() : 0;
+    const regionLengthTicks = audioRegion ? audioRegion.getLengthTicks() : 0;
     const visibleDurationSeconds = audioRegion
       ? Math.min(
-          beatRangeToSeconds(
+          tickRangeToSeconds(
             currentProject,
-            audioRegion.getStartFromBeat(),
-            audioRegion.getStartFromBeat() + regionLengthBeats
+            audioRegion.getStartTick(),
+            audioRegion.getStartTick() + regionLengthTicks
           ),
           Math.max(0, audioRegion.getAudioDurationSeconds() - clipStartOffsetSeconds)
         )
@@ -383,7 +383,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
     // Create a signature of all notes for change detection
     const notesSignature = midiRegion.getNotes()
-      .map(n => `${n.getId()}-${n.getStartBeat()}-${n.getEndBeat()}-${n.getPitch()}`)
+      .map(n => `${n.getId()}-${n.getStartTick()}-${n.getEndTick()}-${n.getPitch()}`)
       .join(',');
 
     // If notes have changed, trigger a re-render

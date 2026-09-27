@@ -16,8 +16,8 @@ function cloneChordRegion(region: KGChordRegion): KGChordRegion {
     region.getTrackId(),
     region.getTrackIndex(),
     region.getSymbol(),
-    region.getStartFromBeat(),
-    region.getLength(),
+    region.getStartTick(),
+    region.getLengthTicks(),
   );
 }
 
@@ -41,20 +41,20 @@ export function transposeChordSymbol(symbol: string, semitones: number, targetKe
 
 export function hasChordRegionsInTracks(
   globalTracks: KGGlobalTrack[],
-  scope?: { startBeat: number; endBeat: number },
+  scope?: { startTick: number; endTick: number },
 ): boolean {
   const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
   if (!chordTrack) return false;
   return chordTrack.getRegions().some(region => {
     if (!(region instanceof KGChordRegion)) return false;
     if (!scope) return true;
-    const start = region.getStartFromBeat();
-    const end = start + region.getLength();
-    return start < scope.endBeat && end > scope.startBeat;
+    const start = region.getStartTick();
+    const end = start + region.getLengthTicks();
+    return start < scope.endTick && end > scope.startTick;
   });
 }
 
-export function hasChordRegionsInRange(project: KGProject, scope?: { startBeat: number; endBeat: number }): boolean {
+export function hasChordRegionsInRange(project: KGProject, scope?: { startTick: number; endTick: number }): boolean {
   return hasChordRegionsInTracks(project.getGlobalTracks(), scope);
 }
 
@@ -67,7 +67,7 @@ export function buildChordTransposePlan(
   project: KGProject,
   semitones: number,
   targetKey: KeySignature,
-  scope?: { startBeat: number; endBeat: number },
+  scope?: { startTick: number; endTick: number },
 ): ChordTransposePlan {
   const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
   if (!chordTrack) throw new Error('Chord global track not found.');
@@ -80,10 +80,10 @@ export function buildChordTransposePlan(
   const next: KGChordRegion[] = [];
 
   for (const region of original) {
-    const start = region.getStartFromBeat();
-    const end = start + region.getLength();
-    const overlapStart = scope ? Math.max(start, scope.startBeat) : start;
-    const overlapEnd = scope ? Math.min(end, scope.endBeat) : end;
+    const start = region.getStartTick();
+    const end = start + region.getLengthTicks();
+    const overlapStart = scope ? Math.max(start, scope.startTick) : start;
+    const overlapEnd = scope ? Math.min(end, scope.endTick) : end;
     if (overlapStart >= overlapEnd) {
       next.push(cloneChordRegion(region));
       continue;
@@ -113,7 +113,7 @@ export function buildChordTransposePlan(
     }
   }
 
-  const sortedNext = next.sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+  const sortedNext = next.sort((left, right) => left.getStartTick() - right.getStartTick());
   return {
     apply: () => chordTrack.setRegions(cloneChordRegions(sortedNext)),
     undo: () => chordTrack.setRegions(cloneChordRegions(original)),

@@ -12,16 +12,16 @@ export interface ChordRegionImportPayload {
 }
 
 export interface ImportedChordMidiNoteData {
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   pitch: number;
   velocity: number;
 }
 
 export interface ChordRegionImportPlan {
   sourceRegionIds: string[];
-  startBeat: number;
-  lengthInBeats: number;
+  startTick: number;
+  lengthTicks: number;
   notes: ImportedChordMidiNoteData[];
 }
 
@@ -83,12 +83,12 @@ export function buildChordRegionImportPlan(
   }
 
   const sortedRegions = [...chordRegions].sort((left, right) => (
-    left.getStartFromBeat() - right.getStartFromBeat()
+    left.getStartTick() - right.getStartTick()
   ));
   const firstRegion = sortedRegions[0];
   const lastRegion = sortedRegions[sortedRegions.length - 1];
-  const startBeat = firstRegion.getStartFromBeat();
-  const endBeat = lastRegion.getStartFromBeat() + lastRegion.getLength();
+  const startTick = firstRegion.getStartTick();
+  const endTick = lastRegion.getStartTick() + lastRegion.getLengthTicks();
   const notes: ImportedChordMidiNoteData[] = [];
 
   for (const region of sortedRegions) {
@@ -100,13 +100,13 @@ export function buildChordRegionImportPlan(
       };
     }
 
-    const noteStartBeat = region.getStartFromBeat() - startBeat;
-    const noteEndBeat = noteStartBeat + region.getLength();
+    const noteStartTick = region.getStartTick() - startTick;
+    const noteEndTick = noteStartTick + region.getLengthTicks();
 
     midiPitches.forEach(pitch => {
       notes.push({
-        startBeat: noteStartBeat,
-        endBeat: noteEndBeat,
+        startTick: noteStartTick,
+        endTick: noteEndTick,
         pitch,
         velocity: CHORD_REGION_IMPORT_VELOCITY,
       });
@@ -117,8 +117,8 @@ export function buildChordRegionImportPlan(
     ok: true,
     plan: {
       sourceRegionIds: sortedRegions.map(region => region.getId()),
-      startBeat,
-      lengthInBeats: endBeat - startBeat,
+      startTick,
+      lengthTicks: endTick - startTick,
       notes,
     },
   };

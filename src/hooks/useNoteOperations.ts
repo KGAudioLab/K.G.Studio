@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS } from '../constants';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
-import { beatsToBar, pitchToNoteNameString, pianoRollIndexToPitch, pitchToNoteName } from '../util/midiUtil';
+import { ticksToBar, pitchToNoteNameString, pianoRollIndexToPitch, pitchToNoteName } from '../util/midiUtil';
 import { isModifierKeyPressed } from '../util/osUtil';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
@@ -14,8 +14,9 @@ import { CreateNotesCommand } from '../core/commands/note/CreateNotesCommand';
 import { DeleteMidiEventsCommand } from '../core/commands/note/DeleteMidiEventsCommand';
 import { KGMidiPitchBend } from '../core/midi/KGMidiPitchBend';
 import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
-import { getSnappedBeatPosition, getSnappedLength } from '../components/piano-roll/pianoRollSnap';
+import { getSnappedTickPosition, getSnappedLength } from '../components/piano-roll/pianoRollSnap';
 import { useProjectStore } from '../stores/projectStore';
+import { TICKS_PER_QUARTER, pixelsToTicks, ticksToPixels } from '../core/timing';
 
 interface UseNoteOperationsProps {
   activeRegion: KGMidiRegion | null;
@@ -27,16 +28,16 @@ interface UseNoteOperationsProps {
 
 interface ResizePreviewBaseline {
   noteId: string;
-  originalStartBeat: number;
-  originalEndBeat: number;
+  originalStartTick: number;
+  originalEndTick: number;
   originalLeft: number;
   originalWidth: number;
 }
 
 interface DragPreviewBaseline {
   noteId: string;
-  originalStartBeat: number;
-  originalEndBeat: number;
+  originalStartTick: number;
+  originalEndTick: number;
   originalPitch: number;
   originalLeft: number;
   originalTop: number;
@@ -61,8 +62,8 @@ export const useNoteOperations = ({
   // Refs for resize operations
   const currentResizeWidth = useRef<number | null>(null);
   const currentResizeLeft = useRef<number | null>(null);
-  const initialStartBeatRef = useRef<number | null>(null);
-  const initialEndBeatRef = useRef<number | null>(null);
+  const initialStartTickRef = useRef<number | null>(null);
+  const initialEndTickRef = useRef<number | null>(null);
   const resizePreviewBaselinesRef = useRef<ResizePreviewBaseline[]>([]);
   const resizePreviewNoteIdsRef = useRef<string[]>([]);
   
@@ -169,11 +170,11 @@ export const useNoteOperations = ({
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     
     // Calculate the beat number (0-indexed) and apply floor snapping for note creation
-    const rawBeatNumber = x / beatWidth;
+    const rawTick = pixelsToTicks(x, beatWidth);
     const currentSnap = KGPianoRollState.instance().getCurrentSnap();
-    const beatNumber = currentSnap === PIANO_ROLL_NO_SNAP 
-      ? Math.floor(rawBeatNumber)  // Snap to 1-beat grid when no snapping is selected
-      : getSnappedBeatPosition(rawBeatNumber, currentSnap, true); // Use floor snapping for note creation
+    const beatNumber = currentSnap === PIANO_ROLL_NO_SNAP
+      ? Math.floor(rawTick / TICKS_PER_QUARTER) * TICKS_PER_QUARTER
+      : getSnappedTickPosition(rawTick, currentSnap, true);
     
     // Calculate the pitch (MIDI note number)
     // The piano roll is drawn from bottom to top, with higher notes at the top
@@ -181,7 +182,7 @@ export const useNoteOperations = ({
     
     // Get the note name for logging
     const { note, octave } = pitchToNoteName(pitch);
-    const { bar, beatInBar } = beatsToBar(beatNumber, timeSignature);
+    const { bar, beatInBar } = ticksToBar(beatNumber, timeSignature);
     
     // Log the information if debug mode is on
     if (DEBUG_MODE.PIANO_ROLL) {
@@ -190,11 +191,11 @@ export const useNoteOperations = ({
     }
 
     // Calculate note timing relative to the region
-    const regionStartBeat = activeRegion.getStartFromBeat();
-    const noteStartBeat = beatNumber - regionStartBeat; // relative beat position
+    const regionStartTick = activeRegion.getStartTick();
+    const noteStartTick = beatNumber - regionStartTick; // relative beat position
     const pianoRollState = KGPianoRollState.instance();
     const lastEditedLength = pianoRollState.getLastEditedNoteLength();
-    const noteEndBeat = noteStartBeat + lastEditedLength; // Use last edited note length
+    const noteEndTick = noteStartTick + lastEditedLength; // Use last edited note length
     const velocity = pianoRollState.getLastEditedNoteVelocity();
     const matchingChordPitches = pianoRollState.getCurrentMatchingChords();
     const selectedChordIndex = pianoRollState.getCurrentSelectedChordIndex();
@@ -231,8 +232,8 @@ export const useNoteOperations = ({
       const chordCommand = new CreateNotesCommand(
         notePitchesToCreate.map(notePitch => ({
           regionId: activeRegion.getId(),
-          startBeat: noteStartBeat,
-          endBeat: noteEndBeat,
+          startTick: noteStartTick,
+          endTick: noteEndTick,
           pitch: notePitch,
           velocity
         }))
@@ -242,8 +243,8 @@ export const useNoteOperations = ({
     } else {
       const singleNoteCommand = new CreateNoteCommand(
         activeRegion.getId(),
-        noteStartBeat,
-        noteEndBeat,
+        noteStartTick,
+        noteEndTick,
         notePitchesToCreate[0],
         velocity
       );
@@ -258,7 +259,7 @@ export const useNoteOperations = ({
     setNoteUpdateCounter((prev: number) => prev + 1);
 
     if (DEBUG_MODE.PIANO_ROLL) {
-      console.log(`Created note using command: startBeat=${noteStartBeat}, endBeat=${noteEndBeat}, pitch=${pitch}`);
+      console.log(`Created note using command: startTick=${noteStartTick}, endTick=${noteEndTick}, pitch=${pitch}`);
     }
 
     // Find the track that contains this region and update it for UI sync
@@ -332,7 +333,7 @@ export const useNoteOperations = ({
 
       note.select();
       core.addSelectedItem(note);
-      KGPianoRollState.instance().setLastEditedNoteLength(note.getEndBeat() - note.getStartBeat());
+      KGPianoRollState.instance().setLastEditedNoteLength(note.getEndTick() - note.getStartTick());
       KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
 
       const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
@@ -346,36 +347,36 @@ export const useNoteOperations = ({
       : [note];
     
     // Store the initial start and end beats
-    initialStartBeatRef.current = note.getStartBeat();
-    initialEndBeatRef.current = note.getEndBeat();
+    initialStartTickRef.current = note.getStartTick();
+    initialEndTickRef.current = note.getEndTick();
     
     // Get the beat width
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     
     // Calculate the region's start beat (for absolute positioning)
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     
     // Calculate the absolute start and end beats
-    const absStartBeat = note.getStartBeat() + regionStartBeat;
-    const absEndBeat = note.getEndBeat() + regionStartBeat;
+    const absStartTick = note.getStartTick() + regionStartTick;
+    const absEndTick = note.getEndTick() + regionStartTick;
     
     // Calculate the note's position and dimensions
-    const left = absStartBeat * beatWidth;
-    const width = (absEndBeat - absStartBeat) * beatWidth;
+    const left = ticksToPixels(absStartTick, beatWidth);
+    const width = ticksToPixels(absEndTick - absStartTick, beatWidth);
     
     // Store the initial width and left position
     currentResizeWidth.current = width;
     currentResizeLeft.current = left;
     
     resizePreviewBaselinesRef.current = resizeTargetNotes.map(targetNote => {
-      const targetAbsStartBeat = targetNote.getStartBeat() + regionStartBeat;
-      const targetAbsEndBeat = targetNote.getEndBeat() + regionStartBeat;
+      const targetAbsStartTick = targetNote.getStartTick() + regionStartTick;
+      const targetAbsEndTick = targetNote.getEndTick() + regionStartTick;
       return {
         noteId: targetNote.getId(),
-        originalStartBeat: targetNote.getStartBeat(),
-        originalEndBeat: targetNote.getEndBeat(),
-        originalLeft: targetAbsStartBeat * beatWidth,
-        originalWidth: (targetAbsEndBeat - targetAbsStartBeat) * beatWidth,
+        originalStartTick: targetNote.getStartTick(),
+        originalEndTick: targetNote.getEndTick(),
+        originalLeft: ticksToPixels(targetAbsStartTick, beatWidth),
+        originalWidth: ticksToPixels(targetAbsEndTick - targetAbsStartTick, beatWidth),
       };
     });
     resizePreviewNoteIdsRef.current = resizeTargetNotes.map(targetNote => targetNote.getId());
@@ -404,24 +405,24 @@ export const useNoteOperations = ({
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     
     // Calculate the region's start beat (for absolute positioning)
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     
     // Get initial values
-    if (initialStartBeatRef.current === null || initialEndBeatRef.current === null ||
+    if (initialStartTickRef.current === null || initialEndTickRef.current === null ||
         currentResizeWidth.current === null || currentResizeLeft.current === null) {
       return;
     }
     
     // Calculate the absolute start and end beats
-    const absStartBeat = initialStartBeatRef.current + regionStartBeat;
-    const absEndBeat = initialEndBeatRef.current + regionStartBeat;
+    const absStartTick = initialStartTickRef.current + regionStartTick;
+    const absEndTick = initialEndTickRef.current + regionStartTick;
     
     // Calculate the original position and dimensions
-    const originalLeft = absStartBeat * beatWidth;
-    const originalWidth = (absEndBeat - absStartBeat) * beatWidth;
+    const originalLeft = ticksToPixels(absStartTick, beatWidth);
+    const originalWidth = ticksToPixels(absEndTick - absStartTick, beatWidth);
     
     // Calculate minimum width in pixels
-    const minWidth = beatWidth * PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH;
+    const minWidth = ticksToPixels(PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH, beatWidth);
     
     let newLeft = originalLeft;
     let newWidth = originalWidth;
@@ -441,13 +442,13 @@ export const useNoteOperations = ({
     }
     
     // Apply length snapping to the visual feedback
-    const newLengthInBeats = newWidth / beatWidth;
+    const newLengthInBeats = pixelsToTicks(newWidth, beatWidth);
     const snappedLengthInBeats = getSnappedLength(
       newLengthInBeats,
       KGPianoRollState.instance().getCurrentSnap(),
       PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH,
     );
-    const snappedWidth = snappedLengthInBeats * beatWidth;
+    const snappedWidth = ticksToPixels(snappedLengthInBeats, beatWidth);
     
     // Adjust position if necessary for start resize to maintain snapped length
     if (resizeEdge === 'start') {
@@ -458,19 +459,19 @@ export const useNoteOperations = ({
     currentResizeWidth.current = snappedWidth;
     currentResizeLeft.current = newLeft;
     
-    const startBeatDelta = resizeEdge === 'start'
-      ? (newLeft - originalLeft) / beatWidth
+    const startTickDelta = resizeEdge === 'start'
+      ? pixelsToTicks(newLeft - originalLeft, beatWidth)
       : 0;
-    const endBeatDelta = resizeEdge === 'end'
-      ? (snappedWidth - originalWidth) / beatWidth
+    const endTickDelta = resizeEdge === 'end'
+      ? pixelsToTicks(snappedWidth - originalWidth, beatWidth)
       : 0;
 
     const previewBaselines = resizePreviewBaselinesRef.current.length > 0
       ? resizePreviewBaselinesRef.current
       : [{
         noteId,
-        originalStartBeat: note.getStartBeat(),
-        originalEndBeat: note.getEndBeat(),
+        originalStartTick: note.getStartTick(),
+        originalEndTick: note.getEndTick(),
         originalLeft: originalLeft,
         originalWidth: originalWidth,
       }];
@@ -479,11 +480,11 @@ export const useNoteOperations = ({
       ...prev,
       ...Object.fromEntries(previewBaselines.map(baseline => {
         const previewLeft = resizeEdge === 'start'
-          ? baseline.originalLeft + (startBeatDelta * beatWidth)
+          ? baseline.originalLeft + ticksToPixels(startTickDelta, beatWidth)
           : baseline.originalLeft;
         const previewWidth = resizeEdge === 'end'
-          ? baseline.originalWidth + (endBeatDelta * beatWidth)
-          : baseline.originalWidth - (startBeatDelta * beatWidth);
+          ? baseline.originalWidth + ticksToPixels(endTickDelta, beatWidth)
+          : baseline.originalWidth - ticksToPixels(startTickDelta, beatWidth);
 
         return [
           baseline.noteId,
@@ -516,10 +517,10 @@ export const useNoteOperations = ({
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     
     // Calculate the region's start beat (for absolute positioning)
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     
     if (currentResizeWidth.current === null || currentResizeLeft.current === null ||
-        initialStartBeatRef.current === null || initialEndBeatRef.current === null) {
+        initialStartTickRef.current === null || initialEndTickRef.current === null) {
       // Reset resizing state
       setResizingNoteId(null);
       clearTempNoteStyles(resizePreviewNoteIdsRef.current);
@@ -529,36 +530,36 @@ export const useNoteOperations = ({
     }
     
     // Calculate the new start and end beats based on the current position and width
-    let newStartBeat, newEndBeat;
+    let newStartTick, newEndTick;
     
     if (resizeEdge === 'end') {
       // End resize: only the end beat changes
-      newStartBeat = note.getStartBeat(); // Keep the original start beat
-      newEndBeat = newStartBeat + (currentResizeWidth.current / beatWidth); // Calculate new end beat
+      newStartTick = note.getStartTick(); // Keep the original start beat
+      newEndTick = newStartTick + pixelsToTicks(currentResizeWidth.current, beatWidth);
       
       // Ensure minimum note length
-      if (newEndBeat - newStartBeat < PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH) {
-        newEndBeat = newStartBeat + PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH;
+      if (newEndTick - newStartTick < PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH) {
+        newEndTick = newStartTick + PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH;
       }
     } else if (resizeEdge === 'start') {
       // Start resize: both start and end beats change
       // Calculate the new start beat (relative to region)
-      newStartBeat = (currentResizeLeft.current / beatWidth) - regionStartBeat;
+      newStartTick = pixelsToTicks(currentResizeLeft.current, beatWidth) - regionStartTick;
       // Keep the original end beat
-      newEndBeat = initialEndBeatRef.current;
+      newEndTick = initialEndTickRef.current;
       
       // Ensure minimum note length
-      if (newEndBeat - newStartBeat < PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH) {
-        newStartBeat = newEndBeat - PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH;
+      if (newEndTick - newStartTick < PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH) {
+        newStartTick = newEndTick - PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH;
       }
     } else {
       // This shouldn't happen, but just in case
-      newStartBeat = note.getStartBeat();
-      newEndBeat = note.getEndBeat();
+      newStartTick = note.getStartTick();
+      newEndTick = note.getEndTick();
     }
     
     // Apply length snapping to the final resize commit
-    const originalLength = newEndBeat - newStartBeat;
+    const originalLength = newEndTick - newStartTick;
     const snappedLength = getSnappedLength(
       originalLength,
       KGPianoRollState.instance().getCurrentSnap(),
@@ -568,10 +569,10 @@ export const useNoteOperations = ({
     // Adjust the note bounds to use the snapped length
     if (resizeEdge === 'end') {
       // For end resize, keep start beat and adjust end beat
-      newEndBeat = newStartBeat + snappedLength;
+      newEndTick = newStartTick + snappedLength;
     } else if (resizeEdge === 'start') {
       // For start resize, keep end beat and adjust start beat
-      newStartBeat = newEndBeat - snappedLength;
+      newStartTick = newEndTick - snappedLength;
     }
     
     // Note: Delta calculations are now handled inside ResizeNotesCommand
@@ -594,10 +595,10 @@ export const useNoteOperations = ({
       const command = ResizeNotesCommand.fromNoteResize(
         noteId,
         resizeEdge,
-        initialStartBeatRef.current,
-        initialEndBeatRef.current,
-        newStartBeat,
-        newEndBeat,
+        initialStartTickRef.current,
+        initialEndTickRef.current,
+        newStartTick,
+        newEndTick,
         activeRegion.getId(),
         noteIdsToResize
       );
@@ -605,7 +606,7 @@ export const useNoteOperations = ({
       KGCore.instance().executeCommand(command);
       
       // Update last edited note length
-      const noteLength = newEndBeat - newStartBeat;
+      const noteLength = newEndTick - newStartTick;
       KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
       
       if (DEBUG_MODE.PIANO_ROLL) {
@@ -618,22 +619,22 @@ export const useNoteOperations = ({
       clearTempNoteStyles(resizePreviewNoteIdsRef.current);
       currentResizeWidth.current = null;
       currentResizeLeft.current = null;
-      initialStartBeatRef.current = null;
-      initialEndBeatRef.current = null;
+      initialStartTickRef.current = null;
+      initialEndTickRef.current = null;
       resizePreviewBaselinesRef.current = [];
       resizePreviewNoteIdsRef.current = [];
       return;
     }
 
-    const { bar: startBar, beatInBar: startBeatInBar } = beatsToBar(newStartBeat + regionStartBeat, timeSignature);
-    const { bar: endBar, beatInBar: endBeatInBar } = beatsToBar(newEndBeat + regionStartBeat, timeSignature);
+    const { bar: startBar, beatInBar: startTickInBar } = ticksToBar(newStartTick + regionStartTick, timeSignature);
+    const { bar: endBar, beatInBar: endTickInBar } = ticksToBar(newEndTick + regionStartTick, timeSignature);
     
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Updated note: 
         noteId=${noteId}, resizeEdge=${resizeEdge},
-        startBeat=${newStartBeat}, endBeat=${newEndBeat}
-        absolute startBeat=${newStartBeat + regionStartBeat}, absolute endBeat=${newEndBeat + regionStartBeat}
-        absolute startBar=${startBar + 1}:${(startBeatInBar + 1).toFixed(3)}, absolute endBar=${endBar + 1}:${(endBeatInBar + 1).toFixed(3)}`);
+        startTick=${newStartTick}, endTick=${newEndTick}
+        absolute startTick=${newStartTick + regionStartTick}, absolute endTick=${newEndTick + regionStartTick}
+        absolute startBar=${startBar + 1}:${(startTickInBar + 1).toFixed(3)}, absolute endBar=${endBar + 1}:${(endTickInBar + 1).toFixed(3)}`);
     }
     
     // Reset resizing state
@@ -641,8 +642,8 @@ export const useNoteOperations = ({
     clearTempNoteStyles(resizePreviewNoteIdsRef.current);
     currentResizeWidth.current = null;
     currentResizeLeft.current = null;
-    initialStartBeatRef.current = null;
-    initialEndBeatRef.current = null;
+    initialStartTickRef.current = null;
+    initialEndTickRef.current = null;
     resizePreviewBaselinesRef.current = [];
     resizePreviewNoteIdsRef.current = [];
     
@@ -692,14 +693,14 @@ export const useNoteOperations = ({
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     
     // Calculate the region's start beat (for absolute positioning)
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     
     // Calculate the absolute start and end beats
-    const absStartBeat = note.getStartBeat() + regionStartBeat;
+    const absStartTick = note.getStartTick() + regionStartTick;
     
     // Calculate the note's position
-    const left = absStartBeat * beatWidth;
-    const width = (note.getEndBeat() - note.getStartBeat()) * beatWidth;
+    const left = ticksToPixels(absStartTick, beatWidth);
+    const width = ticksToPixels(note.getEndTick() - note.getStartTick(), beatWidth);
     
     // Convert pitch to y position (higher notes have lower y values)
     const pitchIndex = 107 - note.getPitch(); // Reverse the pitch to get the index (B7 is 107)
@@ -712,16 +713,16 @@ export const useNoteOperations = ({
     currentDragTop.current = top;
 
     dragPreviewBaselinesRef.current = dragTargetNotes.map(targetNote => {
-      const targetAbsStartBeat = targetNote.getStartBeat() + regionStartBeat;
-      const targetWidth = (targetNote.getEndBeat() - targetNote.getStartBeat()) * beatWidth;
+      const targetAbsStartTick = targetNote.getStartTick() + regionStartTick;
+      const targetWidth = ticksToPixels(targetNote.getEndTick() - targetNote.getStartTick(), beatWidth);
       const targetTop = (107 - targetNote.getPitch()) * noteHeight;
 
       return {
         noteId: targetNote.getId(),
-        originalStartBeat: targetNote.getStartBeat(),
-        originalEndBeat: targetNote.getEndBeat(),
+        originalStartTick: targetNote.getStartTick(),
+        originalEndTick: targetNote.getEndTick(),
         originalPitch: targetNote.getPitch(),
-        originalLeft: targetAbsStartBeat * beatWidth,
+        originalLeft: ticksToPixels(targetAbsStartTick, beatWidth),
         originalTop: targetTop,
         originalWidth: targetWidth,
         originalHeight: noteHeight,
@@ -768,13 +769,13 @@ export const useNoteOperations = ({
     const rawNewLeft = originalLeft + deltaX;
     
     // Apply horizontal snapping based on current snap setting
-    const regionStartBeat = activeRegion.getStartFromBeat();
-    const rawBeatPosition = (rawNewLeft / beatWidth) - regionStartBeat;
-    const snappedBeatPosition = getSnappedBeatPosition(
+    const regionStartTick = activeRegion.getStartTick();
+    const rawBeatPosition = pixelsToTicks(rawNewLeft, beatWidth) - regionStartTick;
+    const snappedBeatPosition = getSnappedTickPosition(
       rawBeatPosition,
       KGPianoRollState.instance().getCurrentSnap(),
     );
-    const snappedLeft = (snappedBeatPosition + regionStartBeat) * beatWidth;
+    const snappedLeft = ticksToPixels(snappedBeatPosition + regionStartTick, beatWidth);
     
     // Use snapped horizontal position, but keep raw vertical position
     const newLeft = snappedLeft;
@@ -788,12 +789,12 @@ export const useNoteOperations = ({
       ? dragPreviewBaselinesRef.current
       : [{
         noteId,
-        originalStartBeat: note.getStartBeat(),
-        originalEndBeat: note.getEndBeat(),
+        originalStartTick: note.getStartTick(),
+        originalEndTick: note.getEndTick(),
         originalPitch: note.getPitch(),
         originalLeft,
         originalTop,
-        originalWidth: (note.getEndBeat() - note.getStartBeat()) * beatWidth,
+        originalWidth: ticksToPixels(note.getEndTick() - note.getStartTick(), beatWidth),
         originalHeight: noteHeight,
       }];
     const leftDelta = newLeft - originalLeft;
@@ -835,7 +836,7 @@ export const useNoteOperations = ({
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     
     // Calculate the region's start beat (for absolute positioning)
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     
     if (currentDragLeft.current === null || currentDragTop.current === null || 
         initialDragLeft.current === null || initialDragTop.current === null || 
@@ -853,11 +854,11 @@ export const useNoteOperations = ({
     }
     
     // Calculate the new start beat based on the current position (no quantization for horizontal)
-    const newStartBeat = (currentDragLeft.current / beatWidth) - regionStartBeat;
+    const newStartTick = pixelsToTicks(currentDragLeft.current, beatWidth) - regionStartTick;
     
     // Calculate the new end beat (maintain the same duration)
-    const duration = note.getEndBeat() - note.getStartBeat();
-    const newEndBeat = newStartBeat + duration;
+    const duration = note.getEndTick() - note.getStartTick();
+    const newEndTick = newStartTick + duration;
     
     // Calculate the new pitch based on the current position (quantize to nearest pitch)
     // The piano roll is drawn from bottom to top, with higher notes at the top
@@ -866,7 +867,7 @@ export const useNoteOperations = ({
     const newPitch = 107 - pitchIndex; // Convert index back to pitch (B7 is 107)
     
     // Calculate the original start beat for the command
-    const originalStartBeat = (initialDragLeft.current / beatWidth) - regionStartBeat;
+    const originalStartTick = pixelsToTicks(initialDragLeft.current, beatWidth) - regionStartTick;
 
     // Determine which notes to move (capture selection at command creation time)
     const selectedItems = core.getSelectedItems();
@@ -885,9 +886,9 @@ export const useNoteOperations = ({
     try {
       const command = MoveNotesCommand.fromNoteDrag(
         noteId,
-        originalStartBeat,
+        originalStartTick,
         initialPitchRef.current,
-        newStartBeat,
+        newStartTick,
         newPitch,
         activeRegion.getId(),
         noteIdsToMove
@@ -896,7 +897,7 @@ export const useNoteOperations = ({
       KGCore.instance().executeCommand(command);
       
       // Update last edited note length
-      const noteLength = newEndBeat - newStartBeat;
+      const noteLength = newEndTick - newStartTick;
       KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
       
       if (DEBUG_MODE.PIANO_ROLL) {
@@ -917,15 +918,15 @@ export const useNoteOperations = ({
       return;
     }
     
-    const { bar: startBar, beatInBar: startBeatInBar } = beatsToBar(newStartBeat + regionStartBeat, timeSignature);
-    const { bar: endBar, beatInBar: endBeatInBar } = beatsToBar(newEndBeat + regionStartBeat, timeSignature);
+    const { bar: startBar, beatInBar: startTickInBar } = ticksToBar(newStartTick + regionStartTick, timeSignature);
+    const { bar: endBar, beatInBar: endTickInBar } = ticksToBar(newEndTick + regionStartTick, timeSignature);
     
     if (DEBUG_MODE.PIANO_ROLL) {
       console.log(`Updated note position: 
         noteId=${noteId},
-        startBeat=${newStartBeat}, endBeat=${newEndBeat}, pitch=${newPitch}
-        absolute startBeat=${newStartBeat + regionStartBeat}, absolute endBeat=${newEndBeat + regionStartBeat}
-        absolute startBar=${startBar + 1}:${(startBeatInBar + 1).toFixed(3)}, absolute endBar=${endBar + 1}:${(endBeatInBar + 1).toFixed(3)}
+        startTick=${newStartTick}, endTick=${newEndTick}, pitch=${newPitch}
+        absolute startTick=${newStartTick + regionStartTick}, absolute endTick=${newEndTick + regionStartTick}
+        absolute startBar=${startBar + 1}:${(startTickInBar + 1).toFixed(3)}, absolute endBar=${endBar + 1}:${(endTickInBar + 1).toFixed(3)}
         original pitch=${initialPitchRef.current} (${pitchToNoteNameString(initialPitchRef.current)}), new pitch=${newPitch} (${pitchToNoteNameString(newPitch)})`);
     }
     

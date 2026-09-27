@@ -5,6 +5,9 @@ import { KGCore } from '../../core/KGCore';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 describe('ReadMarkersTool', () => {
   beforeEach(() => {
@@ -21,8 +24,8 @@ describe('ReadMarkersTool', () => {
     const track = findGlobalTrackByType(project, GlobalTrackType.Marker);
     expect(track).not.toBeNull();
     track!.setRegions([
-      new KGMarkerRegion('region-2', track!.getId(), track!.getTrackIndex(), 'Verse', 8, 4),
-      new KGMarkerRegion('region-1', track!.getId(), track!.getTrackIndex(), 'Intro', 0, 8),
+      new KGMarkerRegion('region-2', track!.getId(), track!.getTrackIndex(), 'Verse', q(8), q(4)),
+      new KGMarkerRegion('region-1', track!.getId(), track!.getTrackIndex(), 'Intro', 0, q(8)),
     ]);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -34,7 +37,7 @@ describe('ReadMarkersTool', () => {
     const result = await tool.execute({});
 
     expect(result.success).toBe(true);
-    expect(result.result).toBe('[Beat: 0; Length: 8]: Intro\n[Beat: 8; Length: 4]: Verse');
+    expect(result.result).toBe('[Quarter-note: 0; Length: 8]: Intro\n[Quarter-note: 8; Length: 4]: Verse');
   });
 
   it('preserves line breaks in UI and history display content', () => {

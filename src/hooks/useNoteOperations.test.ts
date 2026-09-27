@@ -255,9 +255,9 @@ describe('useNoteOperations', () => {
   });
 
   it('selects the grabbed note before resizing when it was not part of the current selection', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 1, endBeat: 2, pitch: 62 });
-    const noteC = createMockMidiNote({ id: 'note-c', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 1, endTick: 2, pitch: 62 });
+    const noteC = createMockMidiNote({ id: 'note-c', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -293,9 +293,9 @@ describe('useNoteOperations', () => {
   });
 
   it('keeps the existing multi-selection when resizing a selected note', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 1, endBeat: 2, pitch: 62 });
-    const noteC = createMockMidiNote({ id: 'note-c', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 1, endTick: 2, pitch: 62 });
+    const noteC = createMockMidiNote({ id: 'note-c', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -331,12 +331,12 @@ describe('useNoteOperations', () => {
   });
 
   it('previews end resize for all notes in the active multi-selection', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 2, endBeat: 3, pitch: 62 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 2, endTick: 3, pitch: 62 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
-      startFromBeat: 4,
+      startTick: 4,
       notes: [noteA, noteB],
     });
 
@@ -358,12 +358,12 @@ describe('useNoteOperations', () => {
   });
 
   it('previews start resize for all notes in the active multi-selection', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 1, endBeat: 3, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 4, endBeat: 6, pitch: 62 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 1, endTick: 3, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 4, endTick: 6, pitch: 62 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
-      startFromBeat: 2,
+      startTick: 2,
       notes: [noteA, noteB],
     });
 
@@ -385,9 +385,9 @@ describe('useNoteOperations', () => {
   });
 
   it('previews only the grabbed note when it was outside the current selection', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 1, endBeat: 2, pitch: 62 });
-    const noteC = createMockMidiNote({ id: 'note-c', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 1, endTick: 2, pitch: 62 });
+    const noteC = createMockMidiNote({ id: 'note-c', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -412,8 +412,8 @@ describe('useNoteOperations', () => {
   });
 
   it('clears resize preview styles after committing a multi-note resize', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 2, endBeat: 3, pitch: 62 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 2, endTick: 3, pitch: 62 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -441,8 +441,8 @@ describe('useNoteOperations', () => {
   });
 
   it('commits the same snapped resize delta that is shown in the preview', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 2, endBeat: 3, pitch: 62 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 2, endTick: 3, pitch: 62 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -464,16 +464,16 @@ describe('useNoteOperations', () => {
     expect(coreState.executeCommand).toHaveBeenCalledTimes(1);
     const resizeCommand = coreState.executeCommand.mock.calls[0][0] as ResizeNotesCommand;
     expect(resizeCommand.getNoteIdsToResize()).toEqual([noteA.getId(), noteB.getId()]);
-    expect((resizeCommand as unknown as { primaryEndBeatDelta: number }).primaryEndBeatDelta).toBe(1);
+    expect((resizeCommand as unknown as { primaryEndTickDelta: number }).primaryEndTickDelta).toBe(960);
   });
 
   it('previews drag movement for all notes in the active multi-selection', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
-      startFromBeat: 4,
+      startTick: 4,
       notes: [noteA, noteB],
     });
 
@@ -495,9 +495,9 @@ describe('useNoteOperations', () => {
   });
 
   it('previews only the grabbed note during drag when it was outside the current selection', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 1, endBeat: 2, pitch: 62 });
-    const noteC = createMockMidiNote({ id: 'note-c', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 1, endTick: 2, pitch: 62 });
+    const noteC = createMockMidiNote({ id: 'note-c', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -521,8 +521,8 @@ describe('useNoteOperations', () => {
   });
 
   it('clears drag preview styles after committing a multi-note move', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -550,8 +550,8 @@ describe('useNoteOperations', () => {
   });
 
   it('commits the same drag cohort and deltas that are shown in the preview', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 1, pitch: 60 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 2, endBeat: 3, pitch: 64 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 1, pitch: 60 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 2, endTick: 3, pitch: 64 });
     const activeRegion = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -574,7 +574,7 @@ describe('useNoteOperations', () => {
     const moveCommand = coreState.executeCommand.mock.calls[0][0] as MoveNotesCommand;
     expect(moveCommand).toBeInstanceOf(MoveNotesCommand);
     expect(moveCommand.getNoteIdsToMove()).toEqual([noteA.getId(), noteB.getId()]);
-    expect(moveCommand.getStartBeatDelta()).toBe(1);
+    expect(moveCommand.getStartTickDelta()).toBe(960);
     expect(moveCommand.getPitchDelta()).toBe(-1);
   });
 });

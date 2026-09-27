@@ -15,12 +15,12 @@ const rect = (top: number, height: number): DOMRect => ({
   toJSON: () => ({}),
 });
 
-const PlayheadTable = ({ playheadPosition }: { playheadPosition: number }) => (
+const PlayheadTable = ({ playheadTick }: { playheadTick: number }) => (
   <div className="event-list-table-shell">
     <EventListPlayhead
-      rows={[{ id: 'first', beat: 4 }, { id: 'second', beat: 12 }]}
-      playheadPosition={playheadPosition}
-      songEndBeat={16}
+      rows={[{ id: 'first', tick: 4 }, { id: 'second', tick: 12 }]}
+      playheadTick={playheadTick}
+      songEndTick={16}
     />
     <table className="event-list-table">
       <thead><tr><th>Position</th></tr></thead>
@@ -54,13 +54,13 @@ describe('EventListPlayhead', () => {
       return rect(0, 0);
     });
 
-    const { container, rerender } = render(<PlayheadTable playheadPosition={4} />);
+    const { container, rerender } = render(<PlayheadTable playheadTick={4} />);
     const shell = container.querySelector<HTMLElement>('.event-list-table-shell');
     expect(screen.getByTestId('event-list-playhead')).toHaveStyle({ top: '20px' });
 
     if (!shell) throw new Error('Expected the event list table shell to render.');
     shell.scrollTop = 7;
-    rerender(<PlayheadTable playheadPosition={8} />);
+    rerender(<PlayheadTable playheadTick={8} />);
 
     expect(screen.getByTestId('event-list-playhead')).toHaveStyle({ top: '30px' });
     expect(shell.scrollTop).toBe(7);

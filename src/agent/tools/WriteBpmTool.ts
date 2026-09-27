@@ -4,6 +4,7 @@ import {
   WriteTempoTrackCommand,
   type WriteTempoEntry,
 } from '../../core/commands/global-region/WriteTempoTrackCommand';
+import { quarterNotesToTicks, ticksToQuarterNotes } from '../../core/timing';
 
 interface RequestedBpmEntry {
   bpm: number;
@@ -94,7 +95,7 @@ export class WriteBpmTool extends BaseTool {
       const command = new WriteTempoTrackCommand(
         normalized.baseBpm,
         normalized.explicitEntries.map(entry => ({
-          startBeat: entry.startBeat,
+          startTick: entry.startTick,
           bpm: entry.bpm,
         })),
       );
@@ -103,7 +104,7 @@ export class WriteBpmTool extends BaseTool {
       const explicitDetails = normalized.explicitEntries.length === 0
         ? 'No explicit tempo regions were written; the Tempo track now falls back entirely to the project default BPM.'
         : normalized.explicitEntries
-          .map(entry => `${entry.bpm} BPM from beat ${entry.startBeat} (bar ${entry.normalizedBar + 1})`)
+          .map(entry => `${entry.bpm} BPM from quarter-note ${ticksToQuarterNotes(entry.startTick)} (bar ${entry.normalizedBar + 1})`)
           .join(', ');
 
       return this.createSuccessResult(
@@ -120,8 +121,9 @@ export class WriteBpmTool extends BaseTool {
     }
 
     const project = this.getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
-    const songEndBeat = project.getMaxBars() * beatsPerBar;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    const songEndTick = project.getMaxBars() * ticksPerBar;
 
     let baseBpm = project.getBpm();
     let sawDefaultEntry = false;
@@ -146,19 +148,20 @@ export class WriteBpmTool extends BaseTool {
       if (beat < 0) {
         throw new Error(`BPM entry ${index + 1} has invalid "beat": ${beat}. Expected a value >= 0.`);
       }
-      if (beat >= songEndBeat) {
+      const startTick = quarterNotesToTicks(beat);
+      if (startTick >= songEndTick) {
         throw new Error(`BPM entry ${index + 1} has invalid "beat": ${beat}. It must be within the song range.`);
       }
 
       explicitEntries.push({
         bpm,
-        startBeat: beat,
+        startTick,
         inputBeat: beat,
-        normalizedBar: Math.floor(beat / beatsPerBar),
+        normalizedBar: Math.floor(startTick / ticksPerBar),
       });
     });
 
-    explicitEntries.sort((left, right) => left.startBeat - right.startBeat);
+    explicitEntries.sort((left, right) => left.startTick - right.startTick);
 
     for (let index = 1; index < explicitEntries.length; index += 1) {
       const previous = explicitEntries[index - 1];

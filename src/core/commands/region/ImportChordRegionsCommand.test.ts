@@ -31,10 +31,10 @@ describe('ImportChordRegionsCommand', () => {
       8,
       6,
       [
-        { startBeat: 0, endBeat: 4, pitch: 48, velocity: 127 },
-        { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
-        { startBeat: 4, endBeat: 6, pitch: 41, velocity: 127 },
-        { startBeat: 4, endBeat: 6, pitch: 53, velocity: 127 },
+        { startTick: 0, endTick: 4, pitch: 48, velocity: 127 },
+        { startTick: 0, endTick: 4, pitch: 60, velocity: 127 },
+        { startTick: 4, endTick: 6, pitch: 41, velocity: 127 },
+        { startTick: 4, endTick: 6, pitch: 53, velocity: 127 },
       ],
       'Chord Progression',
       'imported-region',
@@ -45,18 +45,18 @@ describe('ImportChordRegionsCommand', () => {
     expect(track.getRegions()).toHaveLength(1);
     const region = command.getCreatedRegion();
     expect(region?.getId()).toBe('imported-region');
-    expect(region?.getStartFromBeat()).toBe(8);
-    expect(region?.getLength()).toBe(6);
+    expect(region?.getStartTick()).toBe(8);
+    expect(region?.getLengthTicks()).toBe(6);
     expect(region?.getNotes().map(note => ({
-      startBeat: note.getStartBeat(),
-      endBeat: note.getEndBeat(),
+      startTick: note.getStartTick(),
+      endTick: note.getEndTick(),
       pitch: note.getPitch(),
       velocity: note.getVelocity(),
     }))).toEqual([
-      { startBeat: 0, endBeat: 4, pitch: 48, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
-      { startBeat: 4, endBeat: 6, pitch: 41, velocity: 127 },
-      { startBeat: 4, endBeat: 6, pitch: 53, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 48, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 60, velocity: 127 },
+      { startTick: 4, endTick: 6, pitch: 41, velocity: 127 },
+      { startTick: 4, endTick: 6, pitch: 53, velocity: 127 },
     ]);
 
     command.undo();
@@ -72,32 +72,32 @@ describe('ImportChordRegionsCommand', () => {
 
     const command = new ImportChordRegionsCommand(
       '1', 0, 4, 6,
-      [{ startBeat: 0, endBeat: 2, pitch: 60, velocity: 127 }],
+      [{ startTick: 0, endTick: 2, pitch: 60, velocity: 127 }],
       'Chord Progression', undefined, 'add', 'existing',
     );
 
     command.execute();
 
-    expect(existing.getStartFromBeat()).toBe(4);
-    expect(existing.getLength()).toBe(8);
-    expect(existing.getNotes().map(note => [note.getId(), note.getStartBeat(), note.getEndBeat()])).toEqual([
+    expect(existing.getStartTick()).toBe(4);
+    expect(existing.getLengthTicks()).toBe(8);
+    expect(existing.getNotes().map(note => [note.getId(), note.getStartTick(), note.getEndTick()])).toEqual([
       ['existing-note', 5, 6],
       [expect.stringContaining('KGMidiNote'), 0, 2],
     ]);
-    expect(existing.getPitchBends()[0].getBeat()).toBe(6);
-    expect(existing.getControllerEvents(1)[0].getBeat()).toBe(7);
+    expect(existing.getPitchBends()[0].getTick()).toBe(6);
+    expect(existing.getControllerEvents(1)[0].getTick()).toBe(7);
 
     command.undo();
-    expect(existing.getStartFromBeat()).toBe(8);
-    expect(existing.getLength()).toBe(4);
-    expect(existing.getNotes().map(note => [note.getId(), note.getStartBeat(), note.getEndBeat()])).toEqual([
+    expect(existing.getStartTick()).toBe(8);
+    expect(existing.getLengthTicks()).toBe(4);
+    expect(existing.getNotes().map(note => [note.getId(), note.getStartTick(), note.getEndTick()])).toEqual([
       ['existing-note', 1, 2],
     ]);
-    expect(existing.getPitchBends()[0].getBeat()).toBe(2);
-    expect(existing.getControllerEvents(1)[0].getBeat()).toBe(3);
+    expect(existing.getPitchBends()[0].getTick()).toBe(2);
+    expect(existing.getControllerEvents(1)[0].getTick()).toBe(3);
 
     command.execute();
-    expect(existing.getStartFromBeat()).toBe(4);
+    expect(existing.getStartTick()).toBe(4);
     expect(existing.getNotes()).toHaveLength(2);
   });
 
@@ -116,7 +116,7 @@ describe('ImportChordRegionsCommand', () => {
 
     const command = new ImportChordRegionsCommand(
       '1', 0, 8, 4,
-      [{ startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 }],
+      [{ startTick: 0, endTick: 4, pitch: 60, velocity: 127 }],
       'Chord Progression', undefined, 'replace', 'existing',
     );
 
@@ -127,8 +127,8 @@ describe('ImportChordRegionsCommand', () => {
       'outside-right',
       expect.stringContaining('KGMidiNote'),
     ]);
-    expect(existing.getPitchBends().map(event => [event.getId(), event.getBeat()])).toEqual([['bend', 5]]);
-    expect(existing.getControllerEvents(11).map(event => [event.getId(), event.getBeat()])).toEqual([['controller', 6]]);
+    expect(existing.getPitchBends().map(event => [event.getId(), event.getTick()])).toEqual([['bend', 5]]);
+    expect(existing.getControllerEvents(11).map(event => [event.getId(), event.getTick()])).toEqual([['controller', 6]]);
 
     command.undo();
     expect(existing.getNotes().map(note => note.getId())).toEqual([

@@ -13,13 +13,16 @@ import {
   resolveDurationSpec,
   resolveSheetClef,
 } from './sheetNotation';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 describe('sheetNotation', () => {
   it('parses all supported quantization values', () => {
     getSheetQuantizationOptions().forEach((value) => {
       const parsed = parseSheetQuantization(value);
       expect(parsed.raw).toBe(value);
-      expect(parsed.stepBeats).toBeGreaterThan(0);
+      expect(parsed.stepTicks).toBeGreaterThan(0);
     });
   });
 
@@ -27,8 +30,8 @@ describe('sheetNotation', () => {
     const region = createMockMidiRegion({
       length: 8,
       notes: [
-        createMockMidiNote({ startBeat: 0, endBeat: 5, pitch: 60 }),
-        createMockMidiNote({ startBeat: 6, endBeat: 7, pitch: 64, id: 'note-2' }),
+        createMockMidiNote({ startTick: 0, endTick: 5, pitch: 60 }),
+        createMockMidiNote({ startTick: 6, endTick: 7, pitch: 64, id: 'note-2' }),
       ],
     });
 
@@ -53,8 +56,8 @@ describe('sheetNotation', () => {
 
   it('maps playhead position through variable-width bars', () => {
     const metrics = buildSheetMeasureMetrics([
-      { barIndex: 0, absoluteBarIndex: 0, startBeat: 0, endBeat: 4, keySignature: 'C major', events: [] },
-      { barIndex: 1, absoluteBarIndex: 1, startBeat: 4, endBeat: 8, keySignature: 'C major', events: [] },
+      { barIndex: 0, absoluteBarIndex: 0, startTick: 0, endTick: 4, keySignature: 'C major', events: [] },
+      { barIndex: 1, absoluteBarIndex: 1, startTick: 4, endTick: 8, keySignature: 'C major', events: [] },
     ], [120, 240]);
 
     expect(getSheetPlayheadPixel(0, metrics)).toBe(0);
@@ -64,9 +67,9 @@ describe('sheetNotation', () => {
   });
 
   it('supports dotted durations used by sheet display', () => {
-    expect(resolveDurationSpec(1.5, false)).toEqual({ duration: 'q', dots: 1 });
-    expect(resolveDurationSpec(1.5, true)).toEqual({ duration: 'qr', dots: 1 });
-    expect(resolveDurationSpec(3, false)).toEqual({ duration: 'h', dots: 1 });
+    expect(resolveDurationSpec(q(1.5), false)).toEqual({ duration: 'q', dots: 1 });
+    expect(resolveDurationSpec(q(1.5), true)).toEqual({ duration: 'qr', dots: 1 });
+    expect(resolveDurationSpec(q(3), false)).toEqual({ duration: 'h', dots: 1 });
   });
 
   it('maps project key signatures to vexflow key specs', () => {
@@ -81,8 +84,8 @@ describe('sheetNotation', () => {
       notes: [61, 63, 66, 68, 69, 70].map((pitch, index) => createMockMidiNote({
         id: `note-${index}`,
         pitch,
-        startBeat: 0,
-        endBeat: 1,
+        startTick: 0,
+        endTick: 1,
       })),
     });
 
@@ -101,8 +104,8 @@ describe('sheetNotation', () => {
     const region = createMockMidiRegion({
       length: 8,
       notes: [
-        createMockMidiNote({ id: 'sharp-note', pitch: 68, startBeat: 0, endBeat: 1 }),
-        createMockMidiNote({ id: 'flat-note', pitch: 68, startBeat: 4, endBeat: 5 }),
+        createMockMidiNote({ id: 'sharp-note', pitch: 68, startTick: 0, endTick: 1 }),
+        createMockMidiNote({ id: 'flat-note', pitch: 68, startTick: 4, endTick: 5 }),
       ],
     });
 
@@ -129,11 +132,11 @@ describe('sheetNotation', () => {
     const region = createMockMidiRegion({
       length: 8,
       notes: [
-        createMockMidiNote({ startBeat: 0, endBeat: 1, pitch: 64, id: 'n1' }),
-        createMockMidiNote({ startBeat: 1, endBeat: 2, pitch: 64, id: 'n2' }),
-        createMockMidiNote({ startBeat: 2, endBeat: 3, pitch: 65, id: 'n3' }),
-        createMockMidiNote({ startBeat: 3, endBeat: 4, pitch: 67, id: 'n4' }),
-        createMockMidiNote({ startBeat: 4, endBeat: 5, pitch: 67, id: 'n5' }),
+        createMockMidiNote({ startTick: 0, endTick: 1, pitch: 64, id: 'n1' }),
+        createMockMidiNote({ startTick: 1, endTick: 2, pitch: 64, id: 'n2' }),
+        createMockMidiNote({ startTick: 2, endTick: 3, pitch: 65, id: 'n3' }),
+        createMockMidiNote({ startTick: 3, endTick: 4, pitch: 67, id: 'n4' }),
+        createMockMidiNote({ startTick: 4, endTick: 5, pitch: 67, id: 'n5' }),
       ],
     });
 
@@ -143,22 +146,22 @@ describe('sheetNotation', () => {
       quantization: parseSheetQuantization('16,48'),
     });
 
-    expect(measures[0].events.filter(event => !event.isRest).map(event => event.startBeat)).toEqual([0, 1, 2, 3]);
-    expect(measures[1].events.filter(event => !event.isRest).map(event => event.startBeat)).toEqual([4]);
+    expect(measures[0].events.filter(event => !event.isRest).map(event => event.startTick)).toEqual([q(0), q(1), q(2), q(3)]);
+    expect(measures[1].events.filter(event => !event.isRest).map(event => event.startTick)).toEqual([q(4)]);
   });
 
   it('builds a full-track sheet timeline with rests across empty bars and gaps', () => {
     const firstRegion = createMockMidiRegion({
       id: 'region-a',
-      startFromBeat: 4,
+      startTick: 4,
       length: 4,
-      notes: [createMockMidiNote({ id: 'a1', startBeat: 0, endBeat: 1, pitch: 60 })],
+      notes: [createMockMidiNote({ id: 'a1', startTick: 0, endTick: 1, pitch: 60 })],
     });
     const secondRegion = createMockMidiRegion({
       id: 'region-b',
-      startFromBeat: 12,
+      startTick: 12,
       length: 4,
-      notes: [createMockMidiNote({ id: 'b1', startBeat: 0, endBeat: 1, pitch: 64 })],
+      notes: [createMockMidiNote({ id: 'b1', startTick: 0, endTick: 1, pitch: 64 })],
     });
 
     const measures = buildSheetMeasureModels({
@@ -171,20 +174,20 @@ describe('sheetNotation', () => {
     });
 
     expect(measures).toHaveLength(6);
-    expect(measures[0].startBeat).toBe(0);
-    expect(measures[5].endBeat).toBe(24);
+    expect(measures[0].startTick).toBe(0);
+    expect(measures[5].endTick).toBe(q(24));
     expect(measures[0].events.every(event => event.isRest)).toBe(true);
-    expect(measures[1].events.some(event => !event.isRest && event.startBeat === 4)).toBe(true);
+    expect(measures[1].events.some(event => !event.isRest && event.startTick === q(4))).toBe(true);
     expect(measures[2].events.every(event => event.isRest)).toBe(true);
-    expect(measures[3].events.some(event => !event.isRest && event.startBeat === 12)).toBe(true);
+    expect(measures[3].events.some(event => !event.isRest && event.startTick === q(12))).toBe(true);
     expect(measures[4].events.every(event => event.isRest)).toBe(true);
     expect(measures[5].events.every(event => event.isRest)).toBe(true);
   });
 
   it('maps absolute track beats through sheet metrics for full-track mode', () => {
     const metrics = buildSheetMeasureMetrics([
-      { barIndex: 0, absoluteBarIndex: 0, startBeat: 0, endBeat: 4, keySignature: 'C major', events: [] },
-      { barIndex: 1, absoluteBarIndex: 1, startBeat: 4, endBeat: 8, keySignature: 'C major', events: [] },
+      { barIndex: 0, absoluteBarIndex: 0, startTick: 0, endTick: 4, keySignature: 'C major', events: [] },
+      { barIndex: 1, absoluteBarIndex: 1, startTick: 4, endTick: 8, keySignature: 'C major', events: [] },
     ], [120, 240]);
 
     expect(getSheetPlayheadPixel(5, metrics)).toBe(180);
@@ -193,9 +196,9 @@ describe('sheetNotation', () => {
 
   it('attaches effective key signatures to sheet measures', () => {
     const region = createMockMidiRegion({
-      startFromBeat: 4,
+      startTick: 4,
       length: 12,
-      notes: [createMockMidiNote({ startBeat: 0, endBeat: 1, pitch: 60 })],
+      notes: [createMockMidiNote({ startTick: 0, endTick: 1, pitch: 60 })],
     });
 
     const measures = buildSheetMeasureModels({

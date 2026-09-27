@@ -37,7 +37,7 @@ import { UpdatePitchBendPropertiesCommand } from '../../core/commands/note/Updat
 import { showAlert } from '../../util/dialogUtil';
 import { useI18n } from '../../i18n/useI18n';
 import EventListPlayhead from './EventListPlayhead';
-import { normalizeEventListPlayheadBeat } from './eventListPlayheadUtil';
+import { normalizeEventListPlayheadTick } from './eventListPlayheadUtil';
 
 interface RegionEventListTabProps {
   activeMidiRegion: KGMidiRegion | null;
@@ -48,15 +48,15 @@ interface NoteRowData {
   id: string;
   type: 'note';
   note: KGMidiNote;
-  absoluteStartBeat: number;
-  durationBeats: number;
+  absoluteStartTick: number;
+  durationTicks: number;
 }
 
 interface PitchBendRowData {
   id: string;
   type: 'pitch-bend';
   pitchBend: KGMidiPitchBend;
-  absoluteBeat: number;
+  absoluteTick: number;
 }
 
 interface ControllerRowData {
@@ -64,7 +64,7 @@ interface ControllerRowData {
   type: 'controller';
   controller: number;
   controllerEvent: KGMidiControllerEvent;
-  absoluteBeat: number;
+  absoluteTick: number;
 }
 
 type EventRowData = NoteRowData | PitchBendRowData | ControllerRowData;
@@ -188,7 +188,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
     activeRegionId,
     maxBars,
     timeSignature,
-    playheadPosition,
+    playheadTick,
     updateTrack,
     refreshProjectState,
     bumpAutomationRedrawVersion
@@ -211,8 +211,8 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
       id: note.getId(),
       type: 'note',
       note,
-      absoluteStartBeat: activeMidiRegion.getStartFromBeat() + note.getStartBeat(),
-      durationBeats: note.getEndBeat() - note.getStartBeat(),
+      absoluteStartTick: activeMidiRegion.getStartTick() + note.getStartTick(),
+      durationTicks: note.getEndTick() - note.getStartTick(),
     }))
     : [];
 
@@ -221,7 +221,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
       id: pitchBend.getId(),
       type: 'pitch-bend',
       pitchBend,
-      absoluteBeat: activeMidiRegion.getStartFromBeat() + pitchBend.getBeat(),
+      absoluteTick: activeMidiRegion.getStartTick() + pitchBend.getTick(),
     }))
     : [];
 
@@ -231,7 +231,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
       type: 'controller',
       controller,
       controllerEvent: event,
-      absoluteBeat: activeMidiRegion.getStartFromBeat() + event.getBeat(),
+      absoluteTick: activeMidiRegion.getStartTick() + event.getTick(),
     }))
     : [];
 
@@ -240,9 +240,9 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
     ...(showPitchBends ? pitchBendRows : []),
     ...(showControllers ? controllerRows : []),
   ].sort((a, b) => {
-    const beatDelta = (a.type === 'note' ? a.absoluteStartBeat : a.absoluteBeat)
-      - (b.type === 'note' ? b.absoluteStartBeat : b.absoluteBeat);
-    if (beatDelta !== 0) return beatDelta;
+    const tickDelta = (a.type === 'note' ? a.absoluteStartTick : a.absoluteTick)
+      - (b.type === 'note' ? b.absoluteStartTick : b.absoluteTick);
+    if (tickDelta !== 0) return tickDelta;
     if (a.type !== b.type) return a.type === 'pitch-bend' ? -1 : 1;
     return a.id.localeCompare(b.id);
   });
@@ -349,11 +349,11 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
         noteId: targetNote.getId(),
         pitch: targetNote.getPitch(),
         velocity: targetNote.getVelocity(),
-        startBeat: targetNote.getStartBeat(),
-        endBeat: targetNote.getEndBeat()
+        startTick: targetNote.getStartTick(),
+        endTick: targetNote.getEndTick()
       }));
 
-      const updates: Array<{ noteId: string; pitch?: number; velocity?: number; startBeat?: number; endBeat?: number }> = [];
+      const updates: Array<{ noteId: string; pitch?: number; velocity?: number; startTick?: number; endTick?: number }> = [];
 
       if (editingCell.column === 'position') {
         if (isDeltaEdit) {
@@ -364,17 +364,17 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
           }
 
           for (const targetNote of targetNotes) {
-            const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
-            const nextStartBeat = targetNote.getStartBeat() + parsed.deltaBeats;
-            if (nextStartBeat < 0) {
+            const currentDuration = targetNote.getEndTick() - targetNote.getStartTick();
+            const nextStartTick = targetNote.getStartTick() + parsed.deltaTicks;
+            if (nextStartTick < 0) {
               await showAlert('Position delta would move one or more notes before the start of the current MIDI region.');
               return;
             }
 
             updates.push({
               noteId: targetNote.getId(),
-              startBeat: nextStartBeat,
-              endBeat: nextStartBeat + currentDuration
+              startTick: nextStartTick,
+              endTick: nextStartTick + currentDuration
             });
           }
         } else {
@@ -384,18 +384,18 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
             return;
           }
 
-          const relativeStartBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
-          if (relativeStartBeat < 0) {
+          const relativeStartTick = parsed.absoluteTick - activeMidiRegion.getStartTick();
+          if (relativeStartTick < 0) {
             await showAlert('Position cannot be earlier than the start of the current MIDI region.');
             return;
           }
 
           for (const targetNote of targetNotes) {
-            const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
+            const currentDuration = targetNote.getEndTick() - targetNote.getStartTick();
             updates.push({
               noteId: targetNote.getId(),
-              startBeat: relativeStartBeat,
-              endBeat: relativeStartBeat + currentDuration
+              startTick: relativeStartTick,
+              endTick: relativeStartTick + currentDuration
             });
           }
         }
@@ -468,8 +468,8 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
           }
 
           for (const targetNote of targetNotes) {
-            const currentDuration = targetNote.getEndBeat() - targetNote.getStartBeat();
-            const nextDuration = currentDuration + parsed.deltaBeats;
+            const currentDuration = targetNote.getEndTick() - targetNote.getStartTick();
+            const nextDuration = currentDuration + parsed.deltaTicks;
             if (nextDuration <= 0) {
               await showAlert('Length delta would make one or more notes non-positive in duration.');
               return;
@@ -477,7 +477,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
             updates.push({
               noteId: targetNote.getId(),
-              endBeat: targetNote.getStartBeat() + nextDuration
+              endTick: targetNote.getStartTick() + nextDuration
             });
           }
         } else {
@@ -490,7 +490,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
           for (const targetNote of targetNotes) {
             updates.push({
               noteId: targetNote.getId(),
-              endBeat: targetNote.getStartBeat() + parsed.duration
+              endTick: targetNote.getStartTick() + parsed.durationTicks
             });
           }
         }
@@ -510,10 +510,10 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
       const snapshots = targetPitchBends.map(targetPitchBend => ({
         pitchBendId: targetPitchBend.getId(),
-        beat: targetPitchBend.getBeat(),
+        tick: targetPitchBend.getTick(),
         value: targetPitchBend.getValue(),
       }));
-      const updates: Array<{ pitchBendId: string; beat?: number; value?: number }> = [];
+      const updates: Array<{ pitchBendId: string; tick?: number; value?: number }> = [];
 
       if (editingCell.column === 'position') {
         if (isDeltaEdit) {
@@ -524,12 +524,12 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
           }
 
           for (const targetPitchBend of targetPitchBends) {
-            const nextBeat = targetPitchBend.getBeat() + parsed.deltaBeats;
-            if (nextBeat < 0) {
+            const nextTick = targetPitchBend.getTick() + parsed.deltaTicks;
+            if (nextTick < 0) {
               await showAlert('Position delta would move one or more pitch bends before the start of the current MIDI region.');
               return;
             }
-            updates.push({ pitchBendId: targetPitchBend.getId(), beat: nextBeat });
+            updates.push({ pitchBendId: targetPitchBend.getId(), tick: nextTick });
           }
         } else {
           const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
@@ -538,14 +538,14 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
             return;
           }
 
-          const relativeBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
-          if (relativeBeat < 0) {
+          const relativeTick = parsed.absoluteTick - activeMidiRegion.getStartTick();
+          if (relativeTick < 0) {
             await showAlert('Position cannot be earlier than the start of the current MIDI region.');
             return;
           }
 
           for (const targetPitchBend of targetPitchBends) {
-            updates.push({ pitchBendId: targetPitchBend.getId(), beat: relativeBeat });
+            updates.push({ pitchBendId: targetPitchBend.getId(), tick: relativeTick });
           }
         }
       }
@@ -599,10 +599,10 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
       const snapshots = targetControllerEvents.map(({ controller, event }) => ({
         controllerEventId: event.getId(),
         controller,
-        beat: event.getBeat(),
+        tick: event.getTick(),
         value: event.getValue(),
       }));
-      const updates: Array<{ controllerEventId: string; controller?: number; beat?: number; value?: number }> = [];
+      const updates: Array<{ controllerEventId: string; controller?: number; tick?: number; value?: number }> = [];
 
       if (editingCell.column === 'position') {
         if (isDeltaEdit) {
@@ -613,12 +613,12 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
           }
 
           for (const { event } of targetControllerEvents) {
-            const nextBeat = event.getBeat() + parsed.deltaBeats;
-            if (nextBeat < 0) {
+            const nextTick = event.getTick() + parsed.deltaTicks;
+            if (nextTick < 0) {
               await showAlert('Position delta would move one or more controller events before the start of the current MIDI region.');
               return;
             }
-            updates.push({ controllerEventId: event.getId(), beat: nextBeat });
+            updates.push({ controllerEventId: event.getId(), tick: nextTick });
           }
         } else {
           const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
@@ -627,14 +627,14 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
             return;
           }
 
-          const relativeBeat = parsed.absoluteBeat - activeMidiRegion.getStartFromBeat();
-          if (relativeBeat < 0) {
+          const relativeTick = parsed.absoluteTick - activeMidiRegion.getStartTick();
+          if (relativeTick < 0) {
             await showAlert('Position cannot be earlier than the start of the current MIDI region.');
             return;
           }
 
           for (const { event } of targetControllerEvents) {
-            updates.push({ controllerEventId: event.getId(), beat: relativeBeat });
+            updates.push({ controllerEventId: event.getId(), tick: relativeTick });
           }
         }
       }
@@ -792,11 +792,11 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
     const quantizationStep = 4 / denominator;
     selectedNotes.forEach(note => {
-      const currentStartBeat = note.getStartBeat();
-      const duration = note.getEndBeat() - currentStartBeat;
-      const quantizedStartBeat = Math.round(currentStartBeat / quantizationStep) * quantizationStep;
-      note.setStartBeat(quantizedStartBeat);
-      note.setEndBeat(quantizedStartBeat + duration);
+      const currentStartTick = note.getStartTick();
+      const duration = note.getEndTick() - currentStartTick;
+      const quantizedStartTick = Math.round(currentStartTick / quantizationStep) * quantizationStep;
+      note.setStartTick(quantizedStartTick);
+      note.setEndTick(quantizedStartTick + duration);
     });
 
     void updateTrack(parentTrack);
@@ -814,14 +814,14 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
 
     const quantizationStep = 4 / denominator;
     selectedNotes.forEach(note => {
-      const startBeat = note.getStartBeat();
-      const currentDuration = note.getEndBeat() - startBeat;
+      const startTick = note.getStartTick();
+      const currentDuration = note.getEndTick() - startTick;
       let quantizedDuration = currentDuration < quantizationStep
         ? quantizationStep
         : Math.round(currentDuration / quantizationStep) * quantizationStep;
 
       quantizedDuration = Math.max(PIANO_ROLL_CONSTANTS.MIN_NOTE_LENGTH, quantizedDuration);
-      note.setEndBeat(startBeat + quantizedDuration);
+      note.setEndTick(startTick + quantizedDuration);
     });
 
     void updateTrack(parentTrack);
@@ -832,7 +832,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
     event.stopPropagation();
     if (!activeMidiRegion || !parentTrack) return;
 
-    const regionRelativePlayhead = Math.max(0, playheadPosition - activeMidiRegion.getStartFromBeat());
+    const regionRelativePlayhead = Math.max(0, playheadTick - activeMidiRegion.getStartTick());
 
     if (addEventType === 'note') {
       const lastSelectedNoteId = [...selectedNoteIds]
@@ -843,7 +843,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
         : null;
 
       const defaultLength = lastSelectedNote
-        ? lastSelectedNote.getEndBeat() - lastSelectedNote.getStartBeat()
+        ? lastSelectedNote.getEndTick() - lastSelectedNote.getStartTick()
         : KGPianoRollState.instance().getLastEditedNoteLength();
       const defaultPitch = lastSelectedNote ? lastSelectedNote.getPitch() : noteNameToPitch('C4');
       const defaultVelocity = lastSelectedNote
@@ -875,7 +875,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
     } else if (addEventType === 'pitch-bend') {
       const command = new CreateMidiEventsCommand([], [{
         regionId: activeMidiRegion.getId(),
-        beat: regionRelativePlayhead,
+        tick: regionRelativePlayhead,
         value: MIDI_PITCH_BEND_CENTER,
       }]);
 
@@ -900,7 +900,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
       const command = new CreateMidiEventsCommand([], [], [{
         regionId: activeMidiRegion.getId(),
         controller: lastSelectedController,
-        beat: regionRelativePlayhead,
+        tick: regionRelativePlayhead,
         value: 127,
       }]);
 
@@ -1023,13 +1023,13 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
             <EventListPlayhead
               rows={eventRows.map(row => ({
                 id: row.id,
-                beat: normalizeEventListPlayheadBeat(
-                  row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat,
+                tick: normalizeEventListPlayheadTick(
+                  row.type === 'note' ? row.absoluteStartTick : row.absoluteTick,
                   MIDI_EVENT_TICKS_PER_BEAT,
                 ),
               }))}
-              playheadPosition={playheadPosition}
-              songEndBeat={maxBars * timeSignature.numerator}
+              playheadTick={playheadTick}
+              songEndTick={maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator)}
             />
             <table className="event-list-table">
               <thead>
@@ -1043,8 +1043,8 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
               </thead>
               <tbody>
                 {eventRows.map((row, index) => {
-                  const absoluteBeat = row.type === 'note' ? row.absoluteStartBeat : row.absoluteBeat;
-                  const positionText = formatMidiEventPosition(absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+                  const absoluteTick = row.type === 'note' ? row.absoluteStartTick : row.absoluteTick;
+                  const positionText = formatMidiEventPosition(absoluteTick, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
                   const statusText = row.type === 'note'
                     ? t('eventList.region.status.note')
                     : row.type === 'pitch-bend'
@@ -1061,7 +1061,7 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
                       ? String(midiPitchBendToSignedValue(row.pitchBend.getValue()))
                       : String(row.controllerEvent.getValue());
                   const lengthText = row.type === 'note'
-                    ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT)
+                    ? formatMidiEventLength(row.durationTicks, MIDI_EVENT_TICKS_PER_BEAT)
                     : row.type === 'pitch-bend'
                       ? formatPitchBendInfo(row.pitchBend.getValue())
                       : `Raw ${row.controllerEvent.getValue()}`;

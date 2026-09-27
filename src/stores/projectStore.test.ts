@@ -7,11 +7,14 @@ import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { createDefaultGlobalTracks } from '../core/global-track';
-import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
+import { getAudioRegionDisplayLengthTicks } from '../util/globalTrackUtil';
 import type { KGProject } from '../core/KGProject';
+import { quarterNotesToTicks } from '../core/timing';
 
 const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
+  setLastEditedNoteLength: vi.fn(),
+  setLastEditedNoteVelocity: vi.fn(),
   setPianoRollZoom: vi.fn(),
   setCurrentSnap: vi.fn(),
 }));
@@ -42,7 +45,7 @@ let mockIsSnappingEnabled = true;
 let mockSnappingMode: 'bar' | 'beat' = 'beat';
 let mockRightPanel: 'musicGenerator' | 'musicAssistant' | 'eventList' | null = 'musicAssistant';
 const mockPianoRollSnapping = 'none' as const;
-let mockPlayheadPosition = 0;
+let mockPlayheadTick = 0;
 let mockProjectName = 'Test Project';
 let mockSelectedItems: Array<{ getId: () => string; select: () => void; deselect: () => void; isSelected: () => boolean }> = [];
 let mockCopiedItems: Array<{ getId: () => string }> = [];
@@ -80,9 +83,9 @@ const mockProject = {
   }),
   getPianoRollSnapping: () => mockPianoRollSnapping,
   setPianoRollSnapping: vi.fn(),
-  getPlayheadPosition: () => mockPlayheadPosition,
-  setPlayheadPosition: vi.fn((position: number) => {
-    mockPlayheadPosition = position;
+  getPlayheadTick: () => mockPlayheadTick,
+  setPlayheadTick: vi.fn((position: number) => {
+    mockPlayheadTick = position;
   }),
   getLoopingRange: () => [0, 0] as [number, number],
   getPianoRollZoom: () => 1,
@@ -145,9 +148,9 @@ const mockCore = {
   }),
   getStatus: () => 'Ready',
   setStatus: vi.fn(),
-  getPlayheadPosition: () => mockPlayheadPosition,
-  setPlayheadPosition: vi.fn((position: number) => {
-    mockPlayheadPosition = position;
+  getPlayheadTick: () => mockPlayheadTick,
+  setPlayheadTick: vi.fn((position: number) => {
+    mockPlayheadTick = position;
   }),
   seekDuringPlayback: vi.fn().mockResolvedValue(true),
   getIsPlaying: () => false,
@@ -205,18 +208,20 @@ describe('projectStore piano roll state', () => {
     vi.useFakeTimers();
     vi.resetModules();
     pianoRollStateMocks.setSheetMusicViewEnabled.mockReset();
+    pianoRollStateMocks.setLastEditedNoteLength.mockReset();
+    pianoRollStateMocks.setLastEditedNoteVelocity.mockReset();
     pianoRollStateMocks.setPianoRollZoom.mockReset();
     pianoRollStateMocks.setCurrentSnap.mockReset();
     mockTracks = [new KGMidiTrack('Track 1', 0, 'acoustic_grand_piano')];
     currentProject = mockProject;
-    mockPlayheadPosition = 0;
+    mockPlayheadTick = 0;
     mockProjectName = 'Test Project';
     mockCore.startPlaying.mockReset();
     mockCore.startPlaying.mockResolvedValue(undefined);
     mockCore.stopPlaying.mockReset();
     mockCore.stopPlaying.mockResolvedValue(undefined);
     mockCore.executeCommand.mockReset();
-    mockCore.setPlayheadPosition.mockClear();
+    mockCore.setPlayheadTick.mockClear();
     mockCore.seekDuringPlayback.mockReset();
     mockCore.seekDuringPlayback.mockResolvedValue(true);
     mockCore.undo.mockReset();
@@ -260,7 +265,7 @@ describe('projectStore piano roll state', () => {
     mockProject.setIsSnappingEnabled.mockClear();
     mockProject.setSnappingMode.mockClear();
     mockProject.setRightPanel.mockClear();
-    mockProject.setPlayheadPosition.mockClear();
+    mockProject.setPlayheadTick.mockClear();
     configValues.set('audio.input_device_id', 'default');
     configValues.delete('chatbox.default_open');
   });
@@ -417,6 +422,14 @@ describe('projectStore piano roll state', () => {
     expect(pianoRollStateMocks.setCurrentSnap).toHaveBeenCalledWith('none');
   });
 
+  it('resets the default piano-roll note length to one quarter note in ticks', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    await useProjectStore.getState().loadProject(null);
+
+    expect(pianoRollStateMocks.setLastEditedNoteLength).toHaveBeenCalledWith(quarterNotesToTicks(1));
+  });
+
   it('does not let the global chat preference override a loaded project', async () => {
     configValues.set('chatbox.default_open', false);
     const { useProjectStore } = await import('./projectStore');
@@ -553,10 +566,10 @@ describe('projectStore piano roll state', () => {
     const { useProjectStore } = await import('./projectStore');
     useProjectStore.setState({ isPlaying: true, isRecording: false });
 
-    const accepted = await useProjectStore.getState().seekPlayheadPosition(12);
+    const accepted = await useProjectStore.getState().seekPlayheadTick(12);
 
     expect(accepted).toBe(true);
-    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(12);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(12);
     expect(mockCore.seekDuringPlayback).toHaveBeenCalledWith(12);
     expect(useProjectStore.getState().isPlaying).toBe(true);
   });
@@ -571,21 +584,21 @@ describe('projectStore piano roll state', () => {
       timeSignature: { numerator: 4, denominator: 4 },
     });
 
-    await expect(useProjectStore.getState().seekPlayheadPosition(7)).resolves.toBe(false);
-    await expect(useProjectStore.getState().seekPlayheadPosition(16)).resolves.toBe(false);
+    await expect(useProjectStore.getState().seekPlayheadTick(7)).resolves.toBe(false);
+    await expect(useProjectStore.getState().seekPlayheadTick(16)).resolves.toBe(false);
 
-    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(mockProject.setPlayheadTick).not.toHaveBeenCalled();
     expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
-    expect(useProjectStore.getState().playheadPosition).toBe(0);
+    expect(useProjectStore.getState().playheadTick).toBe(0);
   });
 
   it('ignores user seeks while recording', async () => {
     const { useProjectStore } = await import('./projectStore');
     useProjectStore.setState({ isPlaying: true, isRecording: true });
 
-    await expect(useProjectStore.getState().seekPlayheadPosition(8)).resolves.toBe(false);
+    await expect(useProjectStore.getState().seekPlayheadTick(8)).resolves.toBe(false);
 
-    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
+    expect(mockProject.setPlayheadTick).not.toHaveBeenCalled();
     expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
   });
 
@@ -594,11 +607,11 @@ describe('projectStore piano roll state', () => {
     const { useProjectStore } = await import('./projectStore');
     useProjectStore.setState({ isPlaying: true, isRecording: false });
 
-    await expect(useProjectStore.getState().seekPlayheadPosition(10)).resolves.toBe(false);
+    await expect(useProjectStore.getState().seekPlayheadTick(10)).resolves.toBe(false);
 
-    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(10);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(10);
     expect(useProjectStore.getState().isPlaying).toBe(false);
-    expect(useProjectStore.getState().playheadPosition).toBe(10);
+    expect(useProjectStore.getState().playheadTick).toBe(10);
     expect(mockCore.setStatus).toHaveBeenCalled();
   });
 
@@ -612,7 +625,7 @@ describe('projectStore piano roll state', () => {
 
     act(() => {
       useProjectStore.getState().setSelectedTrack('1');
-      useProjectStore.getState().setPlayheadPosition(8);
+      useProjectStore.getState().setPlayheadTick(quarterNotesToTicks(8));
     });
 
     await act(async () => {
@@ -627,7 +640,7 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.startPlaying).toHaveBeenCalledWith({ preserveLoopPreroll: false });
     expect(mockAudioInterface.startAudioRecording).toHaveBeenCalled();
     expect(useProjectStore.getState().recordingMode).toBe('audio');
-    expect(useProjectStore.getState().recordingCommitStartBeatAbsolute).toBe(8);
+    expect(useProjectStore.getState().recordingCommitStartTickAbsolute).toBe(quarterNotesToTicks(8));
 
     await act(async () => {
       await useProjectStore.getState().stopTransport();
@@ -636,7 +649,7 @@ describe('projectStore piano roll state', () => {
     expect(mockAudioInterface.stopAudioRecording).toHaveBeenCalled();
     expect(useProjectStore.getState().isRecording).toBe(false);
     expect(useProjectStore.getState().recordingMode).toBeNull();
-    expect(useProjectStore.getState().playheadPosition).toBe(8);
+    expect(useProjectStore.getState().playheadTick).toBe(quarterNotesToTicks(8));
   });
 
   it('bumps track automation redraw version on undo and redo', async () => {
@@ -839,7 +852,18 @@ describe('projectStore piano roll state', () => {
 
     const audioTrack = new TestAudioTrack('Audio 1', 1);
     audioTrack.setTrackIndex(0);
-    const audioRegion = new TestAudioRegion('audio-region-1', '1', 0, 'clip.wav', 124, 4, 'audio-file-1.wav', 'clip.wav', 8, 0);
+    const audioRegion = new TestAudioRegion(
+      'audio-region-1',
+      '1',
+      0,
+      'clip.wav',
+      quarterNotesToTicks(124),
+      quarterNotesToTicks(4),
+      'audio-file-1.wav',
+      'clip.wav',
+      8,
+      0,
+    );
     audioTrack.setRegions([audioRegion]);
 
     let projectName = 'Test Project';
@@ -892,8 +916,8 @@ describe('projectStore piano roll state', () => {
     expect(bpm).toBe(60);
     expect(maxBars).toBe(33);
     expect(state.maxBars).toBe(33);
-    expect(audioRegion.getLength()).toBeCloseTo(8);
-    expect(getAudioRegionDisplayLengthBeats(project as unknown as KGProject, audioRegion)).toBeCloseTo(8);
+    expect(audioRegion.getLengthTicks()).toBe(quarterNotesToTicks(8));
+    expect(getAudioRegionDisplayLengthTicks(project as unknown as KGProject, audioRegion)).toBe(quarterNotesToTicks(8));
   });
 
   it('does not auto-shrink max bars after BPM increase', async () => {
@@ -903,7 +927,18 @@ describe('projectStore piano roll state', () => {
     const audioTrack = new TestAudioTrack('Audio 1', 1);
     audioTrack.setTrackIndex(0);
     audioTrack.setRegions([
-      new TestAudioRegion('audio-region-1', '1', 0, 'clip.wav', 124, 8, 'audio-file-1.wav', 'clip.wav', 4, 0),
+      new TestAudioRegion(
+        'audio-region-1',
+        '1',
+        0,
+        'clip.wav',
+        quarterNotesToTicks(124),
+        quarterNotesToTicks(8),
+        'audio-file-1.wav',
+        'clip.wav',
+        4,
+        0,
+      ),
     ]);
 
     let projectName = 'Test Project';
@@ -956,12 +991,12 @@ describe('projectStore piano roll state', () => {
     expect(bpm).toBe(180);
     expect(maxBars).toBe(40);
     expect(state.maxBars).toBe(40);
-    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(12);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLengthTicks()).toBe(quarterNotesToTicks(12));
   });
 
   it('moves the playhead to the song end when max bars shrink past it', async () => {
     const { KGProject } = await import('../core/KGProject');
-    mockPlayheadPosition = 124;
+    mockPlayheadTick = 124;
 
     currentProject = new KGProject('Test Project', 32, 0, 120) as unknown as typeof mockProject;
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
@@ -974,10 +1009,10 @@ describe('projectStore piano roll state', () => {
 
     const state = useProjectStore.getState();
     expect(currentProject.getMaxBars()).toBe(16);
-    expect(mockPlayheadPosition).toBe(64);
-    expect(mockCore.setPlayheadPosition).toHaveBeenCalledWith(64);
+    expect(mockPlayheadTick).toBe(64);
+    expect(mockCore.setPlayheadTick).toHaveBeenCalledWith(64);
     expect(state.maxBars).toBe(16);
-    expect(state.playheadPosition).toBe(64);
+    expect(state.playheadTick).toBe(64);
   });
 
   it('inserts a new MIDI track below the selected track', async () => {
@@ -1056,9 +1091,9 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.clearSelectedItems).toHaveBeenCalledTimes(1);
     expect(mockCore.addSelectedItems).toHaveBeenCalledWith(pastedNotes);
     expect(state.selectedNoteIds).toEqual(pastedNoteIds);
-    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(13);
-    expect(mockCore.setPlayheadPosition).toHaveBeenCalledWith(13);
-    expect(state.playheadPosition).toBe(13);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(13);
+    expect(mockCore.setPlayheadTick).toHaveBeenCalledWith(13);
+    expect(state.playheadTick).toBe(13);
   });
 
   it('keeps selection unchanged when note paste has no clipboard notes', async () => {
@@ -1123,9 +1158,9 @@ describe('projectStore piano roll state', () => {
 
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
     expect(pastedRegions).toHaveLength(2);
-    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(19);
-    expect(mockCore.setPlayheadPosition).toHaveBeenCalledWith(19);
-    expect(state.playheadPosition).toBe(19);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(19);
+    expect(mockCore.setPlayheadTick).toHaveBeenCalledWith(19);
+    expect(state.playheadTick).toBe(19);
   });
 
   it('pastes multi-track regions to their original tracks and advances to the latest end', async () => {
@@ -1156,10 +1191,10 @@ describe('projectStore piano roll state', () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(firstTrack.getRegions().map(region => region.getStartFromBeat())).toEqual([10]);
-    expect(secondTrack.getRegions().map(region => region.getStartFromBeat())).toEqual([13]);
-    expect(mockProject.setPlayheadPosition).toHaveBeenCalledWith(19);
-    expect(useProjectStore.getState().playheadPosition).toBe(19);
+    expect(firstTrack.getRegions().map(region => region.getStartTick())).toEqual([10]);
+    expect(secondTrack.getRegions().map(region => region.getStartTick())).toEqual([13]);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(19);
+    expect(useProjectStore.getState().playheadTick).toBe(19);
     expect(maxBars).toBe(5);
     expect(useProjectStore.getState().maxBars).toBe(5);
     expect(document.documentElement.style.getPropertyValue('--max-number-of-bars')).toBe('5');
@@ -1190,7 +1225,7 @@ describe('projectStore piano roll state', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('Some of the original tracks are no longer available');
     expect(availableTrack.getRegions()).toHaveLength(0);
-    expect(mockProject.setPlayheadPosition).not.toHaveBeenCalled();
-    expect(useProjectStore.getState().playheadPosition).toBe(0);
+    expect(mockProject.setPlayheadTick).not.toHaveBeenCalled();
+    expect(useProjectStore.getState().playheadTick).toBe(0);
   });
 });

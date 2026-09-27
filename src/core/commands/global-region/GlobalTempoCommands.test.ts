@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
+import { TICKS_PER_QUARTER } from '../../timing';
 import { GlobalTrackType } from '../../global-track';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGTempoRegion } from '../../region/KGTempoRegion';
@@ -47,7 +48,7 @@ describe('global tempo region commands', () => {
   it('creates additional regions by splitting the covered span and inheriting BPM', () => {
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('left', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 8, 4),
+      new KGTempoRegion('left', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new CreateTempoRegionCommand(5);
@@ -64,8 +65,8 @@ describe('global tempo region commands', () => {
   it('resizes a shared boundary and keeps the track gapless', () => {
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('left', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 4, 4),
-      new KGTempoRegion('right', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 4, 4, 4),
+      new KGTempoRegion('left', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 4, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('right', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 4, 4, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new ResizeTempoRegionCommand('left', 'end', 6);
@@ -80,9 +81,9 @@ describe('global tempo region commands', () => {
   it('deletes a middle region by extending the previous region', () => {
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('first', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 2, 4),
-      new KGTempoRegion('middle', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 2, 3, 4),
-      new KGTempoRegion('last', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 5, 3, 4),
+      new KGTempoRegion('first', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('middle', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 2, 3, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('last', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 5, 3, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new DeleteTempoRegionCommand('middle');
@@ -97,7 +98,7 @@ describe('global tempo region commands', () => {
   it('allows deleting the last remaining region', () => {
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('only', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('only', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new DeleteTempoRegionCommand('only');
@@ -111,7 +112,7 @@ describe('global tempo region commands', () => {
   it('updates the region tempo with undo support', () => {
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('region', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('region', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new UpdateTempoRegionCommand('region', 150);
@@ -125,21 +126,21 @@ describe('global tempo region commands', () => {
     const project = KGCore.instance().getCurrentProject();
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('region', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('region', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const audioTrack = new KGAudioTrack('Audio', 1);
     audioTrack.setRegions([
-      new KGAudioRegion('audio', '1', 0, 'Audio', 28, 4, 'file', 'file.wav', 8, 0),
+      new KGAudioRegion('audio', '1', 0, 'Audio', 28 * TICKS_PER_QUARTER, 4 * TICKS_PER_QUARTER, 'file', 'file.wav', 8, 0),
     ]);
     project.setTracks([audioTrack]);
 
     const command = new UpdateTempoRegionCommand('region', 60);
     command.execute();
     expect(project.getMaxBars()).toBe(9);
-    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(8);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLengthTicks()).toBeCloseTo(8 * TICKS_PER_QUARTER);
     command.undo();
     expect(project.getMaxBars()).toBe(8);
-    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(4);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLengthTicks()).toBeCloseTo(4 * TICKS_PER_QUARTER);
   });
 });

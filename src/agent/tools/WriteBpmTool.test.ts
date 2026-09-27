@@ -5,6 +5,7 @@ import { KGCore } from '../../core/KGCore';
 import { KGTempoRegion } from '../../core/region/KGTempoRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -75,8 +76,8 @@ describe('WriteBpmTool', () => {
     const project = new KGProject('explicit-write-project', 8, 0, 120, { numerator: 4, denominator: 4 });
     const track = getTempoTrack(project);
     track.setRegions([
-      new KGTempoRegion('existing-1', track.getId(), track.getTrackIndex(), 120, 0, 2, 4),
-      new KGTempoRegion('existing-2', track.getId(), track.getTrackIndex(), 140, 2, 6, 4),
+      new KGTempoRegion('existing-1', track.getId(), track.getTrackIndex(), 120, 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('existing-2', track.getId(), track.getTrackIndex(), 140, 2, 6, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -100,7 +101,7 @@ describe('WriteBpmTool', () => {
       { bpm: 128, startBar: 2, lengthBars: 2 },
       { bpm: 144, startBar: 4, lengthBars: 4 },
     ]);
-    expect(result.result).toContain('128 BPM from beat 8 (bar 3)');
+    expect(result.result).toContain('128 BPM from quarter-note 8 (bar 3)');
   });
 
   it('rejects an empty BPM list', async () => {

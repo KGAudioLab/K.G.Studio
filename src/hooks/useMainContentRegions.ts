@@ -14,7 +14,7 @@ import type { RegionClickOptions, RegionUI } from '../components/interfaces';
 import { DEBUG_MODE } from '../constants';
 import { useProjectStore } from '../stores/projectStore';
 import { useRegionOperations } from './useRegionOperations';
-import { getAudioRegionDisplayLengthBeats } from '../util/globalTrackUtil';
+import { getAudioRegionDisplayLengthTicks } from '../util/globalTrackUtil';
 import { resolveRegionColor } from '../util/regionColor';
 import type { PianoRollMode } from '../constants';
 
@@ -61,7 +61,7 @@ export interface UseMainContentRegionsResult {
   handleRegionUpdated: (
     regionId: string,
     updates: Partial<RegionUI>,
-    expectedModelUpdates?: { startBeat: number; length: number }
+    expectedModelUpdates?: { startTick: number; length: number }
   ) => void;
   handleRegionClick: (regionId: string, options?: RegionClickOptions) => void;
   handleRegionLassoSelection: (regionIds: string[], options?: RegionClickOptions) => void;
@@ -95,7 +95,7 @@ export function useMainContentRegions({
 }: UseMainContentRegionsParams): UseMainContentRegionsResult {
   const [regions, setRegions] = useState<RegionUI[]>([]);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
-  const pendingUpdates = useRef<Map<string, { trackId: string; regionId: string; startBeat: number; length: number }>>(new Map());
+  const pendingUpdates = useRef<Map<string, { trackId: string; regionId: string; startTick: number; length: number }>>(new Map());
   const preventEmptyMainContentDeselectRef = useRef(false);
   const pendingAutoSelectionRegionIdRef = useRef<string | null>(null);
 
@@ -143,7 +143,7 @@ export function useMainContentRegions({
     pendingUpdates.current.clear();
 
     updates.forEach(update => {
-      const { trackId, regionId, startBeat, length } = update;
+      const { trackId, regionId, startTick, length } = update;
       const track = tracks.find(candidate => candidate.getId().toString() === trackId);
       if (!track) {
         return;
@@ -152,9 +152,9 @@ export function useMainContentRegions({
       const region = track.getRegions().find(candidate => candidate.getId() === regionId);
       if (region && DEBUG_MODE.MAIN_CONTENT) {
         console.log(`Verification - Region ${regionId} in track ${trackId}:`);
-        console.log(`  Expected: startBeat=${startBeat}, length=${length}`);
-        console.log(`  Actual: startBeat=${region.getStartFromBeat()}, length=${region.getLength()}, trackId=${region.getTrackId()}, trackIndex=${region.getTrackIndex()}`);
-        const success = region.getStartFromBeat() === startBeat && region.getLength() === length && region.getTrackId() === trackId;
+        console.log(`  Expected: startTick=${startTick}, length=${length}`);
+        console.log(`  Actual: startTick=${region.getStartTick()}, length=${region.getLengthTicks()}, trackId=${region.getTrackId()}, trackIndex=${region.getTrackIndex()}`);
+        const success = region.getStartTick() === startTick && region.getLengthTicks() === length && region.getTrackId() === trackId;
         console.log(`  Update successful: ${success}`);
       }
     });
@@ -169,12 +169,12 @@ export function useMainContentRegions({
 
       track.getRegions().forEach(region => {
         if (region instanceof KGMidiRegion || region instanceof KGAudioRegion) {
-          const beatsPerBar = timeSignature.numerator;
-          const barNumber = (region.getStartFromBeat() / beatsPerBar) + 1;
+          const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+          const barNumber = (region.getStartTick() / ticksPerBar) + 1;
           const lengthBeats = region instanceof KGAudioRegion
-            ? getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), region)
-            : region.getLength();
-          const length = lengthBeats / beatsPerBar;
+            ? getAudioRegionDisplayLengthTicks(KGCore.instance().getCurrentProject(), region)
+            : region.getLengthTicks();
+          const length = lengthBeats / ticksPerBar;
 
           updatedRegions.push({
             id: region.getId(),
@@ -303,10 +303,10 @@ export function useMainContentRegions({
       .sort((left, right) => {
         const leftStart = left instanceof KGTempoRegion || left instanceof KGKeySignatureRegion
           ? left.getStartBar()
-          : Math.round(left.getStartFromBeat() / timeSignature.numerator);
+          : left.getStartTick();
         const rightStart = right instanceof KGTempoRegion || right instanceof KGKeySignatureRegion
           ? right.getStartBar()
-          : Math.round(right.getStartFromBeat() / timeSignature.numerator);
+          : right.getStartTick();
 
         if (leftStart !== rightStart) {
           return leftStart - rightStart;
@@ -314,10 +314,10 @@ export function useMainContentRegions({
 
         const leftLength = left instanceof KGTempoRegion || left instanceof KGKeySignatureRegion
           ? left.getLengthBars()
-          : left.getLength();
+          : left.getLengthTicks();
         const rightLength = right instanceof KGTempoRegion || right instanceof KGKeySignatureRegion
           ? right.getLengthBars()
-          : right.getLength();
+          : right.getLengthTicks();
 
         if (leftLength !== rightLength) {
           return leftLength - rightLength;
@@ -602,7 +602,7 @@ export function useMainContentRegions({
   const handleRegionUpdated = useCallback((
     regionId: string,
     updates: Partial<RegionUI>,
-    expectedModelUpdates?: { startBeat: number; length: number }
+    expectedModelUpdates?: { startTick: number; length: number }
   ) => {
     if (DEBUG_MODE.MAIN_CONTENT) {
       console.log(`Updating region ${regionId} with:`, updates);
@@ -646,7 +646,7 @@ export function useMainContentRegions({
           pendingUpdates.current.set(key, {
             trackId: updates.trackId,
             regionId,
-            startBeat: expectedModelUpdates.startBeat,
+            startTick: expectedModelUpdates.startTick,
             length: expectedModelUpdates.length,
           });
         }
@@ -660,29 +660,29 @@ export function useMainContentRegions({
         if (midiRegion) {
           if (expectedModelUpdates) {
             if (DEBUG_MODE.MAIN_CONTENT) {
-              console.log(`MainContent - Expected model updates: startBeat=${expectedModelUpdates.startBeat}, length=${expectedModelUpdates.length}`);
+              console.log(`MainContent - Expected model updates: startTick=${expectedModelUpdates.startTick}, length=${expectedModelUpdates.length}`);
             }
 
             const key = `${track.getId()}-${regionId}-${Date.now()}`;
             pendingUpdates.current.set(key, {
               trackId: track.getId().toString(),
               regionId,
-              startBeat: expectedModelUpdates.startBeat,
+              startTick: expectedModelUpdates.startTick,
               length: expectedModelUpdates.length,
             });
           } else {
-            const startBeat = midiRegion.getStartFromBeat();
-            const length = midiRegion.getLength();
+            const startTick = midiRegion.getStartTick();
+            const length = midiRegion.getLengthTicks();
 
             if (DEBUG_MODE.MAIN_CONTENT) {
-              console.log(`MainContent - Region before store update: startBeat=${startBeat}, length=${length}`);
+              console.log(`MainContent - Region before store update: startTick=${startTick}, length=${length}`);
             }
 
             const key = `${track.getId()}-${regionId}-${Date.now()}`;
             pendingUpdates.current.set(key, {
               trackId: track.getId().toString(),
               regionId,
-              startBeat,
+              startTick,
               length,
             });
           }

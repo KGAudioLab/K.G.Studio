@@ -7,20 +7,20 @@ import {
   DEFAULT_MARKER_REGION_NAME,
   findGlobalTrackByType,
   findMarkerNeighborBounds,
-  getSongEndBeat,
+  getSongEndTick,
 } from '../../../util/globalTrackUtil';
 
 export class CreateGlobalMarkerRegionCommand extends KGCommand {
-  private readonly startBeat: number;
+  private readonly startTick: number;
   private readonly preferredLength: number;
   private readonly regionId: string;
   private readonly initialName: string;
   private createdRegion: KGMarkerRegion | null = null;
   private originalRegionIndex = -1;
 
-  constructor(startBeat: number, preferredLength: number, initialName: string = DEFAULT_MARKER_REGION_NAME, regionId?: string) {
+  constructor(startTick: number, preferredLength: number, initialName: string = DEFAULT_MARKER_REGION_NAME, regionId?: string) {
     super();
-    this.startBeat = startBeat;
+    this.startTick = startTick;
     this.preferredLength = preferredLength;
     this.initialName = initialName;
     this.regionId = regionId ?? generateUniqueId('KGMarkerRegion');
@@ -33,23 +33,23 @@ export class CreateGlobalMarkerRegionCommand extends KGCommand {
       throw new Error('Marker global track not found');
     }
 
-    const { maxEndBeat } = findMarkerNeighborBounds(project, null, this.startBeat);
-    const songEndBeat = getSongEndBeat(project);
-    const allowedEndBeat = Math.min(maxEndBeat, songEndBeat);
-    const targetEndBeat = Math.min(this.startBeat + this.preferredLength, allowedEndBeat);
-    const length = Math.max(1, targetEndBeat - this.startBeat);
+    const { maxEndTick } = findMarkerNeighborBounds(project, null, this.startTick);
+    const songEndTick = getSongEndTick(project);
+    const allowedEndTick = Math.min(maxEndTick, songEndTick);
+    const targetEndTick = Math.min(this.startTick + this.preferredLength, allowedEndTick);
+    const length = Math.max(1, targetEndTick - this.startTick);
 
     this.createdRegion = new KGMarkerRegion(
       this.regionId,
       markerTrack.getId(),
       markerTrack.getTrackIndex(),
       this.initialName,
-      this.startBeat,
+      this.startTick,
       length
     );
 
     const regions = [...markerTrack.getRegions(), this.createdRegion]
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
     this.originalRegionIndex = regions.findIndex(region => region.getId() === this.regionId);
     markerTrack.setRegions(regions);
   }

@@ -7,26 +7,26 @@ import {
 
 export interface EventListPlayheadRow {
   id: string;
-  beat: number;
+  tick: number;
 }
 
 interface EventListPlayheadProps {
   rows: EventListPlayheadRow[];
-  playheadPosition: number;
-  songEndBeat: number;
+  playheadTick: number;
+  songEndTick: number;
 }
 
 const EventListPlayhead: React.FC<EventListPlayheadProps> = ({
   rows,
-  playheadPosition,
-  songEndBeat,
+  playheadTick,
+  songEndTick,
 }) => {
   const [anchors, setAnchors] = useState<EventListPlayheadAnchor[]>([]);
   const markerRef = useRef<HTMLSpanElement | null>(null);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const rowLayoutKey = useMemo(
-    () => rows.map(row => `${row.id}:${row.beat}`).join('|'),
+    () => rows.map(row => `${row.id}:${row.tick}`).join('|'),
     [rows],
   );
 
@@ -54,13 +54,13 @@ const EventListPlayhead: React.FC<EventListPlayheadProps> = ({
       const measurements = rowsRef.current.map((row, index) => {
         const rect = renderedRows[index].getBoundingClientRect();
         return {
-          beat: row.beat,
+          tick: row.tick,
           top: rect.top - shellContentTop + shell.scrollTop,
           bottom: rect.bottom - shellContentTop + shell.scrollTop,
         };
       });
 
-      setAnchors(buildEventListPlayheadAnchors(measurements, songEndBeat, bodyTop));
+      setAnchors(buildEventListPlayheadAnchors(measurements, songEndTick, bodyTop));
     };
 
     measure();
@@ -76,9 +76,9 @@ const EventListPlayhead: React.FC<EventListPlayheadProps> = ({
       resizeObserver?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [rowLayoutKey, rows.length, songEndBeat]);
+  }, [rowLayoutKey, rows.length, songEndTick]);
 
-  const y = interpolateEventListPlayheadY(playheadPosition, anchors);
+  const y = interpolateEventListPlayheadY(playheadTick, anchors);
   return (
     <>
       <span ref={markerRef} className="event-list-playhead-anchor" aria-hidden="true" />

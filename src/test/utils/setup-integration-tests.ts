@@ -90,18 +90,18 @@ export const createMockRegion = (name = 'Test Region') => {
   return {
     id: `region-${Date.now()}`,
     name,
-    startBeat: 0,
-    endBeat: 4,
+    startTick: 0,
+    endTick: 4,
     notes: [],
   };
 };
 
-export const createMockNote = (pitch = 60, startBeat = 0, endBeat = 1) => {
+export const createMockNote = (pitch = 60, startTick = 0, endTick = 1) => {
   return {
     id: `note-${Date.now()}`,
     pitch,
-    startBeat,
-    endBeat,
+    startTick,
+    endTick,
     velocity: 100,
   };
 };

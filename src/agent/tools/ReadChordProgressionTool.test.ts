@@ -4,6 +4,9 @@ import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGCore } from '../../core/KGCore';
@@ -24,14 +27,14 @@ function buildProjectWithRegionAndOptionalChords(chords: string[] = []): {
 } {
   const project = new KGProject('tool-test', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
   const midiTrack = new KGMidiTrack('Melody', 1);
-  const midiRegion = new KGMidiRegion('midi-region-1', '1', 0, 'Melody Region', 0, 32);
+  const midiRegion = new KGMidiRegion('midi-region-1', '1', 0, 'Melody Region', 0, q(32));
   midiTrack.addRegion(midiRegion);
   project.setTracks([midiTrack]);
 
   const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
   expect(chordTrack).not.toBeNull();
   chords.forEach((symbol, index) => {
-    chordTrack!.addRegion(new KGChordRegion(`chord-${index}`, chordTrack!.getId(), chordTrack!.getTrackIndex(), symbol, index * 4, 4));
+    chordTrack!.addRegion(new KGChordRegion(`chord-${index}`, chordTrack!.getId(), chordTrack!.getTrackIndex(), symbol, q(index * 4), q(4)));
   });
 
   return { project, midiRegion };

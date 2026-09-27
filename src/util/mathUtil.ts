@@ -4,9 +4,9 @@
  */
 
 import type { TimeSignature } from '../types/projectTypes';
-
-// MIDI timing constants
-const TICKS_PER_QUARTER_NOTE = 480;
+import {
+  ticksPerBar as getTimelineTicksPerBar,
+} from '../core/timing';
 
 /**
  * Calculate Greatest Common Divisor (GCD) using Euclidean algorithm
@@ -26,40 +26,12 @@ export function gcd(a: number, b: number): number {
 }
 
 /**
- * Convert beats to MIDI ticks based on time signature
- * @param beats - Duration in beats
- * @param timeSignature - Project time signature
- * @returns Duration in MIDI ticks
- */
-export function beatsToTicks(beats: number, timeSignature: TimeSignature): number {
-  // In different time signatures, the beat unit changes:
-  // 4/4: 1 beat = quarter note = 480 ticks
-  // 4/8: 1 beat = eighth note = 240 ticks
-  // 6/8: 1 beat = eighth note = 240 ticks
-  const ticksPerBeat = TICKS_PER_QUARTER_NOTE * (4 / timeSignature.denominator);
-  return Math.round(beats * ticksPerBeat);
-}
-
-/**
- * Convert MIDI ticks to beats based on time signature
- * @param ticks - Duration in MIDI ticks
- * @param timeSignature - Project time signature
- * @returns Duration in beats
- */
-export function ticksToBeats(ticks: number, timeSignature: TimeSignature): number {
-  const ticksPerBeat = TICKS_PER_QUARTER_NOTE * (4 / timeSignature.denominator);
-  return ticks / ticksPerBeat;
-}
-
-/**
  * Calculate ticks per bar based on time signature
  * @param timeSignature - Project time signature
  * @returns Number of ticks in one bar
  */
 export function getTicksPerBar(timeSignature: TimeSignature): number {
-  const beatsPerBar = timeSignature.numerator;
-  const beatUnit = 4 / timeSignature.denominator; // Quarter note units per beat
-  return beatsPerBar * beatUnit * TICKS_PER_QUARTER_NOTE;
+  return getTimelineTicksPerBar(timeSignature);
 }
 
 /**

@@ -14,12 +14,12 @@ interface UseMainContentViewportParams {
   timeSignature: { numerator: number; denominator: number };
   isPlaying: boolean;
   autoScrollEnabled: boolean;
-  playheadPosition: number;
+  playheadTick: number;
   mainContentScrollRequest: number | null;
   maxBars: number;
   isLooping: boolean;
   loopingRange: [number, number];
-  seekPlayheadPosition: (beatPosition: number) => Promise<boolean>;
+  seekPlayheadTick: (beatPosition: number) => Promise<boolean>;
   requestPianoRollScroll: (beatPosition: number) => void;
   editingRegionIds: string[];
   findProjectRegionById: (regionId: string) => KGGlobalRegion | import('../core/region/KGRegion').KGRegion | null;
@@ -37,12 +37,12 @@ export function useMainContentViewport({
   timeSignature,
   isPlaying,
   autoScrollEnabled,
-  playheadPosition,
+  playheadTick,
   mainContentScrollRequest,
   maxBars,
   isLooping,
   loopingRange,
-  seekPlayheadPosition,
+  seekPlayheadTick,
   requestPianoRollScroll,
   editingRegionIds,
   findProjectRegionById,
@@ -126,8 +126,8 @@ export function useMainContentViewport({
       return;
     }
 
-    const beatsPerBar = timeSignature.numerator;
-    const barPosition = playheadPosition / beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const barPosition = playheadTick / ticksPerBar;
     const barWidth = parseInt(
       getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width'),
       10
@@ -142,7 +142,7 @@ export function useMainContentViewport({
 
     expectedScrollLeftRef.current = clampedScrollLeft;
     container.scrollLeft = clampedScrollLeft;
-  }, [autoScrollEnabled, isPlaying, playheadPosition, timeSignature]);
+  }, [autoScrollEnabled, isPlaying, playheadTick, timeSignature]);
 
   useEffect(() => {
     if (mainContentScrollRequest === null) {
@@ -154,8 +154,8 @@ export function useMainContentViewport({
       return;
     }
 
-    const beatsPerBar = timeSignature.numerator;
-    const barPosition = mainContentScrollRequest / beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const barPosition = mainContentScrollRequest / ticksPerBar;
     const barWidth = parseInt(
       getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width'),
       10
@@ -193,10 +193,9 @@ export function useMainContentViewport({
       getComputedStyle(document.documentElement).getPropertyValue('--track-info-panel-width'),
       10
     ) || 200) + 12;
-    const regionStartBeat = editingRegion instanceof KGTempoRegion || editingRegion instanceof KGKeySignatureRegion
-      ? editingRegion.getStartBar() * timeSignature.numerator
-      : editingRegion.getStartFromBeat();
-    const regionStartPixel = (regionStartBeat / timeSignature.numerator) * barWidth;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const regionStartTick = editingRegion.getStartTick();
+    const regionStartPixel = (regionStartTick / ticksPerBar) * barWidth;
     const minimumVisiblePixel = container.scrollLeft + leftInset;
 
     if (regionStartPixel >= minimumVisiblePixel) {
@@ -226,10 +225,10 @@ export function useMainContentViewport({
     const barIndex = snapBarValue(relativeX / barWidth, {
       enabled: mainContentState.isSnappingEnabled(),
       mode: mainContentState.getSnappingMode(),
-      beatsPerBar: timeSignature.numerator,
+      ticksPerBar: timeSignature.numerator,
     });
     const clampedBarIndex = Math.max(0, barIndex);
-    return clampedBarIndex * timeSignature.numerator;
+    return Math.round(clampedBarIndex * timeSignature.numerator * 960 * (4 / timeSignature.denominator));
   }, [timeSignature]);
 
   const calculateBarIndexFromMouse = useCallback((clientX: number): number | null => {
@@ -347,7 +346,7 @@ export function useMainContentViewport({
         } else {
           const clickPosition = calculatePlayheadFromMouse(event.clientX);
           if (clickPosition !== null) {
-            void seekPlayheadPosition(clickPosition).then(accepted => {
+            void seekPlayheadTick(clickPosition).then(accepted => {
               if (accepted) {
                 requestPianoRollScroll(clickPosition);
               }
@@ -373,7 +372,7 @@ export function useMainContentViewport({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, requestPianoRollScroll, seekPlayheadPosition]);
+  }, [calculateBarIndexFromMouse, calculatePlayheadFromMouse, requestPianoRollScroll, seekPlayheadTick]);
 
   const isBarInLoopRange = useCallback((barIndex: number) => {
     if (!isLooping) {

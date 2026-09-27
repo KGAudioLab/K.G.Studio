@@ -7,8 +7,8 @@ import { KGChordRegion } from '../../core/region/KGChordRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 
 interface ChordProgressionRange {
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   scope: 'region' | 'song';
 }
 
@@ -43,9 +43,10 @@ export class ReadChordProgressionTool extends BaseTool {
       return undefined;
     }
 
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    const startBar = Math.floor(range.startBeat / beatsPerBar) + 1;
-    const endBar = Math.max(1, Math.ceil(range.endBeat / beatsPerBar));
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
+    const startBar = Math.floor(range.startTick / ticksPerBar) + 1;
+    const endBar = Math.max(1, Math.ceil(range.endTick / ticksPerBar));
     return `Read the chord progression from ${startBar === endBar ? `bar ${startBar}` : `bars ${startBar} to ${endBar}`}.`;
   }
 
@@ -67,8 +68,8 @@ export class ReadChordProgressionTool extends BaseTool {
 
       const result = convertBeatRangeChordProgressionToABCNotation(
         this.getCurrentProject(),
-        range.startBeat,
-        range.endBeat,
+        range.startTick,
+        range.endTick,
       );
       return this.createSuccessResult(result);
     } catch (error) {
@@ -80,8 +81,8 @@ export class ReadChordProgressionTool extends BaseTool {
     const resolvedRegion = resolveActiveOrSelectedMidiRegionContext();
     if (resolvedRegion) {
       return {
-        startBeat: resolvedRegion.region.getStartFromBeat(),
-        endBeat: resolvedRegion.region.getStartFromBeat() + resolvedRegion.region.getLength(),
+        startTick: resolvedRegion.region.getStartTick(),
+        endTick: resolvedRegion.region.getStartTick() + resolvedRegion.region.getLengthTicks(),
         scope: 'region',
       };
     }
@@ -97,8 +98,8 @@ export class ReadChordProgressionTool extends BaseTool {
     }
 
     return {
-      startBeat: 0,
-      endBeat: Math.max(...chordRegions.map(region => region.getStartFromBeat() + region.getLength())),
+      startTick: 0,
+      endTick: Math.max(...chordRegions.map(region => region.getStartTick() + region.getLengthTicks())),
       scope: 'song',
     };
   }

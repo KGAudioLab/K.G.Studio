@@ -48,8 +48,8 @@ describe('global marker region commands', () => {
 
     const created = command.getCreatedRegion();
     expect(created).not.toBeNull();
-    expect(created?.getStartFromBeat()).toBe(4);
-    expect(created?.getLength()).toBe(6);
+    expect(created?.getStartTick()).toBe(4);
+    expect(created?.getLengthTicks()).toBe(6);
   });
 
   it('moves a marker region with beat snapping and neighbor clamping', () => {
@@ -64,10 +64,10 @@ describe('global marker region commands', () => {
     const command = new MoveGlobalRegionCommand('middle', 9);
     command.execute();
 
-    expect(region.getStartFromBeat()).toBe(8);
+    expect(region.getStartTick()).toBe(8);
 
     command.undo();
-    expect(region.getStartFromBeat()).toBe(4);
+    expect(region.getStartTick()).toBe(4);
   });
 
   it('resizes a marker region with a minimum length of one beat', () => {
@@ -77,16 +77,16 @@ describe('global marker region commands', () => {
 
     const resizeStartCommand = new ResizeGlobalRegionCommand('marker', 'start', 7);
     resizeStartCommand.execute();
-    expect(region.getStartFromBeat()).toBe(7);
-    expect(region.getLength()).toBe(1);
+    expect(region.getStartTick()).toBe(7);
+    expect(region.getLengthTicks()).toBe(1);
 
     resizeStartCommand.undo();
-    expect(region.getStartFromBeat()).toBe(4);
-    expect(region.getLength()).toBe(4);
+    expect(region.getStartTick()).toBe(4);
+    expect(region.getLengthTicks()).toBe(4);
 
     const resizeEndCommand = new ResizeGlobalRegionCommand('marker', 'end', 5);
     resizeEndCommand.execute();
-    expect(region.getLength()).toBe(1);
+    expect(region.getLengthTicks()).toBe(1);
   });
 
   it('updates text and deletes with undo support', () => {
@@ -115,15 +115,15 @@ describe('global marker region commands', () => {
     ]);
 
     const command = new WriteMarkersCommand([
-      { startBeat: 3, length: 2, name: 'Hit' },
+      { startTick: 3, length: 2, name: 'Hit' },
     ]);
 
     command.execute();
 
     expect((getMarkerTrack().getRegions() as KGMarkerRegion[]).map(region => ({
       name: region.getName(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { name: 'Intro', start: 0, length: 3 },
       { name: 'Hit', start: 3, length: 2 },
@@ -134,8 +134,8 @@ describe('global marker region commands', () => {
 
     expect((getMarkerTrack().getRegions() as KGMarkerRegion[]).map(region => ({
       name: region.getName(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { name: 'Intro', start: 0, length: 8 },
     ]);
@@ -148,16 +148,16 @@ describe('global marker region commands', () => {
     ]);
 
     const command = new WriteMarkersCommand([
-      { startBeat: 2, length: 2, name: 'Rise' },
-      { startBeat: 8, length: 2, name: 'Drop' },
+      { startTick: 2, length: 2, name: 'Rise' },
+      { startTick: 8, length: 2, name: 'Drop' },
     ]);
 
     command.execute();
 
     expect((getMarkerTrack().getRegions() as KGMarkerRegion[]).map(region => ({
       name: region.getName(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { name: 'Scene', start: 0, length: 2 },
       { name: 'Rise', start: 2, length: 2 },

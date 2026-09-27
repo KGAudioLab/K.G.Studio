@@ -5,6 +5,9 @@ import { KGCore } from '../../core/KGCore';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -125,8 +128,8 @@ describe('WriteChordProgressionTool', () => {
     const project = new KGProject('preserve-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const chordTrack = getChordTrack(project);
     chordTrack.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', 8, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(8)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', q(8), q(4)),
     ]);
     mockCore(project);
 
@@ -141,14 +144,14 @@ describe('WriteChordProgressionTool', () => {
     expect(result.success).toBe(true);
     expect((chordTrack.getRegions() as KGChordRegion[]).map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
-      { symbol: 'Am', start: 0, length: 3 },
-      { symbol: 'C', start: 3, length: 2 },
-      { symbol: 'Am', start: 5, length: 3 },
-      { symbol: 'F', start: 8, length: 2 },
-      { symbol: 'G', start: 10, length: 2 },
+      { symbol: 'Am', start: 0, length: q(3) },
+      { symbol: 'C', start: q(3), length: q(2) },
+      { symbol: 'Am', start: q(5), length: q(3) },
+      { symbol: 'F', start: q(8), length: q(2) },
+      { symbol: 'G', start: q(10), length: q(2) },
     ]);
     expect(result.result).toContain('harmonic reference only');
   });

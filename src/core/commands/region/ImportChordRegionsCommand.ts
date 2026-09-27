@@ -12,23 +12,23 @@ import {
 } from '../../../util/chordRegionImportUtil';
 
 interface MidiRegionSnapshot {
-  startBeat: number;
-  lengthInBeats: number;
+  startTick: number;
+  lengthTicks: number;
   notes: KGMidiNote[];
   pitchBends: KGMidiPitchBend[];
   controllerEventsByType: KGMidiControllerEvent[][];
 }
 
-function cloneNote(note: KGMidiNote, startBeat = note.getStartBeat(), endBeat = note.getEndBeat()): KGMidiNote {
-  return new KGMidiNote(note.getId(), startBeat, endBeat, note.getPitch(), note.getVelocity());
+function cloneNote(note: KGMidiNote, startTick: number = note.getStartTick(), endTick: number = note.getEndTick()): KGMidiNote {
+  return new KGMidiNote(note.getId(), startTick, endTick, note.getPitch(), note.getVelocity());
 }
 
-function clonePitchBend(event: KGMidiPitchBend, beat = event.getBeat()): KGMidiPitchBend {
-  return new KGMidiPitchBend(event.getId(), beat, event.getValue());
+function clonePitchBend(event: KGMidiPitchBend, tick: number = event.getTick()): KGMidiPitchBend {
+  return new KGMidiPitchBend(event.getId(), tick, event.getValue());
 }
 
-function cloneControllerEvent(event: KGMidiControllerEvent, beat = event.getBeat()): KGMidiControllerEvent {
-  return new KGMidiControllerEvent(event.getId(), beat, event.getValue());
+function cloneControllerEvent(event: KGMidiControllerEvent, tick: number = event.getTick()): KGMidiControllerEvent {
+  return new KGMidiControllerEvent(event.getId(), tick, event.getValue());
 }
 
 export class ImportChordRegionsCommand extends KGCommand {
@@ -36,8 +36,8 @@ export class ImportChordRegionsCommand extends KGCommand {
   private trackIndex: number;
   private regionId: string;
   private regionName: string;
-  private startBeat: number;
-  private lengthInBeats: number;
+  private startTick: number;
+  private lengthTicks: number;
   private notes: ImportedChordMidiNoteData[];
   private createdRegion: KGMidiRegion | null = null;
   private affectedRegion: KGMidiRegion | null = null;
@@ -48,8 +48,8 @@ export class ImportChordRegionsCommand extends KGCommand {
   constructor(
     trackId: string,
     trackIndex: number,
-    startBeat: number,
-    lengthInBeats: number,
+    startTick: number,
+    lengthTicks: number,
     notes: ImportedChordMidiNoteData[],
     regionName: string = CHORD_REGION_IMPORT_REGION_NAME,
     regionId?: string,
@@ -59,8 +59,8 @@ export class ImportChordRegionsCommand extends KGCommand {
     super();
     this.trackId = trackId;
     this.trackIndex = trackIndex;
-    this.startBeat = startBeat;
-    this.lengthInBeats = lengthInBeats;
+    this.startTick = startTick;
+    this.lengthTicks = lengthTicks;
     this.notes = notes;
     this.regionId = regionId ?? generateUniqueId('KGMidiRegion');
     this.regionName = regionName;
@@ -82,15 +82,15 @@ export class ImportChordRegionsCommand extends KGCommand {
         this.trackId,
         this.trackIndex,
         this.regionName,
-        this.startBeat,
-        this.lengthInBeats,
+        this.startTick,
+        this.lengthTicks,
       );
 
       this.notes.forEach(noteData => {
         this.createdRegion?.addNote(new KGMidiNote(
           generateUniqueId('KGMidiNote'),
-          noteData.startBeat,
-          noteData.endBeat,
+          noteData.startTick,
+          noteData.endTick,
           noteData.pitch,
           noteData.velocity,
         ));
@@ -110,44 +110,44 @@ export class ImportChordRegionsCommand extends KGCommand {
       this.originalSnapshot = this.snapshotRegion(targetRegion);
     }
 
-    const originalStart = targetRegion.getStartFromBeat();
-    const originalEnd = originalStart + targetRegion.getLength();
-    const importEnd = this.startBeat + this.lengthInBeats;
-    const finalStart = Math.min(originalStart, this.startBeat);
+    const originalStart = targetRegion.getStartTick();
+    const originalEnd = originalStart + targetRegion.getLengthTicks();
+    const importEnd = this.startTick + this.lengthTicks;
+    const finalStart = Math.min(originalStart, this.startTick);
     const finalEnd = Math.max(originalEnd, importEnd);
 
     const existingNotes = targetRegion.getNotes()
       .filter(note => {
         if (this.action !== 'replace') return true;
-        const absoluteStart = originalStart + note.getStartBeat();
-        const absoluteEnd = originalStart + note.getEndBeat();
-        return absoluteStart >= importEnd || absoluteEnd <= this.startBeat;
+        const absoluteStart = originalStart + note.getStartTick();
+        const absoluteEnd = originalStart + note.getEndTick();
+        return absoluteStart >= importEnd || absoluteEnd <= this.startTick;
       })
       .map(note => cloneNote(
         note,
-        originalStart + note.getStartBeat() - finalStart,
-        originalStart + note.getEndBeat() - finalStart,
+        originalStart + note.getStartTick() - finalStart,
+        originalStart + note.getEndTick() - finalStart,
       ));
 
     const importedNotes = this.notes.map(note => new KGMidiNote(
       generateUniqueId('KGMidiNote'),
-      this.startBeat + note.startBeat - finalStart,
-      this.startBeat + note.endBeat - finalStart,
+      this.startTick + note.startTick - finalStart,
+      this.startTick + note.endTick - finalStart,
       note.pitch,
       note.velocity,
     ));
 
-    targetRegion.setStartFromBeat(finalStart);
-    targetRegion.setLength(finalEnd - finalStart);
+    targetRegion.setStartTick(finalStart);
+    targetRegion.setLengthTicks(finalEnd - finalStart);
     targetRegion.setNotes([...existingNotes, ...importedNotes]);
     targetRegion.setPitchBends(targetRegion.getPitchBends().map(event => clonePitchBend(
       event,
-      originalStart + event.getBeat() - finalStart,
+      originalStart + event.getTick() - finalStart,
     )));
     targetRegion.setControllerEventsByType(targetRegion.getControllerEventsByType().map(events => (
       events.map(event => cloneControllerEvent(
         event,
-        originalStart + event.getBeat() - finalStart,
+        originalStart + event.getTick() - finalStart,
       ))
     )));
     this.affectedRegion = targetRegion;
@@ -189,8 +189,8 @@ export class ImportChordRegionsCommand extends KGCommand {
 
   private snapshotRegion(region: KGMidiRegion): MidiRegionSnapshot {
     return {
-      startBeat: region.getStartFromBeat(),
-      lengthInBeats: region.getLength(),
+      startTick: region.getStartTick(),
+      lengthTicks: region.getLengthTicks(),
       notes: region.getNotes().map(note => cloneNote(note)),
       pitchBends: region.getPitchBends().map(event => clonePitchBend(event)),
       controllerEventsByType: region.getControllerEventsByType().map(events => (
@@ -200,8 +200,8 @@ export class ImportChordRegionsCommand extends KGCommand {
   }
 
   private restoreRegion(region: KGMidiRegion, snapshot: MidiRegionSnapshot): void {
-    region.setStartFromBeat(snapshot.startBeat);
-    region.setLength(snapshot.lengthInBeats);
+    region.setStartTick(snapshot.startTick);
+    region.setLengthTicks(snapshot.lengthTicks);
     region.setNotes(snapshot.notes.map(note => cloneNote(note)));
     region.setPitchBends(snapshot.pitchBends.map(event => clonePitchBend(event)));
     region.setControllerEventsByType(snapshot.controllerEventsByType.map(events => (

@@ -26,31 +26,29 @@ export class KGMetronome {
 
   /**
    * Start the metronome click loop.
-   * @param startPositionBeats - Transport start position in beats (unused beyond logging)
-   * @param beatsPerBar - numerator of the time signature
+   * @param startTick - Transport start position in project ticks
+   * @param ticksPerBar - ticks in one bar
+   * @param ticksPerMeterBeat - ticks in one denominator-note beat
    * @param playbackDelay - seconds to offset audio trigger, matching MIDI note scheduling delay
    */
-  start(startPositionBeats: number, beatsPerBar: number, playbackDelay = 0): void {
+  start(startTick: number, ticksPerBar: number, ticksPerMeterBeat: number, playbackDelay = 0): void {
     this.stop();
 
-    const ppq = Tone.Transport.PPQ;
-
-    this.schedulePrerollClicks(startPositionBeats, beatsPerBar, playbackDelay);
+    this.schedulePrerollClicks(startTick, ticksPerBar, ticksPerMeterBeat, playbackDelay);
 
     this.loop = new Tone.Loop((time) => {
       if (this.sampler?.loaded) {
         // Derive bar position from the exact Transport tick count at the
         // scheduled audio time — no beatCount tracking needed, which avoids
         // all phase initialisation errors when playing from mid-bar.
-        const ticks = Tone.Transport.getTicksAtTime(time);
-        const beatNumber = Math.round(ticks / ppq);
-        const note = beatNumber % beatsPerBar === 0 ? 'C5' : 'C4';
+        const ticks = Math.round(Tone.Transport.getTicksAtTime(time));
+        const note = ((ticks % ticksPerBar) + ticksPerBar) % ticksPerBar === 0 ? 'C5' : 'C4';
         this.sampler.triggerAttackRelease(note, '16n', time + playbackDelay);
       }
-    }, '4n');
+    }, `${ticksPerMeterBeat}i`);
 
     this.loop.start(0);
-    console.log(`KGMetronome: started at beat ${startPositionBeats} (${beatsPerBar} beats/bar), delay ${playbackDelay}s`);
+    console.log(`KGMetronome: started at tick ${startTick} (${ticksPerBar} ticks/bar), delay ${playbackDelay}s`);
   }
 
   /** Stop and dispose the loop only — sampler is kept alive for reuse. */
@@ -73,18 +71,18 @@ export class KGMetronome {
     }
   }
 
-  private schedulePrerollClicks(startPositionBeats: number, beatsPerBar: number, playbackDelay: number): void {
-    if (startPositionBeats >= 0 || !this.sampler?.loaded) {
+  private schedulePrerollClicks(startTick: number, ticksPerBar: number, ticksPerMeterBeat: number, playbackDelay: number): void {
+    if (startTick >= 0 || !this.sampler?.loaded) {
       return;
     }
 
-    const secondsPerBeat = 60 / Tone.Transport.bpm.value;
+    const secondsPerQuarter = 60 / Tone.Transport.bpm.value;
     const context = Tone.getContext();
-    const firstBeat = Math.ceil(startPositionBeats);
+    const firstTick = Math.ceil(startTick / ticksPerMeterBeat) * ticksPerMeterBeat;
 
-    for (let beat = firstBeat; beat < 0; beat += 1) {
-      const waitSeconds = Math.max(0, (beat - startPositionBeats) * secondsPerBeat + playbackDelay);
-      const note = beat % beatsPerBar === 0 ? 'C5' : 'C4';
+    for (let tick = firstTick; tick < 0; tick += ticksPerMeterBeat) {
+      const waitSeconds = Math.max(0, ((tick - startTick) / Tone.Transport.PPQ) * secondsPerQuarter + playbackDelay);
+      const note = ((tick % ticksPerBar) + ticksPerBar) % ticksPerBar === 0 ? 'C5' : 'C4';
       const timeoutId = context.setTimeout(() => {
         if (this.sampler?.loaded) {
           this.sampler.triggerAttackRelease(note, '16n', Tone.now());

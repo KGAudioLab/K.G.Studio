@@ -3,8 +3,8 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { createMockMidiTrack } from '../test/utils/mock-data';
 import { findBestOverlappingMidiRegion } from './chordRegionImportWorkflow';
 
-function region(id: string, startBeat: number, length: number): KGMidiRegion {
-  return new KGMidiRegion(id, '1', 0, id, startBeat, length);
+function region(id: string, startTick: number, length: number): KGMidiRegion {
+  return new KGMidiRegion(id, '1', 0, id, startTick, length);
 }
 
 describe('findBestOverlappingMidiRegion', () => {

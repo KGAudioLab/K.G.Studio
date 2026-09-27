@@ -13,6 +13,7 @@ import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
+import { quarterNotesToTicks, ticksPerBar, ticksToQuarterNotes } from '../../core/timing';
 
 interface RemoveTargetRegionContext {
   region: KGMidiRegion;
@@ -21,8 +22,8 @@ interface RemoveTargetRegionContext {
 
 interface RemoveNotesSummaryData {
   noteCount: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   regionName?: string;
   trackName: string;
   earliestNoteStartBar: number;
@@ -78,7 +79,7 @@ export class RemoveNotesTool extends BaseTool {
     const location = summary.scope === 'track'
       ? `on track **${summary.trackName}**`
       : `in region **${summary.regionName}** on track **${summary.trackName}**`;
-    return `Successfully removed ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} from beats ${summary.startBeat}-${summary.endBeat}, ${location}, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
+    return `Successfully removed ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} from quarter-notes ${ticksToQuarterNotes(summary.startTick)}-${ticksToQuarterNotes(summary.endTick)}, ${location}, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}.`;
   }
 
   override buildToolHistoryContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
@@ -102,7 +103,7 @@ export class RemoveNotesTool extends BaseTool {
     const location = summary.scope === 'track'
       ? `on track **${summary.trackName}**`
       : `in region **${summary.regionName}** on track **${summary.trackName}**`;
-    return `Allow removing ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} from beats ${summary.startBeat}-${summary.endBeat}, ${location}, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}?`;
+    return `Allow removing ${summary.noteCount} ${summary.noteCount === 1 ? 'note' : 'notes'} from quarter-notes ${ticksToQuarterNotes(summary.startTick)}-${ticksToQuarterNotes(summary.endTick)}, ${location}, spanning bars ${summary.earliestNoteStartBar} to ${summary.latestNoteEndBar}?`;
   }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
@@ -110,16 +111,16 @@ export class RemoveNotesTool extends BaseTool {
       const normalizedParams = normalizeOptionalTrackIdParam(params);
       this.validateParameters(normalizedParams);
 
-      const startBeat = normalizedParams.start as number;
-      const endBeat = normalizedParams.end as number;
+      const startTick = quarterNotesToTicks(normalizedParams.start as number);
+      const endTick = quarterNotesToTicks(normalizedParams.end as number);
       const trackId = normalizedParams.track_id as string | undefined;
       const trackName = normalizedParams.track_name as string | undefined;
 
-      if (startBeat < 0) {
-        return this.createErrorResult(`Invalid start ${startBeat}. Must be >= 0.`);
+      if (startTick < 0) {
+        return this.createErrorResult(`Invalid start ${startTick}. Must be >= 0.`);
       }
-      if (endBeat <= startBeat) {
-        return this.createErrorResult(`Invalid beat range: end (${endBeat}) must be greater than start (${startBeat}).`);
+      if (endTick <= startTick) {
+        return this.createErrorResult(`Invalid beat range: end (${endTick}) must be greater than start (${startTick}).`);
       }
 
       if (trackId || trackName) {
@@ -134,15 +135,15 @@ export class RemoveNotesTool extends BaseTool {
       }
 
       const notesToRemove = (trackId || trackName)
-        ? this.findTrackNotesInRange(trackId, trackName, startBeat, endBeat)
-        : this.findFallbackRegionNotesInRange(startBeat, endBeat);
+        ? this.findTrackNotesInRange(trackId, trackName, startTick, endTick)
+        : this.findFallbackRegionNotesInRange(startTick, endTick);
 
       if (!notesToRemove) {
         return this.createErrorResult(NO_MIDI_TARGET_RAW_MESSAGE);
       }
 
       if (notesToRemove.notes.length === 0) {
-        return this.createSuccessResult(`No notes found in the range from beat ${startBeat} to ${endBeat}.`);
+        return this.createSuccessResult(`No notes found in the quarter-note range ${ticksToQuarterNotes(startTick)} to ${ticksToQuarterNotes(endTick)}.`);
       }
 
       const noteIds = notesToRemove.notes.map(note => note.getId());
@@ -153,7 +154,7 @@ export class RemoveNotesTool extends BaseTool {
         ? `track "${notesToRemove.trackName}"`
         : `MIDI region "${notesToRemove.regionName}" on track "${notesToRemove.trackName}"`;
       return this.createSuccessResult(
-        `Successfully removed ${notesToRemove.notes.length} note${notesToRemove.notes.length > 1 ? 's' : ''} from beats ${startBeat}-${endBeat} in ${scopeLabel}: ${noteList}`,
+        `Successfully removed ${notesToRemove.notes.length} note${notesToRemove.notes.length > 1 ? 's' : ''} from quarter-notes ${ticksToQuarterNotes(startTick)}-${ticksToQuarterNotes(endTick)} in ${scopeLabel}: ${noteList}`,
       );
     } catch (error) {
       return this.createErrorResult(`Failed to remove notes: ${error}`);
@@ -173,53 +174,56 @@ export class RemoveNotesTool extends BaseTool {
       return null;
     }
 
+    const startTick = quarterNotesToTicks(typedArgs.start);
+    const endTick = quarterNotesToTicks(typedArgs.end);
     const notesInRange = (typedArgs.track_id || typedArgs.track_name)
-      ? this.findTrackNotesInRange(typedArgs.track_id, typedArgs.track_name, typedArgs.start, typedArgs.end)
-      : this.findFallbackRegionNotesInRange(typedArgs.start, typedArgs.end);
+      ? this.findTrackNotesInRange(typedArgs.track_id, typedArgs.track_name, startTick, endTick)
+      : this.findFallbackRegionNotesInRange(startTick, endTick);
 
     if (!notesInRange) {
       return null;
     }
 
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    let earliestBeat = typedArgs.start;
-    let latestBeat = typedArgs.end;
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const barTicks = ticksPerBar(currentTimeSignature);
+    let earliestBeat: number = startTick;
+    let latestBeat: number = endTick;
 
     if (notesInRange.notes.length > 0) {
-      earliestBeat = Math.min(...notesInRange.notes.map(note => notesInRange.absoluteBoundsByNoteId.get(note.getId())!.startBeat));
-      latestBeat = Math.max(...notesInRange.notes.map(note => notesInRange.absoluteBoundsByNoteId.get(note.getId())!.endBeat));
+      earliestBeat = Math.min(...notesInRange.notes.map(note => notesInRange.absoluteBoundsByNoteId.get(note.getId())!.startTick));
+      latestBeat = Math.max(...notesInRange.notes.map(note => notesInRange.absoluteBoundsByNoteId.get(note.getId())!.endTick));
     }
 
     return {
       noteCount: notesInRange.notes.length,
-      startBeat: typedArgs.start,
-      endBeat: typedArgs.end,
+      startTick,
+      endTick,
       regionName: notesInRange.scope === 'region' ? notesInRange.regionName : undefined,
       trackName: notesInRange.trackName,
-      earliestNoteStartBar: Math.floor(earliestBeat / beatsPerBar) + 1,
-      latestNoteEndBar: Math.max(1, Math.ceil(latestBeat / beatsPerBar)),
+      earliestNoteStartBar: Math.floor(earliestBeat / barTicks) + 1,
+      latestNoteEndBar: Math.max(1, Math.ceil(latestBeat / barTicks)),
       scope: notesInRange.scope,
     };
   }
 
-  private findFallbackRegionNotesInRange(startBeat: number, endBeat: number): {
+  private findFallbackRegionNotesInRange(startTick: number, endTick: number): {
     scope: 'region';
     trackName: string;
     regionName: string;
     notes: KGMidiNote[];
-    absoluteBoundsByNoteId: Map<string, { startBeat: number; endBeat: number }>;
+    absoluteBoundsByNoteId: Map<string, { startTick: number; endTick: number }>;
   } | null {
     const resolvedRegion = this.resolveFallbackRegion();
     if (!resolvedRegion) {
       return null;
     }
 
-    const regionStartBeat = resolvedRegion.region.getStartFromBeat();
-    const adjustedStartBeat = startBeat - regionStartBeat;
-    const adjustedEndBeat = endBeat - regionStartBeat;
+    const regionStartTick = resolvedRegion.region.getStartTick();
+    const adjustedStartTick = startTick - regionStartTick;
+    const adjustedEndTick = endTick - regionStartTick;
     const notes = resolvedRegion.region.getNotes().filter(note => {
-      const noteStartBeat = note.getStartBeat();
-      return noteStartBeat >= adjustedStartBeat && noteStartBeat < adjustedEndBeat;
+      const noteStartTick = note.getStartTick();
+      return noteStartTick >= adjustedStartTick && noteStartTick < adjustedEndTick;
     });
 
     return {
@@ -230,18 +234,18 @@ export class RemoveNotesTool extends BaseTool {
       absoluteBoundsByNoteId: new Map(notes.map(note => ([
         note.getId(),
         {
-          startBeat: note.getStartBeat() + regionStartBeat,
-          endBeat: note.getEndBeat() + regionStartBeat,
+          startTick: note.getStartTick() + regionStartTick,
+          endTick: note.getEndTick() + regionStartTick,
         },
       ]))),
     };
   }
 
-  private findTrackNotesInRange(trackId: string | undefined, trackName: string | undefined, startBeat: number, endBeat: number): {
+  private findTrackNotesInRange(trackId: string | undefined, trackName: string | undefined, startTick: number, endTick: number): {
     scope: 'track';
     trackName: string;
     notes: KGMidiNote[];
-    absoluteBoundsByNoteId: Map<string, { startBeat: number; endBeat: number }>;
+    absoluteBoundsByNoteId: Map<string, { startTick: number; endTick: number }>;
   } | null {
     const track = resolveMidiTrackByIdOrName(trackId, trackName);
     if (!track) {
@@ -249,24 +253,24 @@ export class RemoveNotesTool extends BaseTool {
     }
 
     const notes: KGMidiNote[] = [];
-    const absoluteBoundsByNoteId = new Map<string, { startBeat: number; endBeat: number }>();
+    const absoluteBoundsByNoteId = new Map<string, { startTick: number; endTick: number }>();
 
     for (const region of track.getRegions()) {
       if (!(region instanceof KGMidiRegion)) {
         continue;
       }
 
-      const regionStartBeat = region.getStartFromBeat();
+      const regionStartTick = region.getStartTick();
       for (const note of region.getNotes()) {
-        const absoluteStartBeat = regionStartBeat + note.getStartBeat();
-        if (absoluteStartBeat < startBeat || absoluteStartBeat >= endBeat) {
+        const absoluteStartTick = regionStartTick + note.getStartTick();
+        if (absoluteStartTick < startTick || absoluteStartTick >= endTick) {
           continue;
         }
 
         notes.push(note);
         absoluteBoundsByNoteId.set(note.getId(), {
-          startBeat: absoluteStartBeat,
-          endBeat: regionStartBeat + note.getEndBeat(),
+          startTick: absoluteStartTick,
+          endTick: regionStartTick + note.getEndTick(),
         });
       }
     }

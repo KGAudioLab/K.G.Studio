@@ -12,12 +12,12 @@ import {
 import { generateUniqueId } from '../../../util/miscUtil';
 
 export interface WriteKeySignatureEntry {
-  startBeat: number;
+  startTick: number;
   keySignature: KeySignature;
 }
 
-function cloneRegions(regions: KGKeySignatureRegion[], beatsPerBar: number): KGKeySignatureRegion[] {
-  return cloneKeySignatureRegions(regions, beatsPerBar);
+function cloneRegions(regions: KGKeySignatureRegion[], ticksPerBar: number): KGKeySignatureRegion[] {
+  return cloneKeySignatureRegions(regions, ticksPerBar);
 }
 
 export class WriteKeySignatureTrackCommand extends KGCommand {
@@ -30,26 +30,27 @@ export class WriteKeySignatureTrackCommand extends KGCommand {
     super();
     this.baseKeySignature = baseKeySignature;
     this.replacements = replacements.map(replacement => ({
-      startBeat: replacement.startBeat,
+      startTick: replacement.startTick,
       keySignature: replacement.keySignature,
     }));
   }
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     if (!track) {
       throw new Error('Signature global track not found');
     }
 
     if (this.nextRegions) {
-      track.setRegions(cloneRegions(this.nextRegions, beatsPerBar));
+      track.setRegions(cloneRegions(this.nextRegions, ticksPerBar));
       return;
     }
 
-    const currentRegions = getSortedKeySignatureRegions(track, beatsPerBar);
-    this.previousRegions = cloneRegions(currentRegions, beatsPerBar);
+    const currentRegions = getSortedKeySignatureRegions(track, ticksPerBar);
+    this.previousRegions = cloneRegions(currentRegions, ticksPerBar);
 
     const songEndBar = getSongEndBar(project);
     if (songEndBar <= 0) {
@@ -60,7 +61,7 @@ export class WriteKeySignatureTrackCommand extends KGCommand {
 
     const normalizedReplacements = this.replacements
       .map(replacement => ({
-        startBar: Math.floor(replacement.startBeat / beatsPerBar),
+        startBar: Math.floor(replacement.startTick / ticksPerBar),
         keySignature: replacement.keySignature,
       }))
       .sort((left, right) => left.startBar - right.startBar);
@@ -78,7 +79,7 @@ export class WriteKeySignatureTrackCommand extends KGCommand {
           currentKeySignature,
           currentStartBar,
           replacement.startBar - currentStartBar,
-          beatsPerBar,
+          ticksPerBar,
         ));
       }
 
@@ -94,12 +95,12 @@ export class WriteKeySignatureTrackCommand extends KGCommand {
         currentKeySignature,
         currentStartBar,
         songEndBar - currentStartBar,
-        beatsPerBar,
+        ticksPerBar,
       ));
     }
 
     this.nextRegions = nextRegions;
-    track.setRegions(cloneRegions(this.nextRegions, beatsPerBar));
+    track.setRegions(cloneRegions(this.nextRegions, ticksPerBar));
   }
 
   undo(): void {
@@ -108,13 +109,14 @@ export class WriteKeySignatureTrackCommand extends KGCommand {
     }
 
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     if (!track) {
       throw new Error('Signature global track not found during undo');
     }
 
-    track.setRegions(cloneRegions(this.previousRegions, beatsPerBar));
+    track.setRegions(cloneRegions(this.previousRegions, ticksPerBar));
   }
 
   getDescription(): string {

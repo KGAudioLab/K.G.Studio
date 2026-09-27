@@ -1,4 +1,4 @@
-import { Expose } from 'class-transformer';
+import { Exclude, Expose } from 'class-transformer';
 import { KGGlobalRegion } from './KGGlobalRegion';
 
 export class KGTempoRegion extends KGGlobalRegion {
@@ -8,11 +8,8 @@ export class KGTempoRegion extends KGGlobalRegion {
   @Expose()
   private bpm: number = 120;
 
-  @Expose()
-  private startBar: number = 0;
-
-  @Expose()
-  private lengthBars: number = 1;
+  @Exclude()
+  private barLengthTicks: number = 3840;
 
   constructor(
     id: string,
@@ -21,14 +18,12 @@ export class KGTempoRegion extends KGGlobalRegion {
     bpm: number,
     startBar: number = 0,
     lengthBars: number = 1,
-    beatsPerBar: number = 4
+    ticksPerBar: number = 3840
   ) {
-    super(id, trackId, trackIndex, `${bpm} BPM`, startBar * beatsPerBar, lengthBars * beatsPerBar);
+    super(id, trackId, trackIndex, `${bpm} BPM`, startBar * ticksPerBar, lengthBars * ticksPerBar);
     this.__type = 'KGTempoRegion';
     this.bpm = bpm;
-    this.startBar = startBar;
-    this.lengthBars = lengthBars;
-    this.syncBeatsFromBars(beatsPerBar);
+    this.barLengthTicks = ticksPerBar;
     super.setName(this.getDisplayName());
   }
 
@@ -42,41 +37,41 @@ export class KGTempoRegion extends KGGlobalRegion {
   }
 
   public getStartBar(): number {
-    return this.startBar;
+    return Math.floor(this.getStartTick() / this.barLengthTicks);
   }
 
   public getLengthBars(): number {
-    return this.lengthBars;
+    return Math.max(1, Math.round(this.getLengthTicks() / this.barLengthTicks));
   }
 
   public getEndBar(): number {
-    return this.startBar + this.lengthBars;
+    return this.getStartBar() + this.getLengthBars();
   }
 
-  public setStartBar(startBar: number, beatsPerBar: number): void {
-    this.startBar = startBar;
-    this.syncBeatsFromBars(beatsPerBar);
+  public setStartBar(startBar: number, ticksPerBar: number): void {
+    this.barLengthTicks = ticksPerBar;
+    super.setStartTick(startBar * ticksPerBar);
   }
 
-  public setLengthBars(lengthBars: number, beatsPerBar: number): void {
-    this.lengthBars = lengthBars;
-    this.syncBeatsFromBars(beatsPerBar);
+  public setLengthBars(lengthBars: number, ticksPerBar: number): void {
+    this.barLengthTicks = ticksPerBar;
+    super.setLengthTicks(lengthBars * ticksPerBar);
   }
 
-  public setBarRange(startBar: number, lengthBars: number, beatsPerBar: number): void {
-    this.startBar = startBar;
-    this.lengthBars = lengthBars;
-    this.syncBeatsFromBars(beatsPerBar);
+  public setBarRange(startBar: number, lengthBars: number, ticksPerBar: number): void {
+    this.barLengthTicks = ticksPerBar;
+    super.setStartTick(startBar * ticksPerBar);
+    super.setLengthTicks(lengthBars * ticksPerBar);
   }
 
-  public syncBeatsFromBars(beatsPerBar: number): void {
-    super.setStartFromBeat(this.startBar * beatsPerBar);
-    super.setLength(this.lengthBars * beatsPerBar);
+  public syncTicksFromBars(ticksPerBar: number): void {
+    const startBar = this.getStartBar();
+    const lengthBars = this.getLengthBars();
+    this.setBarRange(startBar, lengthBars, ticksPerBar);
   }
 
-  public syncBarsFromBeats(beatsPerBar: number): void {
-    this.startBar = Math.floor(this.getStartFromBeat() / beatsPerBar);
-    this.lengthBars = Math.max(1, Math.round(this.getLength() / beatsPerBar));
+  public syncBarsFromTicks(ticksPerBar: number): void {
+    this.barLengthTicks = ticksPerBar;
     super.setName(this.getDisplayName());
   }
 

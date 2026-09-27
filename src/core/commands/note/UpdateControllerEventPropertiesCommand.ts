@@ -7,14 +7,14 @@ import { KGTrack } from '../../track/KGTrack';
 interface ControllerEventSnapshot {
   controllerEventId: string;
   controller: number;
-  beat: number;
+  tick: number;
   value: number;
 }
 
 interface ControllerEventUpdate {
   controllerEventId: string;
   controller?: number;
-  beat?: number;
+  tick?: number;
   value?: number;
 }
 
@@ -64,7 +64,7 @@ export class UpdateControllerEventPropertiesCommand extends KGCommand {
         this.targetRegion.addControllerEvent(update.controller, event);
       }
 
-      if (update.beat !== undefined) event.setBeat(update.beat);
+      if (update.tick !== undefined) event.setTick(update.tick);
       if (update.value !== undefined) event.setValue(update.value);
     }
   }
@@ -85,7 +85,7 @@ export class UpdateControllerEventPropertiesCommand extends KGCommand {
         this.targetRegion!.addControllerEvent(snapshot.controller, existing.event);
       }
 
-      existing.event.setBeat(snapshot.beat);
+      existing.event.setTick(snapshot.tick);
       existing.event.setValue(snapshot.value);
     });
   }

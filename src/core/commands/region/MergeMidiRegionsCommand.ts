@@ -9,12 +9,12 @@ import { useProjectStore } from '../../../stores/projectStore';
 
 interface RegionSnapshot {
   regionId: string;
-  startFromBeat: number;
+  startTick: number;
   length: number;
   notes: Array<{
     id: string;
-    startBeat: number;
-    endBeat: number;
+    startTick: number;
+    endTick: number;
     pitch: number;
     velocity: number;
   }>;
@@ -35,11 +35,11 @@ interface ResolvedRegion {
   index: number;
 }
 
-function cloneNote(note: KGMidiNote, startBeat: number, endBeat: number): KGMidiNote {
+function cloneNote(note: KGMidiNote, startTick: number, endTick: number): KGMidiNote {
   return new KGMidiNote(
     note.getId(),
-    startBeat,
-    endBeat,
+    startTick,
+    endTick,
     note.getPitch(),
     note.getVelocity()
   );
@@ -108,7 +108,7 @@ export class MergeMidiRegionsCommand extends KGCommand {
     }
 
     resolvedRegions.sort((a, b) => {
-      const startDelta = a.region.getStartFromBeat() - b.region.getStartFromBeat();
+      const startDelta = a.region.getStartTick() - b.region.getStartTick();
       if (startDelta !== 0) return startDelta;
       return a.index - b.index;
     });
@@ -121,24 +121,24 @@ export class MergeMidiRegionsCommand extends KGCommand {
     resolvedRegions.forEach(({ region }) => {
       this.originalRegionSnapshots.set(region.getId(), {
         regionId: region.getId(),
-        startFromBeat: region.getStartFromBeat(),
-        length: region.getLength(),
+        startTick: region.getStartTick(),
+        length: region.getLengthTicks(),
         notes: region.getNotes().map(note => ({
           id: note.getId(),
-          startBeat: note.getStartBeat(),
-          endBeat: note.getEndBeat(),
+          startTick: note.getStartTick(),
+          endTick: note.getEndTick(),
           pitch: note.getPitch(),
           velocity: note.getVelocity(),
         })),
         pitchBends: region.getPitchBends().map(pitchBend => ({
           id: pitchBend.getId(),
-          beat: pitchBend.getBeat(),
+          beat: pitchBend.getTick(),
           value: pitchBend.getValue(),
         })),
         controllerEventsByType: region.getControllerEventsByType().map(events => (
           events.map(event => ({
             id: event.getId(),
-            beat: event.getBeat(),
+            beat: event.getTick(),
             value: event.getValue(),
           }))
         )),
@@ -150,19 +150,19 @@ export class MergeMidiRegionsCommand extends KGCommand {
     this.originalPianoRollState = { showPianoRoll, activeRegionId };
     const resolvedTargetTrack: KGTrack = this.targetTrack;
 
-    const survivingRegionStart = this.survivingRegion.getStartFromBeat();
-    const mergedEndBeat = resolvedRegions.reduce((maxEndBeat, { region }) => (
-      Math.max(maxEndBeat, region.getStartFromBeat() + region.getLength())
-    ), survivingRegionStart + this.survivingRegion.getLength());
+    const survivingRegionStart = this.survivingRegion.getStartTick();
+    const mergedEndTick = resolvedRegions.reduce((maxEndTick, { region }) => (
+      Math.max(maxEndTick, region.getStartTick() + region.getLengthTicks())
+    ), survivingRegionStart + this.survivingRegion.getLengthTicks());
 
     const mergedNotes = [...this.survivingRegion.getNotes()];
     const mergedPitchBends = [...this.survivingRegion.getPitchBends()];
     const mergedControllerEventsByType = this.survivingRegion.getControllerEventsByType().map(events => [...events]);
     for (const { region } of resolvedRegions.slice(1)) {
-      const regionStart = region.getStartFromBeat();
+      const regionStart = region.getStartTick();
       region.getNotes().forEach(note => {
-        const absoluteStart = regionStart + note.getStartBeat();
-        const absoluteEnd = regionStart + note.getEndBeat();
+        const absoluteStart = regionStart + note.getStartTick();
+        const absoluteEnd = regionStart + note.getEndTick();
         mergedNotes.push(cloneNote(
           note,
           absoluteStart - survivingRegionStart,
@@ -172,20 +172,20 @@ export class MergeMidiRegionsCommand extends KGCommand {
       region.getPitchBends().forEach(pitchBend => {
         mergedPitchBends.push(clonePitchBend(
           pitchBend,
-          regionStart + pitchBend.getBeat() - survivingRegionStart
+          regionStart + pitchBend.getTick() - survivingRegionStart
         ));
       });
       region.getControllerEventsByType().forEach((events, controller) => {
         events.forEach(event => {
           mergedControllerEventsByType[controller].push(cloneControllerEvent(
             event,
-            regionStart + event.getBeat() - survivingRegionStart
+            regionStart + event.getTick() - survivingRegionStart
           ));
         });
       });
     }
 
-    this.survivingRegion.setLength(mergedEndBeat - survivingRegionStart);
+    this.survivingRegion.setLengthTicks(mergedEndTick - survivingRegionStart);
     this.survivingRegion.setNotes(mergedNotes);
     this.survivingRegion.setPitchBends(mergedPitchBends);
     this.survivingRegion.setControllerEventsByType(mergedControllerEventsByType);
@@ -214,12 +214,12 @@ export class MergeMidiRegionsCommand extends KGCommand {
       throw new Error('Cannot undo: missing surviving region snapshot.');
     }
 
-    this.survivingRegion.setStartFromBeat(survivingSnapshot.startFromBeat);
-    this.survivingRegion.setLength(survivingSnapshot.length);
+    this.survivingRegion.setStartTick(survivingSnapshot.startTick);
+    this.survivingRegion.setLengthTicks(survivingSnapshot.length);
     this.survivingRegion.setNotes(survivingSnapshot.notes.map(note => new KGMidiNote(
       note.id,
-      note.startBeat,
-      note.endBeat,
+      note.startTick,
+      note.endTick,
       note.pitch,
       note.velocity
     )));
@@ -241,12 +241,12 @@ export class MergeMidiRegionsCommand extends KGCommand {
       if (!snapshot) {
         continue;
       }
-      region.setStartFromBeat(snapshot.startFromBeat);
-      region.setLength(snapshot.length);
+      region.setStartTick(snapshot.startTick);
+      region.setLengthTicks(snapshot.length);
       region.setNotes(snapshot.notes.map(note => new KGMidiNote(
         note.id,
-        note.startBeat,
-        note.endBeat,
+        note.startTick,
+        note.endTick,
         note.pitch,
         note.velocity
       )));

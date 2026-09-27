@@ -13,8 +13,8 @@ describe('KGMidiNote', () => {
       const testNote = new KGMidiNote('note-1', 2, 4, 72, 100);
       
       expect(testNote.getId()).toBe('note-1');
-      expect(testNote.getStartBeat()).toBe(2);
-      expect(testNote.getEndBeat()).toBe(4);
+      expect(testNote.getStartTick()).toBe(2);
+      expect(testNote.getEndTick()).toBe(4);
       expect(testNote.getPitch()).toBe(72);
       expect(testNote.getVelocity()).toBe(100);
     });
@@ -23,26 +23,26 @@ describe('KGMidiNote', () => {
       const defaultNote = new KGMidiNote('default-note');
       
       expect(defaultNote.getId()).toBe('default-note');
-      expect(defaultNote.getStartBeat()).toBe(0);
-      expect(defaultNote.getEndBeat()).toBe(0);
+      expect(defaultNote.getStartTick()).toBe(0);
+      expect(defaultNote.getEndTick()).toBe(0);
       expect(defaultNote.getPitch()).toBe(0);
       expect(defaultNote.getVelocity()).toBe(127);
     });
   });
 
   describe('getters and setters', () => {
-    it('should get and set start beat', () => {
-      expect(note.getStartBeat()).toBe(0);
+    it('should round and store an integer start tick', () => {
+      expect(note.getStartTick()).toBe(0);
       
-      note.setStartBeat(1.5);
-      expect(note.getStartBeat()).toBe(1.5);
+      note.setStartTick(1.5);
+      expect(note.getStartTick()).toBe(2);
     });
 
-    it('should get and set end beat', () => {
-      expect(note.getEndBeat()).toBe(1);
+    it('should round and store an integer end tick', () => {
+      expect(note.getEndTick()).toBe(1);
       
-      note.setEndBeat(3.5);
-      expect(note.getEndBeat()).toBe(3.5);
+      note.setEndTick(3.5);
+      expect(note.getEndTick()).toBe(4);
     });
 
     it('should get and set pitch', () => {
@@ -84,12 +84,12 @@ describe('KGMidiNote', () => {
   describe('note duration', () => {
     it('should calculate duration correctly', () => {
       const durationNote = new KGMidiNote('duration-test', 1, 3, 60, 80);
-      expect(durationNote.getEndBeat() - durationNote.getStartBeat()).toBe(2);
+      expect(durationNote.getEndTick() - durationNote.getStartTick()).toBe(2);
     });
 
     it('should handle zero duration', () => {
       const zeroDurationNote = new KGMidiNote('zero-duration', 2, 2, 60, 80);
-      expect(zeroDurationNote.getEndBeat() - zeroDurationNote.getStartBeat()).toBe(0);
+      expect(zeroDurationNote.getEndTick() - zeroDurationNote.getStartTick()).toBe(0);
     });
   });
 
@@ -135,16 +135,16 @@ describe('KGMidiNote', () => {
 
   describe('edge cases', () => {
     it('should handle negative start beat', () => {
-      note.setStartBeat(-1);
-      expect(note.getStartBeat()).toBe(-1);
+      note.setStartTick(-1);
+      expect(note.getStartTick()).toBe(-1);
     });
 
     it('should handle start beat after end beat', () => {
-      note.setStartBeat(5);
-      note.setEndBeat(2);
+      note.setStartTick(5);
+      note.setEndTick(2);
       
-      expect(note.getStartBeat()).toBe(5);
-      expect(note.getEndBeat()).toBe(2);
+      expect(note.getStartTick()).toBe(5);
+      expect(note.getEndTick()).toBe(2);
       // Note: The class might need validation logic to prevent this
     });
   });

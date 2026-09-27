@@ -82,7 +82,7 @@ const storeState = {
   keySignature: 'C major',
   selectedMode: 'ionian',
   setSelectedMode: vi.fn(),
-  playheadPosition: 0,
+  playheadTick: 0,
   isPlaying: false,
   autoScrollEnabled: false,
   bpm: 120,

@@ -10,10 +10,10 @@ export class KGGlobalRegion extends KGRegion {
     trackId: string,
     trackIndex: number,
     name: string,
-    startFromBeat: number = 0,
+    startTick: number = 0,
     length: number = 0
   ) {
-    super(id, trackId, trackIndex, name, startFromBeat, length);
+    super(id, trackId, trackIndex, name, startTick, length);
     this.__type = 'KGGlobalRegion';
   }
 

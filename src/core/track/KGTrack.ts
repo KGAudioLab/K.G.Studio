@@ -169,7 +169,7 @@ export class KGTrack {
         point.setValue(clampTrackAutomationValue('volume', point.getValue()));
         return point;
       })
-      .sort((left, right) => left.getBeat() - right.getBeat());
+      .sort((left, right) => left.getTick() - right.getTick());
   }
 
   public getPanAutomation(): KGTrackAutomationPoint[] {
@@ -182,7 +182,7 @@ export class KGTrack {
         point.setValue(clampTrackAutomationValue('pan', point.getValue()));
         return point;
       })
-      .sort((left, right) => left.getBeat() - right.getBeat());
+      .sort((left, right) => left.getTick() - right.getTick());
   }
 
   public getAutomationPoints(type: TrackAutomationType): KGTrackAutomationPoint[] {

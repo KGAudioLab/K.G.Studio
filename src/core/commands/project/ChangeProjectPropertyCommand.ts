@@ -52,9 +52,9 @@ export class ChangeProjectPropertyCommand extends KGCommand {
     }
 
     const core = KGCore.instance();
-    const songEndBeat = this.targetProject.getMaxBars() * this.targetProject.getTimeSignature().numerator;
-    if (core.getPlayheadPosition() > songEndBeat) {
-      core.setPlayheadPosition(songEndBeat);
+    const songEndTick = this.targetProject.getMaxBars() * this.targetProject.getTimeSignature().numerator;
+    if (core.getPlayheadTick() > songEndTick) {
+      core.setPlayheadTick(songEndTick);
     }
   }
 

@@ -27,9 +27,9 @@ export const MIDI_TRACK = {
 
 // Timing constants
 export const MIDI_TIMING = {
-  // Ticks Per Quarter Note (TPQN) - 480 provides good resolution
-  TPQN: 480,
-  TPQN_BYTES: new Uint8Array([0x01, 0xE0]), // 480 in big-endian 16-bit
+  // Canonical project and export resolution: 960 ticks per quarter note.
+  TPQN: 960,
+  TPQN_BYTES: new Uint8Array([0x03, 0xC0]), // 960 in big-endian 16-bit
 };
 
 // MIDI event types

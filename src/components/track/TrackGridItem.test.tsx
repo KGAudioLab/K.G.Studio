@@ -14,7 +14,7 @@ const storeState = {
   trackAutomationRedrawVersion: 0,
   recordingMode: 'audio' as 'audio' | 'midi' | null,
   recordingTargetTrackIndex: 0,
-  recordingCommitStartBeatAbsolute: 4,
+  recordingCommitStartTickAbsolute: 4,
   recordingAudioPreviewCurrentBeat: 8,
   recordingAudioPreviewPeaks: [{ min: -0.5, max: 0.5 }],
   recordingAudioPreviewFileName: 'Recording' as string | null,
@@ -95,7 +95,7 @@ describe('TrackGridItem preview behavior', () => {
     storeState.trackAutomationRedrawVersion = 0;
     storeState.recordingMode = 'audio';
     storeState.recordingTargetTrackIndex = 0;
-    storeState.recordingCommitStartBeatAbsolute = 4;
+    storeState.recordingCommitStartTickAbsolute = 4;
     storeState.recordingAudioPreviewCurrentBeat = 8;
     storeState.recordingAudioPreviewPeaks = [{ min: -0.5, max: 0.5 }];
     storeState.recordingAudioPreviewFileName = 'Recording';
@@ -123,8 +123,8 @@ describe('TrackGridItem preview behavior', () => {
 
     const regionAData = regionOverrides.find(region => region.id === 'region-a')!;
     const regionBData = regionOverrides.find(region => region.id === 'region-b')!;
-    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startFromBeat: (regionAData.barNumber - 1) * 4, length: regionAData.length * 4 });
-    const regionB = createMockMidiRegion({ id: 'region-b', trackId: '2', trackIndex: 1, startFromBeat: (regionBData.barNumber - 1) * 4, length: regionBData.length * 4 });
+    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startTick: (regionAData.barNumber - 1) * 4, length: regionAData.length * 4 });
+    const regionB = createMockMidiRegion({ id: 'region-b', trackId: '2', trackIndex: 1, startTick: (regionBData.barNumber - 1) * 4, length: regionBData.length * 4 });
     const trackA = createMockMidiTrack({ id: 1, regions: [regionA] });
     const trackB = createMockMidiTrack({ id: 2, regions: [regionB] });
     trackA.setTrackIndex(0);
@@ -386,7 +386,7 @@ describe('TrackGridItem preview behavior', () => {
       name: 'Region C',
     };
 
-    const track = createMockMidiTrack({ id: 1, regions: [createMockMidiRegion({ id: 'region-c', trackId: '1', trackIndex: 0, startFromBeat: 16, length: 4 })] });
+    const track = createMockMidiTrack({ id: 1, regions: [createMockMidiRegion({ id: 'region-c', trackId: '1', trackIndex: 0, startTick: 16, length: 4 })] });
     track.setTrackIndex(0);
     const gridContainerRef = createGridContainerRef();
 

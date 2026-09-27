@@ -43,8 +43,8 @@ export const PIANO_ROLL_CONSTANTS = {
   // notes
   NOTE_EDGE_OFFSET: 5,
 
-  // Minimum note length in beats (1/64 beat)
-  MIN_NOTE_LENGTH: 1 / 64,
+  // Minimum note length in timeline ticks (1/64 note = 15 ticks at 960 PPQ)
+  MIN_NOTE_LENGTH: 15,
 
   // Dragging threshold for note selection
   DRAG_THRESHOLD: 5,

@@ -6,6 +6,9 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGGlobalTrack, GlobalTrackType } from '../../core/global-track/KGGlobalTrack';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
 import { KGCore } from '../../core/KGCore';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 const storeState = {
   activeRegionId: null as string | null,
@@ -24,14 +27,14 @@ function buildProject(): KGProject {
 
   const midiTrack = new KGMidiTrack('Lead', 1);
   midiTrack.setRegions([
-    new KGMidiRegion('midi-a', midiTrack.getId().toString(), midiTrack.getTrackIndex(), 'A', 4, 8),
-    new KGMidiRegion('midi-b', midiTrack.getId().toString(), midiTrack.getTrackIndex(), 'B', 20, 4),
+    new KGMidiRegion('midi-a', midiTrack.getId().toString(), midiTrack.getTrackIndex(), 'A', q(4), q(8)),
+    new KGMidiRegion('midi-b', midiTrack.getId().toString(), midiTrack.getTrackIndex(), 'B', q(20), q(4)),
   ]);
   project.setTracks([midiTrack]);
 
   const markerTrack = new KGGlobalTrack('global-marker', 0, GlobalTrackType.Marker, 'Marker');
   markerTrack.setRegions([
-    new KGMarkerRegion('global-a', markerTrack.getId(), markerTrack.getTrackIndex(), 'Marker A', 2, 2),
+    new KGMarkerRegion('global-a', markerTrack.getId(), markerTrack.getTrackIndex(), 'Marker A', q(2), q(2)),
   ]);
 
   project.setGlobalTracks(project.getGlobalTracks().map(track => (
@@ -66,7 +69,7 @@ describe('GetUserSelectedMusicRangeAndTrackTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.result).toBe(
-      'Current Selected Music Range:\n- Start Beat: 4\n- End Beat: 24\n\nCurrent Selected Track:\ntrack_id: 1\ntrack_name: Lead',
+      'Current Selected Music Range:\n- Start Quarter-note: 4\n- End Quarter-note: 24\n\nCurrent Selected Track:\ntrack_id: 1\ntrack_name: Lead',
     );
   });
 
@@ -81,7 +84,7 @@ describe('GetUserSelectedMusicRangeAndTrackTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.result).toBe(
-      'Current Selected Music Range:\n- Start Beat: 2\n- End Beat: 4\n\nCurrent Selected Track:\nNo selected track.',
+      'Current Selected Music Range:\n- Start Quarter-note: 2\n- End Quarter-note: 4\n\nCurrent Selected Track:\nNo selected track.',
     );
   });
 
@@ -96,7 +99,7 @@ describe('GetUserSelectedMusicRangeAndTrackTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.result).toBe(
-      'Current Selected Music Range:\n- Start Beat: 8\n- End Beat: 24\n\nCurrent Selected Track:\nNo selected track.',
+      'Current Selected Music Range:\n- Start Quarter-note: 8\n- End Quarter-note: 24\n\nCurrent Selected Track:\nNo selected track.',
     );
   });
 });

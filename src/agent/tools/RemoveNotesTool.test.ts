@@ -10,6 +10,9 @@ import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 const storeState = {
   activeRegionId: null as string | null,
@@ -37,10 +40,10 @@ describe('RemoveNotesTool', () => {
 
   it('builds confirmation and result summaries for region-scoped removal', () => {
     const track = new KGMidiTrack('Lead', 1);
-    const region = new KGMidiRegion('region-1', track.getId().toString(), track.getTrackIndex(), 'Verse Melody', 0, 32);
+    const region = new KGMidiRegion('region-1', track.getId().toString(), track.getTrackIndex(), 'Verse Melody', 0, q(32));
     region.setNotes([
-      new KGMidiNote('note-1', 16, 20, 60, 100),
-      new KGMidiNote('note-2', 20, 28, 64, 100),
+      new KGMidiNote('note-1', q(16), q(20), 60, 100),
+      new KGMidiNote('note-2', q(20), q(28), 64, 100),
     ]);
     track.setRegions([region]);
     const project = new KGProject('summary-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
@@ -52,10 +55,10 @@ describe('RemoveNotesTool', () => {
     const args = { start: 16, end: 24 };
 
     expect(tool.buildConfirmationContent(args)).toBe(
-      'Allow removing 2 notes from beats 16-24, in region **Verse Melody** on track **Lead**, spanning bars 5 to 7?',
+      'Allow removing 2 notes from quarter-notes 16-24, in region **Verse Melody** on track **Lead**, spanning bars 5 to 7?',
     );
     expect(tool.buildToolResultDisplayContent(args, { success: true, result: 'raw result' })).toBe(
-      'Successfully removed 2 notes from beats 16-24, in region **Verse Melody** on track **Lead**, spanning bars 5 to 7.',
+      'Successfully removed 2 notes from quarter-notes 16-24, in region **Verse Melody** on track **Lead**, spanning bars 5 to 7.',
     );
   });
 
@@ -209,10 +212,10 @@ describe('RemoveNotesTool', () => {
 
   it('builds confirmation and result summaries when track_id is numeric', () => {
     const track = new KGMidiTrack('Lead', 1);
-    const region = new KGMidiRegion('region-1', track.getId().toString(), track.getTrackIndex(), 'Verse Melody', 0, 32);
+    const region = new KGMidiRegion('region-1', track.getId().toString(), track.getTrackIndex(), 'Verse Melody', 0, q(32));
     region.setNotes([
-      new KGMidiNote('note-1', 16, 20, 60, 100),
-      new KGMidiNote('note-2', 20, 28, 64, 100),
+      new KGMidiNote('note-1', q(16), q(20), 60, 100),
+      new KGMidiNote('note-2', q(20), q(28), 64, 100),
     ]);
     track.setRegions([region]);
     const project = new KGProject('numeric-remove-summary-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
@@ -223,10 +226,10 @@ describe('RemoveNotesTool', () => {
     const args = { track_id: track.getId(), start: 16, end: 24 };
 
     expect(tool.buildConfirmationContent(args)).toBe(
-      'Allow removing 2 notes from beats 16-24, on track **Lead**, spanning bars 5 to 7?',
+      'Allow removing 2 notes from quarter-notes 16-24, on track **Lead**, spanning bars 5 to 7?',
     );
     expect(tool.buildToolResultDisplayContent(args, { success: true, result: 'raw result' })).toBe(
-      'Successfully removed 2 notes from beats 16-24, on track **Lead**, spanning bars 5 to 7.',
+      'Successfully removed 2 notes from quarter-notes 16-24, on track **Lead**, spanning bars 5 to 7.',
     );
   });
 

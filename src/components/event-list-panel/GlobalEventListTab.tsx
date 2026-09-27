@@ -20,7 +20,7 @@ import {
   DeleteMultipleTempoRegionsCommand,
   DeleteTempoRegionCommand,
   DeleteKeySignatureRegionCommand,
-  InsertChordRegionAtBeatCommand,
+  InsertChordRegionAtTickCommand,
   MoveGlobalRegionCommand,
   ResizeGlobalRegionCommand,
   ResizeKeySignatureRegionCommand,
@@ -48,14 +48,14 @@ import { useI18n } from '../../i18n/useI18n';
 import { hasChordRegionsInTracks } from '../../util/chordTransposeUtil';
 import { getKeySignatureTransposeDelta } from '../../util/midiTransposeUtil';
 import EventListPlayhead from './EventListPlayhead';
-import { normalizeEventListPlayheadBeat } from './eventListPlayheadUtil';
+import { normalizeEventListPlayheadTick } from './eventListPlayheadUtil';
 
 interface GlobalEventListTabProps {
   globalTracks: KGGlobalTrack[];
   selectedRegionIds: string[];
   maxBars: number;
   timeSignature: { numerator: number; denominator: number };
-  playheadPosition: number;
+  playheadTick: number;
   refreshProjectState: () => void;
 }
 
@@ -67,32 +67,32 @@ interface MarkerRowData {
   id: string;
   type: 'marker';
   region: KGMarkerRegion;
-  absoluteStartBeat: number;
-  durationBeats: number;
+  absoluteStartTick: number;
+  durationTicks: number;
 }
 
 interface TempoRowData {
   id: string;
   type: 'tempo';
   region: KGTempoRegion;
-  absoluteStartBeat: number;
-  durationBeats: number;
+  absoluteStartTick: number;
+  durationTicks: number;
 }
 
 interface KeySignatureRowData {
   id: string;
   type: 'key-signature';
   region: KGKeySignatureRegion;
-  absoluteStartBeat: number;
-  durationBeats: number;
+  absoluteStartTick: number;
+  durationTicks: number;
 }
 
 interface ChordRowData {
   id: string;
   type: 'chord';
   region: KGChordRegion;
-  absoluteStartBeat: number;
-  durationBeats: number;
+  absoluteStartTick: number;
+  durationTicks: number;
 }
 
 type GlobalRowData = MarkerRowData | TempoRowData | KeySignatureRowData | ChordRowData;
@@ -170,7 +170,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
   selectedRegionIds,
   maxBars,
   timeSignature,
-  playheadPosition,
+  playheadTick,
   refreshProjectState,
 }) => {
   const { t } = useI18n();
@@ -203,32 +203,32 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         id: region.getId(),
         type: 'marker',
         region,
-        absoluteStartBeat: region.getStartFromBeat(),
-        durationBeats: region.getLength(),
+        absoluteStartTick: region.getStartTick(),
+        durationTicks: region.getLengthTicks(),
       }))
       : []
   ), [globalTracks, markerTrack, showMarkers]);
 
   const tempoRows = useMemo<TempoRowData[]>(() => (
     showTempo && tempoTrack
-      ? getSortedTempoRegions(tempoTrack, timeSignature.numerator).map(region => ({
+      ? getSortedTempoRegions(tempoTrack, timeSignature.numerator * 960 * (4 / timeSignature.denominator)).map(region => ({
         id: region.getId(),
         type: 'tempo',
         region,
-        absoluteStartBeat: region.getStartFromBeat(),
-        durationBeats: region.getLength(),
+        absoluteStartTick: region.getStartTick(),
+        durationTicks: region.getLengthTicks(),
       }))
       : []
   ), [globalTracks, showTempo, tempoTrack, timeSignature.numerator]);
 
   const keySignatureRows = useMemo<KeySignatureRowData[]>(() => (
     showKeySignature && signatureTrack
-      ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator).map(region => ({
+      ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator * 960 * (4 / timeSignature.denominator)).map(region => ({
         id: region.getId(),
         type: 'key-signature',
         region,
-        absoluteStartBeat: region.getStartFromBeat(),
-        durationBeats: region.getLength(),
+        absoluteStartTick: region.getStartTick(),
+        durationTicks: region.getLengthTicks(),
       }))
       : []
   ), [globalTracks, showKeySignature, signatureTrack, timeSignature.numerator]);
@@ -239,16 +239,16 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         id: region.getId(),
         type: 'chord',
         region,
-        absoluteStartBeat: region.getStartFromBeat(),
-        durationBeats: region.getLength(),
+        absoluteStartTick: region.getStartTick(),
+        durationTicks: region.getLengthTicks(),
       }))
       : []
   ), [chordTrack, globalTracks, showChords]);
 
   const globalRows: GlobalRowData[] = useMemo(() => (
     [...markerRows, ...tempoRows, ...keySignatureRows, ...chordRows].sort((a, b) => {
-      if (a.absoluteStartBeat !== b.absoluteStartBeat) {
-        return a.absoluteStartBeat - b.absoluteStartBeat;
+      if (a.absoluteStartTick !== b.absoluteStartTick) {
+        return a.absoluteStartTick - b.absoluteStartTick;
       }
       const typeDelta = GLOBAL_TYPE_ORDER[a.type] - GLOBAL_TYPE_ORDER[b.type];
       if (typeDelta !== 0) {
@@ -387,8 +387,8 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           }
 
           for (const targetRow of targetRows) {
-            const nextBeat = targetRow.absoluteStartBeat + parsed.deltaBeats;
-            if (nextBeat < 0) {
+            const nextTick = targetRow.absoluteStartTick + parsed.deltaTicks;
+            if (nextTick < 0) {
               await showAlert(t('eventList.global.validation.position'));
               return;
             }
@@ -396,18 +396,18 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
 
           for (const targetRow of targetRows) {
             if (targetRow.type === 'marker' || targetRow.type === 'chord') {
-              KGCore.instance().executeCommand(new MoveGlobalRegionCommand(targetRow.id, Math.round(targetRow.absoluteStartBeat + parsed.deltaBeats)));
+              KGCore.instance().executeCommand(new MoveGlobalRegionCommand(targetRow.id, Math.round(targetRow.absoluteStartTick + parsed.deltaTicks)));
             } else if (targetRow.type === 'tempo') {
               KGCore.instance().executeCommand(new ResizeTempoRegionCommand(
                 targetRow.id,
                 'start',
-                Math.round((targetRow.absoluteStartBeat + parsed.deltaBeats) / timeSignature.numerator)
+                Math.round((targetRow.absoluteStartTick + parsed.deltaTicks) / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             } else {
               KGCore.instance().executeCommand(new ResizeKeySignatureRegionCommand(
                 targetRow.id,
                 'start',
-                Math.round((targetRow.absoluteStartBeat + parsed.deltaBeats) / timeSignature.numerator)
+                Math.round((targetRow.absoluteStartTick + parsed.deltaTicks) / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             }
           }
@@ -417,25 +417,25 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             await showAlert(parsed.error);
             return;
           }
-          if (parsed.absoluteBeat < 0) {
+          if (parsed.absoluteTick < 0) {
             await showAlert(t('eventList.global.validation.position'));
             return;
           }
 
           for (const targetRow of targetRows) {
             if (targetRow.type === 'marker' || targetRow.type === 'chord') {
-              KGCore.instance().executeCommand(new MoveGlobalRegionCommand(targetRow.id, Math.round(parsed.absoluteBeat)));
+              KGCore.instance().executeCommand(new MoveGlobalRegionCommand(targetRow.id, Math.round(parsed.absoluteTick)));
             } else if (targetRow.type === 'tempo') {
               KGCore.instance().executeCommand(new ResizeTempoRegionCommand(
                 targetRow.id,
                 'start',
-                Math.round(parsed.absoluteBeat / timeSignature.numerator)
+                Math.round(parsed.absoluteTick / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             } else {
               KGCore.instance().executeCommand(new ResizeKeySignatureRegionCommand(
                 targetRow.id,
                 'start',
-                Math.round(parsed.absoluteBeat / timeSignature.numerator)
+                Math.round(parsed.absoluteTick / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             }
           }
@@ -486,11 +486,11 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
               && targetRow.region.getKeySignature() !== keySignature,
           );
           const shouldAsk = changingKeyRows.some(targetRow => {
-            const startBeat = targetRow.region.getStartFromBeat();
+            const startTick = targetRow.region.getStartTick();
             return getKeySignatureTransposeDelta(targetRow.region.getKeySignature(), keySignature) !== 0
               && hasChordRegionsInTracks(globalTracks, {
-                startBeat,
-                endBeat: startBeat + targetRow.region.getLength(),
+                startTick,
+                endTick: startTick + targetRow.region.getLengthTicks(),
               });
           });
           const transposeChords = shouldAsk && await showConfirm(t('transpose.chords.confirmRange'), {
@@ -531,7 +531,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           }
 
           for (const targetRow of targetRows) {
-            if (targetRow.durationBeats + parsed.deltaBeats <= 0) {
+            if (targetRow.durationTicks + parsed.deltaTicks <= 0) {
               await showAlert(t('eventList.global.validation.length'));
               return;
             }
@@ -542,19 +542,19 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
               KGCore.instance().executeCommand(new ResizeGlobalRegionCommand(
                 targetRow.id,
                 'end',
-                Math.round(targetRow.absoluteStartBeat + targetRow.durationBeats + parsed.deltaBeats)
+                Math.round(targetRow.absoluteStartTick + targetRow.durationTicks + parsed.deltaTicks)
               ));
             } else if (targetRow.type === 'tempo') {
               KGCore.instance().executeCommand(new ResizeTempoRegionCommand(
                 targetRow.id,
                 'end',
-                Math.round((targetRow.absoluteStartBeat + targetRow.durationBeats + parsed.deltaBeats) / timeSignature.numerator)
+                Math.round((targetRow.absoluteStartTick + targetRow.durationTicks + parsed.deltaTicks) / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             } else {
               KGCore.instance().executeCommand(new ResizeKeySignatureRegionCommand(
                 targetRow.id,
                 'end',
-                Math.round((targetRow.absoluteStartBeat + targetRow.durationBeats + parsed.deltaBeats) / timeSignature.numerator)
+                Math.round((targetRow.absoluteStartTick + targetRow.durationTicks + parsed.deltaTicks) / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             }
           }
@@ -564,7 +564,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
             await showAlert(parsed.error);
             return;
           }
-          if (parsed.duration <= 0) {
+          if (parsed.durationTicks <= 0) {
             await showAlert(t('eventList.global.validation.length'));
             return;
           }
@@ -574,19 +574,19 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
               KGCore.instance().executeCommand(new ResizeGlobalRegionCommand(
                 targetRow.id,
                 'end',
-                Math.round(targetRow.absoluteStartBeat + parsed.duration)
+                Math.round(targetRow.absoluteStartTick + parsed.durationTicks)
               ));
             } else if (targetRow.type === 'tempo') {
               KGCore.instance().executeCommand(new ResizeTempoRegionCommand(
                 targetRow.id,
                 'end',
-                Math.round((targetRow.absoluteStartBeat + parsed.duration) / timeSignature.numerator)
+                Math.round((targetRow.absoluteStartTick + parsed.durationTicks) / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             } else {
               KGCore.instance().executeCommand(new ResizeKeySignatureRegionCommand(
                 targetRow.id,
                 'end',
-                Math.round((targetRow.absoluteStartBeat + parsed.duration) / timeSignature.numerator)
+                Math.round((targetRow.absoluteStartTick + parsed.durationTicks) / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)))
               ));
             }
           }
@@ -689,22 +689,22 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
 
     try {
       if (addGlobalItemType === 'marker') {
-        const startBeat = Math.max(0, Math.round(playheadPosition));
-        const existing = markerRows.find(row => row.absoluteStartBeat === startBeat)?.region ?? null;
+        const startTick = Math.max(0, Math.round(playheadTick));
+        const existing = markerRows.find(row => row.absoluteStartTick === startTick)?.region ?? null;
         if (existing) {
           selectCreatedOrExistingRegion(existing);
           refreshProjectState();
           return;
         }
 
-        const command = new CreateGlobalMarkerRegionCommand(startBeat, timeSignature.numerator, 'Marker');
+        const command = new CreateGlobalMarkerRegionCommand(startTick, timeSignature.numerator * 960 * (4 / timeSignature.denominator), 'Marker');
         KGCore.instance().executeCommand(command);
         const createdRegion = command.getCreatedRegion();
         if (createdRegion) {
           selectCreatedOrExistingRegion(createdRegion);
         }
       } else if (addGlobalItemType === 'tempo') {
-        const startBar = Math.max(0, Math.round(playheadPosition / timeSignature.numerator));
+        const startBar = Math.max(0, Math.round(playheadTick / (timeSignature.numerator * 960 * (4 / timeSignature.denominator))));
         const existing = tempoRows.find(row => row.region.getStartBar() === startBar)?.region ?? null;
         if (existing) {
           selectCreatedOrExistingRegion(existing);
@@ -719,7 +719,7 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           selectCreatedOrExistingRegion(createdRegion);
         }
       } else if (addGlobalItemType === 'key-signature') {
-        const startBar = Math.max(0, Math.round(playheadPosition / timeSignature.numerator));
+        const startBar = Math.max(0, Math.round(playheadTick / (timeSignature.numerator * 960 * (4 / timeSignature.denominator))));
         const existing = keySignatureRows.find(row => row.region.getStartBar() === startBar)?.region ?? null;
         if (existing) {
           selectCreatedOrExistingRegion(existing);
@@ -734,8 +734,8 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           selectCreatedOrExistingRegion(createdRegion);
         }
       } else {
-        const startBeat = Math.max(0, Math.round(playheadPosition));
-        const exactRegion = chordRows.find(row => row.absoluteStartBeat === startBeat)?.region ?? null;
+        const startTick = Math.max(0, Math.round(playheadTick));
+        const exactRegion = chordRows.find(row => row.absoluteStartTick === startTick)?.region ?? null;
         if (exactRegion) {
           selectCreatedOrExistingRegion(exactRegion);
           refreshProjectState();
@@ -743,11 +743,11 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         }
 
         const occupiedRegion = chordRows.find(row => (
-          startBeat > row.absoluteStartBeat && startBeat < row.absoluteStartBeat + row.durationBeats
+          startTick > row.absoluteStartTick && startTick < row.absoluteStartTick + row.durationTicks
         ))?.region ?? null;
         const command = occupiedRegion
-          ? new InsertChordRegionAtBeatCommand(startBeat, 'C')
-          : new CreateChordRegionCommand(startBeat, timeSignature.numerator, 'C');
+          ? new InsertChordRegionAtTickCommand(startTick, 'C')
+          : new CreateChordRegionCommand(startTick, timeSignature.numerator * 960 * (4 / timeSignature.denominator), 'C');
         KGCore.instance().executeCommand(command);
         const createdRegion = command.getCreatedRegion();
         if (createdRegion) {
@@ -842,10 +842,10 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
         <EventListPlayhead
           rows={globalRows.map(row => ({
             id: row.id,
-            beat: normalizeEventListPlayheadBeat(row.absoluteStartBeat, MIDI_EVENT_TICKS_PER_BEAT),
+            tick: normalizeEventListPlayheadTick(row.absoluteStartTick, MIDI_EVENT_TICKS_PER_BEAT),
           }))}
-          playheadPosition={playheadPosition}
-          songEndBeat={maxBars * timeSignature.numerator}
+          playheadTick={playheadTick}
+          songEndTick={maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator)}
         />
         <table className="event-list-table">
           <thead>
@@ -858,10 +858,10 @@ const GlobalEventListTab: React.FC<GlobalEventListTabProps> = ({
           </thead>
           <tbody>
             {globalRows.map((row, index) => {
-              const positionText = formatMidiEventPosition(row.absoluteStartBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+              const positionText = formatMidiEventPosition(row.absoluteStartTick, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
               const statusText = getRowStatus(row, t);
               const valText = getRowValue(row);
-              const lengthText = formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT);
+              const lengthText = formatMidiEventLength(row.durationTicks, MIDI_EVENT_TICKS_PER_BEAT);
               const isEditingPosition = editingCell?.rowId === row.id && editingCell.column === 'position';
               const isEditingVal = editingCell?.rowId === row.id && editingCell.column === 'val';
               const isEditingLength = editingCell?.rowId === row.id && editingCell.column === 'length';

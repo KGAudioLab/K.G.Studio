@@ -5,10 +5,11 @@ import type {
   PianoRollQuantizePositionValue,
 } from '../core/state/KGPianoRollState';
 import type { RawMidiNote } from './midiUtil';
+import { noteValueToTicks } from '../core/timing';
 import {
-  beatRangeToSeconds,
-  beatToSeconds,
-  secondsToBeat,
+  tickRangeToSeconds,
+  tickToSeconds,
+  secondsToTick,
 } from './globalTrackUtil';
 
 export {
@@ -20,8 +21,8 @@ export {
 import type { AudioToMidiDetectedNote } from './audioToMidiCore';
 
 export interface AudioToMidiAnalysisSpan {
-  regionStartBeat: number;
-  regionEndBeat: number;
+  regionStartTick: number;
+  regionEndTick: number;
   startSeconds: number;
   endSeconds: number;
 }
@@ -44,45 +45,46 @@ export function buildAudioToMidiAnalysisSpan(
     loopingRange: [number, number];
   },
 ): AudioToMidiAnalysisSpan | null {
-  const regionStartBeat = audioRegion.getStartFromBeat();
-  const regionEndBeat = regionStartBeat + audioRegion.getLength();
-  if (regionEndBeat <= regionStartBeat) {
+  const regionStartTick = audioRegion.getStartTick();
+  const regionEndTick = regionStartTick + audioRegion.getLengthTicks();
+  if (regionEndTick <= regionStartTick) {
     return null;
   }
 
   if (options.loopModeEnabled && options.convertLoopRangeOnly) {
-    const beatsPerBar = project.getTimeSignature().numerator;
-    const loopStartBeat = options.loopingRange[0] * beatsPerBar;
-    const loopEndBeat = (options.loopingRange[1] + 1) * beatsPerBar;
-    const overlapStartBeat = Math.max(regionStartBeat, loopStartBeat);
-    const overlapEndBeat = Math.min(regionEndBeat, loopEndBeat);
-    if (overlapEndBeat <= overlapStartBeat) {
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    const loopStartTick = options.loopingRange[0] * ticksPerBar;
+    const loopEndTick = (options.loopingRange[1] + 1) * ticksPerBar;
+    const overlapStartTick = Math.max(regionStartTick, loopStartTick);
+    const overlapEndTick = Math.min(regionEndTick, loopEndTick);
+    if (overlapEndTick <= overlapStartTick) {
       return null;
     }
 
     return {
-      regionStartBeat: overlapStartBeat,
-      regionEndBeat: overlapEndBeat,
-      startSeconds: audioRegion.getClipStartOffsetSeconds() + beatRangeToSeconds(project, regionStartBeat, overlapStartBeat),
-      endSeconds: audioRegion.getClipStartOffsetSeconds() + beatRangeToSeconds(project, regionStartBeat, overlapEndBeat),
+      regionStartTick: overlapStartTick,
+      regionEndTick: overlapEndTick,
+      startSeconds: audioRegion.getClipStartOffsetSeconds() + tickRangeToSeconds(project, regionStartTick, overlapStartTick),
+      endSeconds: audioRegion.getClipStartOffsetSeconds() + tickRangeToSeconds(project, regionStartTick, overlapEndTick),
     };
   }
 
   return {
-    regionStartBeat,
-    regionEndBeat,
+    regionStartTick,
+    regionEndTick,
     startSeconds: audioRegion.getClipStartOffsetSeconds(),
-    endSeconds: audioRegion.getClipStartOffsetSeconds() + beatRangeToSeconds(project, regionStartBeat, regionEndBeat),
+    endSeconds: audioRegion.getClipStartOffsetSeconds() + tickRangeToSeconds(project, regionStartTick, regionEndTick),
   };
 }
 
-export function quantizationValueToBeats(value: string): number {
+export function quantizationValueToTicks(value: string): number {
   const denominator = Number.parseInt(value.split('/')[1] ?? '', 10);
   if (!Number.isFinite(denominator) || denominator <= 0) {
     throw new Error(`Invalid quantization value: ${value}`);
   }
 
-  return 4 / denominator;
+  return noteValueToTicks(denominator);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -95,51 +97,51 @@ export function convertDetectedAudioNotesToRawMidiNotes(
   detectedNotes: AudioToMidiDetectedNote[],
   options: Pick<AudioToMidiConversionOptions, 'quantizeNoteStart' | 'quantizeNoteLength'>,
 ): RawMidiNote[] {
-  const regionStartAbsoluteSeconds = beatToSeconds(project, span.regionStartBeat);
-  const regionLengthBeats = Math.max(0, span.regionEndBeat - span.regionStartBeat);
-  const quantizedStartStep = quantizationValueToBeats(options.quantizeNoteStart);
-  const quantizedLengthStep = quantizationValueToBeats(options.quantizeNoteLength);
+  const regionStartAbsoluteSeconds = tickToSeconds(project, span.regionStartTick);
+  const regionLengthTicks = Math.max(0, span.regionEndTick - span.regionStartTick);
+  const quantizedStartStep = quantizationValueToTicks(options.quantizeNoteStart);
+  const quantizedLengthStep = quantizationValueToTicks(options.quantizeNoteLength);
 
   const converted = detectedNotes
     .map(note => {
-      const startBeatAbsolute = secondsToBeat(project, regionStartAbsoluteSeconds + note.startOffsetSeconds);
-      const endBeatAbsolute = secondsToBeat(project, regionStartAbsoluteSeconds + note.endOffsetSeconds);
-      const rawStartBeat = startBeatAbsolute - span.regionStartBeat;
-      const rawEndBeat = endBeatAbsolute - span.regionStartBeat;
-      const rawDurationBeats = rawEndBeat - rawStartBeat;
-      if (rawDurationBeats < quantizedLengthStep) {
+      const startTickAbsolute = secondsToTick(project, regionStartAbsoluteSeconds + note.startOffsetSeconds);
+      const endTickAbsolute = secondsToTick(project, regionStartAbsoluteSeconds + note.endOffsetSeconds);
+      const rawStartTick = startTickAbsolute - span.regionStartTick;
+      const rawEndTick = endTickAbsolute - span.regionStartTick;
+      const rawDurationTicks = rawEndTick - rawStartTick;
+      if (rawDurationTicks < quantizedLengthStep) {
         return null;
       }
 
-      const quantizedStartBeat = Math.round(rawStartBeat / quantizedStartStep) * quantizedStartStep;
-      const quantizedDurationBeats = Math.max(
+      const quantizedStartTick = Math.round(rawStartTick / quantizedStartStep) * quantizedStartStep;
+      const quantizedDurationTicks = Math.max(
         quantizedLengthStep,
-        Math.round(rawDurationBeats / quantizedLengthStep) * quantizedLengthStep,
+        Math.round(rawDurationTicks / quantizedLengthStep) * quantizedLengthStep,
       );
-      const quantizedEndBeat = quantizedStartBeat + quantizedDurationBeats;
-      if (quantizedStartBeat >= regionLengthBeats) {
+      const quantizedEndTick = quantizedStartTick + quantizedDurationTicks;
+      if (quantizedStartTick >= regionLengthTicks) {
         return null;
       }
 
-      const clampedStartBeat = clamp(quantizedStartBeat, 0, regionLengthBeats);
-      const clampedEndBeat = clamp(
-        Math.max(clampedStartBeat + quantizedLengthStep, quantizedEndBeat),
-        clampedStartBeat + Math.min(quantizedLengthStep, Math.max(regionLengthBeats - clampedStartBeat, 0)),
-        regionLengthBeats,
+      const clampedStartTick = clamp(quantizedStartTick, 0, regionLengthTicks);
+      const clampedEndTick = clamp(
+        Math.max(clampedStartTick + quantizedLengthStep, quantizedEndTick),
+        clampedStartTick + Math.min(quantizedLengthStep, Math.max(regionLengthTicks - clampedStartTick, 0)),
+        regionLengthTicks,
       );
-      if (clampedEndBeat <= clampedStartBeat) {
+      if (clampedEndTick <= clampedStartTick) {
         return null;
       }
 
       return {
-        startBeat: clampedStartBeat,
-        endBeat: clampedEndBeat,
+        startTick: clampedStartTick,
+        endTick: clampedEndTick,
         pitch: note.pitch,
         velocity: clamp(Math.round(45 + note.heat * 82), 1, 127),
       } satisfies RawMidiNote;
     })
     .filter((note): note is RawMidiNote => note !== null)
-    .sort((left, right) => left.startBeat - right.startBeat || left.pitch - right.pitch);
+    .sort((left, right) => left.startTick - right.startTick || left.pitch - right.pitch);
 
   const merged: RawMidiNote[] = [];
   for (const note of converted) {
@@ -147,9 +149,9 @@ export function convertDetectedAudioNotesToRawMidiNotes(
     if (
       previous &&
       previous.pitch === note.pitch &&
-      note.startBeat <= previous.endBeat + 1e-6
+      note.startTick <= previous.endTick + 1e-6
     ) {
-      previous.endBeat = Math.max(previous.endBeat, note.endBeat);
+      previous.endTick = Math.max(previous.endTick, note.endTick);
       previous.velocity = Math.max(previous.velocity, note.velocity);
       continue;
     }

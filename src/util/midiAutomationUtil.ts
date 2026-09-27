@@ -1,12 +1,13 @@
 import { clampMidiPitchBendValue } from './midiUtil';
+import { TICKS_PER_QUARTER } from '../core/timing';
 
 export interface MidiAutomationPoint {
-  beat: number;
+  tick: number;
   value: number;
 }
 
 export interface BakedMidiAutomationPoint {
-  beat: number;
+  tick: number;
   value: number;
 }
 
@@ -18,7 +19,7 @@ export interface MidiAutomationBakeOptions {
   quantizeValue?: (value: number) => number;
 }
 
-const BEAT_EPSILON = 1e-9;
+const TICK_EPSILON = 0;
 
 function quantizeBakedValue(value: number): number {
   return clampMidiPitchBendValue(value);
@@ -35,7 +36,7 @@ function appendPoint(points: BakedMidiAutomationPoint[], nextPoint: BakedMidiAut
     return;
   }
 
-  if (Math.abs(lastPoint.beat - nextPoint.beat) <= BEAT_EPSILON) {
+  if (Math.abs(lastPoint.tick - nextPoint.tick) <= TICK_EPSILON) {
     points[points.length - 1] = nextPoint;
     return;
   }
@@ -47,32 +48,33 @@ function appendPoint(points: BakedMidiAutomationPoint[], nextPoint: BakedMidiAut
   points.push(nextPoint);
 }
 
-function interpolateBetweenPoints(startPoint: MidiAutomationPoint, endPoint: MidiAutomationPoint, beat: number): number {
-  if (Math.abs(endPoint.beat - startPoint.beat) <= BEAT_EPSILON) {
+function interpolateBetweenPoints(startPoint: MidiAutomationPoint, endPoint: MidiAutomationPoint, tick: number): number {
+  if (Math.abs(endPoint.tick - startPoint.tick) <= TICK_EPSILON) {
     return endPoint.value;
   }
 
-  const progress = (beat - startPoint.beat) / (endPoint.beat - startPoint.beat);
+  const progress = (tick - startPoint.tick) / (endPoint.tick - startPoint.tick);
   return startPoint.value + ((endPoint.value - startPoint.value) * progress);
 }
 
-function getMaxIntervalBeats(options: MidiAutomationBakeOptions): number {
+function getMaxIntervalTicks(options: MidiAutomationBakeOptions): number {
   if (!Number.isFinite(options.maxIntervalMs) || options.maxIntervalMs <= 0) {
     return Number.POSITIVE_INFINITY;
   }
 
-  return (options.maxIntervalMs / 1000) * (options.bpm / 60);
+  return Math.max(1, Math.round((options.maxIntervalMs / 1000) * (options.bpm / 60) * TICKS_PER_QUARTER));
 }
 
 export function normalizeMidiAutomationPoints(points: MidiAutomationPoint[]): MidiAutomationPoint[] {
   const sortedPoints = [...points]
-    .filter(point => Number.isFinite(point.beat) && Number.isFinite(point.value))
-    .sort((a, b) => a.beat - b.beat);
+    .filter(point => Number.isFinite(point.tick) && Number.isFinite(point.value))
+    .map(point => ({ ...point, tick: Math.round(point.tick) }))
+    .sort((a, b) => a.tick - b.tick);
   const normalizedPoints: MidiAutomationPoint[] = [];
 
   sortedPoints.forEach(point => {
     const lastPoint = normalizedPoints[normalizedPoints.length - 1];
-    if (lastPoint && Math.abs(lastPoint.beat - point.beat) <= BEAT_EPSILON) {
+    if (lastPoint && Math.abs(lastPoint.tick - point.tick) <= TICK_EPSILON) {
       normalizedPoints[normalizedPoints.length - 1] = point;
       return;
     }
@@ -84,19 +86,19 @@ export function normalizeMidiAutomationPoints(points: MidiAutomationPoint[]): Mi
 }
 
 export function collectRegionMidiAutomationPoints(
-  regions: Array<{ startBeat: number; points: MidiAutomationPoint[] }>
+  regions: Array<{ startTick: number; points: MidiAutomationPoint[] }>
 ): MidiAutomationPoint[] {
   return normalizeMidiAutomationPoints(
     regions.flatMap(region => region.points.map(point => ({
-      beat: region.startBeat + point.beat,
+      tick: region.startTick + point.tick,
       value: point.value,
     })))
   );
 }
 
-export function resolveMidiAutomationValueAtBeat(
+export function resolveMidiAutomationValueAtTick(
   points: MidiAutomationPoint[],
-  beat: number,
+  tick: number,
   defaultValue: number,
   interpolationMode: 'linear' | 'step' = 'linear'
 ): number {
@@ -107,7 +109,7 @@ export function resolveMidiAutomationValueAtBeat(
 
   let previousPoint: MidiAutomationPoint | null = null;
   for (const point of normalizedPoints) {
-    if (beat < point.beat) {
+    if (tick < point.tick) {
       if (!previousPoint) {
         return defaultValue;
       }
@@ -116,7 +118,7 @@ export function resolveMidiAutomationValueAtBeat(
         return previousPoint.value;
       }
 
-      return interpolateBetweenPoints(previousPoint, point, beat);
+      return interpolateBetweenPoints(previousPoint, point, tick);
     }
 
     previousPoint = point;
@@ -127,21 +129,21 @@ export function resolveMidiAutomationValueAtBeat(
 
 export function bakeMidiAutomationPointsInWindow(
   points: MidiAutomationPoint[],
-  windowStartBeat: number,
-  windowEndBeat: number,
+  windowStartTick: number,
+  windowEndTick: number,
   options: MidiAutomationBakeOptions
 ): BakedMidiAutomationPoint[] {
   const normalizedPoints = normalizeMidiAutomationPoints(points);
   const interpolationMode = options.interpolationMode ?? 'linear';
   const anchorPoint = {
-    beat: windowStartBeat,
+    tick: windowStartTick,
     value: quantizeValue(
-      resolveMidiAutomationValueAtBeat(normalizedPoints, windowStartBeat, options.defaultValue, interpolationMode),
+      resolveMidiAutomationValueAtTick(normalizedPoints, windowStartTick, options.defaultValue, interpolationMode),
       options
     ),
   };
 
-  if (windowEndBeat <= windowStartBeat) {
+  if (windowEndTick <= windowStartTick) {
     return [anchorPoint];
   }
 
@@ -151,18 +153,18 @@ export function bakeMidiAutomationPointsInWindow(
   }
 
   const firstPoint = normalizedPoints[0];
-  if (windowStartBeat < firstPoint.beat && firstPoint.beat < windowEndBeat) {
-    appendPoint(bakedPoints, { beat: firstPoint.beat, value: quantizeValue(firstPoint.value, options) });
+  if (windowStartTick < firstPoint.tick && firstPoint.tick < windowEndTick) {
+    appendPoint(bakedPoints, { tick: firstPoint.tick, value: quantizeValue(firstPoint.value, options) });
   }
 
   if (interpolationMode === 'step') {
     normalizedPoints.forEach(point => {
-      if (point.beat <= windowStartBeat + BEAT_EPSILON || point.beat >= windowEndBeat - BEAT_EPSILON) {
+      if (point.tick <= windowStartTick + TICK_EPSILON || point.tick >= windowEndTick - TICK_EPSILON) {
         return;
       }
 
       appendPoint(bakedPoints, {
-        beat: point.beat,
+        tick: point.tick,
         value: quantizeValue(point.value, options),
       });
     });
@@ -170,14 +172,14 @@ export function bakeMidiAutomationPointsInWindow(
     return bakedPoints;
   }
 
-  const maxIntervalBeats = getMaxIntervalBeats(options);
+  const maxIntervalTicks = getMaxIntervalTicks(options);
   for (let index = 0; index < normalizedPoints.length - 1; index += 1) {
     const startPoint = normalizedPoints[index];
     const endPoint = normalizedPoints[index + 1];
-    const overlapStartBeat = Math.max(windowStartBeat, startPoint.beat);
-    const overlapEndBeat = Math.min(windowEndBeat, endPoint.beat);
+    const overlapStartTick = Math.max(windowStartTick, startPoint.tick);
+    const overlapEndTick = Math.min(windowEndTick, endPoint.tick);
 
-    if (overlapEndBeat - overlapStartBeat <= BEAT_EPSILON) {
+    if (overlapEndTick - overlapStartTick <= TICK_EPSILON) {
       continue;
     }
 
@@ -185,36 +187,36 @@ export function bakeMidiAutomationPointsInWindow(
     // The last emitted value is held until a later baked event changes it.
     //
     // That means a flat authored span such as:
-    //   beat 1 -> value 0
-    //   beat 2 -> value 0
-    //   beat 3 -> value 100
-    // should *not* generate any intermediate events between beats 1 and 2.
-    // The value from beat 1 is simply held through beat 2, and the bend only
+    //   tick 1 -> value 0
+    //   tick 2 -> value 0
+    //   tick 3 -> value 100
+    // should *not* generate any intermediate events between ticks 1 and 2.
+    // The value from tick 1 is simply held through tick 2, and the bend only
     // begins once we emit the first baked point from the changing 2 -> 3 segment.
     //
-    // In practice that first changing baked point may land slightly after beat 2
+    // In practice that first changing baked point may land slightly after tick 2
     // depending on the bake interval (for example 10 ms), but it still does not
-    // cause an earlier gradual bend from beat 1. Skipping flat segments preserves
+    // cause an earlier gradual bend from tick 1. Skipping flat segments preserves
     // the intended "hold, then change" behavior while also avoiding redundant
     // scheduled pitch-bend events.
     if (startPoint.value === endPoint.value) {
       continue;
     }
 
-    const segmentLengthBeats = overlapEndBeat - overlapStartBeat;
-    const segmentCount = Number.isFinite(maxIntervalBeats)
-      ? Math.max(1, Math.ceil(segmentLengthBeats / maxIntervalBeats))
+    const segmentLengthTicks = overlapEndTick - overlapStartTick;
+    const segmentCount = Number.isFinite(maxIntervalTicks)
+      ? Math.max(1, Math.ceil(segmentLengthTicks / maxIntervalTicks))
       : 1;
 
     for (let segmentIndex = 1; segmentIndex <= segmentCount; segmentIndex += 1) {
-      const beat = overlapStartBeat + ((segmentLengthBeats * segmentIndex) / segmentCount);
-      if (beat >= windowEndBeat - BEAT_EPSILON) {
+      const tick = Math.round(overlapStartTick + ((segmentLengthTicks * segmentIndex) / segmentCount));
+      if (tick >= windowEndTick - TICK_EPSILON) {
         continue;
       }
 
       appendPoint(bakedPoints, {
-        beat,
-        value: quantizeValue(interpolateBetweenPoints(startPoint, endPoint, beat), options),
+        tick,
+        value: quantizeValue(interpolateBetweenPoints(startPoint, endPoint, tick), options),
       });
     }
   }
@@ -222,21 +224,21 @@ export function bakeMidiAutomationPointsInWindow(
   return bakedPoints;
 }
 
-export function resolveSustainExtendedEndBeat(
+export function resolveSustainExtendedEndTick(
   points: MidiAutomationPoint[],
-  noteEndBeat: number,
+  noteEndTick: number,
   defaultValue: number
 ): number {
   const normalizedPoints = normalizeMidiAutomationPoints(points);
   if (normalizedPoints.length === 0) {
-    return noteEndBeat;
+    return noteEndTick;
   }
 
-  const sustainValueAtEnd = resolveMidiAutomationValueAtBeat(normalizedPoints, noteEndBeat, defaultValue, 'step');
+  const sustainValueAtEnd = resolveMidiAutomationValueAtTick(normalizedPoints, noteEndTick, defaultValue, 'step');
   if (sustainValueAtEnd < 64) {
-    return noteEndBeat;
+    return noteEndTick;
   }
 
-  const releasePoint = normalizedPoints.find(point => point.beat > noteEndBeat && point.value < 64);
-  return releasePoint?.beat ?? noteEndBeat;
+  const releasePoint = normalizedPoints.find(point => point.tick > noteEndTick && point.value < 64);
+  return releasePoint?.tick ?? noteEndTick;
 }

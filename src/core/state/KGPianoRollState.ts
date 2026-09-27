@@ -55,7 +55,7 @@ export class KGPianoRollState {
 
   private activeTool: string = "pointer";
   private currentSnap: PianoRollSnapValue = PIANO_ROLL_NO_SNAP;
-  private lastEditedNoteLength: number = 1; // Default to 1 beat
+  private lastEditedNoteLength: number = 960; // Default to one quarter note
   private lastEditedNoteVelocity: number = 127;
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;

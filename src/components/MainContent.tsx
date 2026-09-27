@@ -44,8 +44,8 @@ const MainContent: React.FC<MainContentProps> = ({
     updateTrack,
     updateTrackProperties,
     timeSignature,
-    seekPlayheadPosition,
-    playheadPosition,
+    seekPlayheadTick,
+    playheadTick,
     isPlaying,
     autoScrollEnabled,
     clearAllSelections,
@@ -115,7 +115,7 @@ const MainContent: React.FC<MainContentProps> = ({
     timeSignature,
     barWidthMultiplier,
     maxBars,
-    playheadPosition,
+    playheadTick,
     refreshProjectState,
     bumpAudioWaveformRedrawVersion,
     findProjectRegionById: mainContentRegions.selection.findProjectRegionById,
@@ -128,12 +128,12 @@ const MainContent: React.FC<MainContentProps> = ({
     timeSignature,
     isPlaying,
     autoScrollEnabled,
-    playheadPosition,
+    playheadTick,
     mainContentScrollRequest,
     maxBars,
     isLooping,
     loopingRange,
-    seekPlayheadPosition,
+    seekPlayheadTick,
     requestPianoRollScroll,
     editingRegionIds: mainContentGlobalTracks.editingRegionIds,
     findProjectRegionById: mainContentRegions.selection.findProjectRegionById,
@@ -305,8 +305,8 @@ const MainContent: React.FC<MainContentProps> = ({
         id: affectedRegion.getId(),
         trackId: targetTrack.getId().toString(),
         trackIndex,
-        barNumber: (affectedRegion.getStartFromBeat() / timeSignature.numerator) + 1,
-        length: affectedRegion.getLength() / timeSignature.numerator,
+        barNumber: (affectedRegion.getStartTick() / (timeSignature.numerator * 960 * (4 / timeSignature.denominator))) + 1,
+        length: affectedRegion.getLengthTicks() / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)),
         name: affectedRegion.getName(),
       });
     } catch (error) {
@@ -332,10 +332,8 @@ const MainContent: React.FC<MainContentProps> = ({
 
   const showHybridButtonForAudio = showPianoRoll && pianoRollMode === 'midi-edit';
   const showHybridButtonForMidi = showPianoRoll && (
-    pianoRollMode === 'midi-edit'
-    || pianoRollMode === 'audio-waveform'
+    pianoRollMode === 'audio-waveform'
     || pianoRollMode === 'spectrogram'
-    || pianoRollMode === 'midi-reference'
   );
   const hybridButtonExcludedRegionIds = pianoRollMode === 'midi-reference'
     ? [activeRegionId, midiReferenceRegionId].filter((id): id is string => id !== null)

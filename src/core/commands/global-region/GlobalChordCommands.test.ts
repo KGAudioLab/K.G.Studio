@@ -4,7 +4,7 @@ import { KGProject } from '../../KGProject';
 import { GlobalTrackType } from '../../global-track';
 import { KGChordRegion } from '../../region/KGChordRegion';
 import { CreateChordRegionCommand } from './CreateChordRegionCommand';
-import { InsertChordRegionAtBeatCommand } from './InsertChordRegionAtBeatCommand';
+import { InsertChordRegionAtTickCommand } from './InsertChordRegionAtTickCommand';
 import { MoveGlobalRegionCommand } from './MoveGlobalRegionCommand';
 import { ReplaceChordRegionsInRangeCommand } from './ReplaceChordRegionsInRangeCommand';
 import { ResizeGlobalRegionCommand } from './ResizeGlobalRegionCommand';
@@ -48,8 +48,8 @@ describe('global chord region commands', () => {
     command.execute();
 
     const created = command.getCreatedRegion();
-    expect(created?.getStartFromBeat()).toBe(4);
-    expect(created?.getLength()).toBe(2);
+    expect(created?.getStartTick()).toBe(4);
+    expect(created?.getLengthTicks()).toBe(2);
   });
 
   it('moves and resizes chord regions with beat snapping and no overlap', () => {
@@ -63,16 +63,16 @@ describe('global chord region commands', () => {
 
     const moveCommand = new MoveGlobalRegionCommand('middle', 9);
     moveCommand.execute();
-    expect(region.getStartFromBeat()).toBe(8);
+    expect(region.getStartTick()).toBe(8);
 
     const resizeCommand = new ResizeGlobalRegionCommand('middle', 'end', 12);
     resizeCommand.execute();
-    expect(region.getLength()).toBe(2);
+    expect(region.getLengthTicks()).toBe(2);
 
     const resizeMinCommand = new ResizeGlobalRegionCommand('middle', 'start', 9);
     resizeMinCommand.execute();
-    expect(region.getStartFromBeat()).toBe(9);
-    expect(region.getLength()).toBe(1);
+    expect(region.getStartTick()).toBe(9);
+    expect(region.getLengthTicks()).toBe(1);
   });
 
   it('updates chord symbols with undo support', () => {
@@ -93,18 +93,18 @@ describe('global chord region commands', () => {
     const region = new KGChordRegion('chord', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8);
     chordTrack.setRegions([region]);
 
-    const command = new InsertChordRegionAtBeatCommand(3, 'C');
+    const command = new InsertChordRegionAtTickCommand(3, 'C');
     command.execute();
 
     const created = command.getCreatedRegion();
     expect(created).not.toBeNull();
-    expect(region.getLength()).toBe(3);
-    expect(created?.getStartFromBeat()).toBe(3);
-    expect(created?.getLength()).toBe(5);
+    expect(region.getLengthTicks()).toBe(3);
+    expect(created?.getStartTick()).toBe(3);
+    expect(created?.getLengthTicks()).toBe(5);
 
     command.undo();
     expect(chordTrack.getRegions()).toHaveLength(1);
-    expect(region.getLength()).toBe(8);
+    expect(region.getLengthTicks()).toBe(8);
   });
 
   it('replaces only the requested chord span and restores the original layout on undo', () => {
@@ -116,9 +116,9 @@ describe('global chord region commands', () => {
     ]);
 
     const command = new ReplaceChordRegionsInRangeCommand(2, 10, [
-      { startBeat: 2, length: 2, symbol: 'Dm' },
-      { startBeat: 4, length: 4, symbol: 'E' },
-      { startBeat: 8, length: 2, symbol: 'Am' },
+      { startTick: 2, length: 2, symbol: 'Dm' },
+      { startTick: 4, length: 4, symbol: 'E' },
+      { startTick: 8, length: 2, symbol: 'Am' },
     ]);
 
     command.execute();
@@ -126,8 +126,8 @@ describe('global chord region commands', () => {
     const replacedRegions = getChordTrack().getRegions() as KGChordRegion[];
     expect(replacedRegions.map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'C', start: 0, length: 2 },
       { symbol: 'Dm', start: 2, length: 2 },
@@ -140,8 +140,8 @@ describe('global chord region commands', () => {
     const restoredRegions = getChordTrack().getRegions() as KGChordRegion[];
     expect(restoredRegions.map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'C', start: 0, length: 4 },
       { symbol: 'Am', start: 4, length: 4 },
@@ -156,15 +156,15 @@ describe('global chord region commands', () => {
     ]);
 
     const command = new WriteChordProgressionCommand([
-      { startBeat: 3, length: 2, symbol: 'C' },
+      { startTick: 3, length: 2, symbol: 'C' },
     ]);
 
     command.execute();
 
     expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'Am', start: 0, length: 3 },
       { symbol: 'C', start: 3, length: 2 },
@@ -175,8 +175,8 @@ describe('global chord region commands', () => {
 
     expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'Am', start: 0, length: 8 },
     ]);
@@ -189,16 +189,16 @@ describe('global chord region commands', () => {
     ]);
 
     const command = new WriteChordProgressionCommand([
-      { startBeat: 2, length: 2, symbol: 'C' },
-      { startBeat: 8, length: 2, symbol: 'G' },
+      { startTick: 2, length: 2, symbol: 'C' },
+      { startTick: 8, length: 2, symbol: 'G' },
     ]);
 
     command.execute();
 
     expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'Am', start: 0, length: 2 },
       { symbol: 'C', start: 2, length: 2 },
@@ -215,16 +215,16 @@ describe('global chord region commands', () => {
     ]);
 
     const command = new WriteChordProgressionCommand([
-      { startBeat: 0, length: 4, symbol: 'C' },
-      { startBeat: 4, length: 4, symbol: 'F' },
+      { startTick: 0, length: 4, symbol: 'C' },
+      { startTick: 4, length: 4, symbol: 'F' },
     ]);
 
     command.execute();
 
     expect((getChordTrack().getRegions() as KGChordRegion[]).map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'C', start: 0, length: 4 },
       { symbol: 'F', start: 4, length: 4 },

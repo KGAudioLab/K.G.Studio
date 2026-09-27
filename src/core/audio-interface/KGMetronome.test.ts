@@ -7,6 +7,7 @@ vi.mock('tone', async () => {
 });
 
 import { KGMetronome } from './KGMetronome';
+import { TICKS_PER_QUARTER } from '../timing';
 
 describe('KGMetronome', () => {
   beforeEach(() => {
@@ -25,7 +26,7 @@ describe('KGMetronome', () => {
       triggerAttackRelease,
     };
 
-    metronome.start(-4, 4, 0.2);
+    metronome.start(-4 * TICKS_PER_QUARTER, 4 * TICKS_PER_QUARTER, TICKS_PER_QUARTER, 0.2);
 
     vi.advanceTimersByTime(200);
     expect(triggerAttackRelease.mock.calls[0]?.[0]).toBe('C5');
@@ -52,7 +53,7 @@ describe('KGMetronome', () => {
       triggerAttackRelease,
     };
 
-    metronome.start(-2, 4, 0.2);
+    metronome.start(-2 * TICKS_PER_QUARTER, 4 * TICKS_PER_QUARTER, TICKS_PER_QUARTER, 0.2);
     metronome.stop();
     vi.runAllTimers();
 

@@ -16,6 +16,10 @@ import { KGCore } from '../../../core/KGCore';
 import { KGProject } from '../../../core/KGProject';
 import { findGlobalTrackByType } from '../../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../../core/global-track';
+import { upgradeProjectToLatest } from '../../../core/project-upgrader/KGProjectUpgrader';
+import { quarterNotesToTicks, TICKS_PER_QUARTER } from '../../../core/timing';
+
+const q = quarterNotesToTicks;
 
 // Import the test fixture
 import joyProjectData from '../../fixtures/joy-project.json';
@@ -34,7 +38,7 @@ function loadProjectFromJSON(projectData: Record<string, unknown>): KGProject {
     throw new Error("Failed to deserialize project data");
   }
   
-  return deserializedProject;
+  return upgradeProjectToLatest(deserializedProject);
 }
 
 describe('abcNotationUtil - Integration Tests with Real Project Data', () => {
@@ -67,7 +71,7 @@ describe('abcNotationUtil - Integration Tests with Real Project Data', () => {
       expect(melodyRegion.getNotes()).toHaveLength(30); // Verify we have all 30 notes
 
       // Convert to ABC notation using real region data
-      const result = convertRegionToABCNotation(melodyRegion, 0, 32);
+      const result = convertRegionToABCNotation(melodyRegion, 0, q(32));
 
       // Expected ABC notation output (exactly as provided)
       const expectedABCNotation = `track_id: 1
@@ -95,7 +99,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       expect(padRegion.getNotes()).toHaveLength(0); // Empty region
 
       // Convert empty region to ABC notation
-      const result = convertRegionToABCNotation(padRegion, 0, 32);
+      const result = convertRegionToABCNotation(padRegion, 0, q(32));
 
       // Verify it contains rest notation and proper headers
       expect(result).toBeDefined();
@@ -120,7 +124,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       // These settings should be reflected in ABC notation headers
       const melodyTrack = joyProject.getTracks()[0] as KGMidiTrack;
       const melodyRegion = melodyTrack.getRegions()[0] as KGMidiRegion;
-      const result = convertRegionToABCNotation(melodyRegion, 0, 32);
+      const result = convertRegionToABCNotation(melodyRegion, 0, q(32));
 
       expect(result).toContain('Q:1/4=125'); // BPM
       expect(result).toContain('M:4/4'); // Time signature
@@ -134,21 +138,21 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
 
       // Verify some key notes from the real data
       expect(notes[0].getPitch()).toBe(64); // First note is E (64)
-      expect(notes[0].getStartBeat()).toBe(0);
-      expect(notes[0].getEndBeat()).toBe(1);
+      expect(notes[0].getStartTick()).toBe(0);
+      expect(notes[0].getEndTick()).toBe(q(1));
 
       expect(notes[3].getPitch()).toBe(67); // Fourth note is G (67)
-      expect(notes[3].getStartBeat()).toBe(3);
-      expect(notes[3].getEndBeat()).toBe(4);
+      expect(notes[3].getStartTick()).toBe(q(3));
+      expect(notes[3].getEndTick()).toBe(q(4));
 
       // Verify fractional timing note (beat 12-13.5)
-      const fractionalNote = notes.find(note => note.getEndBeat() === 13.5);
+      const fractionalNote = notes.find(note => note.getEndTick() === q(13.5));
       expect(fractionalNote).toBeDefined();
       expect(fractionalNote!.getPitch()).toBe(64); // E
-      expect(fractionalNote!.getStartBeat()).toBe(12);
+      expect(fractionalNote!.getStartTick()).toBe(q(12));
 
       // Convert and verify these real timings are reflected in ABC notation
-      const result = convertRegionToABCNotation(melodyRegion, 0, 32);
+      const result = convertRegionToABCNotation(melodyRegion, 0, q(32));
       expect(result).toContain('E3/2 D1/2'); // Fractional timing should appear in ABC
     });
 
@@ -160,19 +164,19 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const melodyTrack = tracks[0] as KGMidiTrack;
       expect(melodyTrack.getName()).toBe('Melody');
       expect(melodyTrack.getInstrument()).toBe('acoustic_grand_piano');
-      expect(melodyTrack.getVolume()).toBe(0.8);
+      expect(melodyTrack.getVolume()).toBeCloseTo(-1.9382, 4);
 
       const padTrack = tracks[1] as KGMidiTrack;
       expect(padTrack.getName()).toBe('Pad Chord');
       expect(padTrack.getInstrument()).toBe('pad_1_new_age');
-      expect(padTrack.getVolume()).toBe(1);
+      expect(padTrack.getVolume()).toBe(0);
 
       // Both tracks should be processable for ABC notation
       const melodyRegion = melodyTrack.getRegions()[0] as KGMidiRegion;
       const padRegion = padTrack.getRegions()[0] as KGMidiRegion;
 
-      const melodyABC = convertRegionToABCNotation(melodyRegion, 0, 32);
-      const padABC = convertRegionToABCNotation(padRegion, 0, 32);
+      const melodyABC = convertRegionToABCNotation(melodyRegion, 0, q(32));
+      const padABC = convertRegionToABCNotation(padRegion, 0, q(32));
 
       expect(melodyABC).toContain('track_name: Melody');
       expect(padABC).toContain('track_name: Pad Chord');
@@ -199,8 +203,8 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
             // Notes should have proper methods and properties
             expect(typeof note.getId()).toBe('string');
             expect(typeof note.getPitch()).toBe('number');
-            expect(typeof note.getStartBeat()).toBe('number');
-            expect(typeof note.getEndBeat()).toBe('number');
+            expect(typeof note.getStartTick()).toBe('number');
+            expect(typeof note.getEndTick()).toBe('number');
             expect(typeof note.getVelocity()).toBe('number');
           });
         });
@@ -219,7 +223,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const melodyRegion = melodyTrack.getRegions()[0] as KGMidiRegion;
 
       // Test converting only first 8 beats (2 bars)
-      const result = convertRegionToABCNotation(melodyRegion, 0, 8);
+      const result = convertRegionToABCNotation(melodyRegion, 0, q(8));
       
       expect(result).toBeDefined();
       expect(result).toContain('track_name: Melody');
@@ -233,7 +237,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const melodyRegion = melodyTrack.getRegions()[0] as KGMidiRegion;
 
       // Test converting from beat 16 to 24 (second half of melody)
-      const result = convertRegionToABCNotation(melodyRegion, 16, 24);
+      const result = convertRegionToABCNotation(melodyRegion, q(16), q(24));
       
       expect(result).toBeDefined();
       expect(result).toContain('track_name: Melody');
@@ -249,13 +253,13 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
     it('uses the F minor key signature and emits naturals only when required', () => {
       const project = new KGProject('f-minor', 2, 0, 120, { numerator: 4, denominator: 4 }, 'F minor');
       const track = new KGMidiTrack('Melody', 1);
-      const region = new KGMidiRegion('region-fm', track.getId().toString(), 0, 'F minor melody', 0, 8);
+      const region = new KGMidiRegion('region-fm', track.getId().toString(), 0, 'F minor melody', 0, q(8));
       region.setNotes([
-        new KGMidiNote('ab-1', 0, 1, 68),
-        new KGMidiNote('a-natural', 1, 2, 69),
-        new KGMidiNote('ab-2', 2, 3, 68),
-        new KGMidiNote('db', 3, 4, 61),
-        new KGMidiNote('a-natural-next-bar', 4, 5, 69),
+        new KGMidiNote('ab-1', 0, q(1), 68),
+        new KGMidiNote('a-natural', q(1), q(2), 69),
+        new KGMidiNote('ab-2', q(2), q(3), 68),
+        new KGMidiNote('db', q(3), q(4), 61),
+        new KGMidiNote('a-natural-next-bar', q(4), q(5), 69),
       ]);
       track.addRegion(region);
       project.setTracks([track]);
@@ -263,7 +267,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
         getCurrentProject: () => project,
       } as unknown as KGCore);
 
-      const output = convertRegionToABCNotation(region, 0, 8);
+      const output = convertRegionToABCNotation(region, 0, q(8));
 
       expect(output).toContain('K:Fm');
       expect(output.split('\n').at(-1)).toBe('A =A _A D | =A z3 |');
@@ -272,13 +276,13 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
     it('can explicitly show key-signature accidentals while retaining F minor spelling', () => {
       const project = new KGProject('f-minor-explicit', 2, 0, 120, { numerator: 4, denominator: 4 }, 'F minor');
       const track = new KGMidiTrack('Melody', 1);
-      const region = new KGMidiRegion('region-fm-explicit', track.getId().toString(), 0, 'F minor explicit', 0, 8);
+      const region = new KGMidiRegion('region-fm-explicit', track.getId().toString(), 0, 'F minor explicit', 0, q(8));
       region.setNotes([
-        new KGMidiNote('ab-1', 0, 1, 68),
-        new KGMidiNote('a-natural', 1, 2, 69),
-        new KGMidiNote('ab-2', 2, 3, 68),
-        new KGMidiNote('db', 3, 4, 61),
-        new KGMidiNote('ab-next-bar', 4, 5, 68),
+        new KGMidiNote('ab-1', 0, q(1), 68),
+        new KGMidiNote('a-natural', q(1), q(2), 69),
+        new KGMidiNote('ab-2', q(2), q(3), 68),
+        new KGMidiNote('db', q(3), q(4), 61),
+        new KGMidiNote('ab-next-bar', q(4), q(5), 68),
       ]);
       track.addRegion(region);
       project.setTracks([track]);
@@ -286,7 +290,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
         getCurrentProject: () => project,
       } as unknown as KGCore);
 
-      const output = convertRegionToABCNotation(region, 0, 8, true);
+      const output = convertRegionToABCNotation(region, 0, q(8), true);
 
       expect(output).toContain('K:Fm');
       expect(output.split('\n').at(-1)).toBe('_A =A _A _D | _A z3 |');
@@ -296,10 +300,10 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
     it('emits inline key changes and respells notes from the Signature track', () => {
       const project = new KGProject('key-changes', 2, 0, 120, { numerator: 4, denominator: 4 }, 'C# minor');
       const track = new KGMidiTrack('Melody', 1);
-      const region = new KGMidiRegion('region-key-change', track.getId().toString(), 0, 'Changing melody', 0, 8);
+      const region = new KGMidiRegion('region-key-change', track.getId().toString(), 0, 'Changing melody', 0, q(8));
       region.setNotes([
-        new KGMidiNote('g-sharp', 0, 1, 68),
-        new KGMidiNote('a-flat', 4, 5, 68),
+        new KGMidiNote('g-sharp', 0, q(1), 68),
+        new KGMidiNote('a-flat', q(4), q(5), 68),
       ]);
       track.addRegion(region);
       project.setTracks([track]);
@@ -312,13 +316,13 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
         'F minor',
         1,
         1,
-        4,
+        4 * TICKS_PER_QUARTER,
       ));
       vi.spyOn(KGCore, 'instance').mockReturnValue({
         getCurrentProject: () => project,
       } as unknown as KGCore);
 
-      const output = convertRegionToABCNotation(region, 0, 8);
+      const output = convertRegionToABCNotation(region, 0, q(8));
 
       expect(output).toContain('K:C#m');
       expect(output.split('\n').at(-1)).toBe('G z3 | [K:Fm] A z3 |');
@@ -326,14 +330,14 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
 
     it('uses key-aware spelling in note-based chord progression output', () => {
       const segments = [
-        { symbol: 'Ab', startBeat: 0, endBeat: 4 },
-        { symbol: 'Ab', startBeat: 4, endBeat: 8 },
+        { symbol: 'Ab', startTick: 0, endTick: q(4) },
+        { symbol: 'Ab', startTick: q(4), endTick: q(8) },
       ];
 
       expect(formatChordProgressionNoteLine(
         segments,
         { numerator: 4, denominator: 4 },
-        beat => (beat < 4 ? 'F minor' : 'C# minor'),
+        tick => (tick < q(4) ? 'F minor' : 'C# minor'),
         'F minor',
       )).toBe('[A, C E]4 | [K:C#m] [G, =C D]4 |');
     });
@@ -343,7 +347,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
     it('formats the exact 8-bar progression in both symbolic and note-based representations', () => {
       const project = new KGProject('chords', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
       const midiTrack = new KGMidiTrack('Melody', 1);
-      const midiRegion = new KGMidiRegion('midi-region-1', '1', 0, 'Melody Region', 0, 32);
+      const midiRegion = new KGMidiRegion('midi-region-1', '1', 0, 'Melody Region', 0, q(32));
       midiTrack.addRegion(midiRegion);
       project.setTracks([midiTrack]);
 
@@ -352,10 +356,10 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
 
       const chords = ['Am', 'F', 'Dm', 'E7', 'Am', 'C', 'Dm', 'E7'];
       chords.forEach((symbol, index) => {
-        chordTrack!.addRegion(new KGChordRegion(`chord-${index}`, chordTrack!.getId(), chordTrack!.getTrackIndex(), symbol, index * 4, 4));
+        chordTrack!.addRegion(new KGChordRegion(`chord-${index}`, chordTrack!.getId(), chordTrack!.getTrackIndex(), symbol, q(index * 4), q(4)));
       });
 
-      const segments = getChordProgressionSegmentsForBeatRange(project, 0, 32);
+      const segments = getChordProgressionSegmentsForBeatRange(project, 0, q(32));
 
       expect(formatChordProgressionSymbolLine(segments, project.getTimeSignature())).toBe(
         '[Am]4 | [F]4 | [Dm]4 | [E7]4 | [Am]4 | [C]4 | [Dm]4 | [E7]4 |'
@@ -364,7 +368,7 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
         '[A, C E]4 | [F, A, C]4 | [D F A]4 | [E ^G B d]4 | [A, C E]4 | [C E G]4 | [D F A]4 | [E ^G B d]4 |'
       );
 
-      const output = convertBeatRangeChordProgressionToABCNotation(project, 0, 32);
+      const output = convertBeatRangeChordProgressionToABCNotation(project, 0, q(32));
       expect(output).toContain('M:4/4');
       expect(output).toContain('L:1/4');
       expect(output).toContain('Q:1/4=120');
@@ -377,9 +381,9 @@ E E F G | G F E D | C C D E | E3/2 D1/2 D2 | E E F G | G F E D | C C D E | D3/2 
       const project = new KGProject('accidentals', 1, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
       const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
       expect(chordTrack).not.toBeNull();
-      chordTrack!.addRegion(new KGChordRegion('chord-1', chordTrack!.getId(), chordTrack!.getTrackIndex(), 'E7', 0, 4));
+      chordTrack!.addRegion(new KGChordRegion('chord-1', chordTrack!.getId(), chordTrack!.getTrackIndex(), 'E7', 0, q(4)));
 
-      const segments = getChordProgressionSegmentsForBeatRange(project, 0, 4);
+      const segments = getChordProgressionSegmentsForBeatRange(project, 0, q(4));
       expect(formatChordProgressionNoteLine(segments, project.getTimeSignature())).toBe('[E ^G B d]4 |');
     });
   });

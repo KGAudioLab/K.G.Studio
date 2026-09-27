@@ -8,6 +8,7 @@ import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { getInstrumentDisplayName } from '../../core/instruments/instrumentResolver';
 import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
+import { quarterNotesToTicks, ticksPerBar, ticksToQuarterNotes } from '../../core/timing';
 
 /**
  * Tool for reading music content from the project
@@ -25,12 +26,12 @@ export class ReadMusicTool extends BaseTool {
     },
     start: {
       type: 'number',
-      description: 'Start beat — the absolute beat position to start reading from. The actual output will be rounded down to the nearest bar boundary. Defaults to 0.',
+      description: 'Start position in quarter-note units, independent of meter. The actual output is rounded down to the nearest bar boundary. Defaults to 0.',
       required: false
     },
     length: {
       type: 'number',
-      description: 'Number of beats to read. The actual output will be rounded up to the nearest bar boundary. If omitted, reads to the end of the track.',
+      description: 'Length in quarter-note units, independent of meter. The actual output is rounded up to the nearest bar boundary. If omitted, reads to the end of the track.',
       required: false
     }
   };
@@ -75,8 +76,10 @@ export class ReadMusicTool extends BaseTool {
       this.validateParameters(normalizedParams);
 
       const trackId = normalizedParams.track_id as string | undefined;
-      const startBeat = (normalizedParams.start as number) || 0;
-      const length = normalizedParams.length as number | undefined;
+      const startQuarterNotes = (normalizedParams.start as number) || 0;
+      const lengthQuarterNotes = normalizedParams.length as number | undefined;
+      const startTick = quarterNotesToTicks(startQuarterNotes);
+      const lengthTicks = lengthQuarterNotes === undefined ? undefined : quarterNotesToTicks(lengthQuarterNotes);
 
       const project = this.getCurrentProject();
       const tracks = project.getTracks();
@@ -86,30 +89,30 @@ export class ReadMusicTool extends BaseTool {
       }
 
       // Validate start
-      if (startBeat < 0) {
-        return this.createErrorResult(`Invalid start ${startBeat}. Must be >= 0.`);
+      if (startTick < 0) {
+        return this.createErrorResult(`Invalid start ${startTick}. Must be >= 0.`);
       }
 
       // Validate length
-      if (length !== undefined && length <= 0) {
-        return this.createErrorResult(`Invalid length ${length}. Must be > 0.`);
+      if (lengthTicks !== undefined && lengthTicks <= 0) {
+        return this.createErrorResult(`Invalid length ${lengthQuarterNotes}. Must be > 0.`);
       }
 
       // Get project settings for bar rounding
       const timeSignature = project.getTimeSignature();
-      const beatsPerBar = timeSignature.numerator;
+      const barTicks = ticksPerBar(timeSignature);
 
-      // Round startBeat to floor bar beats and calculate endBeat
-      const roundedStartBeat = Math.floor(startBeat / beatsPerBar) * beatsPerBar;
-      const rawEndBeat = length !== undefined ? startBeat + length : undefined;
-      const roundedEndBeat = rawEndBeat !== undefined ? Math.ceil(rawEndBeat / beatsPerBar) * beatsPerBar : undefined;
+      // Round startTick to floor bar beats and calculate endTick
+      const roundedStartTick = Math.floor(startTick / barTicks) * barTicks;
+      const rawEndTick = lengthTicks !== undefined ? startTick + lengthTicks : undefined;
+      const roundedEndTick = rawEndTick !== undefined ? Math.ceil(rawEndTick / barTicks) * barTicks : undefined;
 
       let abcOutput = '';
 
       if (!trackId || trackId === '' || trackId === 'all') {
         // Read all tracks
         const midiTracks = tracks.filter(track => track instanceof KGMidiTrack) as KGMidiTrack[];
-        abcOutput = this.generateAllTracksABC(midiTracks, roundedStartBeat, roundedEndBeat);
+        abcOutput = this.generateAllTracksABC(midiTracks, roundedStartTick, roundedEndTick);
       } else {
         // Read specific track or first available track
         const targetTrack = trackId
@@ -128,7 +131,7 @@ export class ReadMusicTool extends BaseTool {
           return this.createErrorResult(`Track "${targetTrack.getName()}" is not a MIDI track`);
         }
 
-        abcOutput = this.generateSingleTrackABC(targetTrack, roundedStartBeat, roundedEndBeat);
+        abcOutput = this.generateSingleTrackABC(targetTrack, roundedStartTick, roundedEndTick);
       }
 
       return this.createSuccessResult(abcOutput);
@@ -150,28 +153,31 @@ export class ReadMusicTool extends BaseTool {
       return null;
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    const startBeat = (normalizedArgs.start as number) || 0;
-    const length = normalizedArgs.length as number | undefined;
-    if (startBeat < 0 || (length !== undefined && length <= 0)) {
+    const projectTimeSignature = project.getTimeSignature();
+    const barTicks = ticksPerBar(projectTimeSignature);
+    const startQuarterNotes = (normalizedArgs.start as number) || 0;
+    const lengthQuarterNotes = normalizedArgs.length as number | undefined;
+    if (startQuarterNotes < 0 || (lengthQuarterNotes !== undefined && lengthQuarterNotes <= 0)) {
       return null;
     }
+    const startTick = quarterNotesToTicks(startQuarterNotes);
+    const lengthTicks = lengthQuarterNotes === undefined ? undefined : quarterNotesToTicks(lengthQuarterNotes);
 
-    const roundedStartBeat = Math.floor(startBeat / beatsPerBar) * beatsPerBar;
-    const rawEndBeat = length !== undefined ? startBeat + length : undefined;
-    const roundedEndBeat = rawEndBeat !== undefined
-      ? Math.ceil(rawEndBeat / beatsPerBar) * beatsPerBar
-      : this.getTrackReadEndBeat(normalizedArgs, tracks, roundedStartBeat);
+    const roundedStartTick = Math.floor(startTick / barTicks) * barTicks;
+    const rawEndTick = lengthTicks !== undefined ? startTick + lengthTicks : undefined;
+    const roundedEndTick = rawEndTick !== undefined
+      ? Math.ceil(rawEndTick / barTicks) * barTicks
+      : this.getTrackReadEndTick(normalizedArgs, tracks, roundedStartTick);
 
     const trackNames = this.resolveSummaryTrackNames(normalizedArgs, tracks);
-    if (trackNames.length === 0 || roundedEndBeat === undefined) {
+    if (trackNames.length === 0 || roundedEndTick === undefined) {
       return null;
     }
 
     return {
       trackNames,
-      startBar: Math.floor(roundedStartBeat / beatsPerBar) + 1,
-      endBar: Math.max(1, Math.ceil(roundedEndBeat / beatsPerBar)),
+      startBar: Math.floor(roundedStartTick / barTicks) + 1,
+      endBar: Math.max(1, Math.ceil(roundedEndTick / barTicks)),
     };
   }
 
@@ -194,21 +200,21 @@ export class ReadMusicTool extends BaseTool {
     return [targetTrack.getName() || 'Unnamed Track'];
   }
 
-  private getTrackReadEndBeat(
+  private getTrackReadEndTick(
     args: Record<string, unknown>,
     tracks: KGTrack[],
-    roundedStartBeat: number,
+    roundedStartTick: number,
   ): number | undefined {
     const trackId = args.track_id as string | undefined;
 
     if (!trackId || trackId === '' || trackId === 'all') {
       const midiTracks = tracks.filter(track => track instanceof KGMidiTrack) as KGMidiTrack[];
-      const endBeats = midiTracks.flatMap(track =>
+      const endTicks = midiTracks.flatMap(track =>
         track.getRegions()
           .filter(region => region instanceof KGMidiRegion)
-          .map(region => region.getStartFromBeat() + region.getLength())
+          .map(region => region.getStartTick() + region.getLengthTicks())
       );
-      return endBeats.length > 0 ? Math.max(roundedStartBeat, ...endBeats) : roundedStartBeat;
+      return endTicks.length > 0 ? Math.max(roundedStartTick, ...endTicks) : roundedStartTick;
     }
 
     const targetTrack = tracks.find(track => track.getId().toString() === trackId);
@@ -216,10 +222,10 @@ export class ReadMusicTool extends BaseTool {
       return undefined;
     }
 
-    const endBeats = targetTrack.getRegions()
+    const endTicks = targetTrack.getRegions()
       .filter(region => region instanceof KGMidiRegion)
-      .map(region => region.getStartFromBeat() + region.getLength());
-    return endBeats.length > 0 ? Math.max(roundedStartBeat, ...endBeats) : roundedStartBeat;
+      .map(region => region.getStartTick() + region.getLengthTicks());
+    return endTicks.length > 0 ? Math.max(roundedStartTick, ...endTicks) : roundedStartTick;
   }
 
   private formatTrackNameList(trackNames: string[]): string {
@@ -239,17 +245,17 @@ export class ReadMusicTool extends BaseTool {
       : `bars ${startBar} to ${endBar}`;
   }
 
-  private hasMidiContentInRange(track: KGMidiTrack, startBeat: number, endBeat?: number): boolean {
-    const rangeEndBeat = endBeat ?? Infinity;
+  private hasMidiContentInRange(track: KGMidiTrack, startTick: number, endTick?: number): boolean {
+    const rangeEndTick = endTick ?? Infinity;
 
     return track.getRegions().some(region => {
       if (!(region instanceof KGMidiRegion)) {
         return false;
       }
 
-      const regionStart = region.getStartFromBeat();
-      const regionEnd = regionStart + region.getLength();
-      const overlapsRange = regionStart < rangeEndBeat && regionEnd > startBeat;
+      const regionStart = region.getStartTick();
+      const regionEnd = regionStart + region.getLengthTicks();
+      const overlapsRange = regionStart < rangeEndTick && regionEnd > startTick;
 
       return overlapsRange && region.getNotes().length > 0;
     });
@@ -280,7 +286,7 @@ export class ReadMusicTool extends BaseTool {
       'X:1',
       `M:${timeSignature.numerator}/${timeSignature.denominator}`,
       `L:1/${timeSignature.denominator}`,
-      `Q:1/${timeSignature.denominator}=${bpm}`,
+      `Q:1/4=${bpm}`,
       `K:${abcKeySignature}`
     ].join('\n');
   }
@@ -291,18 +297,19 @@ export class ReadMusicTool extends BaseTool {
     )));
   }
 
-  private buildRestBody(startBeat: number, endBeat: number | undefined): string {
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    const effectiveEndBeat = endBeat ?? (startBeat + beatsPerBar);
-    const totalBars = Math.max(1, Math.ceil((effectiveEndBeat - startBeat) / beatsPerBar));
-    const restToken = `z${beatsPerBar}`;
+  private buildRestBody(startTick: number, endTick: number | undefined): string {
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
+    const effectiveEndTick = endTick ?? (startTick + ticksPerBar);
+    const totalBars = Math.max(1, Math.ceil((effectiveEndTick - startTick) / ticksPerBar));
+    const restToken = `z${ticksToQuarterNotes(ticksPerBar)}`;
     return Array.from({ length: totalBars }, () => restToken).join(' | ') + ' |';
   }
 
   /**
    * Generate ABC notation for all tracks
    */
-  private generateAllTracksABC(tracks: KGMidiTrack[], startBeat: number, endBeat?: number): string {
+  private generateAllTracksABC(tracks: KGMidiTrack[], startTick: number, endTick?: number): string {
     const midiTracks = tracks.filter(track => track instanceof KGMidiTrack);
 
     if (midiTracks.length === 0) {
@@ -313,12 +320,12 @@ export class ReadMusicTool extends BaseTool {
       return this.getEmptyProjectMessage();
     }
 
-    const hasContentInRange = midiTracks.some(track => this.hasMidiContentInRange(track, startBeat, endBeat));
+    const hasContentInRange = midiTracks.some(track => this.hasMidiContentInRange(track, startTick, endTick));
     if (!hasContentInRange) {
       return this.getEmptyRangeMessage();
     }
 
-    let output = `Tracks (beats ${startBeat}-${endBeat || 'end'}):\n\n`;
+    let output = `Tracks (quarter-notes ${ticksToQuarterNotes(startTick)}-${endTick === undefined ? 'end' : ticksToQuarterNotes(endTick)}):\n\n`;
 
     midiTracks.forEach((track) => {
       // Get all regions from the track and convert each one
@@ -326,17 +333,17 @@ export class ReadMusicTool extends BaseTool {
 
       if (regions.length === 0) {
       output += `${this.buildTrackHeader(track)}\n`;
-      output += `${this.buildRestBody(startBeat, endBeat)} // No regions found\n\n`;
+      output += `${this.buildRestBody(startTick, endTick)} // No regions found\n\n`;
       } else {
         // Convert each region that overlaps with the requested range
         let hasContent = false;
         regions.forEach((region) => {
-          const regionStart = region.getStartFromBeat();
-          const regionEnd = regionStart + region.getLength();
+          const regionStart = region.getStartTick();
+          const regionEnd = regionStart + region.getLengthTicks();
 
           // Check if region overlaps with requested range
-          if (regionStart < (endBeat || Infinity) && regionEnd > startBeat) {
-            const abcNotation = convertRegionToABCNotation(region, startBeat, endBeat);
+          if (regionStart < (endTick || Infinity) && regionEnd > startTick) {
+            const abcNotation = convertRegionToABCNotation(region, startTick, endTick);
             output += abcNotation + '\n\n';
             hasContent = true;
           }
@@ -344,7 +351,7 @@ export class ReadMusicTool extends BaseTool {
 
         if (!hasContent) {
           output += `${this.buildTrackHeader(track)}\n`;
-          output += `${this.buildRestBody(startBeat, endBeat)} // No content in specified range\n\n`;
+          output += `${this.buildRestBody(startTick, endTick)} // No content in specified range\n\n`;
         }
       }
     });
@@ -355,7 +362,7 @@ export class ReadMusicTool extends BaseTool {
   /**
    * Generate ABC notation for a single track
    */
-  private generateSingleTrackABC(track: KGMidiTrack, startBeat: number, endBeat?: number): string {
+  private generateSingleTrackABC(track: KGMidiTrack, startTick: number, endTick?: number): string {
     if (!(track instanceof KGMidiTrack)) {
       return `Track is not a MIDI track.`;
     }
@@ -366,7 +373,7 @@ export class ReadMusicTool extends BaseTool {
       return this.getEmptyProjectMessage();
     }
 
-    if (!this.hasMidiContentInRange(track, startBeat, endBeat)) {
+    if (!this.hasMidiContentInRange(track, startTick, endTick)) {
       return this.getEmptyRangeMessage();
     }
 
@@ -377,17 +384,17 @@ export class ReadMusicTool extends BaseTool {
 
     if (regions.length === 0) {
       output += `${this.buildTrackHeader(track)}\n`;
-      output += `${this.buildRestBody(startBeat, endBeat)} // No regions found`;
+      output += `${this.buildRestBody(startTick, endTick)} // No regions found`;
     } else {
       // Convert each region that overlaps with the requested range
       let hasContent = false;
       regions.forEach((region) => {
-        const regionStart = region.getStartFromBeat();
-        const regionEnd = regionStart + region.getLength();
+        const regionStart = region.getStartTick();
+        const regionEnd = regionStart + region.getLengthTicks();
 
         // Check if region overlaps with requested range
-        if (regionStart < (endBeat || Infinity) && regionEnd > startBeat) {
-          const abcNotation = convertRegionToABCNotation(region, startBeat, endBeat);
+        if (regionStart < (endTick || Infinity) && regionEnd > startTick) {
+          const abcNotation = convertRegionToABCNotation(region, startTick, endTick);
           output += abcNotation;
           hasContent = true;
         }
@@ -395,7 +402,7 @@ export class ReadMusicTool extends BaseTool {
 
       if (!hasContent) {
         output += `${this.buildTrackHeader(track)}\n`;
-        output += `${this.buildRestBody(startBeat, endBeat)} // No content in specified range`;
+        output += `${this.buildRestBody(startTick, endTick)} // No content in specified range`;
       }
     }
 

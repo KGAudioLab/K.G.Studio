@@ -6,7 +6,7 @@ import { generateUniqueId } from '../../../util/miscUtil';
 import { instantiateTrackAutomationPoints } from '../../../util/trackAutomationUtil';
 
 export interface TrackAutomationPointCreationData {
-  beat: number;
+  tick: number;
   value: number;
   pointId?: string;
 }
@@ -35,12 +35,12 @@ export class CreateTrackAutomationPointsCommand extends KGCommand {
     const nextPoints = instantiateTrackAutomationPoints(this.automationType, [
       ...this.originalPoints.map(point => ({
         id: point.getId(),
-        beat: point.getBeat(),
+        tick: point.getTick(),
         value: point.getValue(),
       })),
       ...this.creationData.map(data => ({
         id: data.pointId!,
-        beat: data.beat,
+        tick: data.tick,
         value: data.value,
       })),
     ]);

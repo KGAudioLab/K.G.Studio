@@ -56,7 +56,7 @@ describe('PasteRegionsCommand', () => {
     command.execute();
 
     expect(sourceTrack.getRegions()).toHaveLength(0);
-    expect(selectedTrack.getRegions().map(region => region.getStartFromBeat())).toEqual([10, 13]);
+    expect(selectedTrack.getRegions().map(region => region.getStartTick())).toEqual([10, 13]);
     expect(selectedTrack.getRegions().every(region => region.getTrackId() === '2')).toBe(true);
     expect(maxBars).toBe(8);
   });
@@ -93,8 +93,8 @@ describe('PasteRegionsCommand', () => {
 
     const pastedMidi = midiTrack.getRegions()[0];
     const pastedAudio = audioTrack.getRegions()[0];
-    expect(pastedMidi.getStartFromBeat()).toBe(10);
-    expect(pastedAudio.getStartFromBeat()).toBe(14);
+    expect(pastedMidi.getStartTick()).toBe(10);
+    expect(pastedAudio.getStartTick()).toBe(14);
     expect(selectedTrack.getRegions()).toHaveLength(0);
     expect(pastedMidi).toBeInstanceOf(KGMidiRegion);
     expect((pastedMidi as KGMidiRegion).getNotes()).toHaveLength(1);

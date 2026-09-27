@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { KGMidiControllerEvent } from './KGMidiControllerEvent';
 
 describe('KGMidiControllerEvent', () => {
-  it('stores beat and raw controller value', () => {
+  it('stores an integer tick and raw controller value', () => {
     const event = new KGMidiControllerEvent('cc-1', 1.5, 64);
 
     expect(event.getId()).toBe('cc-1');
-    expect(event.getBeat()).toBe(1.5);
+    expect(event.getTick()).toBe(2);
     expect(event.getValue()).toBe(64);
     expect(event.getCurrentType()).toBe('KGMidiControllerEvent');
   });

@@ -7,10 +7,11 @@ import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { createMockMidiNote, createMockMidiRegion } from '../../test/utils/mock-data';
 import { createDefaultGlobalTracks } from '../../core/global-track';
 import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
+import { quarterNotesToTicks } from '../../core/timing';
 
-const setPlayheadPosition = vi.fn();
-const seekPlayheadPosition = vi.fn(async (position: number) => {
-  setPlayheadPosition(position);
+const setPlayheadTick = vi.fn();
+const seekPlayheadTick = vi.fn(async (position: number) => {
+  setPlayheadTick(position);
   return true;
 });
 const requestMainContentScroll = vi.fn();
@@ -20,18 +21,18 @@ const vexflowMocks = vi.hoisted(() => ({
   staveNoteMock: vi.fn(),
 }));
 const storeState = {
-  playheadPosition: 0,
-  setPlayheadPosition,
-  seekPlayheadPosition,
+  playheadTick: 0,
+  setPlayheadTick,
+  seekPlayheadTick,
   requestMainContentScroll,
   globalTracks: createDefaultGlobalTracks(),
 };
 
 vi.mock('../../stores/projectStore', () => ({
   useProjectStore: (selector: (state: {
-    playheadPosition: number;
-    setPlayheadPosition: typeof setPlayheadPosition;
-    seekPlayheadPosition: typeof seekPlayheadPosition;
+    playheadTick: number;
+    setPlayheadTick: typeof setPlayheadTick;
+    seekPlayheadTick: typeof seekPlayheadTick;
     requestMainContentScroll: typeof requestMainContentScroll;
     globalTracks: typeof storeState.globalTracks;
   }) => unknown) => selector(storeState),
@@ -185,8 +186,8 @@ describe('SheetMusicView', () => {
   };
 
   beforeEach(() => {
-    setPlayheadPosition.mockClear();
-    seekPlayheadPosition.mockClear();
+    setPlayheadTick.mockClear();
+    seekPlayheadTick.mockClear();
     requestMainContentScroll.mockClear();
     onMetricsChange.mockClear();
     vexflowMocks.addKeySignatureMock.mockClear();
@@ -197,7 +198,7 @@ describe('SheetMusicView', () => {
 
   it('maps header clicks in region scope without adding scroll offset', async () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 16,
+      startTick: 16,
       length: 8,
       notes: [],
     });
@@ -219,8 +220,8 @@ describe('SheetMusicView', () => {
     const header = document.querySelector('.sheet-music-header') as HTMLDivElement;
     expect(header).not.toBeNull();
     const metrics = getLatestMetrics();
-    const expectedLocalBeat = 6;
-    const headerPixel = getSheetPlayheadPixel(expectedLocalBeat, metrics);
+    const expectedLocalTick = quarterNotesToTicks(6);
+    const headerPixel = getSheetPlayheadPixel(expectedLocalTick, metrics);
 
     Object.defineProperty(header, 'getBoundingClientRect', {
       value: () => ({
@@ -238,25 +239,25 @@ describe('SheetMusicView', () => {
 
     fireEvent.click(header, { clientX: 100 + headerPixel });
 
-    expect(seekPlayheadPosition).toHaveBeenCalledWith(22);
-    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(22));
+    expect(seekPlayheadTick).toHaveBeenCalledWith(quarterNotesToTicks(22));
+    await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(quarterNotesToTicks(22)));
   });
 
   it('maps header clicks in track scope to absolute beats', async () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 16,
+      startTick: 16,
       length: 8,
       notes: [
-        createMockMidiNote({ id: 'note-1', startBeat: 0, endBeat: 1, pitch: 60 }),
+        createMockMidiNote({ id: 'note-1', startTick: 0, endTick: 1, pitch: 60 }),
       ],
     });
 
     const anotherRegion = createMockMidiRegion({
       id: 'region-2',
-      startFromBeat: 24,
+      startTick: 24,
       length: 4,
       notes: [
-        createMockMidiNote({ id: 'note-2', startBeat: 0, endBeat: 1, pitch: 67 }),
+        createMockMidiNote({ id: 'note-2', startTick: 0, endTick: 1, pitch: 67 }),
       ],
     });
 
@@ -296,7 +297,7 @@ describe('SheetMusicView', () => {
 
     fireEvent.click(header, { clientX: 100 + headerPixel });
 
-    expect(seekPlayheadPosition).toHaveBeenCalledWith(3);
+    expect(seekPlayheadTick).toHaveBeenCalledWith(3);
     await vi.waitFor(() => expect(requestMainContentScroll).toHaveBeenCalledWith(3));
   });
 
@@ -322,9 +323,9 @@ describe('SheetMusicView', () => {
 
   it('renders sheet measures using effective key signatures from the global signature track', () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 0,
+      startTick: 0,
       length: 12,
-      notes: [createMockMidiNote({ startBeat: 0, endBeat: 1, pitch: 60 })],
+      notes: [createMockMidiNote({ startTick: 0, endTick: 1, pitch: 60 })],
     });
     const signatureTrack = storeState.globalTracks.find(track => track.getType() === 'signature');
     signatureTrack?.setRegions([
@@ -353,9 +354,9 @@ describe('SheetMusicView', () => {
 
   it('keeps ties connected when a key change respells the same MIDI pitch', () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 0,
+      startTick: 0,
       length: 8,
-      notes: [createMockMidiNote({ startBeat: 0, endBeat: 5, pitch: 68 })],
+      notes: [createMockMidiNote({ startTick: 0, endTick: 5, pitch: 68 })],
     });
     const signatureTrack = storeState.globalTracks.find(track => track.getType() === 'signature');
     signatureTrack?.setRegions([
@@ -385,7 +386,7 @@ describe('SheetMusicView', () => {
 
   it('widens a measure when a key change header is inserted', () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 0,
+      startTick: 0,
       length: 12,
       notes: [],
     });
@@ -414,12 +415,12 @@ describe('SheetMusicView', () => {
 
   it('anchors quarter and whole rests on the middle line in bass clef', () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 0,
+      startTick: 0,
       length: 12,
       notes: [
-        createMockMidiNote({ id: 'bass-note-1', startBeat: 0, endBeat: 1, pitch: 40 }),
-        createMockMidiNote({ id: 'bass-note-2', startBeat: 2, endBeat: 3, pitch: 40 }),
-        createMockMidiNote({ id: 'bass-note-3', startBeat: 8, endBeat: 9, pitch: 40 }),
+        createMockMidiNote({ id: 'bass-note-1', startTick: 0, endTick: 1, pitch: 40 }),
+        createMockMidiNote({ id: 'bass-note-2', startTick: 2, endTick: 3, pitch: 40 }),
+        createMockMidiNote({ id: 'bass-note-3', startTick: 8, endTick: 9, pitch: 40 }),
       ],
     });
 
@@ -451,11 +452,11 @@ describe('SheetMusicView', () => {
 
   it('keeps treble-clef rests anchored with b/4', () => {
     const activeRegion = createMockMidiRegion({
-      startFromBeat: 0,
+      startTick: 0,
       length: 4,
       notes: [
-        createMockMidiNote({ id: 'treble-note-1', startBeat: 0, endBeat: 1, pitch: 76 }),
-        createMockMidiNote({ id: 'treble-note-2', startBeat: 2, endBeat: 3, pitch: 76 }),
+        createMockMidiNote({ id: 'treble-note-1', startTick: 0, endTick: 1, pitch: 76 }),
+        createMockMidiNote({ id: 'treble-note-2', startTick: 2, endTick: 3, pitch: 76 }),
       ],
     });
 

@@ -11,13 +11,15 @@ export interface NoteRankSelectionOptions {
 export interface NoteRankSelectable {
   id: string;
   pitch: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
 }
+
+import { noteValueToTicks } from '../../core/timing';
 
 export function getNoteRankSelectionInterval(interval: string): number | null {
   const denominator = Number(interval.split('/')[1]);
-  return Number.isInteger(denominator) && denominator > 0 ? 4 / denominator : null;
+  return Number.isInteger(denominator) && denominator > 0 ? noteValueToTicks(denominator) : null;
 }
 
 /** Returns note IDs at the requested distinct pitch rank for every sampled region position. */
@@ -32,9 +34,8 @@ export function findNoteIdsByRank(
   }
 
   const selectedIds = new Set<string>();
-  const epsilon = step * 1e-9;
-  for (let sampleBeat = 0; sampleBeat < regionLength - epsilon; sampleBeat += step) {
-    const soundingNotes = notes.filter(note => note.startBeat <= sampleBeat + epsilon && note.endBeat > sampleBeat + epsilon);
+  for (let sampleTick = 0; sampleTick < regionLength; sampleTick += step) {
+    const soundingNotes = notes.filter(note => note.startTick <= sampleTick && note.endTick > sampleTick);
     const pitches = [...new Set(soundingNotes.map(note => note.pitch))].sort((a, b) => (
       options.direction === 'bottom-to-top' ? a - b : b - a
     ));

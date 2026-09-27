@@ -4,6 +4,7 @@ import {
   WriteMarkersCommand,
   type WriteMarkerEntry,
 } from '../../core/commands/global-region/WriteMarkersCommand';
+import { quarterNotesToTicks, ticksToQuarterNotes } from '../../core/timing';
 
 interface RequestedMarkerEntry {
   marker: string;
@@ -17,7 +18,7 @@ interface ValidatedMarkerEntry extends WriteMarkerEntry {
 
 export class WriteMarkersTool extends BaseTool {
   readonly name = 'write_markers';
-  readonly description = 'Write marker annotations to the global Marker track using absolute beat positions on the project timeline. Marker regions are annotation-only and do not affect playback.';
+  readonly description = 'Write marker annotations using absolute quarter-note positions independent of meter. Marker regions are annotation-only and do not affect playback.';
 
   override isReadOnlyTool(): boolean {
     return false;
@@ -30,7 +31,7 @@ export class WriteMarkersTool extends BaseTool {
   readonly parameters: Record<string, ToolParameter> = {
     markers: {
       type: 'array',
-      description: 'Marker annotations to write to the global Marker track. Each entry uses an absolute beat start on the project timeline.',
+      description: 'Marker annotations to write. Each entry uses an absolute start in quarter-note units.',
       required: true,
       items: {
         type: 'object',
@@ -43,12 +44,12 @@ export class WriteMarkersTool extends BaseTool {
           },
           beat: {
             type: 'number',
-            description: 'Start beat on the absolute project timeline. This is not relative to a clip or region.',
+            description: 'Absolute start in quarter-note units, independent of meter.',
             required: true,
           },
           length: {
             type: 'number',
-            description: 'Marker duration in beats. Must be greater than 0.',
+            description: 'Marker duration in quarter-note units. Must be greater than 0.',
             required: true,
           },
         },
@@ -71,9 +72,9 @@ export class WriteMarkersTool extends BaseTool {
 
     try {
       const validatedMarkers = this.validateAndNormalizeMarkers(args.markers as RequestedMarkerEntry[]);
-      const firstBeat = validatedMarkers[0].startBeat;
-      const lastBeatExclusive = Math.max(...validatedMarkers.map(marker => marker.startBeat + marker.length));
-      return `Allow writing ${validatedMarkers.length} marker ${validatedMarkers.length === 1 ? 'annotation' : 'annotations'} to the global Marker track from beat ${firstBeat} to beat ${lastBeatExclusive}?`;
+      const firstBeat = ticksToQuarterNotes(validatedMarkers[0].startTick);
+      const lastBeatExclusive = ticksToQuarterNotes(Math.max(...validatedMarkers.map(marker => marker.startTick + marker.length)));
+      return `Allow writing ${validatedMarkers.length} marker ${validatedMarkers.length === 1 ? 'annotation' : 'annotations'} to the global Marker track from quarter-note ${firstBeat} to quarter-note ${lastBeatExclusive}?`;
     } catch {
       return undefined;
     }
@@ -85,13 +86,13 @@ export class WriteMarkersTool extends BaseTool {
 
       const validatedMarkers = this.validateAndNormalizeMarkers(params.markers as RequestedMarkerEntry[]);
       await this.executeCommand(new WriteMarkersCommand(validatedMarkers.map(marker => ({
-        startBeat: marker.startBeat,
+        startTick: marker.startTick,
         length: marker.length,
         name: marker.marker,
       }))));
 
       const details = validatedMarkers
-        .map(marker => `[Beat: ${marker.startBeat}; Length: ${marker.length}]: ${marker.marker}`)
+        .map(marker => `[Quarter-note: ${ticksToQuarterNotes(marker.startTick)}; Length: ${ticksToQuarterNotes(marker.length)}]: ${marker.marker}`)
         .join('\n');
 
       return this.createSuccessResult(
@@ -108,14 +109,14 @@ export class WriteMarkersTool extends BaseTool {
     }
 
     const validated = markers.map((marker, index) => this.validateMarkerEntry(marker, index));
-    validated.sort((left, right) => left.startBeat - right.startBeat);
+    validated.sort((left, right) => left.startTick - right.startTick);
 
     for (let index = 1; index < validated.length; index += 1) {
       const previous = validated[index - 1];
       const current = validated[index];
-      if (current.startBeat < previous.startBeat + previous.length) {
+      if (current.startTick < previous.startTick + previous.length) {
         throw new Error(
-          `Marker entry ${index + 1} overlaps with marker entry ${index}. Entry ${index} ends at beat ${previous.startBeat + previous.length}, but entry ${index + 1} starts at beat ${current.startBeat}.`,
+          `Marker entry ${index + 1} overlaps with marker entry ${index}. Entry ${index} ends at quarter-note ${ticksToQuarterNotes(previous.startTick + previous.length)}, but entry ${index + 1} starts at quarter-note ${ticksToQuarterNotes(current.startTick)}.`,
         );
       }
     }
@@ -145,8 +146,8 @@ export class WriteMarkersTool extends BaseTool {
     return {
       marker: normalizedMarker,
       name: normalizedMarker,
-      startBeat: marker.beat,
-      length: marker.length,
+      startTick: quarterNotesToTicks(marker.beat),
+      length: quarterNotesToTicks(marker.length),
     };
   }
 

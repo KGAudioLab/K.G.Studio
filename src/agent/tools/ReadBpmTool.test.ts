@@ -5,6 +5,7 @@ import { KGCore } from '../../core/KGCore';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGTempoRegion } from '../../core/region/KGTempoRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 describe('ReadBpmTool', () => {
   beforeEach(() => {
@@ -21,8 +22,8 @@ describe('ReadBpmTool', () => {
     const track = findGlobalTrackByType(project, GlobalTrackType.Tempo);
     expect(track).not.toBeNull();
     track!.setRegions([
-      new KGTempoRegion('region-2', track!.getId(), track!.getTrackIndex(), 140, 4, 4, 4),
-      new KGTempoRegion('region-1', track!.getId(), track!.getTrackIndex(), 120, 0, 4, 4),
+      new KGTempoRegion('region-2', track!.getId(), track!.getTrackIndex(), 140, 4, 4, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('region-1', track!.getId(), track!.getTrackIndex(), 120, 0, 4, 4 * TICKS_PER_QUARTER),
     ]);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -34,7 +35,7 @@ describe('ReadBpmTool', () => {
     const result = await tool.execute({});
 
     expect(result.success).toBe(true);
-    expect(result.result).toBe('[Beat: 0]: 120 BPM\n[Beat: 16]: 140 BPM');
+    expect(result.result).toBe('[Quarter-note: 0]: 120 BPM\n[Quarter-note: 16]: 140 BPM');
   });
 
   it('preserves line breaks in UI and history display content', () => {
@@ -64,7 +65,7 @@ describe('ReadBpmTool', () => {
     const result = await tool.execute({});
 
     expect(result.success).toBe(true);
-    expect(result.result).toBe('[Beat: 0]: 132 BPM');
+    expect(result.result).toBe('[Quarter-note: 0]: 132 BPM');
   });
 
   it('returns a clean failure when the tempo track is missing', async () => {

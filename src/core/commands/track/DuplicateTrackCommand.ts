@@ -29,7 +29,7 @@ export function generateDuplicateTrackName(originalName: string, tracks: KGTrack
 function cloneAutomationPoint(point: KGTrackAutomationPoint): KGTrackAutomationPoint {
   return new KGTrackAutomationPoint(
     generateUniqueId('KGTrackAutomationPoint'),
-    point.getBeat(),
+    point.getTick(),
     point.getValue(),
   );
 }
@@ -40,27 +40,27 @@ function cloneMidiRegion(region: KGMidiRegion, trackId: number, trackIndex: numb
     trackId.toString(),
     trackIndex,
     region.getName(),
-    region.getStartFromBeat(),
-    region.getLength(),
+    region.getStartTick(),
+    region.getLengthTicks(),
   );
   duplicate.setColor(region.getColor());
   duplicate.setTransposeSettingsOverride(region.getTransposeSettingsOverride());
   duplicate.setNotes(region.getNotes().map(note => new KGMidiNote(
     generateUniqueId('KGMidiNote'),
-    note.getStartBeat(),
-    note.getEndBeat(),
+    note.getStartTick(),
+    note.getEndTick(),
     note.getPitch(),
     note.getVelocity(),
   )));
   duplicate.setPitchBends(region.getPitchBends().map(event => new KGMidiPitchBend(
     generateUniqueId('KGMidiPitchBend'),
-    event.getBeat(),
+    event.getTick(),
     event.getValue(),
   )));
   duplicate.setControllerEventsByType(region.getControllerEventsByType().map(events => (
     events.map(event => new KGMidiControllerEvent(
       generateUniqueId('KGMidiControllerEvent'),
-      event.getBeat(),
+      event.getTick(),
       event.getValue(),
     ))
   )));
@@ -73,8 +73,8 @@ function cloneAudioRegion(region: KGAudioRegion, trackId: number, trackIndex: nu
     trackId.toString(),
     trackIndex,
     region.getName(),
-    region.getStartFromBeat(),
-    region.getLength(),
+    region.getStartTick(),
+    region.getLengthTicks(),
     region.getAudioFileId(),
     region.getAudioFileName(),
     region.getAudioDurationSeconds(),

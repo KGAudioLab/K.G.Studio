@@ -45,7 +45,7 @@ describe('audio chord detection', () => {
   it('detects a major triad from synthetic audio', () => {
     const pcm = createSineChordPcm([261.63, 329.63, 392.0], 2);
     const [result] = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
     ], pcm));
 
     expect(result.symbol).toBe('C');
@@ -55,7 +55,7 @@ describe('audio chord detection', () => {
   it('detects a minor triad from synthetic audio', () => {
     const pcm = createSineChordPcm([220.0, 261.63, 329.63], 2);
     const [result] = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
     ], pcm));
 
     expect(result.symbol).toBe('Am');
@@ -64,7 +64,7 @@ describe('audio chord detection', () => {
   it('marks silent analysis windows as no chord', () => {
     const pcm = new Float32Array(SAMPLE_RATE * 2);
     const [result] = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
     ], pcm));
 
     expect(result.symbol).toBe('N');
@@ -79,8 +79,8 @@ describe('audio chord detection', () => {
     pcm.set(barB, barA.length);
 
     const results = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
-      { barIndex: 1, startBeat: 4, endBeat: 8, startSeconds: 2, endSeconds: 4 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 1, startTick: 4, endTick: 8, startSeconds: 2, endSeconds: 4 },
     ], pcm));
 
     expect(results.map(result => result.symbol)).toEqual(['Am', 'Am']);
@@ -89,7 +89,7 @@ describe('audio chord detection', () => {
   it('uses default options to preserve current triad-first behavior', () => {
     const pcm = createSineChordPcm([329.63, 415.3, 493.88, 587.33], 2);
     const [result] = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
     ], pcm));
 
     expect(result.symbol).toBe('E');
@@ -98,7 +98,7 @@ describe('audio chord detection', () => {
   it('can emit a seventh label when chord detail is enabled', () => {
     const pcm = createSineChordPcm([329.63, 415.3, 493.88, 587.33], 2);
     const [result] = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
     ], pcm, { enableSevenths: true }));
 
     expect(result.symbol).toBe('E7');
@@ -111,7 +111,7 @@ describe('audio chord detection', () => {
     }
 
     const [result] = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
     ], pcm, { noChordThreshold: 95 }));
 
     expect(result.symbol).toBe('N');
@@ -130,14 +130,14 @@ describe('audio chord detection', () => {
     pcm.set(barC, barA.length + barB.length);
 
     const stableResults = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
-      { barIndex: 1, startBeat: 4, endBeat: 8, startSeconds: 2, endSeconds: 4 },
-      { barIndex: 2, startBeat: 8, endBeat: 12, startSeconds: 4, endSeconds: 6 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 1, startTick: 4, endTick: 8, startSeconds: 2, endSeconds: 4 },
+      { barIndex: 2, startTick: 8, endTick: 12, startSeconds: 4, endSeconds: 6 },
     ], pcm, { stability: 100 }));
     const unstableResults = detectChordsFromAudio(createRequest([
-      { barIndex: 0, startBeat: 0, endBeat: 4, startSeconds: 0, endSeconds: 2 },
-      { barIndex: 1, startBeat: 4, endBeat: 8, startSeconds: 2, endSeconds: 4 },
-      { barIndex: 2, startBeat: 8, endBeat: 12, startSeconds: 4, endSeconds: 6 },
+      { barIndex: 0, startTick: 0, endTick: 4, startSeconds: 0, endSeconds: 2 },
+      { barIndex: 1, startTick: 4, endTick: 8, startSeconds: 2, endSeconds: 4 },
+      { barIndex: 2, startTick: 8, endTick: 12, startSeconds: 4, endSeconds: 6 },
     ], pcm, { stability: 0 }));
 
     expect(stableResults[1].symbol).toBe('Am');

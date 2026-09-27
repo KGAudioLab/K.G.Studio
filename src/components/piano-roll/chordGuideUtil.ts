@@ -1,5 +1,5 @@
 import type { KeySignature, KGProject } from '../../core/KGProject';
-import { getEffectiveKeySignatureAtBeat } from '../../util/globalTrackUtil';
+import { getEffectiveKeySignatureAtTick } from '../../util/globalTrackUtil';
 import { getChordGuideModeFromKeySignature } from '../../util/scaleUtil';
 
 export type ChordGuideFunction = 'N' | 'T' | 'S' | 'D';
@@ -34,7 +34,7 @@ export function resolveChordGuideContext(project: KGProject, beat: number): {
   keySignature: KeySignature;
   mode: ChordGuideMode;
 } {
-  const keySignature = getEffectiveKeySignatureAtBeat(project, beat);
+  const keySignature = getEffectiveKeySignatureAtTick(project, beat);
   return {
     keySignature,
     mode: getChordGuideModeFromKeySignature(keySignature),

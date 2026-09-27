@@ -3,6 +3,7 @@ import type { Selectable } from '../components/interfaces';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { createMockMidiRegion, createMockMidiTrack, createMockProject } from '../test/utils/mock-data';
 import { splitSelectedRegionAtPlayhead } from './regionEditUtil';
+import { quarterNotesToTicks } from '../core/timing';
 
 const storeState = {
   showPianoRoll: false,
@@ -72,23 +73,23 @@ describe('splitSelectedRegionAtPlayhead', () => {
   });
 
   it('falls back to region split when the piano roll is closed', async () => {
-    const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 8 });
+    const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0, startTick: 0, length: 8 });
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds: ['region-1'],
-      playheadPosition: 4,
+      playheadTick: quarterNotesToTicks(4),
       refreshProjectState: vi.fn(),
     });
 
-    expect(status).toBe('Split region at beat 4.00');
+    expect(status).toBe(`Split region at tick ${quarterNotesToTicks(4)}`);
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
     expect(dialogMocks.showAlert).not.toHaveBeenCalled();
   });
 
   it('falls back to region split when not in piano-roll view', async () => {
-    const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 8 });
+    const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0, startTick: 0, length: 8 });
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
     storeState.showPianoRoll = true;
@@ -97,16 +98,16 @@ describe('splitSelectedRegionAtPlayhead', () => {
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds: ['region-1'],
-      playheadPosition: 4,
+      playheadTick: quarterNotesToTicks(4),
       refreshProjectState: vi.fn(),
     });
 
-    expect(status).toBe('Split region at beat 4.00');
+    expect(status).toBe(`Split region at tick ${quarterNotesToTicks(4)}`);
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to region split when sheet music view is enabled', async () => {
-    const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 8 });
+    const region = createMockMidiRegion({ id: 'region-1', trackId: '1', trackIndex: 0, startTick: 0, length: 8 });
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
     storeState.showPianoRoll = true;
@@ -116,16 +117,16 @@ describe('splitSelectedRegionAtPlayhead', () => {
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds: ['region-1'],
-      playheadPosition: 4,
+      playheadTick: quarterNotesToTicks(4),
       refreshProjectState: vi.fn(),
     });
 
-    expect(status).toBe('Split region at beat 4.00');
+    expect(status).toBe(`Split region at tick ${quarterNotesToTicks(4)}`);
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
   });
 
   it.each(['midi-edit', 'midi-reference'] as const)('splits selected notes when the piano roll is open in %s view', async (pianoRollMode) => {
-    const note = new KGMidiNote('note-1', 1, 5, 60, 100);
+    const note = new KGMidiNote('note-1', quarterNotesToTicks(1), quarterNotesToTicks(5), 60, 100);
     const region = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
@@ -143,26 +144,26 @@ describe('splitSelectedRegionAtPlayhead', () => {
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds: ['region-1'],
-      playheadPosition: 3,
+      playheadTick: quarterNotesToTicks(3),
       refreshProjectState,
     });
 
-    expect(status).toBe('Split 1 note at beat 3.00');
+    expect(status).toBe(`Split 1 note at tick ${quarterNotesToTicks(3)}`);
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
     expect(refreshProjectState).toHaveBeenCalledTimes(1);
-    expect(region.getNotes().map(candidate => [candidate.getStartBeat(), candidate.getEndBeat()])).toEqual([
-      [1, 3],
-      [3, 5],
+    expect(region.getNotes().map(candidate => [candidate.getStartTick(), candidate.getEndTick()])).toEqual([
+      [quarterNotesToTicks(1), quarterNotesToTicks(3)],
+      [quarterNotesToTicks(3), quarterNotesToTicks(5)],
     ]);
   });
 
   it('splits selected notes using playhead position relative to the region start', async () => {
-    const note = new KGMidiNote('note-1', 1, 5, 60, 100);
+    const note = new KGMidiNote('note-1', quarterNotesToTicks(1), quarterNotesToTicks(5), 60, 100);
     const region = createMockMidiRegion({
       id: 'region-1',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 8,
+      startTick: 8,
       length: 8,
       notes: [note],
     });
@@ -175,14 +176,14 @@ describe('splitSelectedRegionAtPlayhead', () => {
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds: ['region-1'],
-      playheadPosition: 11,
+      playheadTick: quarterNotesToTicks(11),
       refreshProjectState: vi.fn(),
     });
 
-    expect(status).toBe('Split 1 note at beat 11.00');
-    expect(region.getNotes().map(candidate => [candidate.getStartBeat(), candidate.getEndBeat()])).toEqual([
-      [1, 3],
-      [3, 5],
+    expect(status).toBe(`Split 1 note at tick ${quarterNotesToTicks(11)}`);
+    expect(region.getNotes().map(candidate => [candidate.getStartTick(), candidate.getEndTick()])).toEqual([
+      [quarterNotesToTicks(1), quarterNotesToTicks(3)],
+      [quarterNotesToTicks(3), quarterNotesToTicks(5)],
     ]);
   });
 
@@ -202,7 +203,7 @@ describe('splitSelectedRegionAtPlayhead', () => {
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds: ['region-1'],
-      playheadPosition: 3,
+      playheadTick: 3,
       refreshProjectState: vi.fn(),
     });
 

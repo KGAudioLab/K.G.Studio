@@ -35,8 +35,8 @@ interface SheetMusicViewProps {
 interface RenderedSheetEvent {
   barIndex: number;
   eventIndex: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   keys: string[];
   midiPitches: number[];
   tieStart: boolean;
@@ -66,7 +66,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   quantization,
   onMetricsChange,
 }) => {
-  const seekPlayheadPosition = useProjectStore(state => state.seekPlayheadPosition);
+  const seekPlayheadTick = useProjectStore(state => state.seekPlayheadTick);
   const requestMainContentScroll = useProjectStore(state => state.requestMainContentScroll);
   const globalTracks = useProjectStore(state => state.globalTracks);
   const [metrics, setMetrics] = useState<SheetMeasureMetric[]>([]);
@@ -93,7 +93,7 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   const startingBarNumber = useMemo(() => (
     sheetMusicTrackScopeEnabled
       ? 1
-      : (activeRegion ? Math.floor(activeRegion.getStartFromBeat() / timeSignature.numerator) + 1 : 1)
+      : (activeRegion ? Math.floor(activeRegion.getStartTick() / (timeSignature.numerator * 960 * (4 / timeSignature.denominator))) + 1 : 1)
   ), [activeRegion, sheetMusicTrackScopeEnabled, timeSignature.numerator]);
 
   const measureModels = useMemo<SheetMeasureModel[]>(() => {
@@ -230,8 +230,8 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
         renderedEvents.push({
           barIndex: measure.barIndex,
           eventIndex,
-          startBeat: event.startBeat,
-          endBeat: event.endBeat,
+          startTick: event.startTick,
+          endTick: event.endTick,
           keys: [...event.keys],
           midiPitches: [...event.midiPitches],
           tieStart: event.tieStart,
@@ -257,8 +257,8 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
         current.length === nextMetrics.length &&
         current.every((metric, index) => (
           metric.barIndex === nextMetrics[index].barIndex &&
-          metric.startBeat === nextMetrics[index].startBeat &&
-          metric.endBeat === nextMetrics[index].endBeat &&
+          metric.startTick === nextMetrics[index].startTick &&
+          metric.endTick === nextMetrics[index].endTick &&
           metric.leftPx === nextMetrics[index].leftPx &&
           metric.widthPx === nextMetrics[index].widthPx
         ))
@@ -293,13 +293,13 @@ const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     }
 
     const targetBeat = getSheetBeatAtPixel(relativeX, metrics);
-    const absoluteBeat = sheetMusicTrackScopeEnabled
+    const absoluteTick = sheetMusicTrackScopeEnabled
       ? targetBeat
-      : activeRegion.getStartFromBeat() + targetBeat;
+      : activeRegion.getStartTick() + targetBeat;
 
-    void seekPlayheadPosition(absoluteBeat).then(accepted => {
+    void seekPlayheadTick(absoluteTick).then(accepted => {
       if (accepted) {
-        requestMainContentScroll(absoluteBeat);
+        requestMainContentScroll(absoluteTick);
       }
     });
   };
@@ -373,7 +373,7 @@ const SheetMusicPlayhead: React.FC<SheetMusicPlayheadProps> = memo(({
   metrics,
   sheetMusicTrackScopeEnabled,
 }) => {
-  const playheadPosition = useProjectStore(state => state.playheadPosition);
+  const playheadTick = useProjectStore(state => state.playheadTick);
 
   const playheadPixel = useMemo(() => {
     if (!activeRegion) {
@@ -382,11 +382,11 @@ const SheetMusicPlayhead: React.FC<SheetMusicPlayheadProps> = memo(({
 
     return getSheetPlayheadPixel(
       sheetMusicTrackScopeEnabled
-        ? Math.max(0, playheadPosition)
-        : Math.max(0, playheadPosition - activeRegion.getStartFromBeat()),
+        ? Math.max(0, playheadTick)
+        : Math.max(0, playheadTick - activeRegion.getStartTick()),
       metrics
     );
-  }, [activeRegion, metrics, playheadPosition, sheetMusicTrackScopeEnabled]);
+  }, [activeRegion, metrics, playheadTick, sheetMusicTrackScopeEnabled]);
 
   return <Playhead context="piano-roll" pixelPositionOverride={playheadPixel} />;
 });
@@ -395,8 +395,8 @@ const arePropsEqual = (previous: SheetMusicViewProps, next: SheetMusicViewProps)
   return (
     previous.activeRegion?.getId() === next.activeRegion?.getId() &&
     previous.activeRegion?.getName() === next.activeRegion?.getName() &&
-    previous.activeRegion?.getLength() === next.activeRegion?.getLength() &&
-    previous.activeRegion?.getStartFromBeat() === next.activeRegion?.getStartFromBeat() &&
+    previous.activeRegion?.getLengthTicks() === next.activeRegion?.getLengthTicks() &&
+    previous.activeRegion?.getStartTick() === next.activeRegion?.getStartTick() &&
     previous.midiRegions.length === next.midiRegions.length &&
     previous.midiRegions.every((region, index) => region.getId() === next.midiRegions[index]?.getId()) &&
     previous.maxBars === next.maxBars &&
@@ -414,7 +414,7 @@ function createStaveNote(
   event: SheetMeasureModel['events'][number],
   clef: SheetClef
 ): StaveNote {
-  const durationSpec = resolveDurationSpec(event.endBeat - event.startBeat, event.isRest);
+  const durationSpec = resolveDurationSpec(event.endTick - event.startTick, event.isRest);
   const note = new StaveNote({
     clef,
     // VexFlow uses the supplied key to vertically anchor rest glyphs. b/4 is
@@ -434,18 +434,18 @@ function createStaveNote(
 export default memo(SheetMusicView, arePropsEqual);
 
 function buildTiePaths(events: RenderedSheetEvent[], metrics: SheetMeasureMetric[]): SheetTiePath[] {
-  const byStartBeat = new Map<number, RenderedSheetEvent[]>();
+  const byStartTick = new Map<number, RenderedSheetEvent[]>();
 
   events.forEach((event) => {
-    const existing = byStartBeat.get(event.startBeat) ?? [];
+    const existing = byStartTick.get(event.startTick) ?? [];
     existing.push(event);
-    byStartBeat.set(event.startBeat, existing);
+    byStartTick.set(event.startTick, existing);
   });
 
   return events
     .filter((event) => event.tieEnd)
     .map((event) => {
-      const nextCandidates = byStartBeat.get(event.endBeat) ?? [];
+      const nextCandidates = byStartTick.get(event.endTick) ?? [];
       const nextEvent = nextCandidates.find((candidate) => (
         candidate.tieStart &&
         candidate.barIndex === event.barIndex + 1 &&

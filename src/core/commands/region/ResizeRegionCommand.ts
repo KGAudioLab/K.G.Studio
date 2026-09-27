@@ -13,36 +13,36 @@ import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
  */
 export class ResizeRegionCommand extends KGCommand {
   private regionId: string;
-  private newStartFromBeat: number;
+  private newStartTick: number;
   private newLength: number;
-  private originalStartFromBeat: number = 0;
+  private originalStartTick: number = 0;
   private originalLength: number = 0;
   private targetRegion: KGRegion | null = null;
 
   // Store note adjustments for undo
   private noteAdjustments: Array<{
     noteId: string;
-    originalStartBeat: number;
-    originalEndBeat: number;
+    originalStartTick: number;
+    originalEndTick: number;
   }> = [];
   private pitchBendAdjustments: Array<{
     pitchBendId: string;
-    originalBeat: number;
+    originalTick: number;
   }> = [];
   private controllerEventAdjustments: Array<{
     controller: number;
     controllerEventId: string;
-    originalBeat: number;
+    originalTick: number;
   }> = [];
 
   // Audio region clip offset support
   private newClipStartOffsetSeconds?: number;
   private originalClipStartOffsetSeconds: number = 0;
 
-  constructor(regionId: string, newStartFromBeat: number, newLength: number, newClipStartOffsetSeconds?: number) {
+  constructor(regionId: string, newStartTick: number, newLength: number, newClipStartOffsetSeconds?: number) {
     super();
     this.regionId = regionId;
-    this.newStartFromBeat = newStartFromBeat;
+    this.newStartTick = newStartTick;
     this.newLength = newLength;
     this.newClipStartOffsetSeconds = newClipStartOffsetSeconds;
   }
@@ -71,12 +71,12 @@ export class ResizeRegionCommand extends KGCommand {
     this.targetRegion = targetRegion;
 
     // Store original values for undo
-    this.originalStartFromBeat = targetRegion.getStartFromBeat();
-    this.originalLength = targetRegion.getLength();
+    this.originalStartTick = targetRegion.getStartTick();
+    this.originalLength = targetRegion.getLengthTicks();
 
     // Handle note adjustments if start position changes (left-edge resize) for MIDI regions
-    if (this.newStartFromBeat !== this.originalStartFromBeat && targetRegion instanceof KGMidiRegion) {
-      const beatOffset = this.newStartFromBeat - this.originalStartFromBeat;
+    if (this.newStartTick !== this.originalStartTick && targetRegion instanceof KGMidiRegion) {
+      const tickOffset = this.newStartTick - this.originalStartTick;
 
       // Store original note positions and adjust notes to maintain absolute positions
       const notes = targetRegion.getNotes();
@@ -84,33 +84,33 @@ export class ResizeRegionCommand extends KGCommand {
         // Store original positions for undo
         this.noteAdjustments.push({
           noteId: note.getId(),
-          originalStartBeat: note.getStartBeat(),
-          originalEndBeat: note.getEndBeat()
+          originalStartTick: note.getStartTick(),
+          originalEndTick: note.getEndTick()
         });
 
         // Adjust note positions to maintain absolute position
-        note.setStartBeat(note.getStartBeat() - beatOffset);
-        note.setEndBeat(note.getEndBeat() - beatOffset);
+        note.setStartTick(note.getStartTick() - tickOffset);
+        note.setEndTick(note.getEndTick() - tickOffset);
       });
       targetRegion.getPitchBends().forEach((pitchBend: KGMidiPitchBend) => {
         this.pitchBendAdjustments.push({
           pitchBendId: pitchBend.getId(),
-          originalBeat: pitchBend.getBeat(),
+          originalTick: pitchBend.getTick(),
         });
-        pitchBend.setBeat(pitchBend.getBeat() - beatOffset);
+        pitchBend.setTick(pitchBend.getTick() - tickOffset);
       });
       targetRegion.getControllerEventsByType().forEach((events, controller) => {
         events.forEach((controllerEvent: KGMidiControllerEvent) => {
           this.controllerEventAdjustments.push({
             controller,
             controllerEventId: controllerEvent.getId(),
-            originalBeat: controllerEvent.getBeat(),
+            originalTick: controllerEvent.getTick(),
           });
-          controllerEvent.setBeat(controllerEvent.getBeat() - beatOffset);
+          controllerEvent.setTick(controllerEvent.getTick() - tickOffset);
         });
       });
 
-      console.log(`Adjusted ${notes.length} notes by offset ${-beatOffset} beats to maintain absolute positions`);
+      console.log(`Adjusted ${notes.length} notes by offset ${-tickOffset} beats to maintain absolute positions`);
     }
 
     // Handle clip offset for audio regions
@@ -123,11 +123,11 @@ export class ResizeRegionCommand extends KGCommand {
     }
 
     // Apply the resize
-    targetRegion.setStartFromBeat(this.newStartFromBeat);
-    targetRegion.setLength(this.newLength);
+    targetRegion.setStartTick(this.newStartTick);
+    targetRegion.setLengthTicks(this.newLength);
 
     const regionName = targetRegion.getName();
-    console.log(`Resized region "${regionName}": start ${this.originalStartFromBeat} → ${this.newStartFromBeat}, length ${this.originalLength} → ${this.newLength}`);
+    console.log(`Resized region "${regionName}": start ${this.originalStartTick} → ${this.newStartTick}, length ${this.originalLength} → ${this.newLength}`);
   }
 
   undo(): void {
@@ -143,8 +143,8 @@ export class ResizeRegionCommand extends KGCommand {
       this.noteAdjustments.forEach(adjustment => {
         const note = notes.find(n => n.getId() === adjustment.noteId);
         if (note) {
-          note.setStartBeat(adjustment.originalStartBeat);
-          note.setEndBeat(adjustment.originalEndBeat);
+          note.setStartTick(adjustment.originalStartTick);
+          note.setEndTick(adjustment.originalEndTick);
         }
       });
 
@@ -155,7 +155,7 @@ export class ResizeRegionCommand extends KGCommand {
       this.pitchBendAdjustments.forEach(adjustment => {
         const pitchBend = pitchBends.find(candidate => candidate.getId() === adjustment.pitchBendId);
         if (pitchBend) {
-          pitchBend.setBeat(adjustment.originalBeat);
+          pitchBend.setTick(adjustment.originalTick);
         }
       });
     }
@@ -165,7 +165,7 @@ export class ResizeRegionCommand extends KGCommand {
         const controllerEvent = midiRegion.getControllerEvents(adjustment.controller)
           .find(candidate => candidate.getId() === adjustment.controllerEventId);
         if (controllerEvent) {
-          controllerEvent.setBeat(adjustment.originalBeat);
+          controllerEvent.setTick(adjustment.originalTick);
         }
       });
     }
@@ -177,11 +177,11 @@ export class ResizeRegionCommand extends KGCommand {
     }
 
     // Restore original region values
-    this.targetRegion.setStartFromBeat(this.originalStartFromBeat);
-    this.targetRegion.setLength(this.originalLength);
+    this.targetRegion.setStartTick(this.originalStartTick);
+    this.targetRegion.setLengthTicks(this.originalLength);
 
     const regionName = this.targetRegion.getName();
-    console.log(`Restored region "${regionName}": start ${this.newStartFromBeat} → ${this.originalStartFromBeat}, length ${this.newLength} → ${this.originalLength}`);
+    console.log(`Restored region "${regionName}": start ${this.newStartTick} → ${this.originalStartTick}, length ${this.newLength} → ${this.originalLength}`);
   }
 
   getDescription(): string {
@@ -199,8 +199,8 @@ export class ResizeRegionCommand extends KGCommand {
   /**
    * Get the new start position
    */
-  public getNewStartFromBeat(): number {
-    return this.newStartFromBeat;
+  public getNewStartTick(): number {
+    return this.newStartTick;
   }
 
   /**
@@ -213,8 +213,8 @@ export class ResizeRegionCommand extends KGCommand {
   /**
    * Get the original start position (only available after execute)
    */
-  public getOriginalStartFromBeat(): number {
-    return this.originalStartFromBeat;
+  public getOriginalStartTick(): number {
+    return this.originalStartTick;
   }
 
   /**
@@ -234,8 +234,8 @@ export class ResizeRegionCommand extends KGCommand {
   /**
    * Factory method to create a resize command for position only (move without length change)
    */
-  public static createMoveCommand(regionId: string, newStartFromBeat: number, currentLength: number): ResizeRegionCommand {
-    return new ResizeRegionCommand(regionId, newStartFromBeat, currentLength);
+  public static createMoveCommand(regionId: string, newStartTick: number, currentLength: number): ResizeRegionCommand {
+    return new ResizeRegionCommand(regionId, newStartTick, currentLength);
   }
 
   /**
@@ -255,10 +255,10 @@ export class ResizeRegionCommand extends KGCommand {
     timeSignature: { numerator: number; denominator: number },
     newClipStartOffsetSeconds?: number
   ): ResizeRegionCommand {
-    const beatsPerBar = timeSignature.numerator;
-    const newStartFromBeat = (newBarNumber - 1) * beatsPerBar;
-    const newLength = newLengthInBars * beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const newStartTick = (newBarNumber - 1) * ticksPerBar;
+    const newLength = newLengthInBars * ticksPerBar;
 
-    return new ResizeRegionCommand(regionId, newStartFromBeat, newLength, newClipStartOffsetSeconds);
+    return new ResizeRegionCommand(regionId, newStartTick, newLength, newClipStartOffsetSeconds);
   }
 }

@@ -31,7 +31,8 @@ import { showAlert } from '../../util/dialogUtil';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { useI18n } from '../../i18n/useI18n';
 import EventListPlayhead from './EventListPlayhead';
-import { normalizeEventListPlayheadBeat } from './eventListPlayheadUtil';
+import { normalizeEventListPlayheadTick } from './eventListPlayheadUtil';
+import { ticksPerBar } from '../../core/timing';
 
 interface TrackEventListTabProps {
   selectedTrack: KGMidiTrack | KGAudioTrack | null;
@@ -44,8 +45,8 @@ interface TrackRegionRowData {
   id: string;
   type: 'region';
   region: KGRegion;
-  absoluteStartBeat: number;
-  durationBeats: number;
+  absoluteStartTick: number;
+  durationTicks: number;
   statusLabel: 'MIDI' | 'Audio';
 }
 
@@ -54,7 +55,7 @@ interface TrackAutomationRowData {
   type: 'automation';
   automationType: TrackAutomationType;
   point: KGTrackAutomationPoint;
-  absoluteBeat: number;
+  absoluteTick: number;
 }
 
 type TrackRowData = TrackRegionRowData | TrackAutomationRowData;
@@ -116,8 +117,8 @@ const parseTrackAutomationValueInput = (
   return { value: Math.max(-1, Math.min(1, normalized)) };
 };
 
-const findPreviousPanValue = (points: KGTrackAutomationPoint[], beat: number): number => {
-  const previousPoint = [...points].filter(point => point.getBeat() <= beat).sort((a, b) => b.getBeat() - a.getBeat())[0];
+const findPreviousPanValue = (points: KGTrackAutomationPoint[], tick: number): number => {
+  const previousPoint = [...points].filter(point => point.getTick() <= tick).sort((a, b) => b.getTick() - a.getTick())[0];
   return previousPoint?.getValue() ?? 0;
 };
 
@@ -126,7 +127,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
   const {
     tracks,
     maxBars,
-    playheadPosition,
+    playheadTick,
     timeSignature,
     selectedRegionIds,
     selectedTrackAutomationPointIds,
@@ -195,8 +196,8 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
         id: region.getId(),
         type: 'region',
         region,
-        absoluteStartBeat: region.getStartFromBeat(),
-        durationBeats: region.getLength(),
+        absoluteStartTick: region.getStartTick(),
+        durationTicks: region.getLengthTicks(),
         statusLabel: region instanceof KGAudioRegion ? 'Audio' : 'MIDI',
       }))
       : [];
@@ -207,7 +208,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
         type: 'automation',
         automationType: 'volume',
         point,
-        absoluteBeat: point.getBeat(),
+        absoluteTick: point.getTick(),
       }))
       : [];
 
@@ -217,13 +218,13 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
         type: 'automation',
         automationType: 'pan',
         point,
-        absoluteBeat: point.getBeat(),
+        absoluteTick: point.getTick(),
       }))
       : [];
 
     return [...regionRows, ...volumeRows, ...panRows].sort((a, b) => {
-      const beatA = a.type === 'region' ? a.absoluteStartBeat : a.absoluteBeat;
-      const beatB = b.type === 'region' ? b.absoluteStartBeat : b.absoluteBeat;
+      const beatA = a.type === 'region' ? a.absoluteStartTick : a.absoluteTick;
+      const beatB = b.type === 'region' ? b.absoluteStartTick : b.absoluteTick;
       if (beatA !== beatB) return beatA - beatB;
       if (a.type !== b.type) return a.type === 'region' ? -1 : 1;
       if (a.type === 'automation' && b.type === 'automation' && a.automationType !== b.automationType) {
@@ -331,7 +332,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           }
 
           for (const targetRow of targetRows) {
-            if (targetRow.region.getStartFromBeat() + parsed.deltaBeats < 0) {
+            if (targetRow.region.getStartTick() + parsed.deltaTicks < 0) {
               await showAlert('Position delta would move one or more regions before the start of the project.');
               return;
             }
@@ -340,7 +341,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           targetRows.forEach(targetRow => {
             KGCore.instance().executeCommand(new MoveRegionCommand(
               targetRow.region.getId(),
-              targetRow.region.getStartFromBeat() + parsed.deltaBeats,
+              targetRow.region.getStartTick() + parsed.deltaTicks,
               targetRow.region.getTrackId(),
               targetRow.region.getTrackIndex()
             ));
@@ -351,7 +352,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             await showAlert(parsed.error);
             return;
           }
-          if (parsed.absoluteBeat < 0) {
+          if (parsed.absoluteTick < 0) {
             await showAlert('Position cannot be earlier than the start of the project.');
             return;
           }
@@ -359,7 +360,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           targetRows.forEach(targetRow => {
             KGCore.instance().executeCommand(new MoveRegionCommand(
               targetRow.region.getId(),
-              parsed.absoluteBeat,
+              parsed.absoluteTick,
               targetRow.region.getTrackId(),
               targetRow.region.getTrackIndex()
             ));
@@ -376,7 +377,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           }
 
           for (const targetRow of targetRows) {
-            if (targetRow.region.getLength() + parsed.deltaBeats <= 0) {
+            if (targetRow.region.getLengthTicks() + parsed.deltaTicks <= 0) {
               await showAlert('Length delta would make one or more regions non-positive in duration.');
               return;
             }
@@ -385,8 +386,8 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           targetRows.forEach(targetRow => {
             KGCore.instance().executeCommand(new ResizeRegionCommand(
               targetRow.region.getId(),
-              targetRow.region.getStartFromBeat(),
-              targetRow.region.getLength() + parsed.deltaBeats
+              targetRow.region.getStartTick(),
+              targetRow.region.getLengthTicks() + parsed.deltaTicks
             ));
           });
         } else {
@@ -395,7 +396,7 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             await showAlert(parsed.error);
             return;
           }
-          if (parsed.duration <= 0) {
+          if (parsed.durationTicks <= 0) {
             await showAlert('Length must be positive.');
             return;
           }
@@ -403,8 +404,8 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           targetRows.forEach(targetRow => {
             KGCore.instance().executeCommand(new ResizeRegionCommand(
               targetRow.region.getId(),
-              targetRow.region.getStartFromBeat(),
-              parsed.duration
+              targetRow.region.getStartTick(),
+              parsed.durationTicks
             ));
           });
         }
@@ -421,10 +422,10 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
 
       const snapshots = targetRows.map(targetRow => ({
         pointId: targetRow.point.getId(),
-        beat: targetRow.point.getBeat(),
+        tick: targetRow.point.getTick(),
         value: targetRow.point.getValue(),
       }));
-      const updates: Array<{ pointId: string; beat?: number; value?: number }> = [];
+      const updates: Array<{ pointId: string; tick?: number; value?: number }> = [];
 
       if (editingCell.column === 'position') {
         if (isDeltaEdit) {
@@ -435,12 +436,12 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
           }
 
           for (const targetRow of targetRows) {
-            const nextBeat = targetRow.point.getBeat() + parsed.deltaBeats;
-            if (nextBeat < 0) {
+            const nextTick = targetRow.point.getTick() + parsed.deltaTicks;
+            if (nextTick < 0) {
               await showAlert('Position delta would move one or more automation points before the start of the project.');
               return;
             }
-            updates.push({ pointId: targetRow.point.getId(), beat: nextBeat });
+            updates.push({ pointId: targetRow.point.getId(), tick: nextTick });
           }
         } else {
           const parsed = parseMidiEventPosition(trimmedValue, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
@@ -448,13 +449,13 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             await showAlert(parsed.error);
             return;
           }
-          if (parsed.absoluteBeat < 0) {
+          if (parsed.absoluteTick < 0) {
             await showAlert('Position cannot be earlier than the start of the project.');
             return;
           }
 
           for (const targetRow of targetRows) {
-            updates.push({ pointId: targetRow.point.getId(), beat: parsed.absoluteBeat });
+            updates.push({ pointId: targetRow.point.getId(), tick: parsed.absoluteTick });
           }
         }
       }
@@ -580,8 +581,8 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
       const command = new CreateRegionCommand(
         liveSelectedTrack.getId().toString(),
         liveSelectedTrack.getTrackIndex(),
-        playheadPosition,
-        timeSignature.numerator
+        playheadTick,
+        ticksPerBar(timeSignature)
       );
       KGCore.instance().executeCommand(command);
       const createdRegion = command.getCreatedRegion();
@@ -595,12 +596,12 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
       const automationType: TrackAutomationType = addTrackItemType;
       const value = automationType === 'volume'
         ? liveSelectedTrack.getVolume()
-        : findPreviousPanValue(liveSelectedTrack.getPanAutomation(), playheadPosition);
+        : findPreviousPanValue(liveSelectedTrack.getPanAutomation(), playheadTick);
 
       const command = new CreateTrackAutomationPointsCommand(
         liveSelectedTrack.getId(),
         automationType,
-        [{ beat: playheadPosition, value }]
+        [{ tick: playheadTick, value }]
       );
       KGCore.instance().executeCommand(command);
       const createdPointId = command.getCreatedPointIds()[0];
@@ -719,13 +720,13 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
             <EventListPlayhead
               rows={trackRows.map(row => ({
                 id: row.id,
-                beat: normalizeEventListPlayheadBeat(
-                  row.type === 'region' ? row.absoluteStartBeat : row.absoluteBeat,
+                tick: normalizeEventListPlayheadTick(
+                  row.type === 'region' ? row.absoluteStartTick : row.absoluteTick,
                   MIDI_EVENT_TICKS_PER_BEAT,
                 ),
               }))}
-              playheadPosition={playheadPosition}
-              songEndBeat={maxBars * timeSignature.numerator}
+              playheadTick={playheadTick}
+              songEndTick={maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator)}
             />
             <table className="event-list-table">
               <thead>
@@ -738,14 +739,14 @@ const TrackEventListTab: React.FC<TrackEventListTabProps> = ({ selectedTrack }) 
               </thead>
               <tbody>
                 {trackRows.map((row, index) => {
-                  const positionText = formatMidiEventPosition(row.type === 'region' ? row.absoluteStartBeat : row.absoluteBeat, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
+                  const positionText = formatMidiEventPosition(row.type === 'region' ? row.absoluteStartTick : row.absoluteTick, timeSignature, MIDI_EVENT_TICKS_PER_BEAT);
                   const statusText = row.type === 'region'
                     ? (row.statusLabel === 'Audio' ? t('eventList.track.status.audio') : t('eventList.track.status.midi'))
                     : row.automationType === 'volume'
                       ? t('eventList.track.status.volume')
                       : t('eventList.track.status.pan');
                   const valText = row.type === 'region' ? row.region.getName() : formatTrackAutomationValue(row.automationType, row.point.getValue());
-                  const infoText = row.type === 'region' ? formatMidiEventLength(row.durationBeats, MIDI_EVENT_TICKS_PER_BEAT) : formatTrackAutomationInfo(row.automationType, row.point.getValue());
+                  const infoText = row.type === 'region' ? formatMidiEventLength(row.durationTicks, MIDI_EVENT_TICKS_PER_BEAT) : formatTrackAutomationInfo(row.automationType, row.point.getValue());
                   const isEditingPosition = editingCell?.rowId === row.id && editingCell.column === 'position';
                   const isEditingVal = editingCell?.rowId === row.id && editingCell.column === 'val';
                   const isEditingLength = editingCell?.rowId === row.id && editingCell.column === 'length';

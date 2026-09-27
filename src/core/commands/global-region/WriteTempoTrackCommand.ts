@@ -16,12 +16,12 @@ import {
 import { generateUniqueId } from '../../../util/miscUtil';
 
 export interface WriteTempoEntry {
-  startBeat: number;
+  startTick: number;
   bpm: number;
 }
 
-function cloneRegions(regions: KGTempoRegion[], beatsPerBar: number): KGTempoRegion[] {
-  return cloneTempoRegions(regions, beatsPerBar);
+function cloneRegions(regions: KGTempoRegion[], ticksPerBar: number): KGTempoRegion[] {
+  return cloneTempoRegions(regions, ticksPerBar);
 }
 
 export class WriteTempoTrackCommand extends KGCommand {
@@ -38,14 +38,15 @@ export class WriteTempoTrackCommand extends KGCommand {
     super();
     this.baseBpm = baseBpm;
     this.replacements = replacements.map(replacement => ({
-      startBeat: replacement.startBeat,
+      startTick: replacement.startTick,
       bpm: replacement.bpm,
     }));
   }
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Tempo);
     if (!track) {
       throw new Error('Tempo global track not found');
@@ -53,7 +54,7 @@ export class WriteTempoTrackCommand extends KGCommand {
 
     if (this.nextRegions) {
       project.setBpm(this.baseBpm);
-      track.setRegions(cloneRegions(this.nextRegions, beatsPerBar));
+      track.setRegions(cloneRegions(this.nextRegions, ticksPerBar));
       syncAudioRegionLengthsToPlaybackDuration(project);
       if (this.nextMaxBars !== null) {
         project.setMaxBars(this.nextMaxBars);
@@ -62,10 +63,10 @@ export class WriteTempoTrackCommand extends KGCommand {
       return;
     }
 
-    const currentRegions = getSortedTempoRegions(track, beatsPerBar);
+    const currentRegions = getSortedTempoRegions(track, ticksPerBar);
     this.previousProjectBpm = project.getBpm();
     this.previousMaxBars = project.getMaxBars();
-    this.previousRegions = cloneRegions(currentRegions, beatsPerBar);
+    this.previousRegions = cloneRegions(currentRegions, ticksPerBar);
     project.setBpm(this.baseBpm);
 
     if (this.replacements.length === 0) {
@@ -90,7 +91,7 @@ export class WriteTempoTrackCommand extends KGCommand {
 
     const normalizedReplacements = this.replacements
       .map(replacement => ({
-        startBar: Math.floor(replacement.startBeat / beatsPerBar),
+        startBar: Math.floor(replacement.startTick / ticksPerBar),
         bpm: replacement.bpm,
       }))
       .sort((left, right) => left.startBar - right.startBar);
@@ -118,7 +119,7 @@ export class WriteTempoTrackCommand extends KGCommand {
           currentBpm,
           currentStartBar,
           replacement.startBar - currentStartBar,
-          beatsPerBar,
+          ticksPerBar,
         ));
       }
 
@@ -134,12 +135,12 @@ export class WriteTempoTrackCommand extends KGCommand {
         currentBpm,
         currentStartBar,
         songEndBar - currentStartBar,
-        beatsPerBar,
+        ticksPerBar,
       ));
     }
 
     this.nextRegions = nextRegions;
-    track.setRegions(cloneRegions(this.nextRegions, beatsPerBar));
+    track.setRegions(cloneRegions(this.nextRegions, ticksPerBar));
     this.audioRegionLengthSnapshots = syncAudioRegionLengthsToPlaybackDuration(project);
     this.nextMaxBars = getRequiredMaxBarsForAudioRegions(project);
     if (this.nextMaxBars > project.getMaxBars()) {
@@ -154,7 +155,8 @@ export class WriteTempoTrackCommand extends KGCommand {
     }
 
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Tempo);
     if (!track) {
       throw new Error('Tempo global track not found during undo');
@@ -162,7 +164,7 @@ export class WriteTempoTrackCommand extends KGCommand {
 
     project.setBpm(this.previousProjectBpm);
     project.setMaxBars(this.previousMaxBars);
-    track.setRegions(cloneRegions(this.previousRegions, beatsPerBar));
+    track.setRegions(cloneRegions(this.previousRegions, ticksPerBar));
     normalizeTempoRegionsForProject(project);
     if (this.audioRegionLengthSnapshots.length > 0) {
       restoreAudioRegionLengths(this.audioRegionLengthSnapshots);

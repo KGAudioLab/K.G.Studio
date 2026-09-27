@@ -14,6 +14,7 @@ import {
   getRightwardBeatAlignmentShiftBeats,
 } from './audioTempoDetectionActions';
 import { findGlobalTrackByType, getSortedTempoRegions } from './globalTrackUtil';
+import { quarterNotesToTicks } from '../core/timing';
 
 function mockCoreForProject(project: KGProject) {
   vi.mocked(KGCore.instance).mockReturnValue({
@@ -62,7 +63,7 @@ describe('audio tempo detection actions', () => {
     }
 
     tempoTrack.setRegions([
-      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, quarterNotesToTicks(4)),
     ]);
     mockCoreForProject(project);
 
@@ -77,7 +78,7 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: false,
       project,
       regionId: 'audio-1',
-      regionStartBeat: 10,
+      regionStartTick: quarterNotesToTicks(10),
       regionTrackId: 'track-1',
       regionTrackIndex: 0,
       refreshProjectState,
@@ -106,7 +107,7 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: false,
       project,
       regionId: 'audio-1',
-      regionStartBeat: 6,
+      regionStartTick: quarterNotesToTicks(6),
       regionTrackId: 'track-1',
       regionTrackIndex: 0,
       refreshProjectState,
@@ -126,7 +127,7 @@ describe('audio tempo detection actions', () => {
     }
 
     tempoTrack.setRegions([
-      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, quarterNotesToTicks(4)),
     ]);
     mockCoreForProject(project);
 
@@ -141,14 +142,14 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: false,
       project,
       regionId: 'audio-1',
-      regionStartBeat: 10,
+      regionStartTick: quarterNotesToTicks(10),
       regionTrackId: 'track-1',
       regionTrackIndex: 0,
       refreshProjectState,
       setBpm,
     });
 
-    const tempoRegions = getSortedTempoRegions(tempoTrack, 4);
+    const tempoRegions = getSortedTempoRegions(tempoTrack, quarterNotesToTicks(4));
     expect(tempoRegions).toHaveLength(2);
     expect(tempoRegions[0].getStartBar()).toBe(0);
     expect(tempoRegions[0].getLengthBars()).toBe(2);
@@ -166,7 +167,7 @@ describe('audio tempo detection actions', () => {
     }
 
     tempoTrack.setRegions([
-      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, quarterNotesToTicks(4)),
     ]);
     mockCoreForProject(project);
 
@@ -180,14 +181,14 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: false,
       project,
       regionId: 'audio-1',
-      regionStartBeat: 8,
+      regionStartTick: quarterNotesToTicks(8),
       regionTrackId: 'track-1',
       regionTrackIndex: 0,
       refreshProjectState,
       setBpm: vi.fn(),
     });
 
-    const tempoRegions = getSortedTempoRegions(tempoTrack, 4);
+    const tempoRegions = getSortedTempoRegions(tempoTrack, quarterNotesToTicks(4));
     expect(tempoRegions).toHaveLength(2);
     expect(tempoRegions[1].getStartBar()).toBe(2);
     expect(tempoRegions[1].getBpm()).toBe(140);
@@ -202,8 +203,8 @@ describe('audio tempo detection actions', () => {
     }
 
     tempoTrack.setRegions([
-      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 2, 4),
-      new KGTempoRegion('tempo-b', tempoTrack.getId(), tempoTrack.getTrackIndex(), 126, 2, 6, 4),
+      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 2, quarterNotesToTicks(4)),
+      new KGTempoRegion('tempo-b', tempoTrack.getId(), tempoTrack.getTrackIndex(), 126, 2, 6, quarterNotesToTicks(4)),
     ]);
     mockCoreForProject(project);
 
@@ -217,14 +218,14 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: false,
       project,
       regionId: 'audio-1',
-      regionStartBeat: 8,
+      regionStartTick: quarterNotesToTicks(8),
       regionTrackId: 'track-1',
       regionTrackIndex: 0,
       refreshProjectState,
       setBpm: vi.fn(),
     });
 
-    const tempoRegions = getSortedTempoRegions(tempoTrack, 4);
+    const tempoRegions = getSortedTempoRegions(tempoTrack, quarterNotesToTicks(4));
     expect(tempoRegions).toHaveLength(2);
     expect(tempoRegions[1].getStartBar()).toBe(2);
     expect(tempoRegions[1].getBpm()).toBe(144);
@@ -245,7 +246,17 @@ describe('audio tempo detection actions', () => {
   it('moves the audio region right when auto-align is enabled for update-current-tempo', () => {
     const project = new KGProject('test-project', 8);
     const track = new KGAudioTrack('Audio', 0);
-    const region = new KGAudioRegion('audio-1', String(track.getId()), track.getTrackIndex(), 'Clip', 8, 4, 'file-1', 'clip.wav', 2);
+    const region = new KGAudioRegion(
+      'audio-1',
+      String(track.getId()),
+      track.getTrackIndex(),
+      'Clip',
+      quarterNotesToTicks(8),
+      quarterNotesToTicks(4),
+      'file-1',
+      'clip.wav',
+      2,
+    );
     track.setRegions([region]);
     project.setTracks([track]);
     mockCoreForProject(project);
@@ -260,14 +271,14 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: true,
       project,
       regionId: region.getId(),
-      regionStartBeat: region.getStartFromBeat(),
+      regionStartTick: region.getStartTick(),
       regionTrackId: region.getTrackId(),
       regionTrackIndex: region.getTrackIndex(),
       refreshProjectState,
       setBpm: vi.fn((bpm: number) => project.setBpm(bpm)),
     });
 
-    expect(region.getStartFromBeat()).toBeCloseTo(8.196957887526867, 6);
+    expect(region.getStartTick()).toBe(quarterNotesToTicks(8.196957887526867));
     expect(region.getTrackId()).toBe(String(track.getId()));
     expect(region.getTrackIndex()).toBe(track.getTrackIndex());
     expect(refreshProjectState).toHaveBeenCalledTimes(1);
@@ -280,11 +291,21 @@ describe('audio tempo detection actions', () => {
       throw new Error('Tempo track not found');
     }
     tempoTrack.setRegions([
-      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('tempo-a', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 8, quarterNotesToTicks(4)),
     ]);
 
     const track = new KGAudioTrack('Audio', 0);
-    const region = new KGAudioRegion('audio-1', String(track.getId()), track.getTrackIndex(), 'Clip', 10, 4, 'file-1', 'clip.wav', 2);
+    const region = new KGAudioRegion(
+      'audio-1',
+      String(track.getId()),
+      track.getTrackIndex(),
+      'Clip',
+      quarterNotesToTicks(10),
+      quarterNotesToTicks(4),
+      'file-1',
+      'clip.wav',
+      2,
+    );
     track.setRegions([region]);
     project.setTracks([track]);
     mockCoreForProject(project);
@@ -299,14 +320,14 @@ describe('audio tempo detection actions', () => {
       autoAlignRegionToBeat: true,
       project,
       regionId: region.getId(),
-      regionStartBeat: region.getStartFromBeat(),
+      regionStartTick: region.getStartTick(),
       regionTrackId: region.getTrackId(),
       regionTrackIndex: region.getTrackIndex(),
       refreshProjectState,
       setBpm: vi.fn(),
     });
 
-    expect(region.getStartFromBeat()).toBeCloseTo(10.196957887526867, 6);
+    expect(region.getStartTick()).toBe(quarterNotesToTicks(10.196957887526867));
     expect(refreshProjectState).toHaveBeenCalledTimes(1);
   });
 });

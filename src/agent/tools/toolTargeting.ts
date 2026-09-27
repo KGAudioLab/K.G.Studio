@@ -6,6 +6,7 @@ import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGTrack } from '../../core/track/KGTrack';
 import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import { useProjectStore } from '../../stores/projectStore';
+import { ticksPerBar, ticksToQuarterNotes } from '../../core/timing';
 import { FLUIDR3_INSTRUMENT_MAP, INSTRUMENT_GROUPS } from '../../constants/generalMidiConstants';
 import { UserInstrumentRegistry } from '../../core/instruments/UserInstrumentRegistry';
 
@@ -26,8 +27,8 @@ export interface ActiveMidiRegionContext {
 
 export interface SelectedMusicRangeContext {
   section: string;
-  startBeat: number | null;
-  endBeat: number | null;
+  startTick: number | null;
+  endTick: number | null;
   hasRange: boolean;
 }
 
@@ -135,14 +136,14 @@ export function resolveSelectedMusicRangeContext(): SelectedMusicRangeContext {
   const storeState = useProjectStore.getState();
 
   if (project.getIsLooping()) {
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const barTicks = ticksPerBar(project.getTimeSignature());
     const [loopStartBar, loopEndBar] = project.getLoopingRange();
-    const startBeat = loopStartBar * beatsPerBar;
-    const endBeat = (loopEndBar + 1) * beatsPerBar;
+    const startTick = loopStartBar * barTicks;
+    const endTick = (loopEndBar + 1) * barTicks;
     return {
-      section: `- Start Beat: ${startBeat}\n- End Beat: ${endBeat}`,
-      startBeat,
-      endBeat,
+      section: `- Start Quarter-note: ${ticksToQuarterNotes(startTick)}\n- End Quarter-note: ${ticksToQuarterNotes(endTick)}`,
+      startTick,
+      endTick,
       hasRange: true,
     };
   }
@@ -154,19 +155,19 @@ export function resolveSelectedMusicRangeContext(): SelectedMusicRangeContext {
   if (selectedRegions.length === 0) {
     return {
       section: '- No selected music range.',
-      startBeat: null,
-      endBeat: null,
+      startTick: null,
+      endTick: null,
       hasRange: false,
     };
   }
 
-  const startBeat = Math.min(...selectedRegions.map(region => region.getStartFromBeat()));
-  const endBeat = Math.max(...selectedRegions.map(region => region.getStartFromBeat() + region.getLength()));
+  const startTick = Math.min(...selectedRegions.map(region => region.getStartTick()));
+  const endTick = Math.max(...selectedRegions.map(region => region.getStartTick() + region.getLengthTicks()));
 
   return {
-    section: `- Start Beat: ${startBeat}\n- End Beat: ${endBeat}`,
-    startBeat,
-    endBeat,
+    section: `- Start Quarter-note: ${ticksToQuarterNotes(startTick)}\n- End Quarter-note: ${ticksToQuarterNotes(endTick)}`,
+    startTick,
+    endTick,
     hasRange: true,
   };
 }

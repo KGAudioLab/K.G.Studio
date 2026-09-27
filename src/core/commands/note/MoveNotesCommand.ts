@@ -9,11 +9,11 @@ import { KGTrack } from '../../track/KGTrack';
  */
 interface NoteMoveData {
   noteId: string;
-  originalStartBeat: number;
-  originalEndBeat: number;
+  originalStartTick: number;
+  originalEndTick: number;
   originalPitch: number;
-  newStartBeat: number;
-  newEndBeat: number;
+  newStartTick: number;
+  newEndTick: number;
   newPitch: number;
 }
 
@@ -23,7 +23,7 @@ interface NoteMoveData {
  */
 export class MoveNotesCommand extends KGCommand {
   private primaryNoteId: string;
-  private startBeatDelta: number;
+  private startTickDelta: number;
   private pitchDelta: number;
   private regionId: string;
   private noteIdsToMove: string[]; // Store the specific note IDs to move
@@ -33,14 +33,14 @@ export class MoveNotesCommand extends KGCommand {
 
   constructor(
     primaryNoteId: string,
-    startBeatDelta: number,
+    startTickDelta: number,
     pitchDelta: number,
     regionId: string,
     noteIdsToMove: string[]
   ) {
     super();
     this.primaryNoteId = primaryNoteId;
-    this.startBeatDelta = startBeatDelta;
+    this.startTickDelta = startTickDelta;
     this.pitchDelta = pitchDelta;
     this.regionId = regionId;
     this.noteIdsToMove = [...noteIdsToMove]; // Create a copy to avoid reference issues
@@ -92,23 +92,23 @@ export class MoveNotesCommand extends KGCommand {
 
     // Store original positions and calculate new positions
     notesToMove.forEach(note => {
-      const originalStartBeat = note.getStartBeat();
-      const originalEndBeat = note.getEndBeat();
+      const originalStartTick = note.getStartTick();
+      const originalEndTick = note.getEndTick();
       const originalPitch = note.getPitch();
 
       // Apply the deltas to calculate new positions
-      const newStartBeat = originalStartBeat + this.startBeatDelta;
-      const newEndBeat = originalEndBeat + this.startBeatDelta; // End beat moves by same amount as start
+      const newStartTick = originalStartTick + this.startTickDelta;
+      const newEndTick = originalEndTick + this.startTickDelta; // End beat moves by same amount as start
       const newPitch = originalPitch + this.pitchDelta;
 
       // Store move data for undo
       this.noteMoveData.push({
         noteId: note.getId(),
-        originalStartBeat,
-        originalEndBeat,
+        originalStartTick,
+        originalEndTick,
         originalPitch,
-        newStartBeat,
-        newEndBeat,
+        newStartTick,
+        newEndTick,
         newPitch
       });
     });
@@ -117,13 +117,13 @@ export class MoveNotesCommand extends KGCommand {
     this.noteMoveData.forEach(data => {
       const note = targetRegion.getNotes().find(n => n.getId() === data.noteId);
       if (note) {
-        note.setStartBeat(data.newStartBeat);
-        note.setEndBeat(data.newEndBeat);
+        note.setStartTick(data.newStartTick);
+        note.setEndTick(data.newEndTick);
         note.setPitch(data.newPitch);
       }
     });
 
-    const beatDescription = this.startBeatDelta !== 0 ? `position: ${this.startBeatDelta > 0 ? '+' : ''}${this.startBeatDelta.toFixed(3)} beats` : '';
+    const beatDescription = this.startTickDelta !== 0 ? `position: ${this.startTickDelta > 0 ? '+' : ''}${this.startTickDelta.toFixed(3)} beats` : '';
     const pitchDescription = this.pitchDelta !== 0 ? `pitch: ${this.pitchDelta > 0 ? '+' : ''}${this.pitchDelta} semitones` : '';
     const deltaDescription = [beatDescription, pitchDescription].filter(d => d).join(', ');
     
@@ -139,8 +139,8 @@ export class MoveNotesCommand extends KGCommand {
     this.noteMoveData.forEach(data => {
       const note = this.targetRegion!.getNotes().find(n => n.getId() === data.noteId);
       if (note) {
-        note.setStartBeat(data.originalStartBeat);
-        note.setEndBeat(data.originalEndBeat);
+        note.setStartTick(data.originalStartTick);
+        note.setEndTick(data.originalEndTick);
         note.setPitch(data.originalPitch);
       }
     });
@@ -153,9 +153,9 @@ export class MoveNotesCommand extends KGCommand {
     
     // Create a description based on the type of movement
     const movements: string[] = [];
-    if (this.startBeatDelta !== 0) {
-      const direction = this.startBeatDelta > 0 ? 'right' : 'left';
-      movements.push(`${direction} ${Math.abs(this.startBeatDelta).toFixed(3)} beats`);
+    if (this.startTickDelta !== 0) {
+      const direction = this.startTickDelta > 0 ? 'right' : 'left';
+      movements.push(`${direction} ${Math.abs(this.startTickDelta).toFixed(3)} beats`);
     }
     if (this.pitchDelta !== 0) {
       const direction = this.pitchDelta > 0 ? 'up' : 'down';
@@ -181,8 +181,8 @@ export class MoveNotesCommand extends KGCommand {
   /**
    * Get the start beat delta
    */
-  public getStartBeatDelta(): number {
-    return this.startBeatDelta;
+  public getStartTickDelta(): number {
+    return this.startTickDelta;
   }
 
   /**
@@ -232,19 +232,19 @@ export class MoveNotesCommand extends KGCommand {
    */
   public static fromNoteDrag(
     primaryNoteId: string,
-    originalStartBeat: number,
+    originalStartTick: number,
     originalPitch: number,
-    newStartBeat: number,
+    newStartTick: number,
     newPitch: number,
     regionId: string,
     noteIdsToMove: string[]
   ): MoveNotesCommand {
-    const startBeatDelta = newStartBeat - originalStartBeat;
+    const startTickDelta = newStartTick - originalStartTick;
     const pitchDelta = newPitch - originalPitch;
     
     return new MoveNotesCommand(
       primaryNoteId,
-      startBeatDelta,
+      startTickDelta,
       pitchDelta,
       regionId,
       noteIdsToMove

@@ -17,6 +17,7 @@ import { KGCore } from '../../core/KGCore';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
+import { quarterNotesToTicks, ticksToQuarterNotes } from '../../core/timing';
 
 interface RequestedNote {
   pitch: string;
@@ -35,8 +36,8 @@ interface AddNotesSummaryData {
 }
 
 interface NoteSpan {
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
 }
 
 interface ResolvedRegionContext {
@@ -44,7 +45,7 @@ interface ResolvedRegionContext {
   trackName: string;
   regionName: string;
   regionId?: string;
-  finalRegionStartBeat: number;
+  finalRegionStartTick: number;
   finalRegionLength: number;
   createdRegion: boolean;
 }
@@ -72,7 +73,7 @@ class AddNotesToResolvedRegionCommand extends KGCommand {
       this.createRegionCommand = new CreateRegionCommand(
         this.resolvedRegion.track.getId().toString(),
         this.resolvedRegion.track.getTrackIndex(),
-        this.resolvedRegion.finalRegionStartBeat,
+        this.resolvedRegion.finalRegionStartTick,
         this.resolvedRegion.finalRegionLength,
         this.resolvedRegion.regionName,
       );
@@ -81,12 +82,12 @@ class AddNotesToResolvedRegionCommand extends KGCommand {
     } else if (regionId) {
       const existingRegion = this.findMidiRegion(regionId);
       if (
-        existingRegion.getStartFromBeat() !== this.resolvedRegion.finalRegionStartBeat
-        || existingRegion.getLength() !== this.resolvedRegion.finalRegionLength
+        existingRegion.getStartTick() !== this.resolvedRegion.finalRegionStartTick
+        || existingRegion.getLengthTicks() !== this.resolvedRegion.finalRegionLength
       ) {
         this.resizeRegionCommand = new ResizeRegionCommand(
           regionId,
-          this.resolvedRegion.finalRegionStartBeat,
+          this.resolvedRegion.finalRegionStartTick,
           this.resolvedRegion.finalRegionLength,
         );
         this.resizeRegionCommand.execute();
@@ -99,8 +100,8 @@ class AddNotesToResolvedRegionCommand extends KGCommand {
 
     const noteCreationData: NoteCreationData[] = this.notes.map(note => ({
       regionId,
-      startBeat: note.start - this.resolvedRegion.finalRegionStartBeat,
-      endBeat: note.start - this.resolvedRegion.finalRegionStartBeat + note.length,
+      startTick: note.start - this.resolvedRegion.finalRegionStartTick,
+      endTick: note.start - this.resolvedRegion.finalRegionStartTick + note.length,
       pitch: note.midiPitch,
       velocity: note.velocity,
     }));
@@ -133,7 +134,7 @@ class AddNotesToResolvedRegionCommand extends KGCommand {
 
 export class AddNotesTool extends BaseTool {
   readonly name = 'add_notes';
-  readonly description = 'Add one or more MIDI notes to a target track or the currently active MIDI region. Use track_id when the user identifies a track. Regions are resolved or created automatically, so you should think in terms of tracks rather than clips. Notes use absolute beat positions on the project timeline.';
+  readonly description = 'Add one or more MIDI notes to a target track or the currently active MIDI region. Numeric positions use quarter-note units independent of meter (1 = one quarter note). Regions are resolved or created automatically.';
 
   override isReadOnlyTool(): boolean {
     return false;
@@ -142,7 +143,7 @@ export class AddNotesTool extends BaseTool {
   readonly parameters: Record<string, ToolParameter> = {
     notes: {
       type: 'array',
-      description: 'List of notes to add. To create a chord, give multiple notes the same start beat. To create a melody, use sequential start values.',
+      description: 'List of notes to add. To create a chord, give multiple notes the same start position. To create a melody, use sequential start values.',
       required: true,
       items: {
         type: 'object',
@@ -155,12 +156,12 @@ export class AddNotesTool extends BaseTool {
           },
           start: {
             type: 'number',
-            description: 'Start beat — the absolute beat position on the project timeline where the note begins. This is NOT relative to the region or clip — beat 6 means beat 6 in the project regardless of where any MIDI region begins. Fractional values are supported (e.g., 0.5 = half a beat after beat 0).',
+            description: 'Absolute start in quarter-note units, independent of meter. This is not relative to a region; 0.5 means one eighth note after timeline start.',
             required: true,
           },
           length: {
             type: 'number',
-            description: 'Duration of the note in beats. In 4/4 time: 4 = whole note, 2 = half note, 1 = quarter note, 0.5 = eighth note, 0.25 = sixteenth note.',
+            description: 'Duration in quarter-note units: 4 = whole note, 2 = half note, 1 = quarter note, 0.5 = eighth note, 0.25 = sixteenth note.',
             required: true,
           },
           velocity: {
@@ -251,7 +252,13 @@ export class AddNotesTool extends BaseTool {
             return this.createErrorResult(`Invalid length ${note.length}. Must be > 0.`);
           }
 
-          validatedNotes.push({ ...note, midiPitch, velocity });
+          validatedNotes.push({
+            ...note,
+            start: quarterNotesToTicks(note.start),
+            length: quarterNotesToTicks(note.length),
+            midiPitch,
+            velocity,
+          });
         } catch (error) {
           return this.createErrorResult(`Invalid note pitch "${note.pitch}": ${error}`);
         }
@@ -279,7 +286,7 @@ export class AddNotesTool extends BaseTool {
       await this.executeCommand(command);
 
       const noteList = validatedNotes
-        .map(note => `${note.pitch} (beat ${note.start}, length ${note.length})`)
+        .map(note => `${note.pitch} (quarter-note ${ticksToQuarterNotes(note.start)}, length ${ticksToQuarterNotes(note.length)})`)
         .join(', ');
 
       const actionPrefix = resolvedRegion.createdRegion
@@ -304,20 +311,24 @@ export class AddNotesTool extends BaseTool {
       return null;
     }
 
-    const span = this.getNoteSpan(typedArgs.notes);
+    const span = this.getNoteSpan(typedArgs.notes.map(note => ({
+      start: quarterNotesToTicks(note.start),
+      length: quarterNotesToTicks(note.length),
+    })));
     const resolvedRegion = this.resolveTargetRegion(typedArgs.track_id, typedArgs.track_name, span);
     if (!resolvedRegion) {
       return null;
     }
 
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
 
     return {
       noteCount: typedArgs.notes.length,
       regionName: resolvedRegion.regionName,
       trackName: resolvedRegion.trackName,
-      earliestNoteStartBar: Math.floor(span.startBeat / beatsPerBar) + 1,
-      latestNoteEndBar: Math.max(1, Math.ceil(span.endBeat / beatsPerBar)),
+      earliestNoteStartBar: Math.floor(span.startTick / ticksPerBar) + 1,
+      latestNoteEndBar: Math.max(1, Math.ceil(span.endTick / ticksPerBar)),
       createdRegion: resolvedRegion.createdRegion,
     };
   }
@@ -337,15 +348,15 @@ export class AddNotesTool extends BaseTool {
     }
 
     const region = activeRegion.region;
-    const regionStartBeat = region.getStartFromBeat();
-    const regionEndBeat = regionStartBeat + region.getLength();
+    const regionStartTick = region.getStartTick();
+    const regionEndTick = regionStartTick + region.getLengthTicks();
     return {
       track: activeRegion.track,
       trackName: activeRegion.trackName,
       regionId: region.getId(),
       regionName: region.getName(),
-      finalRegionStartBeat: Math.min(regionStartBeat, span.startBeat),
-      finalRegionLength: Math.max(regionEndBeat, span.endBeat) - Math.min(regionStartBeat, span.startBeat),
+      finalRegionStartTick: Math.min(regionStartTick, span.startTick),
+      finalRegionLength: Math.max(regionEndTick, span.endTick) - Math.min(regionStartTick, span.startTick),
       createdRegion: false,
     };
   }
@@ -369,24 +380,24 @@ export class AddNotesTool extends BaseTool {
         track,
         trackName: resolvedTrackName,
         regionName: `${resolvedTrackName} Region`,
-        finalRegionStartBeat: span.startBeat,
-        finalRegionLength: span.endBeat - span.startBeat,
+        finalRegionStartTick: span.startTick,
+        finalRegionLength: span.endTick - span.startTick,
         createdRegion: true,
       };
     }
 
-    const regionStartBeat = selectedRegion.getStartFromBeat();
-    const regionEndBeat = regionStartBeat + selectedRegion.getLength();
-    const finalRegionStartBeat = Math.min(regionStartBeat, span.startBeat);
-    const finalRegionEndBeat = Math.max(regionEndBeat, span.endBeat);
+    const regionStartTick = selectedRegion.getStartTick();
+    const regionEndTick = regionStartTick + selectedRegion.getLengthTicks();
+    const finalRegionStartTick = Math.min(regionStartTick, span.startTick);
+    const finalRegionEndTick = Math.max(regionEndTick, span.endTick);
 
     return {
       track,
       trackName: resolvedTrackName,
       regionId: selectedRegion.getId(),
       regionName: selectedRegion.getName(),
-      finalRegionStartBeat,
-      finalRegionLength: finalRegionEndBeat - finalRegionStartBeat,
+      finalRegionStartTick,
+      finalRegionLength: finalRegionEndTick - finalRegionStartTick,
       createdRegion: false,
     };
   }
@@ -397,14 +408,14 @@ export class AddNotesTool extends BaseTool {
     let bestDistance = Number.POSITIVE_INFINITY;
 
     for (const region of regions) {
-      const regionStart = region.getStartFromBeat();
-      const regionEnd = regionStart + region.getLength();
-      const overlap = Math.min(regionEnd, span.endBeat) - Math.max(regionStart, span.startBeat);
+      const regionStart = region.getStartTick();
+      const regionEnd = regionStart + region.getLengthTicks();
+      const overlap = Math.min(regionEnd, span.endTick) - Math.max(regionStart, span.startTick);
       if (overlap <= 0) {
         continue;
       }
 
-      const distance = Math.abs(regionStart - span.startBeat);
+      const distance = Math.abs(regionStart - span.startTick);
       if (overlap > bestOverlap || (overlap === bestOverlap && distance < bestDistance)) {
         bestRegion = region;
         bestOverlap = overlap;
@@ -417,8 +428,8 @@ export class AddNotesTool extends BaseTool {
 
   private getNoteSpan(notes: Array<{ start: number; length: number }>): NoteSpan {
     return {
-      startBeat: Math.min(...notes.map(note => note.start)),
-      endBeat: Math.max(...notes.map(note => note.start + note.length)),
+      startTick: Math.min(...notes.map(note => note.start)),
+      endTick: Math.max(...notes.map(note => note.start + note.length)),
     };
   }
 

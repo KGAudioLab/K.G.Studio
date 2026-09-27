@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { KeySignature } from '../core/KGProject';
+import { ticksPerBar } from '../core/timing';
 import { KGCore } from '../core/KGCore';
 import { GlobalTrackType, KGGlobalTrack } from '../core/global-track';
 import { KGRegion } from '../core/region/KGRegion';
@@ -17,7 +18,7 @@ import {
   DeleteMultipleKeySignatureRegionsCommand,
   DeleteMultipleTempoRegionsCommand,
   DeleteTempoRegionCommand,
-  InsertChordRegionAtBeatCommand,
+  InsertChordRegionAtTickCommand,
   MoveGlobalRegionCommand,
   ResizeGlobalRegionCommand,
   ResizeKeySignatureRegionCommand,
@@ -46,7 +47,7 @@ interface UseMainContentGlobalTracksParams {
   timeSignature: { numerator: number; denominator: number };
   barWidthMultiplier: number;
   maxBars: number;
-  playheadPosition: number;
+  playheadTick: number;
   refreshProjectState: () => void;
   bumpAudioWaveformRedrawVersion: () => void;
   findProjectRegionById: (regionId: string) => KGRegion | null;
@@ -78,7 +79,7 @@ export function useMainContentGlobalTracks({
   timeSignature,
   barWidthMultiplier,
   maxBars,
-  playheadPosition,
+  playheadTick,
   refreshProjectState,
   bumpAudioWaveformRedrawVersion,
   findProjectRegionById,
@@ -99,11 +100,11 @@ export function useMainContentGlobalTracks({
   );
   const signatureTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Signature) ?? null;
   const signatureRegions = signatureTrack
-    ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator)
+    ? getSortedKeySignatureRegions(signatureTrack, timeSignature.numerator * 960 * (4 / timeSignature.denominator))
     : [];
   const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo) ?? null;
   const tempoRegions = tempoTrack
-    ? getSortedTempoRegions(tempoTrack, timeSignature.numerator)
+    ? getSortedTempoRegions(tempoTrack, timeSignature.numerator * 960 * (4 / timeSignature.denominator))
     : [];
   const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord) ?? null;
   const chordRegions = (chordTrack?.getRegions() ?? []).filter(
@@ -168,9 +169,9 @@ export function useMainContentGlobalTracks({
     }
   }, [editingGlobalRegionText, findProjectRegionById, refreshProjectState]);
 
-  const createMarkerAtBeat = useCallback((requestedStartBeat: number) => {
-    const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
-    const occupiedRegion = markerRegions.find(region => region.getStartFromBeat() === normalizedStartBeat);
+  const createMarkerAtTick = useCallback((requestedStartTick: number) => {
+    const normalizedStartTick = Math.max(0, Math.round(requestedStartTick));
+    const occupiedRegion = markerRegions.find(region => region.getStartTick() === normalizedStartTick);
     if (occupiedRegion) {
       selectGlobalRegion(occupiedRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
       beginEditingGlobalRegion(occupiedRegion.getId());
@@ -179,8 +180,8 @@ export function useMainContentGlobalTracks({
 
     try {
       const command = new CreateGlobalMarkerRegionCommand(
-        normalizedStartBeat,
-        timeSignature.numerator,
+        normalizedStartTick,
+        ticksPerBar(timeSignature),
         DEFAULT_MARKER_REGION_NAME
       );
       KGCore.instance().executeCommand(command);
@@ -196,17 +197,17 @@ export function useMainContentGlobalTracks({
     } catch (error) {
       console.error('Error creating marker region:', error);
     }
-  }, [beginEditingGlobalRegion, markerRegions, refreshProjectState, selectGlobalRegion, timeSignature.numerator]);
+  }, [beginEditingGlobalRegion, markerRegions, refreshProjectState, selectGlobalRegion, timeSignature]);
 
   const createMarkerAtPlayheadBar = useCallback(() => {
-    const beatsPerBar = timeSignature.numerator;
-    const startBeat = Math.floor(playheadPosition / beatsPerBar) * beatsPerBar;
-    createMarkerAtBeat(startBeat);
-  }, [createMarkerAtBeat, playheadPosition, timeSignature.numerator]);
+    const barTicks = ticksPerBar(timeSignature);
+    const startTick = Math.floor(playheadTick / barTicks) * barTicks;
+    createMarkerAtTick(startTick);
+  }, [createMarkerAtTick, playheadTick, timeSignature]);
 
-  const moveGlobalMarkerRegion = useCallback((regionId: string, startBeat: number) => {
+  const moveGlobalMarkerRegion = useCallback((regionId: string, startTick: number) => {
     try {
-      KGCore.instance().executeCommand(new MoveGlobalRegionCommand(regionId, Math.round(startBeat)));
+      KGCore.instance().executeCommand(new MoveGlobalRegionCommand(regionId, Math.round(startTick)));
       refreshProjectState();
     } catch (error) {
       console.error('Error moving marker region:', error);
@@ -248,10 +249,10 @@ export function useMainContentGlobalTracks({
   }, [beginEditingKeySignatureRegion, maxBars, refreshProjectState, selectGlobalRegion, signatureRegions]);
 
   const createKeySignatureAtPlayheadBar = useCallback(() => {
-    const beatsPerBar = timeSignature.numerator;
-    const startBar = Math.floor(playheadPosition / beatsPerBar);
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const startBar = Math.floor(playheadTick / ticksPerBar);
     createKeySignatureAtBar(startBar);
-  }, [createKeySignatureAtBar, playheadPosition, timeSignature.numerator]);
+  }, [createKeySignatureAtBar, playheadTick, timeSignature.numerator]);
 
   const resizeKeySignatureRegion = useCallback((regionId: string, edge: 'start' | 'end', bar: number) => {
     try {
@@ -269,8 +270,8 @@ export function useMainContentGlobalTracks({
         throw new Error(`Key signature region with ID ${regionId} not found`);
       }
       const scope = {
-        startBeat: region.getStartFromBeat(),
-        endBeat: region.getStartFromBeat() + region.getLength(),
+        startTick: region.getStartTick(),
+        endTick: region.getStartTick() + region.getLengthTicks(),
       };
       const shouldAsk = getKeySignatureTransposeDelta(region.getKeySignature(), keySignature) !== 0
         && hasChordRegionsInTracks(globalTracks, scope);
@@ -352,10 +353,10 @@ export function useMainContentGlobalTracks({
   }, [beginEditingTempoRegion, bumpAudioWaveformRedrawVersion, maxBars, refreshProjectState, selectGlobalRegion, tempoRegions]);
 
   const createTempoAtPlayheadBar = useCallback(() => {
-    const beatsPerBar = timeSignature.numerator;
-    const startBar = Math.floor(playheadPosition / beatsPerBar);
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const startBar = Math.floor(playheadTick / ticksPerBar);
     createTempoAtBar(startBar);
-  }, [createTempoAtBar, playheadPosition, timeSignature.numerator]);
+  }, [createTempoAtBar, playheadTick, timeSignature.numerator]);
 
   const resizeTempoRegion = useCallback((regionId: string, edge: 'start' | 'end', bar: number) => {
     try {
@@ -367,11 +368,11 @@ export function useMainContentGlobalTracks({
     }
   }, [bumpAudioWaveformRedrawVersion, refreshProjectState]);
 
-  const createChordAtBeat = useCallback((requestedStartBeat: number) => {
-    const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
+  const createChordAtTick = useCallback((requestedStartTick: number) => {
+    const normalizedStartTick = Math.max(0, Math.round(requestedStartTick));
     const occupiedRegion = chordRegions.find(region => (
-      normalizedStartBeat >= region.getStartFromBeat()
-      && normalizedStartBeat < region.getStartFromBeat() + region.getLength()
+      normalizedStartTick >= region.getStartTick()
+      && normalizedStartTick < region.getStartTick() + region.getLengthTicks()
     ));
     if (occupiedRegion) {
       selectGlobalRegion(occupiedRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
@@ -380,7 +381,7 @@ export function useMainContentGlobalTracks({
     }
 
     try {
-      const command = new CreateChordRegionCommand(normalizedStartBeat, timeSignature.numerator, 'C');
+      const command = new CreateChordRegionCommand(normalizedStartTick, timeSignature.numerator * 960 * (4 / timeSignature.denominator), 'C');
       KGCore.instance().executeCommand(command);
       refreshProjectState();
 
@@ -395,17 +396,17 @@ export function useMainContentGlobalTracks({
     }
   }, [beginEditingChordRegion, chordRegions, refreshProjectState, selectGlobalRegion, timeSignature.numerator]);
 
-  const createChordAtExactBeat = useCallback((requestedStartBeat: number) => {
-    const normalizedStartBeat = Math.max(0, Math.round(requestedStartBeat));
+  const createChordAtExactTick = useCallback((requestedStartTick: number) => {
+    const normalizedStartTick = Math.max(0, Math.round(requestedStartTick));
     const occupiedRegion = chordRegions.find(region => (
-      normalizedStartBeat > region.getStartFromBeat()
-      && normalizedStartBeat < region.getStartFromBeat() + region.getLength()
+      normalizedStartTick > region.getStartTick()
+      && normalizedStartTick < region.getStartTick() + region.getLengthTicks()
     ));
 
     try {
       const command = occupiedRegion
-        ? new InsertChordRegionAtBeatCommand(normalizedStartBeat, 'C')
-        : new CreateChordRegionCommand(normalizedStartBeat, timeSignature.numerator, 'C');
+        ? new InsertChordRegionAtTickCommand(normalizedStartTick, 'C')
+        : new CreateChordRegionCommand(normalizedStartTick, timeSignature.numerator * 960 * (4 / timeSignature.denominator), 'C');
 
       KGCore.instance().executeCommand(command);
       refreshProjectState();
@@ -431,9 +432,9 @@ export function useMainContentGlobalTracks({
     }
   }, [beginEditingChordRegion, chordRegions, refreshProjectState, selectGlobalRegion, timeSignature.numerator]);
 
-  const createChordAtPlayheadBeat = useCallback(() => {
-    createChordAtExactBeat(playheadPosition);
-  }, [createChordAtExactBeat, playheadPosition]);
+  const createChordAtPlayheadTick = useCallback(() => {
+    createChordAtExactTick(playheadTick);
+  }, [createChordAtExactTick, playheadTick]);
 
   const navigateChordPopupByBar = useCallback((currentRegionId: string, direction: 'forward' | 'backward') => {
     const currentRegion = chordRegions.find(region => region.getId() === currentRegionId);
@@ -441,21 +442,21 @@ export function useMainContentGlobalTracks({
       return;
     }
 
-    const beatsPerBar = timeSignature.numerator;
-    const currentStartBeat = currentRegion.getStartFromBeat();
-    const currentBarBeat = Math.floor(currentStartBeat / beatsPerBar) * beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const currentStartTick = currentRegion.getStartTick();
+    const currentBarBeat = Math.floor(currentStartTick / ticksPerBar) * ticksPerBar;
     const targetBarBeat = direction === 'forward'
-      ? currentBarBeat + beatsPerBar
-      : currentBarBeat - beatsPerBar;
-    const songEndBeat = maxBars * beatsPerBar;
-    if (targetBarBeat < 0 || targetBarBeat >= songEndBeat) {
+      ? currentBarBeat + ticksPerBar
+      : currentBarBeat - ticksPerBar;
+    const songEndTick = maxBars * ticksPerBar;
+    if (targetBarBeat < 0 || targetBarBeat >= songEndTick) {
       return;
     }
 
-    const sortedRegions = [...chordRegions].sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+    const sortedRegions = [...chordRegions].sort((left, right) => left.getStartTick() - right.getStartTick());
     const targetRegion = direction === 'forward'
-      ? sortedRegions.find(region => region.getStartFromBeat() > currentStartBeat && region.getStartFromBeat() <= targetBarBeat)
-      : [...sortedRegions].reverse().find(region => region.getStartFromBeat() < currentStartBeat);
+      ? sortedRegions.find(region => region.getStartTick() > currentStartTick && region.getStartTick() <= targetBarBeat)
+      : [...sortedRegions].reverse().find(region => region.getStartTick() < currentStartTick);
 
     if (targetRegion) {
       selectGlobalRegion(targetRegion.getId(), DEFAULT_REGION_CLICK_OPTIONS);
@@ -464,13 +465,13 @@ export function useMainContentGlobalTracks({
     }
 
     if (direction === 'forward') {
-      createChordAtExactBeat(targetBarBeat);
+      createChordAtExactTick(targetBarBeat);
     }
-  }, [chordRegions, createChordAtExactBeat, maxBars, selectGlobalRegion, timeSignature.numerator]);
+  }, [chordRegions, createChordAtExactTick, maxBars, selectGlobalRegion, timeSignature.numerator]);
 
-  const moveGlobalChordRegion = useCallback((regionId: string, startBeat: number) => {
+  const moveGlobalChordRegion = useCallback((regionId: string, startTick: number) => {
     try {
-      KGCore.instance().executeCommand(new MoveGlobalRegionCommand(regionId, Math.round(startBeat)));
+      KGCore.instance().executeCommand(new MoveGlobalRegionCommand(regionId, Math.round(startTick)));
       refreshProjectState();
     } catch (error) {
       console.error('Error moving chord region:', error);
@@ -578,7 +579,7 @@ export function useMainContentGlobalTracks({
     },
     onBeginEdit: beginEditingGlobalRegion,
     onSelectRegion: selectGlobalRegion,
-    onCreateAtBeat: createMarkerAtBeat,
+    onCreateAtTick: createMarkerAtTick,
     onMoveRegion: moveGlobalMarkerRegion,
     onResizeRegion: resizeGlobalMarkerRegion,
   };
@@ -626,7 +627,7 @@ export function useMainContentGlobalTracks({
     popupRegionId: editingChordRegionId,
     onClosePopup: () => setEditingChordRegionId(null),
     onSelectRegion: selectGlobalRegion,
-    onCreateAtBeat: createChordAtBeat,
+    onCreateAtTick: createChordAtTick,
     onMoveRegion: moveGlobalChordRegion,
     onResizeRegion: resizeGlobalChordRegion,
     onChangeChord: updateChordRegion,
@@ -646,7 +647,7 @@ export function useMainContentGlobalTracks({
       onAddMarker: createMarkerAtPlayheadBar,
       onAddTempo: createTempoAtPlayheadBar,
       onAddKeySignature: createKeySignatureAtPlayheadBar,
-      onAddChord: createChordAtPlayheadBeat,
+      onAddChord: createChordAtPlayheadTick,
       markerLaneProps,
       tempoLaneProps,
       keySignatureLaneProps,

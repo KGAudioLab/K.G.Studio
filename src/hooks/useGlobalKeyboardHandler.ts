@@ -17,7 +17,7 @@ import { showAlert } from '../util/dialogUtil';
  * Handles keyboard shortcuts defined in the configuration
  */
 export const useGlobalKeyboardHandler = () => {
-  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRollWithSheetMusicView, openAudioWaveformViewer, openSpectrogramViewer, playheadPosition, refreshProjectState } = useProjectStore();
+  const { undo, redo, setStatus, isPlaying, startPlaying, stopTransport, toggleLoop, projectName, savedProjectName, setSavedProjectName, setProjectName, isRecording, startRecording, stopRecording, activeRegionId, selectedRegionIds, setActiveRegionId, setShowPianoRoll, showPianoRoll, openMidiPianoRollWithSheetMusicView, openAudioWaveformViewer, openSpectrogramViewer, playheadTick, refreshProjectState } = useProjectStore();
   const lastSelectedRegionId = selectedRegionIds[selectedRegionIds.length - 1] ?? null;
 
   useEffect(() => {
@@ -209,7 +209,7 @@ export const useGlobalKeyboardHandler = () => {
         event.preventDefault();
         void splitSelectedRegionAtPlayhead({
           selectedRegionIds,
-          playheadPosition,
+          playheadTick,
           refreshProjectState,
         }).then(status => {
           if (status) {
@@ -337,7 +337,7 @@ export const useGlobalKeyboardHandler = () => {
     openMidiPianoRollWithSheetMusicView,
     openAudioWaveformViewer,
     openSpectrogramViewer,
-    playheadPosition,
+    playheadTick,
     refreshProjectState,
   ]); // Include dependencies for store actions
 };

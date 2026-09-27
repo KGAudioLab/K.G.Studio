@@ -3,8 +3,9 @@ import { KGCore } from '../../core/KGCore';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { useProjectStore } from '../../stores/projectStore';
 import { DEBUG_MODE } from '../../constants';
-import { getSnappedBeatPosition } from './pianoRollSnap';
+import { getSnappedTickPosition } from './pianoRollSnap';
 import { Playhead } from '../common';
+import { pixelsToTicks } from '../../core/timing';
 
 interface PianoGridHeaderProps {
   maxBars: number;
@@ -21,8 +22,8 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
   const {
     isPlaying,
     isRecording,
-    setPlayheadPosition,
-    seekPlayheadPosition,
+    setPlayheadTick,
+    seekPlayheadTick,
     setPlayheadSeekPreviewPosition,
     requestMainContentScroll,
   } = useProjectStore();
@@ -56,10 +57,10 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     ) || 40;
     
     // Calculate the raw beat position using the adjusted X position
-    const rawBeatPosition = adjustedX / beatWidth;
+    const rawBeatPosition = pixelsToTicks(adjustedX, beatWidth);
     
     // Apply quantization if enabled
-    return getSnappedBeatPosition(rawBeatPosition, KGPianoRollState.instance().getCurrentSnap());
+    return getSnappedTickPosition(rawBeatPosition, KGPianoRollState.instance().getCurrentSnap());
   }, []);
 
   // Handle mouse down to start dragging
@@ -81,7 +82,7 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
         dragTargetRef.current = newPosition;
       }
     } else {
-      setPlayheadPosition(newPosition);
+      setPlayheadTick(newPosition);
       dragTargetRef.current = newPosition;
     }
       
@@ -104,19 +105,19 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     const newPosition = calculatePlayheadFromMouse(e.clientX);
     if (newPosition !== null) {
       const core = KGCore.instance();
-      const currentPlayheadPosition = core.getPlayheadPosition();
-      const beatsPerBar = timeSignature.numerator;
-      const currentBarNumber = Math.floor(currentPlayheadPosition / beatsPerBar) + 1; // 1-indexed
-      const destinationBarNumber = Math.floor(newPosition / beatsPerBar) + 1; // 1-indexed
+      const currentPlayheadTick = core.getPlayheadTick();
+      const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+      const currentBarNumber = Math.floor(currentPlayheadTick / ticksPerBar) + 1; // 1-indexed
+      const destinationBarNumber = Math.floor(newPosition / ticksPerBar) + 1; // 1-indexed
       
       // Debug logging
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Piano Grid Header click - Position: ${newPosition}`);
-        console.log(`Current bar: ${currentBarNumber} (beat ${currentPlayheadPosition})`);
+        console.log(`Current bar: ${currentBarNumber} (beat ${currentPlayheadTick})`);
         console.log(`Destination bar: ${destinationBarNumber} (beat ${newPosition})`);
       }
 
-      void seekPlayheadPosition(newPosition).then(accepted => {
+      void seekPlayheadTick(newPosition).then(accepted => {
         if (accepted) {
           requestMainContentScroll(newPosition);
         }
@@ -139,7 +140,7 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
             setPlayheadSeekPreviewPosition(null);
           }
         } else {
-          setPlayheadPosition(newPosition);
+          setPlayheadTick(newPosition);
           dragTargetRef.current = newPosition;
         }
         
@@ -159,7 +160,7 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
         if (isPlaying) {
           setPlayheadSeekPreviewPosition(null);
           if (target !== null) {
-            void seekPlayheadPosition(target).then(accepted => {
+            void seekPlayheadTick(target).then(accepted => {
               if (accepted) {
                 requestMainContentScroll(target);
               }
@@ -189,8 +190,8 @@ const PianoGridHeader: React.FC<PianoGridHeaderProps> = ({
     calculatePlayheadFromMouse,
     isPlaying,
     requestMainContentScroll,
-    seekPlayheadPosition,
-    setPlayheadPosition,
+    seekPlayheadTick,
+    setPlayheadTick,
     setPlayheadSeekPreviewPosition,
   ]);
 

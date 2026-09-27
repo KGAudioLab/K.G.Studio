@@ -9,10 +9,10 @@ import { KGTrack } from '../../track/KGTrack';
  */
 interface NoteResizeData {
   noteId: string;
-  originalStartBeat: number;
-  originalEndBeat: number;
-  newStartBeat: number;
-  newEndBeat: number;
+  originalStartTick: number;
+  originalEndTick: number;
+  newStartTick: number;
+  newEndTick: number;
 }
 
 /**
@@ -22,8 +22,8 @@ interface NoteResizeData {
 export class ResizeNotesCommand extends KGCommand {
   private primaryNoteId: string;
   private resizeEdge: 'start' | 'end';
-  private primaryStartBeatDelta: number;
-  private primaryEndBeatDelta: number;
+  private primaryStartTickDelta: number;
+  private primaryEndTickDelta: number;
   private regionId: string;
   private noteIdsToResize: string[]; // Store the specific note IDs to resize
   private noteResizeData: NoteResizeData[] = [];
@@ -33,16 +33,16 @@ export class ResizeNotesCommand extends KGCommand {
   constructor(
     primaryNoteId: string,
     resizeEdge: 'start' | 'end',
-    primaryStartBeatDelta: number,
-    primaryEndBeatDelta: number,
+    primaryStartTickDelta: number,
+    primaryEndTickDelta: number,
     regionId: string,
     noteIdsToResize: string[]
   ) {
     super();
     this.primaryNoteId = primaryNoteId;
     this.resizeEdge = resizeEdge;
-    this.primaryStartBeatDelta = primaryStartBeatDelta;
-    this.primaryEndBeatDelta = primaryEndBeatDelta;
+    this.primaryStartTickDelta = primaryStartTickDelta;
+    this.primaryEndTickDelta = primaryEndTickDelta;
     this.regionId = regionId;
     this.noteIdsToResize = [...noteIdsToResize]; // Create a copy to avoid reference issues
   }
@@ -93,22 +93,22 @@ export class ResizeNotesCommand extends KGCommand {
 
     // Store original positions and calculate new positions
     notesToResize.forEach(note => {
-      const originalStartBeat = note.getStartBeat();
-      const originalEndBeat = note.getEndBeat();
-      let newStartBeat = originalStartBeat;
-      let newEndBeat = originalEndBeat;
+      const originalStartTick = note.getStartTick();
+      const originalEndTick = note.getEndTick();
+      let newStartTick: number = originalStartTick;
+      let newEndTick: number = originalEndTick;
 
       if (note.getId() === this.primaryNoteId) {
         // Primary note: apply the exact deltas
-        newStartBeat = originalStartBeat + this.primaryStartBeatDelta;
-        newEndBeat = originalEndBeat + this.primaryEndBeatDelta;
+        newStartTick = originalStartTick + this.primaryStartTickDelta;
+        newEndTick = originalEndTick + this.primaryEndTickDelta;
       } else {
         // Other selected notes: apply the same delta as primary note
         if (this.resizeEdge === 'start') {
-          newStartBeat = originalStartBeat + this.primaryStartBeatDelta;
+          newStartTick = originalStartTick + this.primaryStartTickDelta;
           // End beat stays the same for start resize
         } else if (this.resizeEdge === 'end') {
-          newEndBeat = originalEndBeat + this.primaryEndBeatDelta;
+          newEndTick = originalEndTick + this.primaryEndTickDelta;
           // Start beat stays the same for end resize
         }
       }
@@ -116,10 +116,10 @@ export class ResizeNotesCommand extends KGCommand {
       // Store resize data for undo
       this.noteResizeData.push({
         noteId: note.getId(),
-        originalStartBeat,
-        originalEndBeat,
-        newStartBeat,
-        newEndBeat
+        originalStartTick,
+        originalEndTick,
+        newStartTick,
+        newEndTick
       });
     });
 
@@ -127,8 +127,8 @@ export class ResizeNotesCommand extends KGCommand {
     this.noteResizeData.forEach(data => {
       const note = targetRegion.getNotes().find(n => n.getId() === data.noteId);
       if (note) {
-        note.setStartBeat(data.newStartBeat);
-        note.setEndBeat(data.newEndBeat);
+        note.setStartTick(data.newStartTick);
+        note.setEndTick(data.newEndTick);
       }
     });
 
@@ -144,8 +144,8 @@ export class ResizeNotesCommand extends KGCommand {
     this.noteResizeData.forEach(data => {
       const note = this.targetRegion!.getNotes().find(n => n.getId() === data.noteId);
       if (note) {
-        note.setStartBeat(data.originalStartBeat);
-        note.setEndBeat(data.originalEndBeat);
+        note.setStartTick(data.originalStartTick);
+        note.setEndTick(data.originalEndTick);
       }
     });
 
@@ -211,21 +211,21 @@ export class ResizeNotesCommand extends KGCommand {
   public static fromNoteResize(
     primaryNoteId: string,
     resizeEdge: 'start' | 'end',
-    originalStartBeat: number,
-    originalEndBeat: number,
-    newStartBeat: number,
-    newEndBeat: number,
+    originalStartTick: number,
+    originalEndTick: number,
+    newStartTick: number,
+    newEndTick: number,
     regionId: string,
     noteIdsToResize: string[]
   ): ResizeNotesCommand {
-    const startBeatDelta = newStartBeat - originalStartBeat;
-    const endBeatDelta = newEndBeat - originalEndBeat;
+    const startTickDelta = newStartTick - originalStartTick;
+    const endTickDelta = newEndTick - originalEndTick;
     
     return new ResizeNotesCommand(
       primaryNoteId,
       resizeEdge,
-      startBeatDelta,
-      endBeatDelta,
+      startTickDelta,
+      endTickDelta,
       regionId,
       noteIdsToResize
     );

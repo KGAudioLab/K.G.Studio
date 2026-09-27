@@ -9,8 +9,8 @@ interface SplitNoteRecord {
   originalNoteId: string;
   leftNoteId: string;
   rightNoteId: string;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   pitch: number;
   velocity: number;
 }
@@ -18,7 +18,7 @@ interface SplitNoteRecord {
 export class SplitSelectedNotesCommand extends KGCommand {
   private readonly regionId: string;
   private readonly selectedNoteIds: string[];
-  private readonly splitAtBeat: number;
+  private readonly splitAtTick: number;
 
   private targetRegion: KGMidiRegion | null = null;
   private originalNotes: KGMidiNote[] = [];
@@ -26,11 +26,11 @@ export class SplitSelectedNotesCommand extends KGCommand {
   private splitNoteRecords: SplitNoteRecord[] = [];
   private unchangedSelectedNoteIds: string[] = [];
 
-  constructor(regionId: string, selectedNoteIds: string[], splitAtBeat: number) {
+  constructor(regionId: string, selectedNoteIds: string[], splitAtTick: number) {
     super();
     this.regionId = regionId;
     this.selectedNoteIds = [...selectedNoteIds];
-    this.splitAtBeat = splitAtBeat;
+    this.splitAtTick = splitAtTick;
   }
 
   execute(): void {
@@ -54,13 +54,13 @@ export class SplitSelectedNotesCommand extends KGCommand {
 
     if (this.splitNoteRecords.length === 0) {
       this.splitNoteRecords = selectedNotes
-        .filter(note => note.getStartBeat() < this.splitAtBeat && this.splitAtBeat < note.getEndBeat())
+        .filter(note => note.getStartTick() < this.splitAtTick && this.splitAtTick < note.getEndTick())
         .map(note => ({
           originalNoteId: note.getId(),
           leftNoteId: generateUniqueId('KGMidiNote'),
           rightNoteId: generateUniqueId('KGMidiNote'),
-          startBeat: note.getStartBeat(),
-          endBeat: note.getEndBeat(),
+          startTick: note.getStartTick(),
+          endTick: note.getEndTick(),
           pitch: note.getPitch(),
           velocity: note.getVelocity(),
         }));
@@ -95,15 +95,15 @@ export class SplitSelectedNotesCommand extends KGCommand {
 
       const leftNote = new KGMidiNote(
         splitRecord.leftNoteId,
-        splitRecord.startBeat,
-        this.splitAtBeat,
+        splitRecord.startTick,
+        this.splitAtTick,
         splitRecord.pitch,
         splitRecord.velocity
       );
       const rightNote = new KGMidiNote(
         splitRecord.rightNoteId,
-        this.splitAtBeat,
-        splitRecord.endBeat,
+        this.splitAtTick,
+        splitRecord.endTick,
         splitRecord.pitch,
         splitRecord.velocity
       );

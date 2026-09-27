@@ -59,7 +59,7 @@ export function buildFollowKeyTransposePlan(
   project: KGProject,
   previousKey: KeySignature,
   nextKey: KeySignature,
-  scope?: { startBeat: number; endBeat: number },
+  scope?: { startTick: number; endTick: number },
 ): FollowKeyTransposePlan {
   const delta = getKeySignatureTransposeDelta(previousKey, nextKey);
   const noteSnapshots: NoteSnapshot[] = [];
@@ -75,8 +75,8 @@ export function buildFollowKeyTransposePlan(
 
         const eligibleNotes = region.getNotes().filter(note => {
           if (!scope) return true;
-          const absoluteStart = region.getStartFromBeat() + note.getStartBeat();
-          return absoluteStart >= scope.startBeat && absoluteStart < scope.endBeat;
+          const absoluteStart = region.getStartTick() + note.getStartTick();
+          return absoluteStart >= scope.startTick && absoluteStart < scope.endTick;
         });
         if (eligibleNotes.length === 0) continue;
 

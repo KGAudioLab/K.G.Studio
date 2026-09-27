@@ -10,11 +10,14 @@ import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { createDefaultGlobalTracks, GlobalTrackType } from '../core/global-track';
 import { createMockMidiTrack } from '../test/utils/mock-data';
 import { KGMainContentState } from '../core/state/KGMainContentState';
+import { TICKS_PER_QUARTER } from '../core/timing';
+
+const q = (quarterNotes: number): number => quarterNotes * TICKS_PER_QUARTER;
 
 const executeCommandMock = vi.fn();
-const midiRegion = new KGMidiRegion('region-1', '1', 0, 'Region 1', 0, 4);
-const anotherMidiRegion = new KGMidiRegion('region-2', '1', 0, 'Region 2', 8, 4);
-const audioRegion = new KGAudioRegion('audio-1', '2', 1, 'Audio 1', 4, 4);
+const midiRegion = new KGMidiRegion('region-1', '1', 0, 'Region 1', 0, q(4));
+const anotherMidiRegion = new KGMidiRegion('region-2', '1', 0, 'Region 2', q(8), q(4));
+const audioRegion = new KGAudioRegion('audio-1', '2', 1, 'Audio 1', q(4), q(4));
 const midiTrack = createMockMidiTrack({ id: 1, regions: [midiRegion, anotherMidiRegion] });
 const audioTrack = new KGAudioTrack('Audio Track', 2);
 audioTrack.setTrackIndex(1);
@@ -29,12 +32,12 @@ const storeState = {
   updateTrack: vi.fn(),
   updateTrackProperties: vi.fn(),
   timeSignature: { numerator: 4, denominator: 4 },
-  setPlayheadPosition: vi.fn(),
-  seekPlayheadPosition: vi.fn(async (position: number) => {
-    storeState.setPlayheadPosition(position);
+  setPlayheadTick: vi.fn(),
+  seekPlayheadTick: vi.fn(async (position: number) => {
+    storeState.setPlayheadTick(position);
     return true;
   }),
-  playheadPosition: 0,
+  playheadTick: 0,
   isPlaying: false,
   autoScrollEnabled: false,
   setAutoScrollEnabled: vi.fn(),
@@ -212,7 +215,7 @@ describe('MainContent', () => {
     storeState.pianoRollMode = 'midi-edit';
     storeState.hybridAudioRegionId = null;
     storeState.midiReferenceRegionId = null;
-    storeState.playheadPosition = 0;
+    storeState.playheadTick = 0;
     storeState.timeSignature = { numerator: 4, denominator: 4 };
     storeState.clearAllSelections.mockClear();
     storeState.setSelectedTrack.mockClear();
@@ -227,8 +230,8 @@ describe('MainContent', () => {
     storeState.addTrack.mockClear();
     storeState.addAudioTrack.mockClear();
     storeState.setShowGlobalTracks.mockClear();
-    storeState.setPlayheadPosition.mockClear();
-    storeState.seekPlayheadPosition.mockClear();
+    storeState.setPlayheadTick.mockClear();
+    storeState.seekPlayheadTick.mockClear();
     storeState.requestPianoRollScroll.mockClear();
     KGMainContentState.instance().setSnapping(true);
     KGMainContentState.instance().setSnappingMode('bar');
@@ -263,9 +266,9 @@ describe('MainContent', () => {
     fireEvent.mouseDown(barNumbers, { clientX: 50, button: 0 });
     fireEvent.mouseUp(document, { clientX: 50, button: 0 });
 
-    expect(storeState.seekPlayheadPosition).toHaveBeenCalledWith(5);
+    expect(storeState.seekPlayheadTick).toHaveBeenCalledWith(q(5));
     await waitFor(() => {
-      expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(5);
+      expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(q(5));
     });
   });
 
@@ -290,20 +293,18 @@ describe('MainContent', () => {
     expect(storeState.openMidiPianoRoll).not.toHaveBeenCalled();
   });
 
-  it('adds another MIDI region as a reference without changing the main region', async () => {
+  it('hides add buttons on MIDI regions while editing a MIDI region', () => {
     storeState.showPianoRoll = true;
     storeState.activeRegionId = 'region-1';
 
     render(<MainContent />);
 
     expect(screen.queryByRole('button', { name: 'add-midi-region-1' })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-2' }));
-
-    expect(storeState.openMidiReferenceMode).toHaveBeenCalledWith('region-1', 'region-2');
-    expect(storeState.openHybridMode).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'add-midi-region-2' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'add-audio-region' })).toBeInTheDocument();
   });
 
-  it('replaces the MIDI reference while hiding main, current-reference, and audio add buttons', async () => {
+  it('hides add buttons on MIDI regions while showing a MIDI reference', () => {
     const thirdMidiRegion = new KGMidiRegion('region-3', '1', 0, 'Region 3', 12, 4);
     midiTrack.setRegions([midiRegion, anotherMidiRegion, thirdMidiRegion]);
     storeState.showPianoRoll = true;
@@ -315,10 +316,21 @@ describe('MainContent', () => {
 
     expect(screen.queryByRole('button', { name: 'add-midi-region-1' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'add-midi-region-2' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'add-midi-region-3' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'add-audio-region' })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-3' }));
+  });
 
-    expect(storeState.openMidiReferenceMode).toHaveBeenCalledWith('region-1', 'region-3');
+  it('shows add buttons on MIDI regions while viewing an audio region', async () => {
+    storeState.showPianoRoll = true;
+    storeState.activeRegionId = 'audio-1';
+    storeState.pianoRollMode = 'audio-waveform';
+
+    render(<MainContent />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'add-midi-region-1' }));
+
+    expect(storeState.openHybridMode).toHaveBeenCalledWith('region-1', 'audio-1');
+    expect(storeState.openMidiReferenceMode).not.toHaveBeenCalled();
   });
 
   it('returns to regular MIDI edit mode when the reference region disappears', async () => {
@@ -613,7 +625,7 @@ describe('MainContent', () => {
   });
 
   it('routes the tempo and chord global track add buttons through commands', () => {
-    storeState.playheadPosition = 5;
+    storeState.playheadTick = q(5);
     const { rerender } = render(<MainContent />);
 
     toggleGlobalTracksAndRerender(rerender);
@@ -626,14 +638,14 @@ describe('MainContent', () => {
     expect(storeState.addTrack).not.toHaveBeenCalled();
     expect(storeState.addAudioTrack).not.toHaveBeenCalled();
     expect(executeCommandMock).toHaveBeenCalledTimes(2);
-    expect((executeCommandMock.mock.calls[1][0] as { startBeat?: number }).startBeat).toBe(5);
+    expect((executeCommandMock.mock.calls[1][0] as { startTick?: number }).startTick).toBe(q(5));
   });
 
   it('selecting a global region clears regular-region selection', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(4)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -652,9 +664,9 @@ describe('MainContent', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', 4, 4),
-      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(4)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', q(4), q(4)),
+      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(8), q(4)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -673,9 +685,9 @@ describe('MainContent', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', 4, 4),
-      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(4)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'F', q(4), q(4)),
+      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(8), q(4)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -704,10 +716,10 @@ describe('MainContent', () => {
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(4)),
     ]);
     tempoTrack?.setRegions([
-      new KGTempoRegion('tempo-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 4, 4),
+      new KGTempoRegion('tempo-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 4, q(4)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -727,11 +739,11 @@ describe('MainContent', () => {
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     const tempoTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Tempo);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(4)),
     ]);
     tempoTrack?.setRegions([
-      new KGTempoRegion('tempo-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 4, 4),
-      new KGTempoRegion('tempo-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 4, 4, 4),
+      new KGTempoRegion('tempo-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 0, 4, q(4)),
+      new KGTempoRegion('tempo-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 4, 4, q(4)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -749,9 +761,9 @@ describe('MainContent', () => {
   it('uses split-insert chord command when the playhead is inside an existing chord region', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
-    chordTrack?.addRegion(new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8));
+    chordTrack?.addRegion(new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(8)));
     storeState.globalTracks = globalTracks;
-    storeState.playheadPosition = 3;
+    storeState.playheadTick = q(3);
 
     const { rerender } = render(<MainContent />);
 
@@ -759,7 +771,7 @@ describe('MainContent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Chord global track item' }));
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
-    expect((executeCommandMock.mock.calls[0][0] as { insertBeat?: number }).insertBeat).toBe(3);
+    expect((executeCommandMock.mock.calls[0][0] as { insertTick?: number }).insertTick).toBe(q(3));
 
     storeState.globalTracks = createDefaultGlobalTracks();
   });
@@ -768,8 +780,8 @@ describe('MainContent', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 3),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 2, 2),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(3)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(2), q(2)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -788,7 +800,7 @@ describe('MainContent', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 8),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(8)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -799,7 +811,7 @@ describe('MainContent', () => {
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab' });
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
-    expect((executeCommandMock.mock.calls[0][0] as { insertBeat?: number }).insertBeat).toBe(4);
+    expect((executeCommandMock.mock.calls[0][0] as { insertTick?: number }).insertTick).toBe(q(4));
 
     storeState.globalTracks = createDefaultGlobalTracks();
   });
@@ -808,8 +820,8 @@ describe('MainContent', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, 4),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 0, q(4)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(8), q(4)),
     ]);
     storeState.globalTracks = globalTracks;
 
@@ -842,7 +854,7 @@ describe('MainContent', () => {
 
     expect(executeCommandMock).toHaveBeenCalledTimes(1);
     expect((executeCommandMock.mock.calls[0][0] as { preferredLength?: number }).preferredLength).toBe(
-      storeState.timeSignature.numerator
+      q(storeState.timeSignature.numerator)
     );
   });
 
@@ -850,7 +862,7 @@ describe('MainContent', () => {
     const globalTracks = createDefaultGlobalTracks();
     const chordTrack = globalTracks.find(track => track.getType() === GlobalTrackType.Chord);
     chordTrack?.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', 40, 16),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Am', q(40), q(16)),
     ]);
     storeState.globalTracks = globalTracks;
 

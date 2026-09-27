@@ -1,7 +1,7 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { GlobalTrackType } from '../../global-track';
-import { findGlobalTrackContainingRegion, findNonOverlappingNeighborBounds, getSongEndBeat } from '../../../util/globalTrackUtil';
+import { findGlobalTrackContainingRegion, findNonOverlappingNeighborBounds, getSongEndTick } from '../../../util/globalTrackUtil';
 import { KGGlobalRegion } from '../../region/KGGlobalRegion';
 
 export type GlobalRegionResizeEdge = 'start' | 'end';
@@ -11,7 +11,7 @@ export class ResizeGlobalRegionCommand extends KGCommand {
   private readonly edge: GlobalRegionResizeEdge;
   private readonly desiredBeat: number;
   private targetRegion: KGGlobalRegion | null = null;
-  private originalStartBeat = 0;
+  private originalStartTick = 0;
   private originalLength = 0;
 
   constructor(regionId: string, edge: GlobalRegionResizeEdge, desiredBeat: number) {
@@ -29,32 +29,32 @@ export class ResizeGlobalRegionCommand extends KGCommand {
     }
 
     this.targetRegion = result.region;
-    this.originalStartBeat = result.region.getStartFromBeat();
-    this.originalLength = result.region.getLength();
+    this.originalStartTick = result.region.getStartTick();
+    this.originalLength = result.region.getLengthTicks();
 
     if (result.track.getType() !== GlobalTrackType.Marker && result.track.getType() !== GlobalTrackType.Chord) {
       return;
     }
 
-    const originalEndBeat = this.originalStartBeat + this.originalLength;
-    const { minStartBeat, maxEndBeat } = findNonOverlappingNeighborBounds(
+    const originalEndTick = this.originalStartTick + this.originalLength;
+    const { minStartTick, maxEndTick } = findNonOverlappingNeighborBounds(
       project,
       result.track.getType() as GlobalTrackType.Marker | GlobalTrackType.Chord,
       this.regionId,
-      this.originalStartBeat
+      this.originalStartTick
     );
-    const songEndBeat = getSongEndBeat(project);
-    const absoluteMaxEndBeat = Math.min(maxEndBeat, songEndBeat);
+    const songEndTick = getSongEndTick(project);
+    const absoluteMaxEndTick = Math.min(maxEndTick, songEndTick);
 
     if (this.edge === 'start') {
-      const clampedStartBeat = Math.max(minStartBeat, Math.min(this.desiredBeat, originalEndBeat - 1));
-      result.region.setStartFromBeat(clampedStartBeat);
-      result.region.setLength(Math.max(1, originalEndBeat - clampedStartBeat));
+      const clampedStartTick = Math.max(minStartTick, Math.min(this.desiredBeat, originalEndTick - 1));
+      result.region.setStartTick(clampedStartTick);
+      result.region.setLengthTicks(Math.max(1, originalEndTick - clampedStartTick));
       return;
     }
 
-    const clampedEndBeat = Math.max(this.originalStartBeat + 1, Math.min(this.desiredBeat, absoluteMaxEndBeat));
-    result.region.setLength(Math.max(1, clampedEndBeat - this.originalStartBeat));
+    const clampedEndTick = Math.max(this.originalStartTick + 1, Math.min(this.desiredBeat, absoluteMaxEndTick));
+    result.region.setLengthTicks(Math.max(1, clampedEndTick - this.originalStartTick));
   }
 
   undo(): void {
@@ -62,8 +62,8 @@ export class ResizeGlobalRegionCommand extends KGCommand {
       throw new Error('Cannot undo: no global region was resized');
     }
 
-    this.targetRegion.setStartFromBeat(this.originalStartBeat);
-    this.targetRegion.setLength(this.originalLength);
+    this.targetRegion.setStartTick(this.originalStartTick);
+    this.targetRegion.setLengthTicks(this.originalLength);
   }
 
   getDescription(): string {

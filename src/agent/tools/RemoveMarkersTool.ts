@@ -1,4 +1,5 @@
 import { BaseTool } from './BaseTool';
+import { quarterNotesToTicks, ticksToQuarterNotes } from '../../core/timing';
 import type { ToolParameter, ToolResult } from './BaseTool';
 import { DeleteMultipleGlobalRegionsCommand } from '../../core/commands/global-region/DeleteGlobalRegionCommand';
 import { GlobalTrackType } from '../../core/global-track';
@@ -55,21 +56,21 @@ export class RemoveMarkersTool extends BaseTool {
     try {
       this.validateParameters(params);
 
-      const startBeat = params.start as number;
-      const endBeat = params.end as number;
-      this.validateRange(startBeat, endBeat);
+      const startTick = quarterNotesToTicks(params.start as number);
+      const endTick = quarterNotesToTicks(params.end as number);
+      this.validateRange(startTick, endTick);
 
-      const matchingRegions = this.findMatchingRegions(startBeat, endBeat);
+      const matchingRegions = this.findMatchingRegions(startTick, endTick);
       if (matchingRegions.length === 0) {
         return this.createSuccessResult(
-          `No marker annotations found with start beats in the requested range from beat ${startBeat} to ${endBeat}.`,
+          `No marker annotations found in the requested quarter-note range ${ticksToQuarterNotes(startTick)} to ${ticksToQuarterNotes(endTick)}.`,
         );
       }
 
       await this.executeCommand(new DeleteMultipleGlobalRegionsCommand(matchingRegions.map(region => region.getId())));
 
       const details = matchingRegions
-        .map(region => `[Beat: ${region.getStartFromBeat()}; Length: ${region.getLength()}]: ${region.getName()}`)
+        .map(region => `[Quarter-note: ${ticksToQuarterNotes(region.getStartTick())}; Length: ${ticksToQuarterNotes(region.getLengthTicks())}]: ${region.getName()}`)
         .join('\n');
       return this.createSuccessResult(
         `Successfully removed ${matchingRegions.length} marker ${matchingRegions.length === 1 ? 'annotation' : 'annotations'} from the global Marker track. Markers are annotation-only and do not affect playback.\n${details}`,
@@ -79,16 +80,16 @@ export class RemoveMarkersTool extends BaseTool {
     }
   }
 
-  private validateRange(startBeat: number, endBeat: number): void {
-    if (startBeat < 0) {
-      throw new Error(`Invalid start ${startBeat}. Must be >= 0.`);
+  private validateRange(startTick: number, endTick: number): void {
+    if (startTick < 0) {
+      throw new Error(`Invalid start ${startTick}. Must be >= 0.`);
     }
-    if (endBeat < startBeat) {
-      throw new Error(`Invalid beat range: end (${endBeat}) must be greater than or equal to start (${startBeat}).`);
+    if (endTick < startTick) {
+      throw new Error(`Invalid beat range: end (${endTick}) must be greater than or equal to start (${startTick}).`);
     }
   }
 
-  private findMatchingRegions(startBeat: number, endBeat: number): KGMarkerRegion[] {
+  private findMatchingRegions(startTick: number, endTick: number): KGMarkerRegion[] {
     const project = this.getCurrentProject();
     const markerTrack = findGlobalTrackByType(project, GlobalTrackType.Marker);
     if (!markerTrack) {
@@ -97,16 +98,16 @@ export class RemoveMarkersTool extends BaseTool {
 
     return markerTrack.getRegions()
       .filter((region): region is KGMarkerRegion => region instanceof KGMarkerRegion)
-      .filter(region => this.matchesRange(region.getStartFromBeat(), startBeat, endBeat))
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .filter(region => this.matchesRange(region.getStartTick(), startTick, endTick))
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
   }
 
-  private matchesRange(regionStartBeat: number, startBeat: number, endBeat: number): boolean {
-    if (startBeat === endBeat) {
-      return regionStartBeat === startBeat;
+  private matchesRange(regionStartTick: number, startTick: number, endTick: number): boolean {
+    if (startTick === endTick) {
+      return regionStartTick === startTick;
     }
 
-    return regionStartBeat >= startBeat && regionStartBeat < endBeat;
+    return regionStartTick >= startTick && regionStartTick < endTick;
   }
 
   private formatMultilineResult(result: string): string {

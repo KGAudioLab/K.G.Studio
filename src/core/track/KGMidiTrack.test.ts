@@ -103,21 +103,21 @@ describe('KGMidiTrack', () => {
         id: 'region-1', 
         trackId: track.getId().toString(),
         name: 'Region 1',
-        startFromBeat: 0,
+        startTick: 0,
         length: 4
       });
       region2 = createMockMidiRegion({ 
         id: 'region-2', 
         trackId: track.getId().toString(),
         name: 'Region 2',
-        startFromBeat: 4,
+        startTick: 4,
         length: 4
       });
       region3 = createMockMidiRegion({ 
         id: 'region-3', 
         trackId: track.getId().toString(),
         name: 'Region 3',
-        startFromBeat: 8,
+        startTick: 8,
         length: 4
       });
     });

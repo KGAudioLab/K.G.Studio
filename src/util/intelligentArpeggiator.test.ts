@@ -5,42 +5,56 @@ import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGChordTrack } from '../core/global-track/KGChordTrack';
 import { KGChordRegion } from '../core/region/KGChordRegion';
+import { quarterNotesToTicks } from '../core/timing';
 import { buildIntelligentArpeggiatorPlan } from './intelligentArpeggiator';
 
 describe('buildIntelligentArpeggiatorPlan', () => {
   it('learns a C pattern and maps it to D minor without the imported bass root', () => {
     const track = new KGMidiTrack('Output', 1);
-    const region = new KGMidiRegion('output-region', '1', 0, 'Example', 0, 8);
+    const region = new KGMidiRegion('output-region', '1', 0, 'Example', 0, quarterNotesToTicks(8));
     [
       [0, 60], [1, 67], [2, 64], [3, 67],
-    ].forEach(([start, pitch], index) => region.addNote(new KGMidiNote(`n${index}`, start, start + 1, pitch, 90 + index)));
+    ].forEach(([start, pitch], index) => region.addNote(new KGMidiNote(
+      `n${index}`,
+      quarterNotesToTicks(start),
+      quarterNotesToTicks(start + 1),
+      pitch,
+      90 + index,
+    )));
     track.setRegions([region]);
     const chords = new KGChordTrack();
     chords.setRegions([
-      new KGChordRegion('c', 'global-chord', 0, 'C', 0, 4),
-      new KGChordRegion('dm', 'global-chord', 0, 'Dm', 4, 4),
+      new KGChordRegion('c', 'global-chord', 0, 'C', 0, quarterNotesToTicks(4)),
+      new KGChordRegion('dm', 'global-chord', 0, 'Dm', quarterNotesToTicks(4), quarterNotesToTicks(4)),
     ]);
     const project = new KGProject('Test', 2, 0, 120, { numerator: 4, denominator: 4 }, 'C major', 'ionian', false, [0, 0], 1, [track], 16, 1, [chords]);
 
     const result = buildIntelligentArpeggiatorPlan(project, region, 0, { source: { type: 'chord' }, exampleBars: 1, generateBars: 1, tieBreak: 'higher' });
     expect('error' in result).toBe(false);
     if ('error' in result) return;
-    expect(result.notes.map(note => [note.startBeat, note.pitch, note.velocity])).toEqual([
-      [4, 62, 90], [5, 69, 91], [6, 65, 92], [7, 69, 93],
+    expect(result.notes.map(note => [note.startTick, note.pitch, note.velocity])).toEqual([
+      [quarterNotesToTicks(4), 62, 90], [quarterNotesToTicks(5), 69, 91],
+      [quarterNotesToTicks(6), 65, 92], [quarterNotesToTicks(7), 69, 93],
     ]);
   });
 
   it('accepts off-key source pitches and preserves their chromatic alteration in output', () => {
     const track = new KGMidiTrack('Output', 1);
-    const region = new KGMidiRegion('output-region', '1', 0, 'Example', 0, 8);
+    const region = new KGMidiRegion('output-region', '1', 0, 'Example', 0, quarterNotesToTicks(8));
     [
       [0, 60], [1, 67], [2, 64], [3, 67],
-    ].forEach(([start, pitch], index) => region.addNote(new KGMidiNote(`n${index}`, start, start + 1, pitch, 100)));
+    ].forEach(([start, pitch], index) => region.addNote(new KGMidiNote(
+      `n${index}`,
+      quarterNotesToTicks(start),
+      quarterNotesToTicks(start + 1),
+      pitch,
+      100,
+    )));
     track.setRegions([region]);
     const chords = new KGChordTrack();
     chords.setRegions([
-      new KGChordRegion('c', 'global-chord', 0, 'C', 0, 4),
-      new KGChordRegion('c-sharp', 'global-chord', 0, 'C#', 4, 4),
+      new KGChordRegion('c', 'global-chord', 0, 'C', 0, quarterNotesToTicks(4)),
+      new KGChordRegion('c-sharp', 'global-chord', 0, 'C#', quarterNotesToTicks(4), quarterNotesToTicks(4)),
     ]);
     const project = new KGProject('Test', 2, 0, 120, { numerator: 4, denominator: 4 }, 'C major', 'ionian', false, [0, 0], 1, [track], 16, 1, [chords]);
 
@@ -48,6 +62,6 @@ describe('buildIntelligentArpeggiatorPlan', () => {
     expect('error' in result).toBe(false);
     if ('error' in result) return;
     // C#4 is outside C major, but it must be emitted because it came from the source chord.
-    expect(result.notes[0]).toMatchObject({ startBeat: 4, pitch: 61 });
+    expect(result.notes[0]).toMatchObject({ startTick: quarterNotesToTicks(4), pitch: 61 });
   });
 });

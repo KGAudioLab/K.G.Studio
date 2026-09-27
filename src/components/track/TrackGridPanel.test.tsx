@@ -12,6 +12,10 @@ import { convertProjectToMidi } from '../../util/midiUtil';
 import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { TICKS_PER_QUARTER } from '../../core/timing';
+import { GlobalTrackType } from '../../core/global-track';
+
+const q = (quarterNotes: number): number => quarterNotes * TICKS_PER_QUARTER;
 
 const executeCommandMock = vi.fn();
 const getCreatedRegionMock = vi.fn();
@@ -25,8 +29,8 @@ const loadAudioBufferForTrackMock = vi.fn<(trackId: string, fileId: string, tone
 const createTrackSynthMock = vi.fn<(trackId: string, instrument: string) => void>();
 const decodeAudioDataMock = vi.fn<(arrayBuffer: ArrayBuffer, onSuccess: (decoded: { duration?: number }) => void, onError: (error: unknown) => void) => void>();
 const globalChordRegions = [
-  new KGChordRegion('chord-1', 'global-chord', 3, 'C', 0, 4),
-  new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4, 4),
+  new KGChordRegion('chord-1', 'global-chord', 3, 'C', 0, q(4)),
+  new KGChordRegion('chord-2', 'global-chord', 3, 'F', q(4), q(4)),
 ];
 let currentTracks: Array<ReturnType<typeof createMockMidiTrack> | KGAudioTrack> = [];
 let currentMaxBars = 8;
@@ -71,8 +75,10 @@ vi.mock('../../core/KGCore', () => ({
           currentTracks = tracks;
         },
         getGlobalTracks: () => [{
+          getType: () => GlobalTrackType.Chord,
           getRegions: () => globalChordRegions,
         }],
+        getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
         getBpm: () => 120,
         getMaxBars: () => currentMaxBars,
         setMaxBars: (maxBars: number) => {
@@ -142,7 +148,7 @@ vi.mock('../../core/commands', async () => {
           id: 'created-region',
           trackId,
           trackIndex,
-          startFromBeat: (barNumber - 1) * 4,
+          startTick: (barNumber - 1) * 4,
           length: 4,
         }),
       })),
@@ -173,8 +179,8 @@ describe('TrackGridPanel lasso selection', () => {
   });
 
   const renderPanel = () => {
-    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 4 });
-    const regionB = createMockMidiRegion({ id: 'region-b', trackId: '2', trackIndex: 1, startFromBeat: 8, length: 4 });
+    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startTick: 0, length: 4 });
+    const regionB = createMockMidiRegion({ id: 'region-b', trackId: '2', trackIndex: 1, startTick: 8, length: 4 });
     const trackA = createMockMidiTrack({ id: 1, regions: [regionA] });
     const trackB = createMockMidiTrack({ id: 2, regions: [regionB] });
     trackA.setTrackIndex(0);
@@ -365,7 +371,7 @@ describe('TrackGridPanel lasso selection', () => {
       id: 'created-region',
       trackId: '1',
       trackIndex: 0,
-      startFromBeat: 12,
+      startTick: 12,
       length: 4,
       name: 'New Region',
     }));
@@ -378,7 +384,7 @@ describe('TrackGridPanel lasso selection', () => {
   });
 
   it('imports chord regions into a MIDI track on drop', async () => {
-    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 4 });
+    const regionA = createMockMidiRegion({ id: 'region-a', trackId: '1', trackIndex: 0, startTick: 0, length: 4 });
     const trackA = createMockMidiTrack({ id: 1, regions: [regionA] });
     trackA.setTrackIndex(0);
     currentTracks = [trackA];
@@ -418,13 +424,13 @@ describe('TrackGridPanel lasso selection', () => {
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
     expect(command.getDescription()).toContain('Import chord progression');
     const createdRegion = command.getCreatedRegion();
-    expect(createdRegion?.getStartFromBeat()).toBe(0);
-    expect(createdRegion?.getLength()).toBe(8);
+    expect(createdRegion?.getStartTick()).toBe(0);
+    expect(createdRegion?.getLengthTicks()).toBe(q(8));
     expect(createdRegion?.getNotes().map((note: KGMidiNote) => note.getPitch())).toEqual([48, 60, 64, 67, 41, 53, 57, 60]);
   });
 
   it('does not prompt when a MIDI region only touches the converted chord range', async () => {
-    const touchingRegion = createMockMidiRegion({ id: 'touching', trackId: '1', trackIndex: 0, startFromBeat: 8, length: 4 });
+    const touchingRegion = createMockMidiRegion({ id: 'touching', trackId: '1', trackIndex: 0, startTick: 8, length: 4 });
     const trackA = createMockMidiTrack({ id: 1, regions: [touchingRegion] });
     trackA.setTrackIndex(0);
     currentTracks = [trackA];
@@ -458,7 +464,7 @@ describe('TrackGridPanel lasso selection', () => {
   });
 
   it('does not import when the overlap dialog is cancelled', async () => {
-    const overlappingRegion = createMockMidiRegion({ id: 'overlapping', trackId: '1', trackIndex: 0, startFromBeat: 0, length: 4 });
+    const overlappingRegion = createMockMidiRegion({ id: 'overlapping', trackId: '1', trackIndex: 0, startTick: 0, length: 4 });
     const trackA = createMockMidiTrack({ id: 1, regions: [overlappingRegion] });
     trackA.setTrackIndex(0);
     currentTracks = [trackA];
@@ -595,8 +601,8 @@ describe('TrackGridPanel lasso selection', () => {
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
     const createdRegion = command.getCreatedRegion();
     expect(createdRegion?.getName()).toBe('dropped.wav');
-    expect(createdRegion?.getStartFromBeat()).toBe(8);
-    expect(createdRegion?.getLength()).toBeCloseTo(4);
+    expect(createdRegion?.getStartTick()).toBe(q(8));
+    expect(createdRegion?.getLengthTicks()).toBeCloseTo(q(4));
     expect(onExternalDropComplete).toHaveBeenCalledWith(0, expect.objectContaining({
       name: 'dropped.wav',
       barNumber: 3,
@@ -712,9 +718,9 @@ describe('TrackGridPanel lasso selection', () => {
     const midiFile = createMidiFile('phrase.mid', project => {
       const sourceTrack = new KGMidiTrack('Lead Source', 11, 'flute');
       sourceTrack.setTrackIndex(0);
-      const region = new KGMidiRegion('source-region', '11', 0, 'Lead Source', 4, 6);
-      region.addNote(new KGMidiNote('source-note-1', 0, 1, 60, 100));
-      region.addNote(new KGMidiNote('source-note-2', 4, 6, 64, 90));
+      const region = new KGMidiRegion('source-region', '11', 0, 'Lead Source', q(4), q(6));
+      region.addNote(new KGMidiNote('source-note-1', 0, q(1), 60, 100));
+      region.addNote(new KGMidiNote('source-note-2', q(4), q(6), 64, 90));
       sourceTrack.addRegion(region);
       project.getTracks().push(sourceTrack);
     });
@@ -730,9 +736,9 @@ describe('TrackGridPanel lasso selection', () => {
     expect((currentTracks[0] as KGMidiTrack).getInstrument()).toBe('violin');
     const importedRegion = (currentTracks[0] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
     expect(importedRegion.getName()).toBe('phrase.mid');
-    expect(importedRegion.getStartFromBeat()).toBe(8);
-    expect(importedRegion.getLength()).toBe(6);
-    expect(importedRegion.getNotes().map(note => note.getStartBeat())).toEqual([0, 4]);
+    expect(importedRegion.getStartTick()).toBe(q(8));
+    expect(importedRegion.getLengthTicks()).toBe(q(6));
+    expect(importedRegion.getNotes().map(note => note.getStartTick())).toEqual([0, q(4)]);
   });
 
   it('imports a dropped multi-track MIDI file into the target track and inserts extra tracks below it', async () => {
@@ -763,14 +769,14 @@ describe('TrackGridPanel lasso selection', () => {
     const midiFile = createMidiFile('ensemble.mid', project => {
       const leadTrack = new KGMidiTrack('Lead', 21, 'acoustic_grand_piano');
       leadTrack.setTrackIndex(0);
-      const leadRegion = new KGMidiRegion('lead-region', '21', 0, 'Lead Source', 4, 4);
-      leadRegion.addNote(new KGMidiNote('lead-note', 0, 1, 72, 100));
+      const leadRegion = new KGMidiRegion('lead-region', '21', 0, 'Lead Source', q(4), q(4));
+      leadRegion.addNote(new KGMidiNote('lead-note', 0, q(1), 72, 100));
       leadTrack.addRegion(leadRegion);
 
       const bassTrack = new KGMidiTrack('Bass', 22, 'electric_bass_finger');
       bassTrack.setTrackIndex(1);
-      const bassRegion = new KGMidiRegion('bass-region', '22', 1, 'Bass Source', 6, 2);
-      bassRegion.addNote(new KGMidiNote('bass-note', 0, 2, 43, 95));
+      const bassRegion = new KGMidiRegion('bass-region', '22', 1, 'Bass Source', q(6), q(2));
+      bassRegion.addNote(new KGMidiNote('bass-note', 0, q(2), 43, 95));
       bassTrack.addRegion(bassRegion);
 
       project.getTracks().push(leadTrack, bassTrack);
@@ -797,9 +803,9 @@ describe('TrackGridPanel lasso selection', () => {
 
     const targetImportedRegion = (currentTracks[1] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
     const insertedImportedRegion = (currentTracks[2] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
-    expect(targetImportedRegion.getStartFromBeat()).toBe(8);
-    expect(insertedImportedRegion.getStartFromBeat()).toBe(10);
-    expect(insertedImportedRegion.getNotes()[0].getStartBeat()).toBe(0);
+    expect(targetImportedRegion.getStartTick()).toBe(q(8));
+    expect(insertedImportedRegion.getStartTick()).toBe(q(10));
+    expect(insertedImportedRegion.getNotes()[0].getStartTick()).toBe(0);
   });
 
   it('shows a polite dialog when dropping a MIDI file onto an audio track', async () => {
@@ -931,7 +937,7 @@ describe('TrackGridPanel lasso selection', () => {
     });
 
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
-    expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(12);
+    expect(command.getCreatedRegion()?.getStartTick()).toBe(q(12));
   });
 
   it('places dropped audio on the nearest beat when beat snapping is selected', async () => {
@@ -964,7 +970,7 @@ describe('TrackGridPanel lasso selection', () => {
     });
 
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
-    expect(command.getCreatedRegion()?.getStartFromBeat()).toBe(10);
+    expect(command.getCreatedRegion()?.getStartTick()).toBe(q(10));
   });
 
   it('preserves fractional bar placement when snapping is disabled for dropped audio files', async () => {
@@ -996,7 +1002,7 @@ describe('TrackGridPanel lasso selection', () => {
     });
 
     const command = executeCommandMock.mock.calls.at(-1)?.[0];
-    expect(command.getCreatedRegion()?.getStartFromBeat()).toBeCloseTo(10);
+    expect(command.getCreatedRegion()?.getStartTick()).toBeCloseTo(q(10));
   });
 
   it('advertises local file drops only on compatible rows during drag over', () => {

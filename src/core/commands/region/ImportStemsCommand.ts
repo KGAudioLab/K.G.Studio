@@ -3,6 +3,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGAudioTrack } from '../../track/KGAudioTrack';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
+import { secondsToTick, tickToSeconds } from '../../../util/globalTrackUtil';
 import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
 
 /**
@@ -31,7 +32,7 @@ export interface StemImportEntry {
 export class ImportStemsCommand extends KGCommand {
   private readonly originalTrackCount: number;
   private readonly originalTrackIndex: number;
-  private readonly insertBeat: number;
+  private readonly insertTick: number;
   private readonly stems: StemImportEntry[];
   private readonly originalMaxBars: number;
 
@@ -42,14 +43,14 @@ export class ImportStemsCommand extends KGCommand {
   constructor(
     originalTrackCount: number,
     originalTrackIndex: number,
-    insertBeat: number,
+    insertTick: number,
     stems: StemImportEntry[],
     originalMaxBars: number,
   ) {
     super();
     this.originalTrackCount = originalTrackCount;
     this.originalTrackIndex = originalTrackIndex;
-    this.insertBeat = insertBeat;
+    this.insertTick = insertTick;
     this.stems = stems;
     this.originalMaxBars = originalMaxBars;
     this.finalMaxBars = originalMaxBars;
@@ -106,7 +107,8 @@ export class ImportStemsCommand extends KGCommand {
 
     // ── 4. Create one audio region per stem ───────────────────────────────
     const bpm         = project.getBpm();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     let currentMaxBars = this.originalMaxBars;
 
     for (let i = 0; i < this.stems.length; i++) {
@@ -117,9 +119,9 @@ export class ImportStemsCommand extends KGCommand {
       const track = project.getTracks().find(t => t.getId() === trackId);
       if (!track) continue;
 
-      const durationInBeats = stem.audioDurationSeconds * (bpm / 60);
-      const endBeat         = this.insertBeat + durationInBeats;
-      const requiredBars    = Math.ceil(endBeat / beatsPerBar);
+      const durationTicks = secondsToTick(project, tickToSeconds(project, this.insertTick) + stem.audioDurationSeconds) - this.insertTick;
+      const endTick         = this.insertTick + durationTicks;
+      const requiredBars    = Math.ceil(endTick / ticksPerBar);
       const newMaxBars      = Math.max(currentMaxBars, requiredBars);
 
       const regionId = `audio_region_${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${i}`;
@@ -130,8 +132,8 @@ export class ImportStemsCommand extends KGCommand {
         trackId.toString(),
         track.getTrackIndex(),
         stem.regionName,
-        this.insertBeat,
-        durationInBeats,
+        this.insertTick,
+        durationTicks,
         stem.audioFileId,
         stem.audioFileName,
         stem.audioDurationSeconds,

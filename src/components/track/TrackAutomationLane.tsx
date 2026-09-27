@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { pixelsToTicks, ticksToPixels } from '../../core/timing';
 import { KGCore } from '../../core/KGCore';
 import {
   CreateTrackAutomationPointsCommand,
@@ -36,7 +37,7 @@ interface SelectionBoxState {
 }
 
 interface PreviewPoint {
-  absoluteBeat: number;
+  absoluteTick: number;
   value: number;
 }
 
@@ -64,7 +65,7 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
   const [previewPoints, setPreviewPoints] = useState<Record<string, PreviewPoint>>({});
   const previewPointsRef = useRef<Record<string, PreviewPoint>>({});
   const dragStateRef = useRef<{
-    originAbsoluteBeat: number;
+    originAbsoluteTick: number;
     originValue: number;
     originClientX: number;
     originClientY: number;
@@ -119,9 +120,9 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
   const points = useMemo(() => track.getAutomationPoints(automationType), [track, automationType, redrawVersion]);
   const selectedPointIdSet = new Set(selectedTrackAutomationPointIds.filter(id => points.some(point => point.getId() === id)));
   const pointMap = new Map(points.map(point => [point.getId(), point]));
-  const totalBeats = maxBars * timeSignature.numerator;
+  const totalTicks = maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
   const barWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--track-grid-bar-width')) || 40;
-  const beatWidth = barWidth / timeSignature.numerator;
+  const pixelsPerQuarter = barWidth * 960 / (timeSignature.numerator * 960 * (4 / timeSignature.denominator));
   const minValue = automationType === 'volume' ? AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB : -1;
   const maxValue = automationType === 'volume' ? AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB : 1;
 
@@ -145,22 +146,22 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
 
   const renderedPoints = points.map(point => {
     const preview = previewPoints[point.getId()];
-    const absoluteBeat = preview?.absoluteBeat ?? point.getBeat();
+    const absoluteTick = preview?.absoluteTick ?? point.getTick();
     const value = preview?.value ?? point.getValue();
 
     return {
       id: point.getId(),
-      absoluteBeat,
+      absoluteTick,
       value,
-      x: absoluteBeat * beatWidth,
+      x: ticksToPixels(absoluteTick, pixelsPerQuarter),
       y: toY(value),
       isSelected: selectedPointIdSet.has(point.getId()),
     };
-  }).sort((left, right) => left.absoluteBeat - right.absoluteBeat || left.id.localeCompare(right.id));
+  }).sort((left, right) => left.absoluteTick - right.absoluteTick || left.id.localeCompare(right.id));
 
   const polylinePoints = renderedPoints.length > 0
     ? renderedPoints
-      .concat([{ ...renderedPoints[renderedPoints.length - 1], id: `${renderedPoints[renderedPoints.length - 1].id}-tail`, x: beatWidth * totalBeats }])
+      .concat([{ ...renderedPoints[renderedPoints.length - 1], id: `${renderedPoints[renderedPoints.length - 1].id}-tail`, x: ticksToPixels(totalTicks, pixelsPerQuarter) }])
       .map(point => `${point.x},${point.y}`)
       .join(' ')
     : '';
@@ -203,15 +204,15 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
       return {};
     }
 
-    const rawAbsoluteBeat = coordinates.x / beatWidth;
-    const beatDelta = rawAbsoluteBeat - dragState.originAbsoluteBeat;
+    const rawAbsoluteTick = pixelsToTicks(coordinates.x, pixelsPerQuarter);
+    const tickDelta = rawAbsoluteTick - dragState.originAbsoluteTick;
     const rawDeltaValue = toValue(coordinates.y) - dragState.originValue;
     const valueDelta = Math.min(dragState.maxDeltaValue, Math.max(dragState.minDeltaValue, rawDeltaValue));
     const nextPreview: Record<string, PreviewPoint> = {};
 
     dragState.selectedPoints.forEach(point => {
       nextPreview[point.getId()] = {
-        absoluteBeat: Math.max(0, point.getBeat() + beatDelta),
+        absoluteTick: Math.max(0, point.getTick() + tickDelta),
         value: point.getValue() + valueDelta,
       };
     });
@@ -263,14 +264,14 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
         automationType,
         dragState.selectedPoints.map(point => ({
           pointId: point.getId(),
-          beat: point.getBeat(),
+          tick: point.getTick(),
           value: point.getValue(),
         })),
         dragState.selectedPoints.map(point => {
           const preview = pendingPreview[point.getId()];
           return {
             pointId: point.getId(),
-            beat: preview.absoluteBeat,
+            tick: preview.absoluteTick,
             value: preview.value,
           };
         })
@@ -319,7 +320,7 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
     ), Number.POSITIVE_INFINITY);
 
     dragStateRef.current = {
-      originAbsoluteBeat: point.getBeat(),
+      originAbsoluteTick: point.getTick(),
       originValue: point.getValue(),
       originClientX: event.clientX,
       originClientY: event.clientY,
@@ -428,7 +429,7 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
     }
 
     KGCore.instance().executeCommand(new CreateTrackAutomationPointsCommand(track.getId(), automationType, [{
-      beat: Math.max(0, coordinates.x / beatWidth),
+      tick: Math.max(0, pixelsToTicks(coordinates.x, pixelsPerQuarter)),
       value: toValue(coordinates.y),
     }]));
     bumpTrackAutomationRedrawVersion();
@@ -504,7 +505,7 @@ const TrackAutomationLane: React.FC<TrackAutomationLaneProps> = ({
         className="track-automation-svg"
         width="100%"
         height="100%"
-        viewBox={`0 0 ${beatWidth * totalBeats} ${laneRef.current?.clientHeight ?? 120}`}
+        viewBox={`0 0 ${ticksToPixels(totalTicks, pixelsPerQuarter)} ${laneRef.current?.clientHeight ?? 120}`}
         preserveAspectRatio="none"
       >
         {renderedPoints.length > 0 && (

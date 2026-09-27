@@ -57,7 +57,7 @@ describe('KGCore playback seeking', () => {
     audioMocks.startAudioContext.mockResolvedValue(undefined);
     const project = new KGProject('Seek Test', 16, 0, 120, { numerator: 4, denominator: 4 });
     core.setCurrentProject(project);
-    core.setPlayheadPosition(4);
+    core.setPlayheadTick(4);
     await core.play();
     vi.clearAllMocks();
   });
@@ -76,7 +76,7 @@ describe('KGCore playback seeking', () => {
     );
     expect(audioMocks.setTransportPosition).toHaveBeenCalledWith(12);
     expect(audioMocks.startPlayback).toHaveBeenCalledTimes(1);
-    expect(core.getPlayheadPosition()).toBe(12);
+    expect(core.getPlayheadTick()).toBe(12);
     expect(core.getIsPlaying()).toBe(true);
     expect(playbackStates).not.toContain(false);
   });
@@ -91,7 +91,7 @@ describe('KGCore playback seeking', () => {
 
     expect(audioMocks.stopPlayback).not.toHaveBeenCalled();
     expect(audioMocks.preparePlayback).not.toHaveBeenCalled();
-    expect(core.getPlayheadPosition()).toBe(4);
+    expect(core.getPlayheadTick()).toBe(4);
   });
 
   it('leaves playback stopped at the target when rescheduling fails', async () => {
@@ -103,7 +103,7 @@ describe('KGCore playback seeking', () => {
 
     await expect(core.seekDuringPlayback(10)).rejects.toThrow('schedule failed');
 
-    expect(core.getPlayheadPosition()).toBe(10);
+    expect(core.getPlayheadTick()).toBe(10);
     expect(core.getIsPlaying()).toBe(false);
     expect(playbackStates).toEqual([false]);
     expect(audioMocks.startPlayback).not.toHaveBeenCalled();

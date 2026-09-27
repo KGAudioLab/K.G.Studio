@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { KGMidiPitchBend } from './KGMidiPitchBend';
 
 describe('KGMidiPitchBend', () => {
-  it('stores beat and raw pitch bend value', () => {
+  it('stores an integer tick and raw pitch bend value', () => {
     const event = new KGMidiPitchBend('bend-1', 1.5, 4096);
 
     expect(event.getId()).toBe('bend-1');
-    expect(event.getBeat()).toBe(1.5);
+    expect(event.getTick()).toBe(2);
     expect(event.getValue()).toBe(4096);
     expect(event.getCurrentType()).toBe('KGMidiPitchBend');
   });

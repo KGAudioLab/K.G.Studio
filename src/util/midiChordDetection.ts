@@ -1,13 +1,14 @@
 import { KGProject } from '../core/KGProject';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import { TICKS_PER_QUARTER, ticksPerBar } from '../core/timing';
 
 const ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 
 export interface MidiChordWindow {
   barIndex: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
 }
 
 export interface MidiChordDetectionOptions {
@@ -25,8 +26,8 @@ export interface MidiChordDetectionRequest {
 
 export interface DetectedMidiChord {
   barIndex: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   symbol: string;
   confidence: number;
   noteCount: number;
@@ -34,11 +35,11 @@ export interface DetectedMidiChord {
 
 interface WeightedMidiNote {
   note: KGMidiNote;
-  overlapBeats: number;
+  overlapQuarterNotes: number;
   baseWeight: number;
   pitchClass: number;
-  absoluteStartBeat: number;
-  absoluteEndBeat: number;
+  absoluteStartTick: number;
+  absoluteEndTick: number;
 }
 
 interface ChordTemplate {
@@ -90,28 +91,29 @@ function getNoteOverlapInfo(
   window: MidiChordWindow,
   options: MidiChordDetectionOptions,
 ): WeightedMidiNote | null {
-  const absoluteStartBeat = region.getStartFromBeat() + note.getStartBeat();
-  const absoluteEndBeat = region.getStartFromBeat() + note.getEndBeat();
-  const overlapBeats = Math.min(absoluteEndBeat, window.endBeat) - Math.max(absoluteStartBeat, window.startBeat);
+  const absoluteStartTick = region.getStartTick() + note.getStartTick();
+  const absoluteEndTick = region.getStartTick() + note.getEndTick();
+  const overlapTicks = Math.min(absoluteEndTick, window.endTick) - Math.max(absoluteStartTick, window.startTick);
 
-  if (overlapBeats <= 0) {
+  if (overlapTicks <= 0) {
     return null;
   }
 
+  const overlapQuarterNotes = overlapTicks / TICKS_PER_QUARTER;
   const suppressionThreshold = DEFAULT_SHORT_NOTE_THRESHOLDS[options.shortNoteSuppression];
-  const shortNoteFactor = overlapBeats >= suppressionThreshold
+  const shortNoteFactor = overlapQuarterNotes >= suppressionThreshold
     ? 1
-    : clamp(overlapBeats / suppressionThreshold, 0.18, 1);
+    : clamp(overlapQuarterNotes / suppressionThreshold, 0.18, 1);
   const velocityFactor = 0.92 + ((clamp(note.getVelocity(), 1, 127) - 1) / 126) * 0.08;
-  const baseWeight = overlapBeats * shortNoteFactor * velocityFactor;
+  const baseWeight = overlapQuarterNotes * shortNoteFactor * velocityFactor;
 
   return {
     note,
-    overlapBeats,
+    overlapQuarterNotes,
     baseWeight,
     pitchClass: ((note.getPitch() % 12) + 12) % 12,
-    absoluteStartBeat,
-    absoluteEndBeat,
+    absoluteStartTick,
+    absoluteEndTick,
   };
 }
 
@@ -123,13 +125,13 @@ function selectSustainedNotes(
     return [];
   }
 
-  const longestOverlap = notes.reduce((max, note) => Math.max(max, note.overlapBeats), 0);
+  const longestOverlap = notes.reduce((max, note) => Math.max(max, note.overlapQuarterNotes), 0);
   const overlapRatioFloor = options.harmonicFocus === 'favor-sustained-notes' ? 0.72 : 0.55;
   const weightRatioFloor = options.harmonicFocus === 'favor-sustained-notes' ? 0.68 : 0.5;
   const maxWeight = notes.reduce((max, note) => Math.max(max, note.baseWeight), 0);
 
   const sustained = notes.filter(note => (
-    note.overlapBeats >= longestOverlap * overlapRatioFloor ||
+    note.overlapQuarterNotes >= longestOverlap * overlapRatioFloor ||
     note.baseWeight >= maxWeight * weightRatioFloor
   ));
 
@@ -328,34 +330,29 @@ export function buildMidiChordWindowsForRegion(
   project: KGProject,
   midiRegion: KGMidiRegion,
 ): MidiChordWindow[] {
-  const regionStartBeat = midiRegion.getStartFromBeat();
-  const regionEndBeat = regionStartBeat + midiRegion.getLength();
-  if (regionEndBeat <= regionStartBeat) {
+  const regionStartTick = midiRegion.getStartTick();
+  const regionEndTick = regionStartTick + midiRegion.getLengthTicks();
+  if (regionEndTick <= regionStartTick) {
     return [];
   }
 
-  const beatsPerBar = project.getTimeSignature().numerator;
-  const startBeatIndex = Math.floor(regionStartBeat);
-  const lastBeatExclusive = regionEndBeat - 1e-9;
-  const endBeatIndexExclusive = Math.max(
-    startBeatIndex + 1,
-    Math.ceil(Math.max(regionStartBeat, lastBeatExclusive)),
-  );
+  const barTicks = ticksPerBar(project.getTimeSignature());
+  const firstWindowTick = Math.floor(regionStartTick / TICKS_PER_QUARTER) * TICKS_PER_QUARTER;
+  const endTickExclusive = Math.max(firstWindowTick + TICKS_PER_QUARTER, regionEndTick);
 
   const windows: MidiChordWindow[] = [];
-  for (let beatIndex = startBeatIndex; beatIndex < endBeatIndexExclusive; beatIndex++) {
-    const beatStart = beatIndex;
-    const beatEnd = beatStart + 1;
-    const overlapStartBeat = Math.max(regionStartBeat, beatStart);
-    const overlapEndBeat = Math.min(regionEndBeat, beatEnd);
-    if (overlapEndBeat <= overlapStartBeat) {
+  for (let beatStart = firstWindowTick; beatStart < endTickExclusive; beatStart += TICKS_PER_QUARTER) {
+    const beatEnd = beatStart + TICKS_PER_QUARTER;
+    const overlapStartTick = Math.max(regionStartTick, beatStart);
+    const overlapEndTick = Math.min(regionEndTick, beatEnd);
+    if (overlapEndTick <= overlapStartTick) {
       continue;
     }
 
     windows.push({
-      barIndex: Math.floor(beatIndex / beatsPerBar),
-      startBeat: overlapStartBeat,
-      endBeat: overlapEndBeat,
+      barIndex: Math.floor(beatStart / barTicks),
+      startTick: overlapStartTick,
+      endTick: overlapEndTick,
     });
   }
 
@@ -364,11 +361,11 @@ export function buildMidiChordWindowsForRegion(
 
 export function buildMidiChordRegionSpans(
   results: DetectedMidiChord[],
-): Array<{ startBeat: number; endBeat: number; symbol: string }> {
-  const spans: Array<{ barIndex: number; startBeat: number; endBeat: number; symbol: string }> = [];
+): Array<{ startTick: number; endTick: number; symbol: string }> {
+  const spans: Array<{ barIndex: number; startTick: number; endTick: number; symbol: string }> = [];
 
   for (const result of results) {
-    if (result.symbol === 'N' || result.endBeat <= result.startBeat) {
+    if (result.symbol === 'N' || result.endTick <= result.startTick) {
       continue;
     }
 
@@ -377,21 +374,21 @@ export function buildMidiChordRegionSpans(
       previous
       && previous.symbol === result.symbol
       && previous.barIndex === result.barIndex
-      && Math.abs(previous.endBeat - result.startBeat) < 1e-9
+      && previous.endTick === result.startTick
     ) {
-      previous.endBeat = result.endBeat;
+      previous.endTick = result.endTick;
       continue;
     }
 
     spans.push({
       barIndex: result.barIndex,
-      startBeat: result.startBeat,
-      endBeat: result.endBeat,
+      startTick: result.startTick,
+      endTick: result.endTick,
       symbol: result.symbol,
     });
   }
 
-  return spans.map(({ startBeat, endBeat, symbol }) => ({ startBeat, endBeat, symbol }));
+  return spans.map(({ startTick, endTick, symbol }) => ({ startTick, endTick, symbol }));
 }
 
 export function detectChordsFromMidi(request: MidiChordDetectionRequest): DetectedMidiChord[] {
@@ -404,8 +401,8 @@ export function detectChordsFromMidi(request: MidiChordDetectionRequest): Detect
     const analysis = analyzeMidiChordWindow(request.region, window, options);
     return {
       barIndex: window.barIndex,
-      startBeat: window.startBeat,
-      endBeat: window.endBeat,
+      startTick: window.startTick,
+      endTick: window.endTick,
       symbol: analysis.symbol,
       confidence: analysis.confidence,
       noteCount: analysis.noteCount,

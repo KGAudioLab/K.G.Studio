@@ -4,7 +4,8 @@ import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { KGCore } from '../../core/KGCore';
-import { beatRangeToSeconds } from '../../util/globalTrackUtil';
+import { tickRangeToSeconds } from '../../util/globalTrackUtil';
+import { ticksToPixels } from '../../core/timing';
 
 interface AudioWaveformCanvasProps {
   audioRegion: KGAudioRegion;
@@ -38,16 +39,16 @@ const AudioWaveformCanvas: React.FC<AudioWaveformCanvasProps> = ({
     }
 
     const project = KGCore.instance().getCurrentProject();
-    const regionStartBeat = audioRegion.getStartFromBeat();
-    const regionEndBeat = regionStartBeat + audioRegion.getLength();
+    const regionStartTick = audioRegion.getStartTick();
+    const regionEndTick = regionStartTick + audioRegion.getLengthTicks();
     const clipStartOffsetSeconds = audioRegion.getClipStartOffsetSeconds();
     const visibleDurationSeconds = Math.min(
-      beatRangeToSeconds(project, regionStartBeat, regionEndBeat),
+      tickRangeToSeconds(project, regionStartTick, regionEndTick),
       Math.max(0, audioRegion.getAudioDurationSeconds() - clipStartOffsetSeconds),
     );
 
     const zoomedBeatWidth = BASE_BEAT_WIDTH * zoom;
-    const renderWidth = Math.max(1, Math.ceil(audioRegion.getLength() * zoomedBeatWidth));
+    const renderWidth = Math.max(1, Math.ceil(ticksToPixels(audioRegion.getLengthTicks(), zoomedBeatWidth)));
     const parentHeight = canvas.parentElement?.clientHeight ?? 0;
     const canvasHeight = Math.max(160, parentHeight || canvas.clientHeight || 320);
     const centerY = canvasHeight / 2;
@@ -157,7 +158,7 @@ const AudioWaveformCanvas: React.FC<AudioWaveformCanvasProps> = ({
       style={{
         position: 'absolute',
         top: 0,
-        left: `${audioRegion.getStartFromBeat() * BASE_BEAT_WIDTH * zoom}px`,
+        left: `${ticksToPixels(audioRegion.getStartTick(), BASE_BEAT_WIDTH * zoom)}px`,
         zIndex: 0,
         pointerEvents: 'none',
       }}

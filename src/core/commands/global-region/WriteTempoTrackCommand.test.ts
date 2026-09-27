@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
+import { TICKS_PER_QUARTER } from '../../timing';
 import { GlobalTrackType } from '../../global-track';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGTempoRegion } from '../../region/KGTempoRegion';
@@ -31,8 +32,8 @@ describe('WriteTempoTrackCommand', () => {
   it('writes base BPM only by clearing explicit tempo regions and updating project BPM', () => {
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('existing-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 3, 4),
-      new KGTempoRegion('existing-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 3, 5, 4),
+      new KGTempoRegion('existing-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 3, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('existing-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 140, 3, 5, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new WriteTempoTrackCommand(96, []);
@@ -44,8 +45,8 @@ describe('WriteTempoTrackCommand', () => {
 
   it('rebuilds explicit tempo regions into a gapless full-song plan', () => {
     const command = new WriteTempoTrackCommand(100, [
-      { startBeat: 8, bpm: 120 },
-      { startBeat: 16, bpm: 140 },
+      { startTick: 8 * TICKS_PER_QUARTER, bpm: 120 },
+      { startTick: 16 * TICKS_PER_QUARTER, bpm: 140 },
     ]);
     command.execute();
 
@@ -68,12 +69,12 @@ describe('WriteTempoTrackCommand', () => {
     const project = KGCore.instance().getCurrentProject();
     const tempoTrack = getTempoTrack();
     tempoTrack.setRegions([
-      new KGTempoRegion('existing-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 2, 4),
-      new KGTempoRegion('existing-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 2, 6, 4),
+      new KGTempoRegion('existing-1', tempoTrack.getId(), tempoTrack.getTrackIndex(), 120, 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('existing-2', tempoTrack.getId(), tempoTrack.getTrackIndex(), 128, 2, 6, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new WriteTempoTrackCommand(88, [
-      { startBeat: 12, bpm: 144 },
+      { startTick: 12 * TICKS_PER_QUARTER, bpm: 144 },
     ]);
     command.execute();
 
@@ -97,7 +98,7 @@ describe('WriteTempoTrackCommand', () => {
     const project = KGCore.instance().getCurrentProject();
     const audioTrack = new KGAudioTrack('Audio', 1);
     audioTrack.setRegions([
-      new KGAudioRegion('audio', '1', 0, 'Audio', 28, 4, 'file', 'file.wav', 8, 0),
+      new KGAudioRegion('audio', '1', 0, 'Audio', 28 * TICKS_PER_QUARTER, 4 * TICKS_PER_QUARTER, 'file', 'file.wav', 8, 0),
     ]);
     project.setTracks([audioTrack]);
 
@@ -106,12 +107,12 @@ describe('WriteTempoTrackCommand', () => {
 
     expect(project.getBpm()).toBe(60);
     expect(project.getMaxBars()).toBe(9);
-    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(8);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLengthTicks()).toBeCloseTo(8 * TICKS_PER_QUARTER);
 
     command.undo();
 
     expect(project.getBpm()).toBe(120);
     expect(project.getMaxBars()).toBe(8);
-    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLength()).toBeCloseTo(4);
+    expect((audioTrack.getRegions()[0] as KGAudioRegion).getLengthTicks()).toBeCloseTo(4 * TICKS_PER_QUARTER);
   });
 });
