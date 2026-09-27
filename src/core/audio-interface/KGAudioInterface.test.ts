@@ -311,7 +311,7 @@ describe('KGAudioInterface preroll playback', () => {
     audio.preparePlayback(project, 0);
 
     expect(consoleLog).toHaveBeenCalledWith(
-      'Scheduling note C4 at tick 960, Tone time: 960i, duration: 0.5, delay: 0.2s'
+      'Scheduling note C4 at tick 960, Tone time: 960i, duration: 960 ticks, delay: 0.2s'
     );
     consoleLog.mockRestore();
   });
