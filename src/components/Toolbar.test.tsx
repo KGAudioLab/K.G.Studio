@@ -120,7 +120,7 @@ vi.mock('../util/projectNameUtil', () => ({
 }));
 vi.mock('../core/KGCore', () => ({ KGCore: { instance: vi.fn(() => ({ getCurrentProject: vi.fn(() => ({ getTracks: () => [] })), executeCommand: executeCommandMock })) } }));
 vi.mock('../core/midi-input/KGMidiInput', () => ({ KGMidiInput: { instance: vi.fn(() => ({ getConnectedInputCount: () => 0 })) } }));
-vi.mock('../core/region/KGMidiRegion', () => ({ KGMidiRegion: class {} }));
+vi.mock('../core/region/KGMidiRegion', () => ({ KGMidiRegion: class { setNotes() {} } }));
 vi.mock('../core/track/KGAudioTrack', () => ({ KGAudioTrack: class {} }));
 vi.mock('class-transformer', () => ({
   plainToInstance: vi.fn(),

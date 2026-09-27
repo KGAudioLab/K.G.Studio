@@ -1,4 +1,4 @@
-import { Expose, Type } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { KGTrack } from './track/KGTrack';
 import { KGMidiTrack } from './track/KGMidiTrack';
 import { KGAudioTrack } from './track/KGAudioTrack';
@@ -8,6 +8,7 @@ import { TIME_CONSTANTS, KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 import type { PianoRollSnapValue } from './state/KGPianoRollState';
 import { toTimelineTick, type TimelineTick } from './timing';
+import { KGMetronomeTrack } from './track/KGMetronomeTrack';
 
 // Type for valid key signatures
 export type KeySignature = keyof typeof KEY_SIGNATURE_MAP;
@@ -104,6 +105,9 @@ export class KGProject {
   })
   private tracks: KGTrack[] = [];
 
+  @Exclude()
+  private metronomeTrack: KGMetronomeTrack;
+
   @Expose()
   @Type(() => KGGlobalTrack, {
     discriminator: {
@@ -138,6 +142,7 @@ export class KGProject {
     this.showGlobalTracks = showGlobalTracks;
     this.isMetronomeEnabled = isMetronomeEnabled;
     this.playheadTick = toTimelineTick(playheadTick);
+    this.metronomeTrack = new KGMetronomeTrack(this.timeSignature, this.maxBars);
   }
 
   // Getters
@@ -159,6 +164,7 @@ export class KGProject {
 
   public setTimeSignature(timeSignature: TimeSignature): void {
     this.timeSignature = timeSignature;
+    this.refreshMetronomeTrack();
   }
 
   public getBpm(): number {
@@ -177,6 +183,21 @@ export class KGProject {
     return this.tracks;
   }
 
+  public getMetronomeTrack(): KGMetronomeTrack {
+    if (!this.metronomeTrack) {
+      this.metronomeTrack = new KGMetronomeTrack(this.timeSignature, this.maxBars);
+    }
+    return this.metronomeTrack;
+  }
+
+  public getPlaybackTracks(): KGTrack[] {
+    return [...this.tracks, this.getMetronomeTrack()];
+  }
+
+  public refreshMetronomeTrack(): void {
+    this.getMetronomeTrack().refreshNotes(this.timeSignature, this.maxBars);
+  }
+
   public getGlobalTracks(): KGGlobalTrack[] {
     return this.globalTracks;
   }
@@ -188,6 +209,7 @@ export class KGProject {
 
   public setMaxBars(maxBars: number): void {
     this.maxBars = maxBars;
+    this.refreshMetronomeTrack();
   }
 
   public setCurrentBars(currentBars: number): void {

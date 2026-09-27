@@ -33,17 +33,26 @@ import {
   type AudioRecordingStartResult,
 } from './KGAudioRecorder';
 import { KGMidiTrack, type InstrumentType } from '../track/KGMidiTrack';
+import { METRONOME_INSTRUMENT, METRONOME_TRACK_ID } from '../track/KGMetronomeTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
-import { KGMetronome } from './KGMetronome';
 import { GlobalTrackType } from '../global-track';
 import { tickRangeToSeconds, tickToSeconds, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions, secondsToTick } from '../../util/globalTrackUtil';
-import { TICKS_PER_QUARTER, ticksPerBar, ticksPerMeterBeat } from '../timing';
+import { TICKS_PER_QUARTER, ticksPerBar } from '../timing';
 
 interface PreparePlaybackOptions {
   allowStartBeforeLoopStart?: boolean;
   scheduleFullLoop?: boolean;
+}
+
+interface PrerollMidiEvent {
+  audioBus: KGAudioBus;
+  delaySeconds: number;
+  durationSeconds: number;
+  pitch: number;
+  velocity: number;
+  ignoreSolo: boolean;
 }
 
 /**
@@ -76,6 +85,8 @@ export class KGAudioInterface {
   private isPlaying: boolean = false;
   private masterVolume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_MASTER_VOLUME;
   private scheduledEvents: Set<number> = new Set(); // Tone event IDs
+  private prerollMidiEvents: PrerollMidiEvent[] = [];
+  private prerollMidiTimeoutIds: number[] = [];
   private delayedTransportStartTimeoutId: number | null = null;
   private delayedTransportStartSeconds: number = 0;
   private virtualPrerollStartTick: number | null = null;
@@ -85,10 +96,6 @@ export class KGAudioInterface {
 
   // Master volume control
   private masterGain: Tone.Gain | null = null;
-
-  // Metronome
-  private metronome: KGMetronome = new KGMetronome();
-  private isMetronomeEnabled = false;
 
   // Audio capture for screen sharing
   private captureDestination: MediaStreamAudioDestinationNode | null = null;
@@ -131,16 +138,14 @@ export class KGAudioInterface {
 
       // Set up master gain for volume control
       this.masterGain = new Tone.Gain(this.masterVolume).toDestination();
-      
+
       // Configure transport settings
       Tone.Transport.bpm.value = TIME_CONSTANTS.DEFAULT_BPM; // Default BPM
       Tone.Transport.PPQ = TICKS_PER_QUARTER;
       Tone.Transport.timeSignature = [TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.numerator, TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.denominator]; // Default time signature
-      
-      // Initialize metronome sampler in background (non-blocking)
-      this.metronome.initialize(this.masterGain!).catch(err => {
-        console.error('Failed to initialize metronome:', err);
-      });
+
+      await this.createTrackAudioBus(String(METRONOME_TRACK_ID), METRONOME_INSTRUMENT);
+      this.setTrackMute(String(METRONOME_TRACK_ID), !KGCore.instance().getCurrentProject().getIsMetronomeEnabled());
 
       // Check config and setup audio capture if enabled
       const enableCapture = configManager.get('audio.enable_audio_capture_for_screen_sharing') as boolean;
@@ -198,9 +203,6 @@ export class KGAudioInterface {
       });
       this.trackAudioPlayerBuses.clear();
       
-      // Dispose metronome
-      this.metronome.dispose();
-
       // Dispose master gain
       if (this.masterGain) {
         this.masterGain.dispose();
@@ -467,6 +469,7 @@ export class KGAudioInterface {
     const playbackDelay = (configManager.get('audio.playback_delay') as number) ?? 0.2;
 
     try {
+      project.refreshMetronomeTrack();
       // Set project BPM and time signature FIRST (this affects timing calculations)
       Tone.Transport.bpm.value = getEffectiveBpmAtTick(project, Math.max(startPosition, 0));
       const timeSignature = project.getTimeSignature();
@@ -538,14 +541,10 @@ export class KGAudioInterface {
       // Set transport position (convert beats to Tone.js format)
       this.setTransportPosition(Math.max(0, startPosition));
 
-      // Start metronome if enabled
-      if (this.isMetronomeEnabled) {
-        this.metronome.start(startPosition, ticksPerBar(timeSignature), ticksPerMeterBeat(timeSignature), playbackDelay);
-      }
-
       // Schedule all MIDI events
-      project.getTracks().forEach(track => {
+      project.getPlaybackTracks().forEach(track => {
         const trackId = track.getId().toString();
+        const isMetronomeTrack = track.getId() === METRONOME_TRACK_ID;
         const audioBus = this.trackAudioBuses.get(trackId);
         const playerBus = this.trackAudioPlayerBuses.get(trackId);
         const interpolationIntervalMs = (configManager.get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10;
@@ -623,13 +622,18 @@ export class KGAudioInterface {
                     0
                   );
 
+                  const isPrerollNote = noteStartTick >= startPosition && (
+                    (noteStartTick < 0 && startPosition < 0)
+                    || (startPosition < scheduleStartTick && noteStartTick < scheduleStartTick)
+                  );
+
                   // Skip notes outside loop range when looping
-                  if (noteStartTick >= scheduleEndTick || sustainedEndTick <= scheduleStartTick) {
+                  if (noteStartTick >= scheduleEndTick || (sustainedEndTick <= scheduleStartTick && !isPrerollNote)) {
                     return; // Skip notes outside the loop range
                   }
 
                   // In a full-loop schedule, retain earlier notes for future wraps.
-                  if (noteStartTick < playbackWindowStartTick) {
+                  if (noteStartTick < playbackWindowStartTick && !isPrerollNote) {
                     return; // Skip notes that would have already finished before playback starts
                   }
                   trackNotes.push({
@@ -757,12 +761,27 @@ export class KGAudioInterface {
             const velocity = note.getVelocity() / 127;
             const noteName = pitchToNoteNameString(note.getPitch());
 
+            if (absoluteStartTick < 0) {
+              const prerollSecondsPerQuarter = 60 / Math.max(1, getEffectiveBpmAtTick(project, 0));
+              this.prerollMidiEvents.push({
+                audioBus,
+                delaySeconds: (
+                  ((absoluteStartTick - startPosition) / TICKS_PER_QUARTER) * prerollSecondsPerQuarter
+                ) + playbackDelay,
+                durationSeconds: (noteDurationTicks / TICKS_PER_QUARTER) * prerollSecondsPerQuarter,
+                pitch: note.getPitch(),
+                velocity,
+                ignoreSolo: isMetronomeTrack,
+              });
+              return;
+            }
+
             console.log(
               `Scheduling note ${noteName} at tick ${Number(absoluteStartTick.toFixed ? absoluteStartTick.toFixed(3) : absoluteStartTick.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${formattedNoteStartTime}, duration: ${noteDurationTicks} ticks, delay: ${playbackDelay}s`
             );
 
             const eventId = Tone.Transport.schedule((time) => {
-              const hasSoloedTracks = this.hasSoloedTracks();
+              const hasSoloedTracks = isMetronomeTrack ? false : this.hasSoloedTracks();
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
                 audioBus.triggerPitchBendAwareAttack(note.getPitch(), time + playbackDelay, velocity, noteDurationSeconds, hasSoloedTracks);
               }
@@ -916,6 +935,7 @@ export class KGAudioInterface {
 
       if (this.delayedTransportStartSeconds > 0 && this.virtualPrerollStartTick !== null) {
         this.virtualPrerollStartAudioTime = Tone.now();
+        this.startPrerollMidiEvents();
         this.delayedTransportStartTimeoutId = Tone.getContext().setTimeout(() => {
           this.delayedTransportStartTimeoutId = null;
           this.virtualPrerollStartTick = null;
@@ -941,10 +961,9 @@ export class KGAudioInterface {
   public stopPlayback(): void {
     try {
       this.clearDelayedTransportStart();
+      this.clearPrerollMidiEvents();
       Tone.Transport.stop();
       this.resetPlaybackOrigin();
-      this.metronome.stop();
-
       // Release all currently playing notes
       this.trackAudioBuses.forEach(audioBus => {
         audioBus.releaseAll();
@@ -1193,6 +1212,7 @@ export class KGAudioInterface {
    */
   public clearScheduledEvents(): void {
     try {
+      this.clearPrerollMidiEvents();
       // Cancel all scheduled events
       this.scheduledEvents.forEach(eventId => {
         Tone.Transport.clear(eventId);
@@ -1254,18 +1274,7 @@ export class KGAudioInterface {
   // ===== METRONOME =====
 
   public setMetronomeEnabled(enabled: boolean): void {
-    this.isMetronomeEnabled = enabled;
-  }
-
-  /** Start the metronome mid-playback without restarting the transport. */
-  public startMetronomeDuringPlayback(currentPositionTicks: number, barTicks: number, meterBeatTicks: number): void {
-    const playbackDelay = (ConfigManager.instance().get('audio.playback_delay') as number) ?? 0.2;
-    this.metronome.start(currentPositionTicks, barTicks, meterBeatTicks, playbackDelay);
-  }
-
-  /** Stop the metronome mid-playback without stopping the transport. */
-  public stopMetronomeDuringPlayback(): void {
-    this.metronome.stop();
+    this.setTrackMute(String(METRONOME_TRACK_ID), !enabled);
   }
 
   /**
@@ -1617,11 +1626,39 @@ export class KGAudioInterface {
   private updateAllEffectiveVolumes(): void {
     try {
       const hasSoloedTracks = this.hasSoloedTracks();
-      this.trackAudioBuses.forEach(bus => bus.applyEffectiveVolume(hasSoloedTracks));
+      this.trackAudioBuses.forEach((bus, trackId) => {
+        bus.applyEffectiveVolume(trackId === String(METRONOME_TRACK_ID) ? false : hasSoloedTracks);
+      });
       this.trackAudioPlayerBuses.forEach(bus => bus.applyEffectiveVolume(hasSoloedTracks));
     } catch (error) {
       console.error('Error updating effective volumes:', error);
     }
+  }
+
+  private startPrerollMidiEvents(): void {
+    const context = Tone.getContext();
+    this.prerollMidiEvents.forEach(event => {
+      const timeoutId = context.setTimeout(() => {
+        const hasSoloedTracks = event.ignoreSolo ? false : this.hasSoloedTracks();
+        if (event.audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
+          event.audioBus.triggerPitchBendAwareAttack(
+            event.pitch,
+            Tone.now(),
+            event.velocity,
+            event.durationSeconds,
+            hasSoloedTracks,
+          );
+        }
+      }, Math.max(0, event.delaySeconds));
+      this.prerollMidiTimeoutIds.push(timeoutId);
+    });
+  }
+
+  private clearPrerollMidiEvents(): void {
+    const context = Tone.getContext();
+    this.prerollMidiTimeoutIds.forEach(timeoutId => context.clearTimeout(timeoutId));
+    this.prerollMidiTimeoutIds = [];
+    this.prerollMidiEvents = [];
   }
 
   // ===== TIME CONVERSION UTILITIES =====
