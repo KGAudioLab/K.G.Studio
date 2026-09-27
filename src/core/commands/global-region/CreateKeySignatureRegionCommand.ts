@@ -26,14 +26,15 @@ export class CreateKeySignatureRegionCommand extends KGCommand {
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     if (!track) {
       throw new Error('Signature global track not found');
     }
 
-    const existingRegions = getSortedKeySignatureRegions(track, beatsPerBar);
-    this.previousRegions = cloneKeySignatureRegions(existingRegions, beatsPerBar);
+    const existingRegions = getSortedKeySignatureRegions(track, ticksPerBar);
+    this.previousRegions = cloneKeySignatureRegions(existingRegions, ticksPerBar);
 
     const songEndBar = getSongEndBar(project);
     const clampedStartBar = Math.max(0, Math.min(this.startBar, Math.max(0, songEndBar - 1)));
@@ -49,7 +50,7 @@ export class CreateKeySignatureRegionCommand extends KGCommand {
           project.getKeySignature(),
           0,
           clampedStartBar,
-          beatsPerBar
+          ticksPerBar
         ));
       }
 
@@ -60,7 +61,7 @@ export class CreateKeySignatureRegionCommand extends KGCommand {
         project.getKeySignature(),
         clampedStartBar,
         Math.max(1, songEndBar - clampedStartBar),
-        beatsPerBar
+        ticksPerBar
       );
       nextRegions.push(this.createdRegion);
       track.setRegions(nextRegions);
@@ -78,7 +79,7 @@ export class CreateKeySignatureRegionCommand extends KGCommand {
       throw new Error(`Bar ${clampedStartBar} is not a valid split point`);
     }
 
-    containingRegion.setLengthBars(clampedStartBar - regionStartBar, beatsPerBar);
+    containingRegion.setLengthBars(clampedStartBar - regionStartBar, ticksPerBar);
     this.createdRegion = new KGKeySignatureRegion(
       this.regionId,
       track.getId(),
@@ -86,7 +87,7 @@ export class CreateKeySignatureRegionCommand extends KGCommand {
       containingRegion.getKeySignature(),
       clampedStartBar,
       regionEndBar - clampedStartBar,
-      beatsPerBar
+      ticksPerBar
     );
 
     track.setRegions([...existingRegions, this.createdRegion].sort((left, right) => left.getStartBar() - right.getStartBar()));
@@ -99,8 +100,9 @@ export class CreateKeySignatureRegionCommand extends KGCommand {
       throw new Error('Signature global track not found during undo');
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    track.setRegions(cloneKeySignatureRegions(this.previousRegions, beatsPerBar));
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    track.setRegions(cloneKeySignatureRegions(this.previousRegions, ticksPerBar));
   }
 
   getDescription(): string {

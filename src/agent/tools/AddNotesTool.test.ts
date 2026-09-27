@@ -10,6 +10,9 @@ import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 const storeState = {
   activeRegionId: null as string | null,
@@ -81,10 +84,10 @@ describe('AddNotesTool', () => {
     expect(track.getRegions()).toHaveLength(2);
     const createdRegion = track.getRegions()[1] as KGMidiRegion;
     expect(createdRegion.getName()).toBe('Lead Region');
-    expect(createdRegion.getStartFromBeat()).toBe(16);
-    expect(createdRegion.getLength()).toBe(4);
+    expect(createdRegion.getStartTick()).toBe(q(16));
+    expect(createdRegion.getLengthTicks()).toBe(q(4));
     expect(createdRegion.getNotes()).toHaveLength(2);
-    expect(createdRegion.getNotes().map(note => note.getStartBeat())).toEqual([0, 2]);
+    expect(createdRegion.getNotes().map(note => note.getStartTick())).toEqual([0, q(2)]);
   });
 
   it('accepts a numeric track_id and creates notes on the matching track', async () => {
@@ -104,7 +107,7 @@ describe('AddNotesTool', () => {
     const createdRegion = track.getRegions()[0] as KGMidiRegion;
     expect(createdRegion.getName()).toBe('Lead Region');
     expect(createdRegion.getNotes()).toHaveLength(1);
-    expect(createdRegion.getNotes()[0].getStartBeat()).toBe(0);
+    expect(createdRegion.getNotes()[0].getStartTick()).toBe(0);
   });
 
   it('targets a track by track_name when track_id is omitted', async () => {
@@ -186,9 +189,9 @@ describe('AddNotesTool', () => {
 
   it('chooses the largest overlapping region and auto-expands it to fit the notes', async () => {
     const track = new KGMidiTrack('Lead', 1);
-    const regionA = new KGMidiRegion('region-a', track.getId().toString(), track.getTrackIndex(), 'Region A', 0, 4);
-    const regionB = new KGMidiRegion('region-b', track.getId().toString(), track.getTrackIndex(), 'Region B', 4, 4);
-    regionB.setNotes([new KGMidiNote('note-existing', 0, 1, 60, 100)]);
+    const regionA = new KGMidiRegion('region-a', track.getId().toString(), track.getTrackIndex(), 'Region A', 0, q(4));
+    const regionB = new KGMidiRegion('region-b', track.getId().toString(), track.getTrackIndex(), 'Region B', q(4), q(4));
+    regionB.setNotes([new KGMidiNote('note-existing', 0, q(1), 60, 100)]);
     track.setRegions([regionA, regionB]);
     const project = new KGProject('expand-region-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     project.setTracks([track]);
@@ -202,11 +205,11 @@ describe('AddNotesTool', () => {
 
     expect(result.success).toBe(true);
     expect(regionA.getNotes()).toHaveLength(0);
-    expect(regionB.getStartFromBeat()).toBe(2);
-    expect(regionB.getLength()).toBe(6);
+    expect(regionB.getStartTick()).toBe(q(2));
+    expect(regionB.getLengthTicks()).toBe(q(6));
     expect(regionB.getNotes()).toHaveLength(2);
-    expect(regionB.getNotes().find(note => note.getId() === 'note-existing')?.getStartBeat()).toBe(2);
-    expect(regionB.getNotes().find(note => note.getId() !== 'note-existing')?.getStartBeat()).toBe(0);
+    expect(regionB.getNotes().find(note => note.getId() === 'note-existing')?.getStartTick()).toBe(q(2));
+    expect(regionB.getNotes().find(note => note.getId() !== 'note-existing')?.getStartTick()).toBe(0);
   });
 
   it('builds summaries when track_id is provided as a number', () => {

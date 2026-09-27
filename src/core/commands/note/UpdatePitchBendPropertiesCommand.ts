@@ -6,13 +6,13 @@ import { KGTrack } from '../../track/KGTrack';
 
 interface PitchBendSnapshot {
   pitchBendId: string;
-  beat: number;
+  tick: number;
   value: number;
 }
 
 interface PitchBendUpdate {
   pitchBendId: string;
-  beat?: number;
+  tick?: number;
   value?: number;
 }
 
@@ -50,7 +50,7 @@ export class UpdatePitchBendPropertiesCommand extends KGCommand {
     for (const update of this.updates) {
       const pitchBend = pitchBends.find(candidate => candidate.getId() === update.pitchBendId);
       if (pitchBend) {
-        if (update.beat !== undefined) pitchBend.setBeat(update.beat);
+        if (update.tick !== undefined) pitchBend.setTick(update.tick);
         if (update.value !== undefined) pitchBend.setValue(update.value);
       }
     }
@@ -65,7 +65,7 @@ export class UpdatePitchBendPropertiesCommand extends KGCommand {
     this.snapshots.forEach(snapshot => {
       const pitchBend = pitchBends.find(candidate => candidate.getId() === snapshot.pitchBendId);
       if (pitchBend) {
-        pitchBend.setBeat(snapshot.beat);
+        pitchBend.setTick(snapshot.tick);
         pitchBend.setValue(snapshot.value);
       }
     });

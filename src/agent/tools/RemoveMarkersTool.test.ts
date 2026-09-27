@@ -5,6 +5,9 @@ import { KGCore } from '../../core/KGCore';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -36,8 +39,8 @@ describe('RemoveMarkersTool', () => {
     const project = new KGProject('exact-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const markerTrack = getMarkerTrack(project);
     markerTrack.setRegions([
-      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, 4),
-      new KGMarkerRegion('marker-2', markerTrack.getId(), markerTrack.getTrackIndex(), 'Verse', 4, 4),
+      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, q(4)),
+      new KGMarkerRegion('marker-2', markerTrack.getId(), markerTrack.getTrackIndex(), 'Verse', q(4), q(4)),
     ]);
     mockCore(project);
 
@@ -46,16 +49,16 @@ describe('RemoveMarkersTool', () => {
 
     expect(result.success).toBe(true);
     expect((markerTrack.getRegions() as KGMarkerRegion[]).map(region => region.getName())).toEqual(['Intro']);
-    expect(result.result).toContain('[Beat: 4; Length: 4]: Verse');
+    expect(result.result).toContain('[Quarter-note: 4; Length: 4]: Verse');
   });
 
   it('removes multiple marker regions in a start-inclusive, end-exclusive range', async () => {
     const project = new KGProject('range-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const markerTrack = getMarkerTrack(project);
     markerTrack.setRegions([
-      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, 4),
-      new KGMarkerRegion('marker-2', markerTrack.getId(), markerTrack.getTrackIndex(), 'Verse', 4, 4),
-      new KGMarkerRegion('marker-3', markerTrack.getId(), markerTrack.getTrackIndex(), 'Chorus', 8, 4),
+      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, q(4)),
+      new KGMarkerRegion('marker-2', markerTrack.getId(), markerTrack.getTrackIndex(), 'Verse', q(4), q(4)),
+      new KGMarkerRegion('marker-3', markerTrack.getId(), markerTrack.getTrackIndex(), 'Chorus', q(8), q(4)),
     ]);
     mockCore(project);
 
@@ -72,7 +75,7 @@ describe('RemoveMarkersTool', () => {
     const project = new KGProject('none-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const markerTrack = getMarkerTrack(project);
     markerTrack.setRegions([
-      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, 4),
+      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Intro', 0, q(4)),
     ]);
     mockCore(project);
 

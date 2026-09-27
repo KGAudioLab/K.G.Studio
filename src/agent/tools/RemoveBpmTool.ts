@@ -1,4 +1,5 @@
 import { BaseTool } from './BaseTool';
+import { quarterNotesToTicks, ticksPerBar, ticksToQuarterNotes } from '../../core/timing';
 import type { ToolParameter, ToolResult } from './BaseTool';
 import { DeleteMultipleTempoRegionsCommand } from '../../core/commands/global-region/DeleteTempoRegionCommand';
 import { GlobalTrackType } from '../../core/global-track';
@@ -7,8 +8,8 @@ import { findGlobalTrackByType, getSortedTempoRegions } from '../../util/globalT
 
 interface BpmRemovalSummaryData {
   regionCount: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   firstBar: number;
   lastBar: number;
 }
@@ -63,21 +64,21 @@ export class RemoveBpmTool extends BaseTool {
     try {
       this.validateParameters(params);
 
-      const startBeat = params.start as number;
-      const endBeat = params.end as number;
-      this.validateRange(startBeat, endBeat);
+      const startTick = quarterNotesToTicks(params.start as number);
+      const endTick = quarterNotesToTicks(params.end as number);
+      this.validateRange(startTick, endTick);
 
-      const matchingRegions = this.findMatchingRegions(startBeat, endBeat);
+      const matchingRegions = this.findMatchingRegions(startTick, endTick);
       if (matchingRegions.length === 0) {
         return this.createSuccessResult(
-          `No BPM regions found with start beats in the requested range from beat ${startBeat} to ${endBeat}.`,
+          `No BPM regions found in the requested quarter-note range ${ticksToQuarterNotes(startTick)} to ${ticksToQuarterNotes(endTick)}.`,
         );
       }
 
       await this.executeCommand(new DeleteMultipleTempoRegionsCommand(matchingRegions.map(region => region.getId())));
 
       const details = matchingRegions
-        .map(region => `"${region.getBpm()} BPM" at beat ${region.getStartFromBeat()}`)
+        .map(region => `"${region.getBpm()} BPM" at quarter-note ${ticksToQuarterNotes(region.getStartTick())}`)
         .join(', ');
       return this.createSuccessResult(
         `Successfully removed ${matchingRegions.length} BPM ${matchingRegions.length === 1 ? 'region' : 'regions'} from the global Tempo track: ${details}.`,
@@ -87,33 +88,33 @@ export class RemoveBpmTool extends BaseTool {
     }
   }
 
-  private validateRange(startBeat: number, endBeat: number): void {
-    if (startBeat < 0) {
-      throw new Error(`Invalid start ${startBeat}. Must be >= 0.`);
+  private validateRange(startTick: number, endTick: number): void {
+    if (startTick < 0) {
+      throw new Error(`Invalid start ${startTick}. Must be >= 0.`);
     }
-    if (endBeat < startBeat) {
-      throw new Error(`Invalid beat range: end (${endBeat}) must be greater than or equal to start (${startBeat}).`);
+    if (endTick < startTick) {
+      throw new Error(`Invalid beat range: end (${endTick}) must be greater than or equal to start (${startTick}).`);
     }
   }
 
-  private findMatchingRegions(startBeat: number, endBeat: number): KGTempoRegion[] {
+  private findMatchingRegions(startTick: number, endTick: number): KGTempoRegion[] {
     const project = this.getCurrentProject();
     const tempoTrack = findGlobalTrackByType(project, GlobalTrackType.Tempo);
     if (!tempoTrack) {
       return [];
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    return getSortedTempoRegions(tempoTrack, beatsPerBar)
-      .filter(region => this.matchesRange(region.getStartFromBeat(), startBeat, endBeat));
+    const barTicks = ticksPerBar(project.getTimeSignature());
+    return getSortedTempoRegions(tempoTrack, barTicks)
+      .filter(region => this.matchesRange(region.getStartTick(), startTick, endTick));
   }
 
-  private matchesRange(regionStartBeat: number, startBeat: number, endBeat: number): boolean {
-    if (startBeat === endBeat) {
-      return regionStartBeat === startBeat;
+  private matchesRange(regionStartTick: number, startTick: number, endTick: number): boolean {
+    if (startTick === endTick) {
+      return regionStartTick === startTick;
     }
 
-    return regionStartBeat >= startBeat && regionStartBeat < endBeat;
+    return regionStartTick >= startTick && regionStartTick < endTick;
   }
 
   private buildSummaryData(args: Record<string, unknown>): BpmRemovalSummaryData | null {
@@ -125,28 +126,31 @@ export class RemoveBpmTool extends BaseTool {
       return null;
     }
 
-    const matchingRegions = this.findMatchingRegions(typedArgs.start, typedArgs.end);
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
+    const startTick = quarterNotesToTicks(typedArgs.start);
+    const endTick = quarterNotesToTicks(typedArgs.end);
+    const matchingRegions = this.findMatchingRegions(startTick, endTick);
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const barTicks = ticksPerBar(currentTimeSignature);
 
     if (matchingRegions.length === 0) {
-      const bar = Math.floor(typedArgs.start / beatsPerBar) + 1;
+      const bar = Math.floor(startTick / barTicks) + 1;
       return {
         regionCount: 0,
-        startBeat: typedArgs.start,
-        endBeat: typedArgs.end,
+        startTick,
+        endTick,
         firstBar: bar,
         lastBar: bar,
       };
     }
 
-    const firstBeat = Math.min(...matchingRegions.map(region => region.getStartFromBeat()));
-    const lastBeat = Math.max(...matchingRegions.map(region => region.getStartFromBeat() + region.getLength()));
+    const firstBeat = Math.min(...matchingRegions.map(region => region.getStartTick()));
+    const lastBeat = Math.max(...matchingRegions.map(region => region.getStartTick() + region.getLengthTicks()));
     return {
       regionCount: matchingRegions.length,
-      startBeat: typedArgs.start,
-      endBeat: typedArgs.end,
-      firstBar: Math.floor(firstBeat / beatsPerBar) + 1,
-      lastBar: Math.max(1, Math.ceil(lastBeat / beatsPerBar)),
+      startTick,
+      endTick,
+      firstBar: Math.floor(firstBeat / barTicks) + 1,
+      lastBar: Math.max(1, Math.ceil(lastBeat / barTicks)),
     };
   }
 }

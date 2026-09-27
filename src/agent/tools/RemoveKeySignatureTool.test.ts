@@ -5,6 +5,7 @@ import { KGCore } from '../../core/KGCore';
 import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -36,8 +37,8 @@ describe('RemoveKeySignatureTool', () => {
     const project = new KGProject('exact-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const track = getSignatureTrack(project);
     track.setRegions([
-      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'C major', 0, 2, 4),
-      new KGKeySignatureRegion('sig-2', track.getId(), track.getTrackIndex(), 'G major', 2, 6, 4),
+      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'C major', 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('sig-2', track.getId(), track.getTrackIndex(), 'G major', 2, 6, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -60,9 +61,9 @@ describe('RemoveKeySignatureTool', () => {
     const project = new KGProject('range-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const track = getSignatureTrack(project);
     track.setRegions([
-      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'C major', 0, 2, 4),
-      new KGKeySignatureRegion('sig-2', track.getId(), track.getTrackIndex(), 'G major', 2, 2, 4),
-      new KGKeySignatureRegion('sig-3', track.getId(), track.getTrackIndex(), 'D major', 4, 4, 4),
+      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'C major', 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('sig-2', track.getId(), track.getTrackIndex(), 'G major', 2, 2, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('sig-3', track.getId(), track.getTrackIndex(), 'D major', 4, 4, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -77,15 +78,15 @@ describe('RemoveKeySignatureTool', () => {
     }))).toEqual([
       { key: 'C major', startBar: 0, lengthBars: 8 },
     ]);
-    expect(result.result).toContain('"G major" at beat 8');
-    expect(result.result).toContain('"D major" at beat 16');
+    expect(result.result).toContain('"G major" at quarter-note 8');
+    expect(result.result).toContain('"D major" at quarter-note 16');
   });
 
   it('returns a successful message when no key-signature regions match the range', async () => {
     const project = new KGProject('none-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const track = getSignatureTrack(project);
     track.setRegions([
-      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'C major', 0, 8, 4),
+      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'C major', 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -100,7 +101,7 @@ describe('RemoveKeySignatureTool', () => {
     const project = new KGProject('single-region-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const track = getSignatureTrack(project);
     track.setRegions([
-      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'E minor', 0, 8, 4),
+      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'E minor', 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -115,8 +116,8 @@ describe('RemoveKeySignatureTool', () => {
     const project = new KGProject('confirmation-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const track = getSignatureTrack(project);
     track.setRegions([
-      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'G major', 2, 2, 4),
-      new KGKeySignatureRegion('sig-2', track.getId(), track.getTrackIndex(), 'D major', 4, 4, 4),
+      new KGKeySignatureRegion('sig-1', track.getId(), track.getTrackIndex(), 'G major', 2, 2, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('sig-2', track.getId(), track.getTrackIndex(), 'D major', 4, 4, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 

@@ -1,6 +1,7 @@
 import { BaseTool } from './BaseTool';
 import type { ToolParameter, ToolResult } from './BaseTool';
 import { KEY_SIGNATURE_MAP } from '../../constants/coreConstants';
+import { quarterNotesToTicks } from '../../core/timing';
 import type { KeySignature } from '../../core/KGProject';
 import {
   WriteKeySignatureTrackCommand,
@@ -97,7 +98,7 @@ export class WriteKeySignatureTool extends BaseTool {
       const command = new WriteKeySignatureTrackCommand(
         normalized.baseKeySignature,
         normalized.explicitEntries.map(entry => ({
-          startBeat: entry.startBeat,
+          startTick: entry.startTick,
           keySignature: entry.keySignature,
         })),
       );
@@ -107,7 +108,7 @@ export class WriteKeySignatureTool extends BaseTool {
         ? `base key signature "${normalized.baseKeySignature}" across the full song`
         : [
           `base key signature "${normalized.baseKeySignature}"`,
-          ...normalized.explicitEntries.map(entry => `"${entry.keySignature}" from beat ${entry.startBeat}`),
+          ...normalized.explicitEntries.map(entry => `"${entry.keySignature}" from beat ${entry.startTick}`),
         ].join(', ');
 
       return this.createSuccessResult(
@@ -124,8 +125,9 @@ export class WriteKeySignatureTool extends BaseTool {
     }
 
     const project = this.getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
-    const songEndBeat = project.getMaxBars() * beatsPerBar;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    const songEndTick = project.getMaxBars() * ticksPerBar;
 
     let baseKeySignature: KeySignature = project.getKeySignature();
     let sawDefaultEntry = false;
@@ -149,24 +151,25 @@ export class WriteKeySignatureTool extends BaseTool {
       if (beat < 0) {
         throw new Error(`Key-signature entry ${index + 1} has invalid "beat": ${beat}. Expected a value >= 0.`);
       }
-      if (beat >= songEndBeat) {
+      const startTick = quarterNotesToTicks(beat);
+      if (startTick >= songEndTick) {
         throw new Error(`Key-signature entry ${index + 1} has invalid "beat": ${beat}. It must be within the song range.`);
       }
 
       explicitEntries.push({
         keySignature,
-        startBeat: beat,
+        startTick,
         inputBeat: beat,
       });
     });
 
-    explicitEntries.sort((left, right) => left.startBeat - right.startBeat);
+    explicitEntries.sort((left, right) => left.startTick - right.startTick);
 
     for (let index = 1; index < explicitEntries.length; index += 1) {
       const previous = explicitEntries[index - 1];
       const current = explicitEntries[index];
-      const previousBar = Math.floor(previous.startBeat / beatsPerBar);
-      const currentBar = Math.floor(current.startBeat / beatsPerBar);
+      const previousBar = Math.floor(previous.startTick / ticksPerBar);
+      const currentBar = Math.floor(current.startTick / ticksPerBar);
       if (currentBar <= previousBar) {
         throw new Error(
           `Key-signature entry ${index + 1} overlaps with or collapses into entry ${index} after bar alignment. Entry ${index} normalizes to bar ${previousBar + 1}, and entry ${index + 1} normalizes to bar ${currentBar + 1}.`,

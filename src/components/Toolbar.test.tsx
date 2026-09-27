@@ -8,6 +8,7 @@ import { KGChordRegion } from '../core/region/KGChordRegion';
 import { KGProject } from '../core/KGProject';
 import { KGProjectStorage } from '../core/io/KGProjectStorage';
 import { showAlert, showConfirm } from '../util/dialogUtil';
+import { quarterNotesToTicks } from '../core/timing';
 
 const executeCommandMock = vi.fn();
 const storeState = {
@@ -23,7 +24,7 @@ const storeState = {
   isPreparingPlayback: false,
   startPlaying: vi.fn(),
   stopTransport: vi.fn(),
-  setPlayheadPosition: vi.fn(),
+  setPlayheadTick: vi.fn(),
   currentTime: '0:00',
   setBpm: vi.fn(),
   setTimeSignature: vi.fn(),
@@ -65,7 +66,7 @@ const storeState = {
   setActiveRegionId: vi.fn(),
   selectedRegionIds: [] as string[],
   selectedTrackId: null,
-  playheadPosition: 0,
+  playheadTick: 0,
   refreshProjectState: vi.fn(),
   requestMainContentScroll: vi.fn(),
   requestPianoRollScroll: vi.fn(),
@@ -124,6 +125,7 @@ vi.mock('../core/track/KGAudioTrack', () => ({ KGAudioTrack: class {} }));
 vi.mock('class-transformer', () => ({
   plainToInstance: vi.fn(),
   Expose: () => () => undefined,
+  Exclude: () => () => undefined,
   Type: () => () => undefined,
   Transform: () => () => undefined,
 }));
@@ -235,7 +237,7 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.setStatus.mockClear();
     storeState.stopTransport.mockReset();
     storeState.stopTransport.mockResolvedValue(undefined);
-    storeState.setPlayheadPosition.mockClear();
+    storeState.setPlayheadTick.mockClear();
     storeState.requestMainContentScroll.mockClear();
     storeState.requestPianoRollScroll.mockClear();
     storeState.cleanupProjectState.mockClear();
@@ -246,7 +248,7 @@ describe('Toolbar settings side-panel behavior', () => {
     storeState.showKGOnePanel = true;
     storeState.showEventListPanel = false;
     storeState.keySignature = 'C major';
-    storeState.playheadPosition = 0;
+    storeState.playheadTick = 0;
     storeState.isPlaying = false;
     storeState.isRecording = false;
     storeState.globalTracks = createDefaultGlobalTracks();
@@ -268,9 +270,9 @@ describe('Toolbar settings side-panel behavior', () => {
     fireEvent.click(screen.getByTitle('Back to beginning'));
 
     await waitFor(() => expect(storeState.stopTransport).toHaveBeenCalledTimes(1));
-    expect(storeState.setPlayheadPosition).toHaveBeenCalledWith(0);
+    expect(storeState.setPlayheadTick).toHaveBeenCalledWith(0);
     expect(storeState.stopTransport.mock.invocationCallOrder[0]).toBeLessThan(
-      storeState.setPlayheadPosition.mock.invocationCallOrder[0]
+      storeState.setPlayheadTick.mock.invocationCallOrder[0]
     );
     expect(storeState.requestMainContentScroll).toHaveBeenCalledWith(0);
     expect(storeState.requestPianoRollScroll).toHaveBeenCalledWith(0);
@@ -324,7 +326,7 @@ describe('Toolbar settings side-panel behavior', () => {
 
   it('routes the split toolbar button through the shared split helper', async () => {
     storeState.selectedRegionIds = ['region-1'];
-    storeState.playheadPosition = 12;
+    storeState.playheadTick = 12;
     regionEditUtilMocks.splitSelectedRegionAtPlayheadMock.mockResolvedValue('Split 1 note at beat 12.00');
 
     render(<Toolbar />);
@@ -333,7 +335,7 @@ describe('Toolbar settings side-panel behavior', () => {
     await waitFor(() => {
       expect(regionEditUtilMocks.splitSelectedRegionAtPlayheadMock).toHaveBeenCalledWith({
         selectedRegionIds: ['region-1'],
-        playheadPosition: 12,
+        playheadTick: 12,
         refreshProjectState: storeState.refreshProjectState,
       });
     });
@@ -394,7 +396,7 @@ describe('Toolbar settings side-panel behavior', () => {
     signatureTrack?.setRegions([
       new KGKeySignatureRegion('sig-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 2, 4, 4),
     ]);
-    storeState.playheadPosition = 8;
+    storeState.playheadTick = quarterNotesToTicks(8);
 
     render(<Toolbar />);
 

@@ -6,6 +6,7 @@ import { KGTrack } from '../core/track/KGTrack';
 import { KGCore } from '../core/KGCore';
 import { KGPianoRollState } from '../core/state/KGPianoRollState';
 import { useProjectStore } from '../stores/projectStore';
+import { ticksToPixels } from '../core/timing';
 
 interface UseNoteSelectionProps {
   activeRegion: KGMidiRegion | null;
@@ -106,7 +107,7 @@ export const useNoteSelection = ({
         core.addSelectedItem(note);
         
         // Update last edited note length
-        const noteLength = note.getEndBeat() - note.getStartBeat();
+        const noteLength = note.getEndTick() - note.getStartTick();
         KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
         KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
         
@@ -138,7 +139,7 @@ export const useNoteSelection = ({
       core.addSelectedItem(note);
       
       // Update last edited note length
-      const noteLength = note.getEndBeat() - note.getStartBeat();
+      const noteLength = note.getEndTick() - note.getStartTick();
       KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
       KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
       
@@ -324,7 +325,7 @@ export const useNoteSelection = ({
       // Get the beat width and note height for position calculations
       const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
       const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
-      const regionStartBeat = activeRegion.getStartFromBeat();
+      const regionStartTick = activeRegion.getStartTick();
       
       // Track notes that are in the box selection
       const notesInBox = new Set<string>();
@@ -335,17 +336,17 @@ export const useNoteSelection = ({
       // Check each note to see if any part of it is inside the selection box
       notes.forEach(note => {
         // Calculate position and size
-        const startBeat = note.getStartBeat() + regionStartBeat; // Absolute beat position
-        const endBeat = note.getEndBeat() + regionStartBeat; // Absolute beat position
+        const startTick = note.getStartTick() + regionStartTick; // Absolute beat position
+        const endTick = note.getEndTick() + regionStartTick; // Absolute beat position
         const pitch = note.getPitch();
         
         // Convert pitch to y position (higher notes have lower y values)
         const pitchIndex = 107 - pitch; // Reverse the pitch to get the index (B7 is 107)
         
         // Calculate position and dimensions of the note
-        const noteLeft = startBeat * beatWidth;
+        const noteLeft = ticksToPixels(startTick, beatWidth);
         const noteTop = pitchIndex * noteHeight;
-        const noteRight = endBeat * beatWidth;
+        const noteRight = ticksToPixels(endTick, beatWidth);
         const noteBottom = noteTop + noteHeight;
         
         // Check if any part of the note is inside the selection box
@@ -416,7 +417,7 @@ export const useNoteSelection = ({
           current.distance < closest.distance ? current : closest
         ).note;
         
-        const noteLength = closestNote.getEndBeat() - closestNote.getStartBeat();
+        const noteLength = closestNote.getEndTick() - closestNote.getStartTick();
         KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
         KGPianoRollState.instance().setLastEditedNoteVelocity(closestNote.getVelocity());
         

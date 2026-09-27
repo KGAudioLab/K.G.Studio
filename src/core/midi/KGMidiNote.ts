@@ -1,5 +1,6 @@
 import { Expose } from 'class-transformer';
 import type { Selectable } from '../../components/interfaces';
+import { toTimelineTick, type TimelineTick } from '../timing';
 
 /**
  * KGMidiNote - Class representing a MIDI note in the DAW
@@ -10,10 +11,10 @@ export class KGMidiNote implements Selectable {
   private id: string = '';
   
   @Expose()
-  private startBeat: number = 0;
+  private startTick: TimelineTick = toTimelineTick(0);
   
   @Expose()
-  private endBeat: number = 0;
+  private endTick: TimelineTick = toTimelineTick(0);
   
   @Expose()
   private pitch: number = 0;
@@ -24,10 +25,10 @@ export class KGMidiNote implements Selectable {
   @Expose()
   private selected: boolean = false;
 
-  constructor(id: string, startBeat: number = 0, endBeat: number = 0, pitch: number = 0, velocity: number = 127) {
+  constructor(id: string, startTick: number = 0, endTick: number = 0, pitch: number = 0, velocity: number = 127) {
     this.id = id;
-    this.startBeat = startBeat;
-    this.endBeat = endBeat;
+    this.startTick = toTimelineTick(startTick);
+    this.endTick = toTimelineTick(endTick);
     this.pitch = pitch;
     this.velocity = velocity;
   }
@@ -37,12 +38,12 @@ export class KGMidiNote implements Selectable {
     return this.id;
   }
 
-  public getStartBeat(): number {
-    return this.startBeat;
+  public getStartTick(): TimelineTick {
+    return this.startTick;
   }
 
-  public getEndBeat(): number {
-    return this.endBeat;
+  public getEndTick(): TimelineTick {
+    return this.endTick;
   }
 
   public getPitch(): number {
@@ -58,12 +59,12 @@ export class KGMidiNote implements Selectable {
     this.id = id;
   }
 
-  public setStartBeat(startBeat: number): void {
-    this.startBeat = startBeat;
+  public setStartTick(startTick: number): void {
+    this.startTick = toTimelineTick(startTick);
   }
 
-  public setEndBeat(endBeat: number): void {
-    this.endBeat = endBeat;
+  public setEndTick(endTick: number): void {
+    this.endTick = toTimelineTick(endTick);
   }
 
   public setPitch(pitch: number): void {

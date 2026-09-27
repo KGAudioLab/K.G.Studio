@@ -13,7 +13,7 @@ vi.mock('../core/KGCore', () => ({
   KGCore: {
     instance: () => ({
       getCopiedItems: () => mocks.copiedItems,
-      getPlayheadPosition: () => 12,
+      getPlayheadTick: () => 12,
     }),
   },
 }));

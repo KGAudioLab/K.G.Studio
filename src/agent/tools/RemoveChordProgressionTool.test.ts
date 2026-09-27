@@ -5,6 +5,9 @@ import { KGCore } from '../../core/KGCore';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -36,8 +39,8 @@ describe('RemoveChordProgressionTool', () => {
     const project = new KGProject('exact-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const chordTrack = getChordTrack(project);
     chordTrack.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, 4),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 4, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, q(4)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(4), q(4)),
     ]);
     mockCore(project);
 
@@ -46,16 +49,16 @@ describe('RemoveChordProgressionTool', () => {
 
     expect(result.success).toBe(true);
     expect((chordTrack.getRegions() as KGChordRegion[]).map(region => region.getSymbol())).toEqual(['C']);
-    expect(result.result).toContain('"G" at beat 4');
+    expect(result.result).toContain('"G" at quarter-note 4');
   });
 
   it('removes multiple chord regions in a start-inclusive, end-exclusive range', async () => {
     const project = new KGProject('range-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const chordTrack = getChordTrack(project);
     chordTrack.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, 4),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'Dm', 4, 4),
-      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, q(4)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'Dm', q(4), q(4)),
+      new KGChordRegion('chord-3', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(8), q(4)),
     ]);
     mockCore(project);
 
@@ -73,7 +76,7 @@ describe('RemoveChordProgressionTool', () => {
     const project = new KGProject('none-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const chordTrack = getChordTrack(project);
     chordTrack.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'C', 0, q(4)),
     ]);
     mockCore(project);
 
@@ -83,15 +86,15 @@ describe('RemoveChordProgressionTool', () => {
     expect(result.success).toBe(true);
     expect(result.result).toContain('No chord references found');
     expect(tool.buildToolResultDisplayContent({ start: 12, end: 16 }, result))
-      .toBe('No chord references found for removal at beats 12-16.');
+      .toBe('No chord references found for removal at quarter-notes 12-16.');
   });
 
   it('builds a confirmation summary for the affected bar span', () => {
     const project = new KGProject('confirmation-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const chordTrack = getChordTrack(project);
     chordTrack.setRegions([
-      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Dm', 4, 4),
-      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', 8, 4),
+      new KGChordRegion('chord-1', chordTrack.getId(), chordTrack.getTrackIndex(), 'Dm', q(4), q(4)),
+      new KGChordRegion('chord-2', chordTrack.getId(), chordTrack.getTrackIndex(), 'G', q(8), q(4)),
     ]);
     mockCore(project);
 

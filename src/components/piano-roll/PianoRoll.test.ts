@@ -14,7 +14,7 @@ vi.mock('../../stores/projectStore', () => ({
       keySignature: 'C major',
       selectedMode: 'ionian',
       setSelectedMode: vi.fn(),
-      playheadPosition: 0,
+      playheadTick: 0,
       isPlaying: false,
       autoScrollEnabled: false,
       bpm: 120,
@@ -39,6 +39,9 @@ import {
   getScrollLeftForViewportRequest,
 } from './pianoRollViewport';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 function createContainer({ clientWidth, scrollWidth }: { clientWidth: number; scrollWidth: number }): HTMLDivElement {
   return {
@@ -54,38 +57,38 @@ describe('PianoRoll viewport switch helpers', () => {
   });
 
   it('classifies playhead position relative to the active region', () => {
-    expect(getRegionPlayheadRelation(15, 16, 24)).toBe('before');
-    expect(getRegionPlayheadRelation(20, 16, 24)).toBe('inside');
-    expect(getRegionPlayheadRelation(25, 16, 24)).toBe('after');
+    expect(getRegionPlayheadRelation(q(15), q(16), q(24))).toBe('before');
+    expect(getRegionPlayheadRelation(q(20), q(16), q(24))).toBe('inside');
+    expect(getRegionPlayheadRelation(q(25), q(16), q(24))).toBe('after');
   });
 
   it('uses the zoomed beat width when scrolling to a different region in piano-roll view', () => {
     document.documentElement.style.setProperty('--region-grid-beat-width', '80px');
     document.documentElement.style.setProperty('--region-grid-bar-width', 'calc(var(--region-grid-beat-width) * var(--time-signature-numerator))');
 
-    expect(getRegionStartScrollLeft(16)).toBe(1280);
+    expect(getRegionStartScrollLeft(q(16))).toBe(1280);
   });
 
   it('creates a song-scoped center request only when the playhead is inside the switched region', () => {
     const options = {
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      regionStartTick: q(16),
+      regionEndTick: q(24),
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: false,
       destinationSheetMusicTrackScopeEnabled: false,
       destinationHasPianoKeys: true,
     };
 
-    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 15 })).toBeNull();
-    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 25 })).toBeNull();
-    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 16 })).toMatchObject({
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: q(15) })).toBeNull();
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: q(25) })).toBeNull();
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: q(16) })).toMatchObject({
       alignment: 'center',
-      anchorBeat: 16,
+      anchorBeat: q(16),
       clampScope: 'track',
     });
-    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: 24 })).toMatchObject({
+    expect(createPendingRegionSwitchRequest({ ...options, playheadBeat: q(24) })).toMatchObject({
       alignment: 'center',
-      anchorBeat: 24,
+      anchorBeat: q(24),
       clampScope: 'track',
     });
   });
@@ -93,9 +96,9 @@ describe('PianoRoll viewport switch helpers', () => {
   it('centers a switched-region playhead using zoom and the destination key gutter', () => {
     document.documentElement.style.setProperty('--region-grid-beat-width', '80px');
     const request = createPendingRegionSwitchRequest({
-      playheadBeat: 16,
-      regionStartBeat: 12,
-      regionEndBeat: 20,
+      playheadBeat: q(16),
+      regionStartTick: q(12),
+      regionEndTick: q(20),
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: false,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -107,18 +110,18 @@ describe('PianoRoll viewport switch helpers', () => {
       request: request!,
       container: createContainer({ clientWidth: 260, scrollWidth: 2620 }),
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 12,
-      activeRegionEndBeat: 20,
-      songEndBeat: 32,
+      activeRegionStartTick: q(12),
+      activeRegionEndTick: q(20),
+      songEndTick: q(32),
     })).toBe(1180);
   });
 
   it('clamps switched-region centering at both song boundaries', () => {
     const container = createContainer({ clientWidth: 260, scrollWidth: 1340 });
-    const createRequest = (playheadBeat: number) => createPendingRegionSwitchRequest({
-      playheadBeat,
-      regionStartBeat: playheadBeat,
-      regionEndBeat: playheadBeat + 1,
+    const createRequest = (quarterNote: number) => createPendingRegionSwitchRequest({
+      playheadBeat: q(quarterNote),
+      regionStartTick: q(quarterNote),
+      regionEndTick: q(quarterNote + 1),
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: false,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -129,25 +132,25 @@ describe('PianoRoll viewport switch helpers', () => {
       request: createRequest(1),
       container,
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 1,
-      activeRegionEndBeat: 2,
-      songEndBeat: 32,
+      activeRegionStartTick: q(1),
+      activeRegionEndTick: q(2),
+      songEndTick: q(32),
     })).toBe(0);
     expect(getScrollLeftForViewportRequest({
       request: createRequest(31),
       container,
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 31,
-      activeRegionEndBeat: 32,
-      songEndBeat: 32,
+      activeRegionStartTick: q(31),
+      activeRegionEndTick: q(32),
+      songEndTick: q(32),
     })).toBe(1080);
   });
 
   it('centers audio-waveform destinations without a piano-key gutter', () => {
     const request = createPendingRegionSwitchRequest({
-      playheadBeat: 16,
-      regionStartBeat: 12,
-      regionEndBeat: 20,
+      playheadBeat: q(16),
+      regionStartTick: q(12),
+      regionEndTick: q(20),
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: false,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -158,17 +161,17 @@ describe('PianoRoll viewport switch helpers', () => {
       request,
       container: createContainer({ clientWidth: 260, scrollWidth: 1280 }),
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 12,
-      activeRegionEndBeat: 20,
-      songEndBeat: 32,
+      activeRegionStartTick: q(12),
+      activeRegionEndTick: q(20),
+      songEndTick: q(32),
     })).toBe(510);
   });
 
   it('centers an in-region playhead when switching to region-scope sheet view', () => {
     const request = createPendingModeSwitchRequest({
-      playheadBeat: 20,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      playheadBeat: q(20),
+      regionStartTick: q(16),
+      regionEndTick: q(24),
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: true,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -176,21 +179,21 @@ describe('PianoRoll viewport switch helpers', () => {
 
     expect(request).toMatchObject({
       alignment: 'center',
-      anchorBeat: 20,
+      anchorBeat: q(20),
       clampScope: 'region',
     });
 
     const metrics: SheetMeasureMetric[] = [
-      { barIndex: 0, startBeat: 0, endBeat: 4, leftPx: 0, widthPx: 200 },
-      { barIndex: 1, startBeat: 4, endBeat: 8, leftPx: 200, widthPx: 200 },
+      { barIndex: 0, startTick: 0, endTick: q(4), leftPx: 0, widthPx: 200 },
+      { barIndex: 1, startTick: q(4), endTick: q(8), leftPx: 200, widthPx: 200 },
     ];
     const scrollLeft = getScrollLeftForViewportRequest({
       request,
       container: createContainer({ clientWidth: 200, scrollWidth: 400 }),
       sheetMeasureMetrics: metrics,
-      activeRegionStartBeat: 16,
-      activeRegionEndBeat: 24,
-      songEndBeat: 32,
+      activeRegionStartTick: q(16),
+      activeRegionEndTick: q(24),
+      songEndTick: q(32),
     });
 
     expect(scrollLeft).toBe(100);
@@ -198,9 +201,9 @@ describe('PianoRoll viewport switch helpers', () => {
 
   it('snaps to the region start when the playhead is before the active region', () => {
     const request = createPendingModeSwitchRequest({
-      playheadBeat: 12,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      playheadBeat: q(12),
+      regionStartTick: q(16),
+      regionEndTick: q(24),
       sourceSheetMusicViewEnabled: true,
       destinationSheetMusicViewEnabled: false,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -208,7 +211,7 @@ describe('PianoRoll viewport switch helpers', () => {
 
     expect(request).toMatchObject({
       alignment: 'region-start',
-      anchorBeat: 16,
+      anchorBeat: q(16),
       clampScope: 'region',
     });
 
@@ -216,9 +219,9 @@ describe('PianoRoll viewport switch helpers', () => {
       request,
       container: createContainer({ clientWidth: 260, scrollWidth: 2000 }),
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 16,
-      activeRegionEndBeat: 24,
-      songEndBeat: 32,
+      activeRegionStartTick: q(16),
+      activeRegionEndTick: q(24),
+      songEndTick: q(32),
     });
 
     expect(scrollLeft).toBe(640);
@@ -227,8 +230,8 @@ describe('PianoRoll viewport switch helpers', () => {
   it('snaps to the region end when the playhead is after the active region', () => {
     const request = createPendingModeSwitchRequest({
       playheadBeat: 28,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      regionStartTick: 16,
+      regionEndTick: 24,
       sourceSheetMusicViewEnabled: true,
       destinationSheetMusicViewEnabled: true,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -241,16 +244,16 @@ describe('PianoRoll viewport switch helpers', () => {
     });
 
     const metrics: SheetMeasureMetric[] = [
-      { barIndex: 0, startBeat: 0, endBeat: 4, leftPx: 0, widthPx: 200 },
-      { barIndex: 1, startBeat: 4, endBeat: 8, leftPx: 200, widthPx: 200 },
+      { barIndex: 0, startTick: 0, endTick: 4, leftPx: 0, widthPx: 200 },
+      { barIndex: 1, startTick: 4, endTick: 8, leftPx: 200, widthPx: 200 },
     ];
     const scrollLeft = getScrollLeftForViewportRequest({
       request,
       container: createContainer({ clientWidth: 200, scrollWidth: 400 }),
       sheetMeasureMetrics: metrics,
-      activeRegionStartBeat: 16,
-      activeRegionEndBeat: 24,
-      songEndBeat: 32,
+      activeRegionStartTick: 16,
+      activeRegionEndTick: 24,
+      songEndTick: 32,
     });
 
     expect(scrollLeft).toBe(200);
@@ -259,16 +262,16 @@ describe('PianoRoll viewport switch helpers', () => {
   it('uses the track-scope special case only when entering sheet music from piano roll', () => {
     const specialCaseRequest = createPendingModeSwitchRequest({
       playheadBeat: 28,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      regionStartTick: 16,
+      regionEndTick: 24,
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: true,
       destinationSheetMusicTrackScopeEnabled: true,
     });
     const regularTrackScopeRequest = createPendingModeSwitchRequest({
       playheadBeat: 28,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      regionStartTick: 16,
+      regionEndTick: 24,
       sourceSheetMusicViewEnabled: true,
       destinationSheetMusicViewEnabled: true,
       destinationSheetMusicTrackScopeEnabled: true,
@@ -289,8 +292,8 @@ describe('PianoRoll viewport switch helpers', () => {
   it('treats sheet-music to piano-roll switches as region-scoped even when source sheet view was track-scoped', () => {
     const request = createPendingModeSwitchRequest({
       playheadBeat: 20,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      regionStartTick: 16,
+      regionEndTick: 24,
       sourceSheetMusicViewEnabled: true,
       destinationSheetMusicViewEnabled: false,
       destinationSheetMusicTrackScopeEnabled: false,
@@ -311,14 +314,14 @@ describe('PianoRoll viewport switch helpers', () => {
         destinationSheetMusicViewEnabled: false,
         destinationSheetMusicTrackScopeEnabled: false,
         alignment: 'center',
-        anchorBeat: 16,
+        anchorBeat: q(16),
         clampScope: 'region',
       },
       container,
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 16,
-      activeRegionEndBeat: 24,
-      songEndBeat: 32,
+      activeRegionStartTick: q(16),
+      activeRegionEndTick: q(24),
+      songEndTick: q(32),
     });
     const endClamp = getScrollLeftForViewportRequest({
       request: {
@@ -326,14 +329,14 @@ describe('PianoRoll viewport switch helpers', () => {
         destinationSheetMusicViewEnabled: false,
         destinationSheetMusicTrackScopeEnabled: false,
         alignment: 'center',
-        anchorBeat: 24,
+        anchorBeat: q(24),
         clampScope: 'region',
       },
       container,
       sheetMeasureMetrics: [],
-      activeRegionStartBeat: 16,
-      activeRegionEndBeat: 24,
-      songEndBeat: 32,
+      activeRegionStartTick: q(16),
+      activeRegionEndTick: q(24),
+      songEndTick: q(32),
     });
 
     expect(startClamp).toBe(640);
@@ -343,25 +346,25 @@ describe('PianoRoll viewport switch helpers', () => {
   it('centers the playhead in track-scope sheet view with song-bound clamping', () => {
     const request = createPendingModeSwitchRequest({
       playheadBeat: 14,
-      regionStartBeat: 16,
-      regionEndBeat: 24,
+      regionStartTick: 16,
+      regionEndTick: 24,
       sourceSheetMusicViewEnabled: false,
       destinationSheetMusicViewEnabled: true,
       destinationSheetMusicTrackScopeEnabled: true,
     });
     const metrics: SheetMeasureMetric[] = [
-      { barIndex: 0, startBeat: 0, endBeat: 4, leftPx: 0, widthPx: 200 },
-      { barIndex: 1, startBeat: 4, endBeat: 8, leftPx: 200, widthPx: 200 },
-      { barIndex: 2, startBeat: 8, endBeat: 12, leftPx: 400, widthPx: 200 },
-      { barIndex: 3, startBeat: 12, endBeat: 16, leftPx: 600, widthPx: 200 },
+      { barIndex: 0, startTick: 0, endTick: 4, leftPx: 0, widthPx: 200 },
+      { barIndex: 1, startTick: 4, endTick: 8, leftPx: 200, widthPx: 200 },
+      { barIndex: 2, startTick: 8, endTick: 12, leftPx: 400, widthPx: 200 },
+      { barIndex: 3, startTick: 12, endTick: 16, leftPx: 600, widthPx: 200 },
     ];
     const scrollLeft = getScrollLeftForViewportRequest({
       request,
       container: createContainer({ clientWidth: 200, scrollWidth: 800 }),
       sheetMeasureMetrics: metrics,
-      activeRegionStartBeat: 16,
-      activeRegionEndBeat: 24,
-      songEndBeat: 16,
+      activeRegionStartTick: 16,
+      activeRegionEndTick: 24,
+      songEndTick: 16,
     });
 
     expect(scrollLeft).toBe(600);

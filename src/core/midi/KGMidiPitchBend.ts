@@ -1,12 +1,13 @@
 import { Expose } from 'class-transformer';
 import type { Selectable } from '../../components/interfaces';
+import { toTimelineTick, type TimelineTick } from '../timing';
 
 export class KGMidiPitchBend implements Selectable {
   @Expose()
   private id: string = '';
 
   @Expose()
-  private beat: number = 0;
+  private tick: TimelineTick = toTimelineTick(0);
 
   @Expose()
   private value: number = 8192;
@@ -14,9 +15,9 @@ export class KGMidiPitchBend implements Selectable {
   @Expose()
   private selected: boolean = false;
 
-  constructor(id: string, beat: number = 0, value: number = 8192) {
+  constructor(id: string, tick: number = 0, value: number = 8192) {
     this.id = id;
-    this.beat = beat;
+    this.tick = toTimelineTick(tick);
     this.value = value;
   }
 
@@ -24,8 +25,8 @@ export class KGMidiPitchBend implements Selectable {
     return this.id;
   }
 
-  public getBeat(): number {
-    return this.beat;
+  public getTick(): TimelineTick {
+    return this.tick;
   }
 
   public getValue(): number {
@@ -36,8 +37,8 @@ export class KGMidiPitchBend implements Selectable {
     this.id = id;
   }
 
-  public setBeat(beat: number): void {
-    this.beat = beat;
+  public setTick(tick: number): void {
+    this.tick = toTimelineTick(tick);
   }
 
   public setValue(value: number): void {

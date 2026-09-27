@@ -62,8 +62,8 @@ export const handlePasteOperation = (): PasteOperationResult => {
     const isMultiTrackPaste = new Set(copiedRegions.map(region => region.getTrackId())).size > 1;
 
     if (selectedTrackId || isMultiTrackPaste) {
-      const playheadPosition = core.getPlayheadPosition();
-      const result = pasteRegionsAtTrack(selectedTrackId, playheadPosition);
+      const playheadTick = core.getPlayheadTick();
+      const result = pasteRegionsAtTrack(selectedTrackId, playheadTick);
       if (!result.success) {
         if (result.error) {
           void showAlert(result.error);
@@ -71,7 +71,7 @@ export const handlePasteOperation = (): PasteOperationResult => {
         }
         return { success: false };
       }
-      console.log(`Pasted ${copiedItems.length} regions at position ${playheadPosition}`);
+      console.log(`Pasted ${copiedItems.length} regions at position ${playheadTick}`);
       return { success: true };
     } else {
       console.log('No track selected for pasting regions');
@@ -82,9 +82,9 @@ export const handlePasteOperation = (): PasteOperationResult => {
     if (showPianoRoll && activeRegionId) {
       // Use the active region's playhead position (could be different from global playhead)
       // For now, we'll use global playhead - this can be refined later
-      const playheadPosition = core.getPlayheadPosition();
-      pasteNotesToActiveRegion(activeRegionId, playheadPosition);
-      console.log(`Pasted ${copiedItems.length} notes to active region ${activeRegionId}, position ${playheadPosition}`);
+      const playheadTick = core.getPlayheadTick();
+      pasteNotesToActiveRegion(activeRegionId, playheadTick);
+      console.log(`Pasted ${copiedItems.length} notes to active region ${activeRegionId}, position ${playheadTick}`);
       return { success: true };
     } else {
       console.log('Piano roll must be open to paste notes');

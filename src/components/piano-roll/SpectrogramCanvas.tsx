@@ -4,6 +4,9 @@ import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import type { SpectrogramRequest, SpectrogramResult } from '../../workers/spectrogramWorker';
+import { KGCore } from '../../core/KGCore';
+import { tickRangeToSeconds } from '../../util/globalTrackUtil';
+import { ticksToPixels } from '../../core/timing';
 import {
   SPECTROGRAM_FULL_SEMITONES,
   getSpectrogramVisibleBinRange,
@@ -115,9 +118,9 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
     const noteHeight =
       parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
 
-    const totalBeats = (regionDurationSeconds * bpm) / 60;
+    const totalTicks = (regionDurationSeconds * bpm) / 60;
     // Always draw at 1x resolution; zoom is applied as CSS width stretch
-    const canvasWidth = Math.ceil(totalBeats * 40);
+    const canvasWidth = Math.ceil(totalTicks * 40);
     const canvasHeight = SPECTROGRAM_VISIBLE_SEMITONES * noteHeight;
 
     // Convert dB threshold to linear: values below this → black
@@ -238,7 +241,11 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
 
         const pcm = audioBuffer.getChannelData(0);
         const sampleRate = audioBuffer.sampleRate;
-        const regionDurationSeconds = (audioRegion.getLength() * 60) / bpm;
+        const regionDurationSeconds = tickRangeToSeconds(
+          KGCore.instance().getCurrentProject(),
+          audioRegion.getStartTick(),
+          audioRegion.getStartTick() + audioRegion.getLengthTicks(),
+        );
 
         const worker = new Worker(
           new URL('../../workers/spectrogramWorker.ts', import.meta.url),
@@ -297,7 +304,7 @@ const SpectrogramCanvas: React.FC<SpectrogramCanvasProps> = ({
       style={{
         position: 'absolute',
         top: 0,
-        left: `${audioRegion.getStartFromBeat() * 40 * zoom}px`,
+        left: `${ticksToPixels(audioRegion.getStartTick(), 40 * zoom)}px`,
         zIndex: 0,
         pointerEvents: 'none',
       }}

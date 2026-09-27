@@ -1,40 +1,40 @@
 export interface EventListRowMeasurement {
-  beat: number;
+  tick: number;
   top: number;
   bottom: number;
 }
 
 export interface EventListPlayheadAnchor {
-  beat: number;
+  tick: number;
   y: number;
 }
 
-export const normalizeEventListPlayheadBeat = (beat: number, ticksPerBeat: number): number => (
-  Math.round(beat * ticksPerBeat) / ticksPerBeat
+export const normalizeEventListPlayheadTick = (tick: number, ticksPerQuarter: number): number => (
+  Math.round(tick * ticksPerQuarter) / ticksPerQuarter
 );
 
 export const buildEventListPlayheadAnchors = (
   rows: EventListRowMeasurement[],
-  songEndBeat: number,
+  songEndTick: number,
   bodyTop: number,
 ): EventListPlayheadAnchor[] => {
-  if (rows.length === 0 || !Number.isFinite(songEndBeat) || songEndBeat <= 0) {
+  if (rows.length === 0 || !Number.isFinite(songEndTick) || songEndTick <= 0) {
     return [];
   }
 
-  const anchors: EventListPlayheadAnchor[] = [{ beat: 0, y: bodyTop }];
+  const anchors: EventListPlayheadAnchor[] = [{ tick: 0, y: bodyTop }];
 
   for (let index = 0; index < rows.length;) {
     const firstRow = rows[index];
     let lastIndex = index;
 
-    while (lastIndex + 1 < rows.length && rows[lastIndex + 1].beat === firstRow.beat) {
+    while (lastIndex + 1 < rows.length && rows[lastIndex + 1].tick === firstRow.tick) {
       lastIndex += 1;
     }
 
-    if (firstRow.beat > 0 && firstRow.beat < songEndBeat) {
+    if (firstRow.tick > 0 && firstRow.tick < songEndTick) {
       anchors.push({
-        beat: firstRow.beat,
+        tick: firstRow.tick,
         y: firstRow.top,
       });
     }
@@ -42,27 +42,27 @@ export const buildEventListPlayheadAnchors = (
     index = lastIndex + 1;
   }
 
-  anchors.push({ beat: songEndBeat, y: rows[rows.length - 1].bottom });
+  anchors.push({ tick: songEndTick, y: rows[rows.length - 1].bottom });
   return anchors;
 };
 
 export const interpolateEventListPlayheadY = (
-  playheadBeat: number,
+  playheadTick: number,
   anchors: EventListPlayheadAnchor[],
 ): number | null => {
-  if (anchors.length < 2 || !Number.isFinite(playheadBeat)) return null;
+  if (anchors.length < 2 || !Number.isFinite(playheadTick)) return null;
 
-  const clampedBeat = Math.max(anchors[0].beat, Math.min(playheadBeat, anchors[anchors.length - 1].beat));
+  const clampedTick = Math.max(anchors[0].tick, Math.min(playheadTick, anchors[anchors.length - 1].tick));
 
   for (let index = 1; index < anchors.length; index += 1) {
     const next = anchors[index];
-    if (clampedBeat > next.beat) continue;
+    if (clampedTick > next.tick) continue;
 
     const previous = anchors[index - 1];
-    const beatSpan = next.beat - previous.beat;
-    if (beatSpan <= 0) return next.y;
+    const tickSpan = next.tick - previous.tick;
+    if (tickSpan <= 0) return next.y;
 
-    const progress = (clampedBeat - previous.beat) / beatSpan;
+    const progress = (clampedTick - previous.tick) / tickSpan;
     return previous.y + (next.y - previous.y) * progress;
   }
 

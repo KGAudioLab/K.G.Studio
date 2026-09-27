@@ -24,7 +24,7 @@ import {
 } from '../../util/midiUtil';
 import * as Tone from 'tone';
 import { useProjectStore } from '../../stores/projectStore';
-import { getAudioRegionDisplayLengthBeats } from '../../util/globalTrackUtil';
+import { getAudioRegionDisplayLengthTicks, secondsToTick, tickToSeconds } from '../../util/globalTrackUtil';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
 import {
   buildChordRegionImportPlan,
@@ -55,7 +55,7 @@ interface TrackGridPanelProps {
   selectedRegionId: string | null;
   projectName: string;
   onRegionCreated: (trackIndex: number, region: RegionUI, midiRegion: KGMidiRegion) => void;
-  onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startBeat: number, length: number }) => void;
+  onRegionUpdated?: (regionId: string, updates: Partial<RegionUI>, expectedModelUpdates?: { startTick: number, length: number }) => void;
   onRegionClick?: (regionId: string, options: RegionClickOptions) => void;
   onRegionLassoSelection?: (regionIds: string[], options: RegionClickOptions) => void;
   onRegionLassoCommit?: () => void;
@@ -124,7 +124,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     return Math.max(1, snapBarValue(rawBar, {
       enabled: mainContentState.isSnappingEnabled(),
       mode: mainContentState.getSnappingMode(),
-      beatsPerBar: timeSignature.numerator,
+      ticksPerBar: timeSignature.numerator,
     }));
   };
 
@@ -134,7 +134,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     trackIndex: number,
     barNumber: number
   ) => {
-    const beatsPerBar = timeSignature.numerator;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
     const fileId = KGAudioFileStorage.generateAudioFileId(file.name);
     const arrayBuffer = await file.arrayBuffer();
     const toneBuffer = new Tone.ToneAudioBuffer();
@@ -160,10 +160,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       toneBuffer
     );
 
-    const bpm = KGCore.instance().getCurrentProject().getBpm();
-    const durationInBeats = audioDurationSeconds * (bpm / 60);
-    const insertBeat = (barNumber - 1) * beatsPerBar;
-    const lengthInBars = Math.max(1, Math.ceil(durationInBeats / beatsPerBar));
+    const insertTick = (barNumber - 1) * ticksPerBar;
+    const project = KGCore.instance().getCurrentProject();
+    const durationTicks = secondsToTick(
+      project,
+      tickToSeconds(project, insertTick) + audioDurationSeconds,
+    ) - insertTick;
+    const lengthInBars = Math.max(1, Math.ceil(durationTicks / ticksPerBar));
     const prevMaxBars = maxBars;
     const newMaxBars = Math.max(maxBars, barNumber + lengthInBars - 1);
 
@@ -173,8 +176,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       fileId,
       file.name,
       audioDurationSeconds,
-      insertBeat,
-      durationInBeats,
+      insertTick,
+      durationTicks,
       prevMaxBars,
       newMaxBars
     );
@@ -184,13 +187,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     if (created && onExternalDropComplete) {
       const displayLengthInBars = Math.max(
         1,
-        getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), created) / beatsPerBar
+        getAudioRegionDisplayLengthTicks(KGCore.instance().getCurrentProject(), created) / ticksPerBar
       );
       const regionUI: RegionUI = {
         id: created.getId(),
         trackId: track.getId().toString(),
         trackIndex,
-        barNumber: (created.getStartFromBeat() / beatsPerBar) + 1,
+        barNumber: (created.getStartTick() / ticksPerBar) + 1,
         length: displayLengthInBars,
         name: created.getName(),
       };
@@ -205,13 +208,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     trackId: string,
     trackIndex: number
   ): RegionUI => {
-    const beatsPerBar = timeSignature.numerator;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
     return {
       id: createdRegion.getId(),
       trackId,
       trackIndex,
-      barNumber: (createdRegion.getStartFromBeat() / beatsPerBar) + 1,
-      length: createdRegion.getLength() / beatsPerBar,
+      barNumber: (createdRegion.getStartTick() / ticksPerBar) + 1,
+      length: createdRegion.getLengthTicks() / ticksPerBar,
       name: createdRegion.getName(),
     };
   };
@@ -220,15 +223,15 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     parsedTrack: ParsedMidiImportTrack,
     targetTrackId: string,
     targetTrackIndex: number,
-    dropBeat: number,
-    fileStartBeat: number,
+    dropTick: number,
+    fileStartTick: number,
     regionName?: string
   ) => {
-    const startBeat = dropBeat + (parsedTrack.startBeat - fileStartBeat);
-    const lengthInBeats = parsedTrack.endBeat - parsedTrack.startBeat;
+    const startTick = dropTick + (parsedTrack.startTick - fileStartTick);
+    const lengthTicks = parsedTrack.endTick - parsedTrack.startTick;
     const rawNotes = parsedTrack.notes.map(note => ({
-      startBeat: note.startBeat - parsedTrack.startBeat,
-      endBeat: note.endBeat - parsedTrack.startBeat,
+      startTick: note.startTick - parsedTrack.startTick,
+      endTick: note.endTick - parsedTrack.startTick,
       pitch: note.pitch,
       velocity: note.velocity,
     }));
@@ -236,8 +239,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const command = new ImportMidiClipCommand(
       targetTrackId,
       targetTrackIndex,
-      startBeat,
-      lengthInBeats,
+      startTick,
+      lengthTicks,
       rawNotes,
       regionName ?? `${parsedTrack.name} Region`
     );
@@ -262,16 +265,16 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       throw new Error(`"${file.name}" does not contain any note data.`);
     }
 
-    const beatsPerBar = timeSignature.numerator;
-    const dropBeat = (barNumber - 1) * beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const dropTick = (barNumber - 1) * ticksPerBar;
     const importedRegions: Array<{ trackIndex: number; region: KGMidiRegion }> = [];
 
     const primaryRegion = importParsedMidiTrackToTarget(
       parsedMidi.tracks[0],
       track.getId().toString(),
       trackIndex,
-      dropBeat,
-      parsedMidi.fileStartBeat,
+      dropTick,
+      parsedMidi.fileStartTick,
       file.name
     );
     if (primaryRegion) {
@@ -299,8 +302,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         parsedTrack,
         createdTrack.getId().toString(),
         insertionIndex,
-        dropBeat,
-        parsedMidi.fileStartBeat
+        dropTick,
+        parsedMidi.fileStartTick
       );
 
       if (createdRegion) {
@@ -308,10 +311,10 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       }
     }
 
-    const importedTrackEndBeat = Math.max(
-      ...parsedMidi.tracks.map(parsedTrack => dropBeat + (parsedTrack.endBeat - parsedMidi.fileStartBeat))
+    const importedTrackEndTick = Math.max(
+      ...parsedMidi.tracks.map(parsedTrack => dropTick + (parsedTrack.endTick - parsedMidi.fileStartTick))
     );
-    const requiredBars = Math.ceil(importedTrackEndBeat / beatsPerBar);
+    const requiredBars = Math.ceil(importedTrackEndTick / ticksPerBar);
     const currentProject = KGCore.instance().getCurrentProject();
     if (requiredBars > currentProject.getMaxBars()) {
       currentProject.setMaxBars(requiredBars);
@@ -499,7 +502,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       const snappedBarNumber = Math.max(1, snapBarValue(rawBar, {
         enabled: mainContentState.isSnappingEnabled(),
         mode: mainContentState.getSnappingMode(),
-        beatsPerBar: timeSignature.numerator,
+        ticksPerBar: timeSignature.numerator,
       }));
       pendingAudioImportRef.current = { barNumber: snappedBarNumber, trackIndex };
       setShowAudioImportModal(true);
@@ -511,17 +514,17 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
     
     // Get beats per bar from the time signature
-    const beatsPerBar = timeSignature.numerator;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
     
     // Check for overlapping regions before creating a new one
-    const newRegionStartBeat = (barNumber - 1) * beatsPerBar;
-    const newRegionEndBeat = newRegionStartBeat + beatsPerBar - 1;
+    const newRegionStartTick = (barNumber - 1) * ticksPerBar;
+    const newRegionEndTick = newRegionStartTick + ticksPerBar - 1;
     
     const existingRegions = track.getRegions();
     const hasOverlap = existingRegions.some(region => {
-      const existingStart = region.getStartFromBeat();
-      const existingEnd = existingStart + region.getLength() - 1;
-      return newRegionStartBeat <= existingEnd && newRegionEndBeat >= existingStart;
+      const existingStart = region.getStartTick();
+      const existingEnd = existingStart + region.getLengthTicks() - 1;
+      return newRegionStartTick <= existingEnd && newRegionEndTick >= existingStart;
     });
     
     if (hasOverlap) {
@@ -538,7 +541,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       trackIndex,
       barNumber,
       1, // Default to 1 bar length
-      beatsPerBar,
+      ticksPerBar,
       generateNewRegionName(trackId)
     );
     
@@ -690,7 +693,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     if (!region) return;
 
     // Calculate new start and length in beats
-    const beatsPerBar = timeSignature.numerator;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
     let clampedBarNumber = finalBarNumber;
     let clampedLength = finalLength;
 
@@ -703,42 +706,39 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const coreRegion = trackRegions.find(r => r.getId() === regionId);
 
     if (coreRegion) {
-      const oldStartBeat = coreRegion.getStartFromBeat();
+      const oldStartTick = coreRegion.getStartTick();
       const oldBarNumber = region.barNumber;
       const bulkRegionIds = getBulkSelectedRegionIds(regionId);
       const isBulkEdit = bulkRegionIds.length > 1;
 
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
-        console.log(`Updating KGRegion model - Before: startBeat=${oldStartBeat}, length=${coreRegion.getLength()}`);
+        console.log(`Updating KGRegion model - Before: startTick=${oldStartTick}, length=${coreRegion.getLengthTicks()}`);
         console.log(`Bar numbers - old: ${oldBarNumber}, new: ${finalBarNumber}`);
       }
 
       // Clamp audio region resize to audio file boundaries for single-region editing only.
       let newClipStartOffsetSeconds: number | undefined;
       if (!isBulkEdit && coreRegion instanceof KGAudioRegion) {
-        const bpm = KGCore.instance().getCurrentProject().getBpm();
-        const secondsPerBeat = 60 / bpm;
+        const project = KGCore.instance().getCurrentProject();
         const clipOffset = coreRegion.getClipStartOffsetSeconds();
         const audioDuration = coreRegion.getAudioDurationSeconds();
         const mainContentState = KGMainContentState.instance();
 
         // Left edge changed — calculate new clip offset
         if (clampedBarNumber !== oldBarNumber) {
-          const newStartBeat = (clampedBarNumber - 1) * beatsPerBar;
-          const beatDelta = newStartBeat - oldStartBeat;
-          const secondsDelta = beatDelta * secondsPerBeat;
+          const newStartTick = (clampedBarNumber - 1) * ticksPerBar;
+          const secondsDelta = tickToSeconds(project, newStartTick) - tickToSeconds(project, oldStartTick);
           const unclampedClipOffset = clipOffset + secondsDelta;
 
           if (unclampedClipOffset < 0) {
             // Dragged past audio start — snap to earliest allowed position
-            const maxLeftExtensionBeats = clipOffset / secondsPerBeat;
-            const minStartBeat = oldStartBeat - maxLeftExtensionBeats;
-            clampedBarNumber = snapBarValue((minStartBeat / beatsPerBar) + 1, {
+            const minStartTick = secondsToTick(project, Math.max(0, tickToSeconds(project, oldStartTick) - clipOffset));
+            clampedBarNumber = snapBarValue((minStartTick / ticksPerBar) + 1, {
               enabled: mainContentState.isSnappingEnabled(),
               mode: mainContentState.getSnappingMode(),
-              beatsPerBar,
+              ticksPerBar,
             }, 'ceil');
-            const oldEndBarNumber = oldBarNumber + (coreRegion.getLength() / beatsPerBar);
+            const oldEndBarNumber = oldBarNumber + (coreRegion.getLengthTicks() / ticksPerBar);
             clampedLength = oldEndBarNumber - clampedBarNumber;
             newClipStartOffsetSeconds = 0;
           } else {
@@ -748,13 +748,14 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
         // Right edge — clamp length so it doesn't exceed remaining audio
         const effectiveClipOffset = newClipStartOffsetSeconds ?? clipOffset;
-        const maxDurationSeconds = audioDuration - effectiveClipOffset;
-        const maxLengthBars = (maxDurationSeconds / secondsPerBeat) / beatsPerBar;
+        const projectedStartTick = (clampedBarNumber - 1) * ticksPerBar;
+        const maxEndTick = secondsToTick(project, tickToSeconds(project, projectedStartTick) + Math.max(0, audioDuration - effectiveClipOffset));
+        const maxLengthBars = (maxEndTick - projectedStartTick) / ticksPerBar;
         if (clampedLength > maxLengthBars) {
           clampedLength = snapBarValue(maxLengthBars, {
             enabled: mainContentState.isSnappingEnabled(),
             mode: mainContentState.getSnappingMode(),
-            beatsPerBar,
+            ticksPerBar,
           }, 'floor');
           if (clampedLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
             clampedLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
@@ -762,8 +763,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         }
       }
 
-      const newStartBeat = (clampedBarNumber - 1) * beatsPerBar;
-      const newLengthInBeats = clampedLength * beatsPerBar;
+      const newStartTick = (clampedBarNumber - 1) * ticksPerBar;
+      const newLengthTicks = clampedLength * ticksPerBar;
 
       // Use command pattern to update the region position and length (note adjustments handled inside command)
       try {
@@ -771,8 +772,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           const command = new ResizeMultipleRegionsCommand(
             regionId,
             clampedBarNumber !== oldBarNumber ? 'start' : 'end',
-            newStartBeat - oldStartBeat,
-            newLengthInBeats - coreRegion.getLength(),
+            newStartTick - oldStartTick,
+            newLengthTicks - coreRegion.getLengthTicks(),
             bulkRegionIds
           );
 
@@ -796,7 +797,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
           // Verify the command worked
           const updatedRegion = track.getRegions().find(r => r.getId() === regionId);
-          console.log(`Verified region in track: ${updatedRegion ? 'found' : 'not found'}, startBeat=${updatedRegion?.getStartFromBeat()}, length=${updatedRegion?.getLength()}`);
+          console.log(`Verified region in track: ${updatedRegion ? 'found' : 'not found'}, startTick=${updatedRegion?.getStartTick()}, length=${updatedRegion?.getLengthTicks()}`);
         }
       } catch (error) {
         console.error('Error resizing region:', error);
@@ -809,7 +810,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         onRegionUpdated(
           regionId,
           { barNumber: clampedBarNumber, length: clampedLength },
-          { startBeat: newStartBeat, length: newLengthInBeats }
+          { startTick: newStartTick, length: newLengthTicks }
         );
       }
     }
@@ -867,11 +868,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     // Use command pattern to move the region
     try {
       if (isBulkEdit) {
-        const oldStartBeat = (region.barNumber - 1) * timeSignature.numerator;
-        const newStartBeat = (finalBarNumber - 1) * timeSignature.numerator;
+        const oldStartTick = (region.barNumber - 1) * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+        const newStartTick = (finalBarNumber - 1) * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
         const command = new MoveMultipleRegionsCommand(
           regionId,
-          newStartBeat - oldStartBeat,
+          newStartTick - oldStartTick,
           bulkRegionIds
         );
 
@@ -914,7 +915,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
 
         // Verify the command worked
         const movedRegion = command.getTargetRegion();
-        console.log(`Verified region: ${movedRegion ? 'found' : 'not found'}, startBeat=${movedRegion?.getStartFromBeat()}, trackId=${movedRegion?.getTrackId()}`);
+        console.log(`Verified region: ${movedRegion ? 'found' : 'not found'}, startTick=${movedRegion?.getStartTick()}, trackId=${movedRegion?.getTrackId()}`);
       }
       if (movedRegionWasAudio) {
         bumpAudioWaveformRedrawVersion();
@@ -926,8 +927,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
     
     // Calculate new start in beats for UI update
-    const beatsPerBar = timeSignature.numerator;
-    const startBeat = (finalBarNumber - 1) * beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const startTick = (finalBarNumber - 1) * ticksPerBar;
     
     // Update the region in the parent component with expected model values
     if (onRegionUpdated) {
@@ -944,8 +945,8 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
           barNumber: finalBarNumber 
         },
         { 
-          startBeat, 
-          length: updatedRegion ? updatedRegion.getLength() : 0 
+          startTick,
+          length: updatedRegion ? updatedRegion.getLengthTicks() : 0
         }
       );
     }
@@ -962,15 +963,15 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const bulkRegionIds = getBulkSelectedRegionIds(regionId);
     const isBulkEdit = bulkRegionIds.length > 1;
 
-    const beatsPerBar = timeSignature.numerator;
-    const newStartFromBeat = Math.max(0, coreRegion.getStartFromBeat() + deltaInBars * beatsPerBar);
-    if (newStartFromBeat === coreRegion.getStartFromBeat()) return;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const newStartTick = Math.max(0, coreRegion.getStartTick() + deltaInBars * ticksPerBar);
+    if (newStartTick === coreRegion.getStartTick()) return;
 
     try {
       if (isBulkEdit) {
         const command = new MoveMultipleRegionsCommand(
           regionId,
-          deltaInBars * beatsPerBar,
+          deltaInBars * ticksPerBar,
           bulkRegionIds
         );
         KGCore.instance().executeCommand(command, { rethrow: true });
@@ -987,7 +988,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       // Use constructor directly (NOT fromBarCoordinates) to preserve float precision
       const command = new MoveRegionCommand(
         regionId,
-        newStartFromBeat,
+        newStartTick,
         track.getId().toString(),
         region.trackIndex
       );
@@ -997,14 +998,14 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
       }
 
       if (DEBUG_MODE.TRACK_GRID_PANEL) {
-        console.log(`Fine-moved region ${regionId}: startFromBeat=${newStartFromBeat}`);
+        console.log(`Fine-moved region ${regionId}: startTick=${newStartTick}`);
       }
 
-      const newBarNumber = newStartFromBeat / beatsPerBar + 1;
+      const newBarNumber = newStartTick / ticksPerBar + 1;
       onRegionUpdated?.(
         regionId,
         { barNumber: newBarNumber, trackId: region.trackId, trackIndex: region.trackIndex },
-        { startBeat: newStartFromBeat, length: coreRegion.getLength() }
+        { startTick: newStartTick, length: coreRegion.getLengthTicks() }
       );
     } catch (error) {
       console.error('Error executing fine-move:', error);
@@ -1059,7 +1060,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const track = tracks[trackIndex];
     if (!track) return;
 
-    const beatsPerBar = timeSignature.numerator;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
 
     try {
       if (track.getType() === TrackType.MIDI) {
@@ -1074,15 +1075,15 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const midiResp = await fetch(dropData.midiUrl);
         if (!midiResp.ok) throw new Error(`MIDI fetch failed (${midiResp.status})`);
         const buf = await midiResp.arrayBuffer();
-        const { notes, totalBeats } = parseMidiFirstTrackNotes(new Uint8Array(buf));
-        const lengthInBars = Math.max(1, Math.ceil(totalBeats / beatsPerBar));
+        const { notes, totalTicks } = parseMidiFirstTrackNotes(new Uint8Array(buf));
+        const lengthInBars = Math.max(1, Math.ceil(totalTicks / ticksPerBar));
 
         const cmd = ImportMidiClipCommand.fromBarCoordinates(
           track.getId().toString(),
           trackIndex,
           barNumber,
           lengthInBars,
-          beatsPerBar,
+          ticksPerBar,
           notes,
           'KGOne Clip'
         );
@@ -1092,7 +1093,7 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         if (created && onExternalDropComplete) {
           const displayLengthInBars = Math.max(
             1,
-            getAudioRegionDisplayLengthBeats(KGCore.instance().getCurrentProject(), created as unknown as KGAudioRegion) / beatsPerBar
+            getAudioRegionDisplayLengthTicks(KGCore.instance().getCurrentProject(), created as unknown as KGAudioRegion) / ticksPerBar
           );
           const regionUI: RegionUI = {
             id: created.getId(),
@@ -1178,13 +1179,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         return;
       }
 
-      const beatsPerBar = timeSignature.numerator;
+      const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
       const regionUI: RegionUI = {
         id: affectedRegion.getId(),
         trackId: track.getId().toString(),
         trackIndex,
-        barNumber: (affectedRegion.getStartFromBeat() / beatsPerBar) + 1,
-        length: affectedRegion.getLength() / beatsPerBar,
+        barNumber: (affectedRegion.getStartTick() / ticksPerBar) + 1,
+        length: affectedRegion.getLengthTicks() / ticksPerBar,
         name: affectedRegion.getName(),
       };
       onExternalDropComplete(trackIndex, regionUI);

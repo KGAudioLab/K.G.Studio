@@ -59,8 +59,8 @@ export const MockTransport = {
   ,
   setLoopPoints: vi.fn(),
   loop: false,
-  PPQ: 192,
-  getTicksAtTime: vi.fn().mockImplementation((time: number) => time * 192)
+  PPQ: 960,
+  getTicksAtTime: vi.fn().mockImplementation((time: number) => time * 960)
 };
 
 export const MockLoop = vi.fn().mockImplementation((callback: (time: number) => void, interval: string) => ({

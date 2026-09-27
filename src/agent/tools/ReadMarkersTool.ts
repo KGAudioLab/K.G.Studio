@@ -3,6 +3,7 @@ import type { ToolParameter, ToolResult } from './BaseTool';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
+import { ticksToQuarterNotes } from '../../core/timing';
 
 export class ReadMarkersTool extends BaseTool {
   readonly name = 'read_markers';
@@ -32,14 +33,14 @@ export class ReadMarkersTool extends BaseTool {
 
       const regions = track.getRegions()
         .filter((region): region is KGMarkerRegion => region instanceof KGMarkerRegion)
-        .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+        .sort((left, right) => left.getStartTick() - right.getStartTick());
 
       if (regions.length === 0) {
         return this.createSuccessResult('No marker regions found on the global Marker track.');
       }
 
       const result = regions
-        .map(region => `[Beat: ${region.getStartFromBeat()}; Length: ${region.getLength()}]: ${region.getName()}`)
+        .map(region => `[Quarter-note: ${ticksToQuarterNotes(region.getStartTick())}; Length: ${ticksToQuarterNotes(region.getLengthTicks())}]: ${region.getName()}`)
         .join('\n');
       return this.createSuccessResult(result);
     } catch (error) {

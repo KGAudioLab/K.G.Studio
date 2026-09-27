@@ -13,6 +13,7 @@ import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 import { getNextChordCandidateIndex } from './chordGuideUtil';
 import { getMatchingChordGuideCandidatesForPitch } from '../../util/chordGuideDataUtil';
 import type { PianoRollMode } from '../../constants';
+import { TICKS_PER_QUARTER, ticksToPixels } from '../../core/timing';
 
 interface PianoGridProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
@@ -27,7 +28,7 @@ interface PianoGridProps {
     endX: number;
     endY: number;
   };
-  regionStartBeat?: number;
+  regionStartTick?: number;
   selectedMode: string;
   keySignature: KeySignature;
   chordGuide: 'N' | 'T' | 'S' | 'D';
@@ -60,7 +61,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
   onMouseDown,
   isBoxSelecting,
   selectionBox,
-  regionStartBeat = 0,
+  regionStartTick = 0,
   selectedMode,
   keySignature,
   chordGuide,
@@ -147,7 +148,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     
     // Calculate beat and pitch
-    const beat = Math.floor(x / beatWidth);
+    const beat = Math.floor(x / beatWidth) * TICKS_PER_QUARTER;
     const pitch = 107 - Math.floor(y / noteHeight); // B7 = 107, reverse for display
     
     // Only update if position changed and cursor is within valid range
@@ -298,7 +299,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
             <div
               className="piano-grid-beat-highlight"
               style={{
-                left: cursorPosition.beat * (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40),
+                left: ticksToPixels(cursorPosition.beat, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40),
                 width: parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40
               }}
             />
@@ -315,8 +316,8 @@ const PianoGrid: React.FC<PianoGridProps> = ({
                   className="piano-grid-chord-highlight"
                   style={{
                     top: yPosition,
-                    left: highlight.beat * beatWidth,
-                    width: beatWidth * lastEditedNoteLength,
+                    left: ticksToPixels(highlight.beat, beatWidth),
+                    width: ticksToPixels(lastEditedNoteLength, beatWidth),
                     height: noteHeight
                   }}
                 />
@@ -328,7 +329,7 @@ const PianoGrid: React.FC<PianoGridProps> = ({
         {/* Playhead */}
         <Playhead
           context="piano-roll"
-          regionStartBeat={regionStartBeat}
+          regionStartTick={regionStartTick}
           horizontalOffset={mode === 'audio-waveform' ? 0 : -1}
         />
         

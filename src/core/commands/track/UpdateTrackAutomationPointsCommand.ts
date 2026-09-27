@@ -6,13 +6,13 @@ import { instantiateTrackAutomationPoints } from '../../../util/trackAutomationU
 
 interface TrackAutomationPointSnapshot {
   pointId: string;
-  beat: number;
+  tick: number;
   value: number;
 }
 
 interface TrackAutomationPointUpdate {
   pointId: string;
-  beat?: number;
+  tick?: number;
   value?: number;
 }
 
@@ -44,7 +44,7 @@ export class UpdateTrackAutomationPointsCommand extends KGCommand {
       const update = this.updates.find(candidate => candidate.pointId === point.getId());
       return {
         id: point.getId(),
-        beat: update?.beat ?? point.getBeat(),
+        tick: update?.tick ?? point.getTick(),
         value: update?.value ?? point.getValue(),
       };
     }));

@@ -6,7 +6,7 @@ import { findGlobalTrackByType } from '../../../util/globalTrackUtil';
 import { generateUniqueId } from '../../../util/miscUtil';
 
 export interface ChordRegionReplacementData {
-  startBeat: number;
+  startTick: number;
   length: number;
   symbol: string;
 }
@@ -17,8 +17,8 @@ function cloneChordRegion(region: KGChordRegion): KGChordRegion {
     region.getTrackId(),
     region.getTrackIndex(),
     region.getSymbol(),
-    region.getStartFromBeat(),
-    region.getLength(),
+    region.getStartTick(),
+    region.getLengthTicks(),
   );
 }
 
@@ -27,18 +27,18 @@ function cloneChordRegions(regions: KGChordRegion[]): KGChordRegion[] {
 }
 
 export class ReplaceChordRegionsInRangeCommand extends KGCommand {
-  private readonly rangeStartBeat: number;
-  private readonly rangeEndBeat: number;
+  private readonly rangeStartTick: number;
+  private readonly rangeEndTick: number;
   private readonly replacements: ChordRegionReplacementData[];
   private originalRegions: KGChordRegion[] | null = null;
   private nextRegions: KGChordRegion[] | null = null;
 
-  constructor(rangeStartBeat: number, rangeEndBeat: number, replacements: ChordRegionReplacementData[]) {
+  constructor(rangeStartTick: number, rangeEndTick: number, replacements: ChordRegionReplacementData[]) {
     super();
-    this.rangeStartBeat = Math.max(0, rangeStartBeat);
-    this.rangeEndBeat = Math.max(this.rangeStartBeat, rangeEndBeat);
+    this.rangeStartTick = Math.max(0, rangeStartTick);
+    this.rangeEndTick = Math.max(this.rangeStartTick, rangeEndTick);
     this.replacements = replacements.map(replacement => ({
-      startBeat: replacement.startBeat,
+      startTick: replacement.startTick,
       length: replacement.length,
       symbol: replacement.symbol,
     }));
@@ -58,39 +58,39 @@ export class ReplaceChordRegionsInRangeCommand extends KGCommand {
 
     const currentRegions = chordTrack.getRegions()
       .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
 
     this.originalRegions = cloneChordRegions(currentRegions);
 
     const preservedRegions: KGChordRegion[] = [];
     for (const region of currentRegions) {
-      const regionStart = region.getStartFromBeat();
-      const regionEnd = regionStart + region.getLength();
+      const regionStart = region.getStartTick();
+      const regionEnd = regionStart + region.getLengthTicks();
 
-      if (regionEnd <= this.rangeStartBeat || regionStart >= this.rangeEndBeat) {
+      if (regionEnd <= this.rangeStartTick || regionStart >= this.rangeEndTick) {
         preservedRegions.push(cloneChordRegion(region));
         continue;
       }
 
-      if (regionStart < this.rangeStartBeat) {
+      if (regionStart < this.rangeStartTick) {
         preservedRegions.push(new KGChordRegion(
           region.getId(),
           region.getTrackId(),
           region.getTrackIndex(),
           region.getSymbol(),
           regionStart,
-          this.rangeStartBeat - regionStart,
+          this.rangeStartTick - regionStart,
         ));
       }
 
-      if (regionEnd > this.rangeEndBeat) {
+      if (regionEnd > this.rangeEndTick) {
         preservedRegions.push(new KGChordRegion(
           generateUniqueId('KGChordRegion'),
           region.getTrackId(),
           region.getTrackIndex(),
           region.getSymbol(),
-          this.rangeEndBeat,
-          regionEnd - this.rangeEndBeat,
+          this.rangeEndTick,
+          regionEnd - this.rangeEndTick,
         ));
       }
     }
@@ -102,12 +102,12 @@ export class ReplaceChordRegionsInRangeCommand extends KGCommand {
         chordTrack.getId(),
         chordTrack.getTrackIndex(),
         replacement.symbol,
-        replacement.startBeat,
+        replacement.startTick,
         replacement.length,
       ));
 
     this.nextRegions = [...preservedRegions, ...replacementRegions]
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
 
     chordTrack.setRegions(cloneChordRegions(this.nextRegions));
   }

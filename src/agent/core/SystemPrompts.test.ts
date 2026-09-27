@@ -5,6 +5,9 @@ import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGGlobalTrack, GlobalTrackType } from '../../core/global-track/KGGlobalTrack';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 const storeState = {
   activeRegionId: null as string | null,
@@ -47,12 +50,12 @@ vi.mock('../../core/KGCore', () => ({
 
 function createProject(): KGProject {
   const midiTrack = new KGMidiTrack('Piano', 1, 'acoustic_grand_piano');
-  const regionA = new KGMidiRegion('midi-a', 'track-1', 0, 'A', 4, 8);
-  const regionB = new KGMidiRegion('midi-b', 'track-1', 0, 'B', 20, 4);
+  const regionA = new KGMidiRegion('midi-a', 'track-1', 0, 'A', q(4), q(8));
+  const regionB = new KGMidiRegion('midi-b', 'track-1', 0, 'B', q(20), q(4));
   midiTrack.setRegions([regionA, regionB]);
 
   const markerTrack = new KGGlobalTrack('global-marker', 0, GlobalTrackType.Marker, 'Marker');
-  const markerRegion = new KGMarkerRegion('global-a', 'global-marker', 0, 'Marker A', 2, 2);
+  const markerRegion = new KGMarkerRegion('global-a', 'global-marker', 0, 'Marker A', q(2), q(2));
   markerTrack.setRegions([markerRegion]);
 
   const project = new KGProject('Test Project');
@@ -112,8 +115,8 @@ describe('SystemPrompts', () => {
     const prompt = await SystemPrompts.getSystemPromptWithContext();
 
     expect(prompt).toContain('APPENDIX');
-    expect(prompt).toContain('- Start Beat: 8');
-    expect(prompt).toContain('- End Beat: 24');
+    expect(prompt).toContain('- Start Quarter-note: 8');
+    expect(prompt).toContain('- End Quarter-note: 24');
   });
 
   it('uses the earliest start and latest end across multiple selected regions', async () => {
@@ -121,8 +124,8 @@ describe('SystemPrompts', () => {
 
     const prompt = await SystemPrompts.getSystemPromptWithContext();
 
-    expect(prompt).toContain('- Start Beat: 4');
-    expect(prompt).toContain('- End Beat: 24');
+    expect(prompt).toContain('- Start Quarter-note: 4');
+    expect(prompt).toContain('- End Quarter-note: 24');
   });
 
   it('includes mixed regular and global selected regions in the music range span', async () => {
@@ -130,8 +133,8 @@ describe('SystemPrompts', () => {
 
     const prompt = await SystemPrompts.getSystemPromptWithContext();
 
-    expect(prompt).toContain('- Start Beat: 2');
-    expect(prompt).toContain('- End Beat: 24');
+    expect(prompt).toContain('- Start Quarter-note: 2');
+    expect(prompt).toContain('- End Quarter-note: 24');
   });
 
   it('renders an explicit absence message when no music range is selected', async () => {

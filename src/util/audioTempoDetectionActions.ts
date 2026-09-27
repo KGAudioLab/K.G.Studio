@@ -5,9 +5,10 @@ import { MoveRegionCommand } from '../core/commands/region/MoveRegionCommand';
 import type { KGProject } from '../core/KGProject';
 import {
   findTempoRegionAtBar,
-  findTempoRegionAtBeat,
+  findTempoRegionAtTick,
 } from './globalTrackUtil';
 import { translate } from '../i18n/translate';
+import { quarterNotesToTicks, ticksPerBar } from '../core/timing';
 
 export const DETECTED_TEMPO_ACTION_UPDATE_CURRENT = 'update-current-tempo';
 export const DETECTED_TEMPO_ACTION_INSERT_REGION = 'insert-tempo-change';
@@ -30,7 +31,7 @@ interface ApplyDetectedTempoActionParams {
   autoAlignRegionToBeat: boolean;
   project: KGProject;
   regionId: string;
-  regionStartBeat: number;
+  regionStartTick: number;
   regionTrackId: string;
   regionTrackIndex: number;
   refreshProjectState: () => void;
@@ -62,7 +63,7 @@ export function applyDetectedTempoAction({
   autoAlignRegionToBeat,
   project,
   regionId,
-  regionStartBeat,
+  regionStartTick,
   regionTrackId,
   regionTrackIndex,
   refreshProjectState,
@@ -71,15 +72,15 @@ export function applyDetectedTempoAction({
   const core = KGCore.instance();
 
   if (action === DETECTED_TEMPO_ACTION_UPDATE_CURRENT) {
-    const targetRegion = findTempoRegionAtBeat(project, regionStartBeat);
+    const targetRegion = findTempoRegionAtTick(project, regionStartTick);
     if (targetRegion) {
       core.executeCommand(new UpdateTempoRegionCommand(targetRegion.getId(), detectedBpm), { rethrow: true });
     } else {
       setBpm(detectedBpm);
     }
   } else {
-    const beatsPerBar = project.getTimeSignature().numerator;
-    const targetBar = Math.max(0, Math.floor(regionStartBeat / beatsPerBar));
+    const barTicks = ticksPerBar(project.getTimeSignature());
+    const targetBar = Math.max(0, Math.floor(regionStartTick / barTicks));
     const existingRegionAtBar = findTempoRegionAtBar(project, targetBar);
 
     if (existingRegionAtBar && existingRegionAtBar.getStartBar() === targetBar) {
@@ -98,12 +99,12 @@ export function applyDetectedTempoAction({
   }
 
   if (autoAlignRegionToBeat) {
-    const shiftBeats = getRightwardBeatAlignmentShiftBeats(detectedTempo, detectedOffsetSeconds);
-    if (shiftBeats > 0) {
+    const shiftQuarterNotes = getRightwardBeatAlignmentShiftBeats(detectedTempo, detectedOffsetSeconds);
+    if (shiftQuarterNotes > 0) {
       core.executeCommand(
         MoveRegionCommand.createPositionOnlyMove(
           regionId,
-          regionStartBeat + shiftBeats,
+          regionStartTick + quarterNotesToTicks(shiftQuarterNotes),
           regionTrackId,
           regionTrackIndex,
         ),

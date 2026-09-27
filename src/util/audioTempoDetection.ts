@@ -1,6 +1,6 @@
 import type { KGProject } from '../core/KGProject';
 import type { KGAudioRegion } from '../core/region/KGAudioRegion';
-import { beatRangeToSeconds, getAudioRegionDisplayLengthBeats } from './globalTrackUtil';
+import { tickRangeToSeconds, getAudioRegionDisplayLengthTicks } from './globalTrackUtil';
 
 export {
   DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
@@ -19,13 +19,13 @@ export function buildAudioTempoAnalysisSpanForRegion(
   project: KGProject,
   audioRegion: KGAudioRegion,
 ): AudioTempoAnalysisSpan | null {
-  const visibleLengthBeats = getAudioRegionDisplayLengthBeats(project, audioRegion);
-  if (visibleLengthBeats <= 0) {
+  const visibleLengthTicks = getAudioRegionDisplayLengthTicks(project, audioRegion);
+  if (visibleLengthTicks <= 0) {
     return null;
   }
 
-  const regionStartBeat = audioRegion.getStartFromBeat();
-  const durationSeconds = beatRangeToSeconds(project, regionStartBeat, regionStartBeat + visibleLengthBeats);
+  const regionStartTick = audioRegion.getStartTick();
+  const durationSeconds = tickRangeToSeconds(project, regionStartTick, regionStartTick + visibleLengthTicks);
   if (durationSeconds < MIN_ANALYSIS_DURATION_SECONDS) {
     return null;
   }

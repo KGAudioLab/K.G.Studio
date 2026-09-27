@@ -225,7 +225,7 @@ describe('offline pitch bend automation', () => {
     applyOfflinePitchBendAutomation(
       source,
       1,
-      [{ beat: 1, value: 0 }],
+      [{ tick: 960, value: 0 }],
       createMockProject({ bpm: 120 }),
       0,
     );
@@ -251,11 +251,11 @@ describe('offline pitch bend automation', () => {
 
     const baked = bakeMidiAutomationPointsInWindow(
       [
-        { beat: 0, value: 8192 },
-        { beat: 1, value: 8193 },
+        { tick: 0, value: 8192 },
+        { tick: 960, value: 8193 },
       ],
       0,
-      1,
+      960,
       {
         maxIntervalMs: 20,
         bpm: 120,
@@ -263,10 +263,10 @@ describe('offline pitch bend automation', () => {
       }
     );
 
-    applyOfflinePitchBendAutomation(source, 1, baked.filter(point => point.beat > 0), createMockProject({ bpm: 120 }), 0);
+    applyOfflinePitchBendAutomation(source, 1, baked.filter(point => point.tick > 0), createMockProject({ bpm: 120 }), 0);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0][1]).toBe(0.26);
+    expect(calls[0][1]).toBe(0.25);
   });
 
   it('uses tempo-aware automation timing after a BPM change', () => {
@@ -285,14 +285,14 @@ describe('offline pitch bend automation', () => {
 
     const project = createMockProject({ bpm: 120 });
     setTempoRegions(project, [
-      new KGTempoRegion('tempo-a', 'tempo-track', 0, 120, 0, 1, 4),
-      new KGTempoRegion('tempo-b', 'tempo-track', 0, 60, 1, 31, 4),
+      new KGTempoRegion('tempo-a', 'tempo-track', 0, 120, 0, 1, 3840),
+      new KGTempoRegion('tempo-b', 'tempo-track', 0, 60, 1, 31, 3840),
     ]);
 
     applyOfflinePitchBendAutomation(
       source,
       1,
-      [{ beat: 5, value: 0 }],
+      [{ tick: 5 * 960, value: 0 }],
       project,
       0,
     );
@@ -318,10 +318,10 @@ describe('renderToBuffer bounce range', () => {
     ;(KGOfflineRenderer as unknown as { _instance: KGOfflineRenderer | null })._instance = null;
   });
 
-  it('starts non-looping bounce at beat 0 when configured to include leading silence', async () => {
+  it('starts non-looping bounce at tick 0 when configured to include leading silence', async () => {
     const region = createMockMidiRegion({
-      startFromBeat: 8,
-      notes: [createMockMidiNote({ startBeat: 0, endBeat: 4 })],
+      startTick: 8,
+      notes: [createMockMidiNote({ startTick: 0, endTick: 4 })],
     });
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     const project = createMockProject({ bpm: 120, tracks: [track] });
@@ -339,8 +339,8 @@ describe('renderToBuffer bounce range', () => {
     });
 
     const region = createMockMidiRegion({
-      startFromBeat: 8,
-      notes: [createMockMidiNote({ startBeat: 0, endBeat: 4 })],
+      startTick: 8,
+      notes: [createMockMidiNote({ startTick: 0, endTick: 4 })],
     });
     const track = createMockMidiTrack({ id: 1, regions: [region] });
     const project = createMockProject({ bpm: 120, tracks: [track] });
@@ -350,7 +350,7 @@ describe('renderToBuffer bounce range', () => {
     expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), 2, 2, 44100);
   });
 
-  it('keeps looping bounce bounds regardless of the beat-1 setting', async () => {
+  it('keeps looping bounce bounds regardless of the tick-1 setting', async () => {
     configGetMock.mockImplementation((key: string) => {
       if (key === 'audio.bounce_starts_from_beat_1') return false;
       if (key === 'audio.midi_automation_interpolation_interval_ms') return 10;

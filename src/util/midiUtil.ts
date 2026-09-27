@@ -6,6 +6,7 @@ import { STANDARD_MIDI_INSTRUMENT_MAP } from '../constants/generalMidiConstants'
 import { resolveInstrumentDefinition } from '../core/instruments/instrumentResolver';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
+import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { generateUniqueId } from './miscUtil';
 import {
   MIDI_HEADER,
@@ -17,12 +18,22 @@ import {
   MIDI_KEY_SIGNATURE,
   MIDI_UTILS
 } from '../constants/midiConstants';
+import {
+  TICKS_PER_QUARTER,
+  barBeatTickToTicks,
+  ticksPerBar,
+  ticksPerMeterBeat,
+  ticksToBarBeatTick,
+  toTimelineTick,
+} from '../core/timing';
+import { findGlobalTrackByType, getSortedTempoRegions } from './globalTrackUtil';
+import { GlobalTrackType } from '../core/global-track';
 
 export const pianoRollIndexToPitch = (index: number) => {
   return 107 /* MIDI note B7 */ - index;
 };
 
-export const MIDI_EVENT_TICKS_PER_BEAT = 480;
+export const MIDI_EVENT_TICKS_PER_BEAT = TICKS_PER_QUARTER;
 export const MIDI_PITCH_BEND_MIN = 0;
 export const MIDI_PITCH_BEND_CENTER = 8192;
 export const MIDI_PITCH_BEND_MAX = 16383;
@@ -92,61 +103,39 @@ export const noteNameToPitch = (noteName: string): number => {
   return pitch;
 };
 
-export const beatsToBar = (beats: number, timeSignature: TimeSignature) => {
+export const ticksToBar = (timelineTick: number, timeSignature: TimeSignature) => {
+  const position = ticksToBarBeatTick(timelineTick, timeSignature);
   return {
-    bar: Math.floor(beats / timeSignature.numerator),
-    beatInBar: beats % timeSignature.numerator
+    bar: position.bar,
+    beatInBar: position.beat + (position.tick / ticksPerMeterBeat(timeSignature)),
   };
 };
 
 export const formatMidiEventPosition = (
-  beats: number,
+  timelineTick: number,
   timeSignature: TimeSignature,
-  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+  _ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
 ): string => {
-  const { bar, beatInBar } = beatsToBar(beats, timeSignature);
-  const beatInteger = Math.floor(beatInBar);
-  let tick = Math.round((beatInBar - beatInteger) * ticksPerBeat);
-  let normalizedBeat = beatInteger;
-  let normalizedBar = bar;
-
-  if (tick >= ticksPerBeat) {
-    tick = 0;
-    normalizedBeat += 1;
-  }
-
-  if (normalizedBeat >= timeSignature.numerator) {
-    normalizedBeat = 0;
-    normalizedBar += 1;
-  }
-
-  return `${normalizedBar + 1} ${normalizedBeat + 1} ${tick}`;
+  const position = ticksToBarBeatTick(timelineTick, timeSignature);
+  return `${position.bar + 1} ${position.beat + 1} ${position.tick}`;
 };
 
 export const formatMidiEventLength = (
-  beats: number,
-  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+  durationTicks: number,
+  ticksPerQuarter: number = MIDI_EVENT_TICKS_PER_BEAT
 ): string => {
-  const fullBeats = Math.floor(beats);
-  let tick = Math.round((beats - fullBeats) * ticksPerBeat);
-  let normalizedBeats = fullBeats;
-
-  if (tick >= ticksPerBeat) {
-    tick = 0;
-    normalizedBeats += 1;
-  }
-
-  return `${normalizedBeats} ${tick}`;
+  const normalized = Math.max(0, Math.round(durationTicks));
+  return `${Math.floor(normalized / ticksPerQuarter)} ${normalized % ticksPerQuarter}`;
 };
 
 export type MidiEventPositionParseResult =
-  | { absoluteBeat: number }
+  | { absoluteTick: number }
   | { error: string };
 
 export const parseMidiEventPosition = (
   raw: string,
   timeSignature: TimeSignature,
-  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+  _ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
 ): MidiEventPositionParseResult => {
   const match = raw.trim().match(/^(\d+)\s+(\d+)\s+(\d+)$/);
   if (!match) {
@@ -163,13 +152,14 @@ export const parseMidiEventPosition = (
   if (beat < 1 || beat > timeSignature.numerator) {
     return { error: `Beat must be between 1 and ${timeSignature.numerator} for the current time signature.` };
   }
-  if (tick < 0 || tick > ticksPerBeat) {
-    return { error: `Tick must be between 0 and ${ticksPerBeat}.` };
+  const meterBeatTicks = ticksPerMeterBeat(timeSignature);
+  if (tick < 0 || tick > meterBeatTicks) {
+    return { error: `Tick must be between 0 and ${meterBeatTicks}.` };
   }
 
   let normalizedBar = bar;
   let normalizedBeat = beat;
-  if (tick === ticksPerBeat) {
+  if (tick === meterBeatTicks) {
     tick = 0;
     normalizedBeat += 1;
     if (normalizedBeat > timeSignature.numerator) {
@@ -178,21 +168,23 @@ export const parseMidiEventPosition = (
     }
   }
 
-  const absoluteBeat = ((normalizedBar - 1) * timeSignature.numerator) +
-    (normalizedBeat - 1) +
-    (tick / ticksPerBeat);
+  const absoluteTick = barBeatTickToTicks({
+    bar: normalizedBar - 1,
+    beat: normalizedBeat - 1,
+    tick,
+  }, timeSignature);
 
-  return { absoluteBeat };
+  return { absoluteTick };
 };
 
 export type MidiEventPositionDeltaParseResult =
-  | { deltaBeats: number }
+  | { deltaTicks: number }
   | { error: string };
 
 export const parseMidiEventPositionDelta = (
   raw: string,
   timeSignature: TimeSignature,
-  ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
+  _ticksPerBeat: number = MIDI_EVENT_TICKS_PER_BEAT
 ): MidiEventPositionDeltaParseResult => {
   const match = raw.trim().match(/^([+-])(\d+)\s+(\d+)\s+(\d+)$/);
   if (!match) {
@@ -207,13 +199,14 @@ export const parseMidiEventPositionDelta = (
   if (beats < 0 || beats > timeSignature.numerator) {
     return { error: `Delta beat component must be between 0 and ${timeSignature.numerator}.` };
   }
-  if (tick < 0 || tick > ticksPerBeat) {
-    return { error: `Delta tick must be between 0 and ${ticksPerBeat}.` };
+  const meterBeatTicks = ticksPerMeterBeat(timeSignature);
+  if (tick < 0 || tick > meterBeatTicks) {
+    return { error: `Delta tick must be between 0 and ${meterBeatTicks}.` };
   }
 
   let normalizedBars = bars;
   let normalizedBeats = beats;
-  if (tick === ticksPerBeat) {
+  if (tick === meterBeatTicks) {
     tick = 0;
     normalizedBeats += 1;
     if (normalizedBeats >= timeSignature.numerator) {
@@ -222,17 +215,17 @@ export const parseMidiEventPositionDelta = (
     }
   }
 
-  const deltaBeats = sign * (
-    (normalizedBars * timeSignature.numerator) +
-    normalizedBeats +
-    (tick / ticksPerBeat)
+  const deltaTicks = sign * (
+    (normalizedBars * ticksPerBar(timeSignature)) +
+    (normalizedBeats * meterBeatTicks) +
+    tick
   );
 
-  return { deltaBeats };
+  return { deltaTicks };
 };
 
 export type MidiEventLengthParseResult =
-  | { duration: number }
+  | { durationTicks: number }
   | { error: string };
 
 export const parseMidiEventLength = (
@@ -259,16 +252,16 @@ export const parseMidiEventLength = (
     beats += 1;
   }
 
-  const duration = beats + (tick / ticksPerBeat);
-  if (duration <= 0) {
+  const durationTicks = (beats * ticksPerBeat) + tick;
+  if (durationTicks <= 0) {
     return { error: 'Length must be greater than 0.' };
   }
 
-  return { duration };
+  return { durationTicks };
 };
 
 export type MidiEventLengthDeltaParseResult =
-  | { deltaBeats: number }
+  | { deltaTicks: number }
   | { error: string };
 
 export const parseMidiEventLengthDelta = (
@@ -293,7 +286,7 @@ export const parseMidiEventLengthDelta = (
     beats += 1;
   }
 
-  return { deltaBeats: sign * (beats + (tick / ticksPerBeat)) };
+  return { deltaTicks: sign * ((beats * ticksPerBeat) + tick) };
 };
 
 export const midiPercussionKeyMap: Record<number, { fullName: string; shortName: string }> = {
@@ -411,17 +404,18 @@ export const convertRegionToMidi = (
   track: KGMidiTrack,
   region: KGMidiRegion,
 ): Uint8Array => {
-  const beatsPerBar = project.getTimeSignature().numerator;
-  const containingBarStartBeat = Math.floor(region.getStartFromBeat() / beatsPerBar) * beatsPerBar;
+  const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+  const containingBarStartTick = Math.floor(region.getStartTick() / ticksPerBar) * ticksPerBar;
 
-  return convertMidiTrackSelectionToMidi(project, track, [region], containingBarStartBeat);
+  return convertMidiTrackSelectionToMidi(project, track, [region], containingBarStartTick);
 };
 
 function convertMidiTrackSelectionToMidi(
   project: KGProject,
   track: KGMidiTrack,
   regions: KGMidiRegion[],
-  timelineOffsetBeats: number = 0,
+  timelineOffsetTicks: number = 0,
 ): Uint8Array {
   const instrument = track.getInstrument();
   const isDrums = isDrumInstrument(instrument);
@@ -433,7 +427,7 @@ function convertMidiTrackSelectionToMidi(
   const chunks = [
     ...createMidiHeader(2),
     ...createTempoTrack(project),
-    ...createInstrumentTrack(track, project, channel, gmProgram, isDrums, regions, timelineOffsetBeats),
+    ...createInstrumentTrack(track, project, channel, gmProgram, isDrums, regions, timelineOffsetTicks),
   ];
   const result = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.length, 0));
   let offset = 0;
@@ -499,15 +493,27 @@ function createTempoTrack(project: KGProject): Uint8Array[] {
   const keySignature = getKeySignatureBytes(project.getKeySignature());
   events.push(keySignature);
   
-  // Tempo meta event
-  events.push(MIDI_UTILS.encodeVLQ(0)); // Delta time 0
-  events.push(new Uint8Array([MIDI_EVENTS.META_EVENT, MIDI_EVENTS.META_TEMPO, 0x03])); // 3 bytes
-  const microsecondsPerQuarter = MIDI_UTILS.bpmToMicrosecondsPerQuarter(project.getBpm());
-  events.push(new Uint8Array([
-    (microsecondsPerQuarter >> 16) & 0xFF,
-    (microsecondsPerQuarter >> 8) & 0xFF,
-    microsecondsPerQuarter & 0xFF
-  ]));
+  // Emit the complete project tempo map at its canonical timeline ticks.
+  const tempoTrack = findGlobalTrackByType(project, GlobalTrackType.Tempo);
+  const tempoByTick = new Map<number, number>([[0, project.getBpm()]]);
+  if (tempoTrack) {
+    for (const region of getSortedTempoRegions(tempoTrack, ticksPerBar(project.getTimeSignature()))) {
+      tempoByTick.set(region.getStartTick(), region.getBpm());
+    }
+  }
+
+  let previousTempoTick = 0;
+  for (const [tick, bpm] of [...tempoByTick.entries()].sort((left, right) => left[0] - right[0])) {
+    events.push(MIDI_UTILS.encodeVLQ(tick - previousTempoTick));
+    events.push(new Uint8Array([MIDI_EVENTS.META_EVENT, MIDI_EVENTS.META_TEMPO, 0x03]));
+    const microsecondsPerQuarter = MIDI_UTILS.bpmToMicrosecondsPerQuarter(bpm);
+    events.push(new Uint8Array([
+      (microsecondsPerQuarter >> 16) & 0xFF,
+      (microsecondsPerQuarter >> 8) & 0xFF,
+      microsecondsPerQuarter & 0xFF
+    ]));
+    previousTempoTick = tick;
+  }
   
   // End of track
   events.push(MIDI_TRACK.END_OF_TRACK);
@@ -525,7 +531,7 @@ function createInstrumentTrack(
   gmProgram: number,
   isDrums: boolean,
   regions = track.getRegions(),
-  timelineOffsetBeats: number = 0,
+  timelineOffsetTicks: number = 0,
 ): Uint8Array[] {
   const events: Uint8Array[] = [];
   
@@ -548,8 +554,8 @@ function createInstrumentTrack(
   // Collect all notes from all regions and sort by absolute time
   const allNotes: Array<{
     note: KGMidiNote;
-    absoluteStartBeat: number;
-    absoluteEndBeat: number;
+    absoluteStartTick: number;
+    absoluteEndTick: number;
   }> = [];
   
   regions.forEach((region) => {
@@ -559,8 +565,8 @@ function createInstrumentTrack(
       midiRegion.getNotes().forEach((note: KGMidiNote) => {
         allNotes.push({
           note,
-          absoluteStartBeat: midiRegion.getStartFromBeat() + note.getStartBeat() - timelineOffsetBeats,
-          absoluteEndBeat: midiRegion.getStartFromBeat() + note.getEndBeat() - timelineOffsetBeats,
+          absoluteStartTick: midiRegion.getStartTick() + note.getStartTick() - timelineOffsetTicks,
+          absoluteEndTick: midiRegion.getStartTick() + note.getEndTick() - timelineOffsetTicks,
         });
       });
     }
@@ -568,7 +574,7 @@ function createInstrumentTrack(
   
   // Sort notes by start time, then by pitch for consistent ordering
   allNotes.sort((a, b) => {
-    const timeDiff = a.absoluteStartBeat - b.absoluteStartBeat;
+    const timeDiff = a.absoluteStartTick - b.absoluteStartTick;
     return timeDiff !== 0 ? timeDiff : a.note.getPitch() - b.note.getPitch();
   });
   
@@ -579,9 +585,9 @@ function createInstrumentTrack(
   }> = [];
   
   // Add note on/off events
-  allNotes.forEach(({ note, absoluteStartBeat, absoluteEndBeat }) => {
-    const startTick = beatToTicks(absoluteStartBeat, project.getTimeSignature());
-    const endTick = beatToTicks(absoluteEndBeat, project.getTimeSignature());
+  allNotes.forEach(({ note, absoluteStartTick, absoluteEndTick }) => {
+    const startTick = Math.max(0, Math.round(absoluteStartTick));
+    const endTick = Math.max(startTick, Math.round(absoluteEndTick));
     const velocity = Math.max(MIDI_VELOCITY.MIN, Math.min(MIDI_VELOCITY.MAX, note.getVelocity()));
     const pitch = Math.max(0, Math.min(127, note.getPitch()));
     
@@ -653,17 +659,6 @@ function createTrackChunk(events: Uint8Array[]): Uint8Array[] {
   chunks.push(...events);
   
   return chunks;
-}
-
-/**
- * Converts beats to MIDI ticks
- */
-function beatToTicks(beats: number, timeSignature: { numerator: number; denominator: number }): number {
-  // In MIDI, ticks are relative to quarter notes
-  // Convert beats to quarter notes based on time signature
-  const quarterNotesPerBeat = 4 / timeSignature.denominator;
-  const quarterNotes = beats * quarterNotesPerBeat;
-  return Math.round(quarterNotes * MIDI_TIMING.TPQN);
 }
 
 /**
@@ -759,8 +754,8 @@ function getKeySignatureBytes(keySignature: KeySignature): Uint8Array {
 // ─── K.G.One clip MIDI import helpers ────────────────────────────────────────
 
 export interface RawMidiNote {
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   pitch: number;
   velocity: number;
 }
@@ -768,13 +763,13 @@ export interface RawMidiNote {
 export interface ParsedMidiImportTrack {
   name: string;
   suggestedInstrument: InstrumentType;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   notes: RawMidiNote[];
 }
 
 export interface ParsedMidiImportData {
-  fileStartBeat: number;
+  fileStartTick: number;
   tracks: ParsedMidiImportTrack[];
 }
 
@@ -799,27 +794,27 @@ export function parseMidiImportData(data: Uint8Array): ParsedMidiImportData {
 
   if (noteTracks.length === 0) {
     return {
-      fileStartBeat: 0,
+      fileStartTick: 0,
       tracks: [],
     };
   }
 
-  const fileStartBeat = Math.min(
-    ...noteTracks.map(track => Math.min(...track.notes.map(note => note.startBeat)))
+  const fileStartTick = Math.min(
+    ...noteTracks.map(track => Math.min(...track.notes.map(note => note.startTick)))
   );
 
   const tracks = noteTracks.map((track, index) => {
-    const startBeat = Math.min(...track.notes.map(note => note.startBeat));
-    const endBeat = Math.max(...track.notes.map(note => note.endBeat));
+    const startTick = Math.min(...track.notes.map(note => note.startTick));
+    const endTick = Math.max(...track.notes.map(note => note.endTick));
 
     return {
       name: track.name || `Track ${index + 1}`,
       suggestedInstrument: getKGInstrumentFromMidi(track.channel, track.program),
-      startBeat,
-      endBeat,
+      startTick,
+      endTick,
       notes: track.notes.map(note => ({
-        startBeat: note.startBeat,
-        endBeat: note.endBeat,
+        startTick: note.startTick,
+        endTick: note.endTick,
         pitch: note.pitch,
         velocity: note.velocity,
       })),
@@ -827,7 +822,7 @@ export function parseMidiImportData(data: Uint8Array): ParsedMidiImportData {
   });
 
   return {
-    fileStartBeat,
+    fileStartTick,
     tracks,
   };
 }
@@ -839,21 +834,21 @@ export function parseMidiImportData(data: Uint8Array): ParsedMidiImportData {
  */
 export function parseMidiFirstTrackNotes(data: Uint8Array): {
   notes: RawMidiNote[];
-  totalBeats: number;
+  totalTicks: number;
 } {
   const parsedImportData = parseMidiImportData(data);
   const firstTrack = parsedImportData.tracks[0];
   if (!firstTrack) {
-    return { notes: [], totalBeats: 0 };
+    return { notes: [], totalTicks: 0 };
   }
   const notes: RawMidiNote[] = firstTrack.notes.map(n => ({
-    startBeat: n.startBeat - firstTrack.startBeat,
-    endBeat: n.endBeat - firstTrack.startBeat,
+    startTick: n.startTick - firstTrack.startTick,
+    endTick: n.endTick - firstTrack.startTick,
     pitch: n.pitch,
     velocity: n.velocity,
   }));
-  const totalBeats = Math.max(...notes.map(n => n.endBeat));
-  return { notes, totalBeats };
+  const totalTicks = Math.max(...notes.map(n => n.endTick));
+  return { notes, totalTicks };
 }
 
 /**
@@ -871,8 +866,9 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
   
   // Apply project-level settings from MIDI meta events (only for new projects)
   if (!existingProject || existingProject.getTracks().length === 0) {
-    if (midiFile.tempo) {
-      project.setBpm(Math.round(60000000 / midiFile.tempo)); // Convert microseconds per quarter to BPM
+    const initialTempo = [...midiFile.tempoEvents].sort((left, right) => left.tick - right.tick)[0];
+    if (initialTempo) {
+      project.setBpm(60000000 / initialTempo.microsecondsPerQuarter);
     }
     
     if (midiFile.timeSignature) {
@@ -887,7 +883,7 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
   // Get existing tracks to calculate proper track indices
   const existingTracks = project.getTracks();
   const startingTrackIndex = existingTracks.length;
-  const importedTrackEndBeats: number[] = [];
+  const importedTrackEndTicks: number[] = [];
   
   // Convert MIDI tracks to KGSP tracks
   let addedTrackCount = 0;
@@ -909,9 +905,9 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
     const kgTrack = new KGMidiTrack(trackName, trackId, instrument);
     kgTrack.setTrackIndex(actualTrackIndex);
     
-    const regionStartBeat = Math.min(...midiTrack.notes.map(note => note.startBeat));
-    const regionEndBeat = Math.max(...midiTrack.notes.map(note => note.endBeat));
-    importedTrackEndBeats.push(regionEndBeat);
+    const regionStartTick = Math.min(...midiTrack.notes.map(note => note.startTick));
+    const regionEndTick = Math.max(...midiTrack.notes.map(note => note.endTick));
+    importedTrackEndTicks.push(regionEndTick);
     const regionId = generateUniqueId('KGMidiRegion');
     const regionName = `${trackName} Region`;
     const region = new KGMidiRegion(
@@ -919,20 +915,20 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
       trackId.toString(),
       actualTrackIndex,
       regionName,
-      regionStartBeat,
-      regionEndBeat - regionStartBeat
+      regionStartTick,
+      regionEndTick - regionStartTick
     );
 
     // Store imported notes relative to the region start while preserving their timing.
     midiTrack.notes.forEach(midiNote => {
       const noteId = generateUniqueId('KGMidiNote');
-      const relativeStartBeat = midiNote.startBeat - regionStartBeat;
-      const relativeEndBeat = midiNote.endBeat - regionStartBeat;
+      const relativeStartTick = midiNote.startTick - regionStartTick;
+      const relativeEndTick = midiNote.endTick - regionStartTick;
 
       const kgNote = new KGMidiNote(
         noteId,
-        relativeStartBeat,
-        relativeEndBeat,
+        relativeStartTick,
+        relativeEndTick,
         midiNote.pitch,
         midiNote.velocity
       );
@@ -947,11 +943,47 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
     addedTrackCount += 1;
   });
 
-  if (importedTrackEndBeats.length > 0) {
-    const beatsPerBar = project.getTimeSignature().numerator;
-    const requiredBars = Math.ceil(Math.max(...importedTrackEndBeats) / beatsPerBar);
+  if (importedTrackEndTicks.length > 0) {
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    const requiredBars = Math.ceil(Math.max(...importedTrackEndTicks) / ticksPerBar);
     if (requiredBars > project.getMaxBars()) {
       project.setMaxBars(requiredBars);
+    }
+  }
+
+  if (midiFile.tempoEvents.length > 0) {
+    const tempoTrack = findGlobalTrackByType(project, GlobalTrackType.Tempo);
+    if (tempoTrack) {
+      const tempoByTick = new Map<number, number>();
+      tempoByTick.set(0, project.getBpm());
+      for (const event of midiFile.tempoEvents) {
+        tempoByTick.set(event.tick, 60000000 / event.microsecondsPerQuarter);
+      }
+      const sortedTempoEvents = [...tempoByTick.entries()].sort((left, right) => left[0] - right[0]);
+      const songEndTick = Math.max(
+        project.getMaxBars() * ticksPerBar(project.getTimeSignature()),
+        importedTrackEndTicks.length > 0 ? Math.max(...importedTrackEndTicks) : 0,
+        sortedTempoEvents[sortedTempoEvents.length - 1][0] + 1,
+      );
+      const importedTempoRegions = sortedTempoEvents.map(([startTick, bpm], index) => {
+        const endTick = sortedTempoEvents[index + 1]?.[0] ?? songEndTick;
+        const region = new KGTempoRegion(
+          generateUniqueId('KGTempoRegion'),
+          tempoTrack.getId(),
+          tempoTrack.getTrackIndex(),
+          bpm,
+          0,
+          1,
+          ticksPerBar(project.getTimeSignature()),
+        );
+        region.setStartTick(startTick);
+        region.setLengthTicks(Math.max(1, endTick - startTick));
+        region.syncBarsFromTicks(ticksPerBar(project.getTimeSignature()));
+        return region;
+      });
+      tempoTrack.setRegions(importedTempoRegions);
+      project.setBpm(importedTempoRegions[0].getBpm());
     }
   }
   
@@ -964,6 +996,7 @@ interface ParsedMidiFile {
   trackCount: number;
   ticksPerQuarter: number;
   tempo?: number; // microseconds per quarter note
+  tempoEvents: Array<{ tick: number; microsecondsPerQuarter: number }>;
   timeSignature?: TimeSignature;
   keySignature?: KeySignature;
   tracks: ParsedMidiTrack[];
@@ -977,8 +1010,8 @@ interface ParsedMidiTrack {
 }
 
 interface ParsedMidiNote {
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   pitch: number;
   velocity: number;
 }
@@ -1023,6 +1056,7 @@ function parseMidiFile(data: Uint8Array): ParsedMidiFile {
     format,
     trackCount,
     ticksPerQuarter,
+    tempoEvents: [],
     tracks: []
   };
   
@@ -1052,9 +1086,7 @@ function parseMidiFile(data: Uint8Array): ParsedMidiFile {
     if (DEBUG_MODE.MIDI_IMPORT) {
       console.log(`├── ${track.name || `Track ${i + 1}`} (Channel: ${track.channel}, Program: ${track.program ?? 'none'}, Notes: ${track.notes.length})`);
       track.notes.forEach(note => {
-        const startTick = Math.round(note.startBeat * ticksPerQuarter);
-        const endTick = Math.round(note.endBeat * ticksPerQuarter);
-        console.log(`│   ├── ${note.pitch} | ${startTick} | ${endTick}`);
+        console.log(`│   ├── ${note.pitch} | ${note.startTick} | ${note.endTick}`);
       });
     }
   }
@@ -1144,7 +1176,11 @@ function parseTrack(data: Uint8Array, ticksPerQuarter: number, midiFile: ParsedM
         case MIDI_EVENTS.META_TEMPO:
           if (metaData.length >= 3) {
             const tempo = (metaData[0] << 16) | (metaData[1] << 8) | metaData[2];
-            midiFile.tempo = tempo;
+            midiFile.tempo ??= tempo;
+            midiFile.tempoEvents.push({
+              tick: sourceMidiTickToTimelineTick(currentTick, ticksPerQuarter),
+              microsecondsPerQuarter: tempo,
+            });
             const bpm = Math.round(60000000 / tempo);
             if (DEBUG_MODE.MIDI_IMPORT) {
               console.log(`🥁 Tempo found: ${tempo} μs/quarter note (${bpm} BPM)`);
@@ -1157,7 +1193,7 @@ function parseTrack(data: Uint8Array, ticksPerQuarter: number, midiFile: ParsedM
             const numerator = metaData[0];
             const denominatorPower = metaData[1];
             const denominator = Math.pow(2, denominatorPower);
-            midiFile.timeSignature = { numerator, denominator };
+            midiFile.timeSignature ??= { numerator, denominator };
             if (DEBUG_MODE.MIDI_IMPORT) {
               console.log(`🎵 Time signature found: ${numerator}/${denominator}`);
             }
@@ -1219,8 +1255,8 @@ function parseTrack(data: Uint8Array, ticksPerQuarter: number, midiFile: ParsedM
           const activeNote = activeNotes.get(noteKey);
           if (activeNote) {
             const note = {
-              startBeat: ticksToBeat(activeNote.startTick, ticksPerQuarter),
-              endBeat: ticksToBeat(currentTick, ticksPerQuarter),
+              startTick: sourceMidiTickToTimelineTick(activeNote.startTick, ticksPerQuarter),
+              endTick: sourceMidiTickToTimelineTick(currentTick, ticksPerQuarter),
               pitch: activeNote.pitch,
               velocity: activeNote.velocity
             };
@@ -1244,8 +1280,8 @@ function parseTrack(data: Uint8Array, ticksPerQuarter: number, midiFile: ParsedM
         const activeNote = activeNotes.get(noteKey);
         if (activeNote) {
           const note = {
-            startBeat: ticksToBeat(activeNote.startTick, ticksPerQuarter),
-            endBeat: ticksToBeat(currentTick, ticksPerQuarter),
+            startTick: sourceMidiTickToTimelineTick(activeNote.startTick, ticksPerQuarter),
+            endTick: sourceMidiTickToTimelineTick(currentTick, ticksPerQuarter),
             pitch: activeNote.pitch,
             velocity: activeNote.velocity
           };
@@ -1336,10 +1372,10 @@ function readUint32(data: Uint8Array, offset: number): number {
 }
 
 /**
- * Converts MIDI ticks to beats
+ * Normalizes a source MIDI position to the project's fixed 960-PPQ timeline.
  */
-function ticksToBeat(ticks: number, ticksPerQuarter: number): number {
-  return ticks / ticksPerQuarter;
+function sourceMidiTickToTimelineTick(ticks: number, ticksPerQuarter: number): number {
+  return toTimelineTick(ticks * (TICKS_PER_QUARTER / ticksPerQuarter));
 }
 
 /**

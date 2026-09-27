@@ -18,10 +18,10 @@ export interface ChordRegionImportExecutionResult {
 
 export function findBestOverlappingMidiRegion(
   track: KGTrack,
-  startBeat: number,
-  lengthInBeats: number,
+  startTick: number,
+  lengthTicks: number,
 ): KGMidiRegion | null {
-  const endBeat = startBeat + lengthInBeats;
+  const endTick = startTick + lengthTicks;
   let bestRegion: KGMidiRegion | null = null;
   let bestOverlap = 0;
   let bestStart = Number.POSITIVE_INFINITY;
@@ -29,9 +29,9 @@ export function findBestOverlappingMidiRegion(
   track.getRegions().forEach(region => {
     if (!(region instanceof KGMidiRegion)) return;
 
-    const regionStart = region.getStartFromBeat();
-    const regionEnd = regionStart + region.getLength();
-    const overlap = Math.min(regionEnd, endBeat) - Math.max(regionStart, startBeat);
+    const regionStart = region.getStartTick();
+    const regionEnd = regionStart + region.getLengthTicks();
+    const overlap = Math.min(regionEnd, endTick) - Math.max(regionStart, startTick);
     if (overlap <= 0) return;
 
     if (overlap > bestOverlap || (overlap === bestOverlap && regionStart < bestStart)) {
@@ -49,7 +49,7 @@ export async function runChordRegionImport(
   trackIndex: number,
   plan: ChordRegionImportPlan,
 ): Promise<ChordRegionImportExecutionResult | null> {
-  const overlappingRegion = findBestOverlappingMidiRegion(track, plan.startBeat, plan.lengthInBeats);
+  const overlappingRegion = findBestOverlappingMidiRegion(track, plan.startTick, plan.lengthTicks);
   const action = overlappingRegion
     ? await showChordToMidiImportOptions(CHORD_TO_MIDI_OVERLAP_MESSAGE)
     : 'create';
@@ -59,8 +59,8 @@ export async function runChordRegionImport(
   const command = new ImportChordRegionsCommand(
     track.getId().toString(),
     trackIndex,
-    plan.startBeat,
-    plan.lengthInBeats,
+    plan.startTick,
+    plan.lengthTicks,
     plan.notes,
     action === 'create' ? CHORD_REGION_IMPORT_REGION_NAME : overlappingRegion?.getName() ?? CHORD_REGION_IMPORT_REGION_NAME,
     undefined,

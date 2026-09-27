@@ -237,17 +237,17 @@ describe('Project Store Synchronization Integration Tests', () => {
 
   describe('Playback State Synchronization', () => {
     it('should sync playhead position with formatted time string', async () => {
-      const { setPlayheadPosition } = useProjectStore.getState();
+      const { setPlayheadTick } = useProjectStore.getState();
       const newPosition = 8.5; // beats
       
       act(() => {
-        setPlayheadPosition(newPosition);
+        setPlayheadTick(newPosition);
       });
       
       // Verify store state updated
       const storeState = useProjectStore.getState();
-      expect(storeState.playheadPosition).toBe(newPosition);
-      expect(testProject.getPlayheadPosition()).toBe(newPosition);
+      expect(storeState.playheadTick).toBe(newPosition);
+      expect(testProject.getPlayheadTick()).toBe(newPosition);
       
       // Verify formatted time string was updated
       expect(storeState.currentTime).toBeDefined();
@@ -297,11 +297,11 @@ describe('Project Store Synchronization Integration Tests', () => {
       const core = KGCore.instance();
       const startPlayingSpy = vi.spyOn(core, 'startPlaying').mockResolvedValue(undefined);
       const recordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
-      const { setActiveRegionId, setPlayheadPosition, startRecording } = useProjectStore.getState();
+      const { setActiveRegionId, setPlayheadTick, startRecording } = useProjectStore.getState();
 
       act(() => {
         setActiveRegionId(testRegion.getId());
-        setPlayheadPosition(18);
+        setPlayheadTick(18);
       });
 
       await act(async () => {
@@ -309,7 +309,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       });
 
       const storeState = useProjectStore.getState();
-      expect(storeState.playheadPosition).toBe(12);
+      expect(storeState.playheadTick).toBe(12);
       expect(storeState.recordingOriginalPlayhead).toBe(18);
       expect(storeState.isRecording).toBe(true);
       expect(storeState.isPlaying).toBe(true);
@@ -333,11 +333,11 @@ describe('Project Store Synchronization Integration Tests', () => {
       const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
       vi.spyOn(mockAudioInterface, 'getTransportPosition').mockReturnValue(5);
 
-      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+      const { setActiveRegionId, setPlayheadTick, startRecording, stopTransport } = useProjectStore.getState();
 
       act(() => {
         setActiveRegionId(testRegion.getId());
-        setPlayheadPosition(4);
+        setPlayheadTick(4);
       });
 
       await act(async () => {
@@ -387,11 +387,11 @@ describe('Project Store Synchronization Integration Tests', () => {
         .mockReturnValueOnce(20.5)
         .mockReturnValueOnce(21);
       const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
-      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+      const { setActiveRegionId, setPlayheadTick, startRecording, stopTransport } = useProjectStore.getState();
 
       act(() => {
         setActiveRegionId(testRegion.getId());
-        setPlayheadPosition(18);
+        setPlayheadTick(18);
       });
 
       await act(async () => {
@@ -433,11 +433,11 @@ describe('Project Store Synchronization Integration Tests', () => {
         .mockReturnValueOnce(31.4)
         .mockReturnValueOnce(16.9);
       const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
-      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+      const { setActiveRegionId, setPlayheadTick, startRecording, stopTransport } = useProjectStore.getState();
 
       act(() => {
         setActiveRegionId(testRegion.getId());
-        setPlayheadPosition(18);
+        setPlayheadTick(18);
       });
 
       await act(async () => {
@@ -458,8 +458,8 @@ describe('Project Store Synchronization Integration Tests', () => {
 
       const notes = testRegion.getNotes();
       expect(notes).toHaveLength(1);
-      expect(notes[0].getStartBeat()).toBeCloseTo(15);
-      expect(notes[0].getEndBeat()).toBeCloseTo(16);
+      expect(notes[0].getStartTick()).toBeCloseTo(15);
+      expect(notes[0].getEndTick()).toBeCloseTo(16);
       expect(notes[0].getVelocity()).toBe(72);
     });
 
@@ -479,11 +479,11 @@ describe('Project Store Synchronization Integration Tests', () => {
         .mockReturnValueOnce(5)
         .mockReturnValueOnce(6.5);
       const setRecordingCallbacksSpy = vi.spyOn(KGMidiInput.instance(), 'setRecordingCallbacks');
-      const { setActiveRegionId, setPlayheadPosition, startRecording, stopTransport } = useProjectStore.getState();
+      const { setActiveRegionId, setPlayheadTick, startRecording, stopTransport } = useProjectStore.getState();
 
       act(() => {
         setActiveRegionId(testRegion.getId());
-        setPlayheadPosition(4);
+        setPlayheadTick(4);
       });
 
       await act(async () => {
@@ -633,7 +633,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       newProject.setTimeSignature({ numerator: 6, denominator: 8 });
       newProject.setKeySignature('D major');
       newProject.setMaxBars(48);
-      newProject.setPlayheadPosition(17.5);
+      newProject.setPlayheadTick(17.5);
       
       // Add a track with region and notes
       const track = new KGMidiTrack('Loaded Track', 0, 'violin');
@@ -656,14 +656,14 @@ describe('Project Store Synchronization Integration Tests', () => {
       expect(storeState.timeSignature).toEqual({ numerator: 6, denominator: 8 });
       expect(storeState.keySignature).toBe('D major');
       expect(storeState.maxBars).toBe(48);
-      expect(storeState.playheadPosition).toBe(17.5);
+      expect(storeState.playheadTick).toBe(17.5);
       expect(storeState.mainContentScrollRequest).toBe(17.5);
       expect(storeState.tracks).toHaveLength(1);
       
       // Verify core model is updated
       const core = KGCore.instance();
       expect(core.getCurrentProject()?.getName()).toBe('New Loaded Project');
-      expect(core.getCurrentProject()?.getPlayheadPosition()).toBe(17.5);
+      expect(core.getCurrentProject()?.getPlayheadTick()).toBe(17.5);
       
       // Verify CSS properties were updated
       const timeSignatureCSS = getComputedStyle(document.documentElement).getPropertyValue('--time-signature-numerator');
@@ -678,7 +678,7 @@ describe('Project Store Synchronization Integration Tests', () => {
       const newProject = new KGProject('Clamped Loaded Project');
       newProject.setTimeSignature({ numerator: 4, denominator: 4 });
       newProject.setMaxBars(8);
-      newProject.setPlayheadPosition(100);
+      newProject.setPlayheadTick(100);
 
       await act(async () => {
         await loadProject(newProject);
@@ -686,10 +686,10 @@ describe('Project Store Synchronization Integration Tests', () => {
 
       const clampedBeat = 32;
       const storeState = useProjectStore.getState();
-      expect(storeState.playheadPosition).toBe(clampedBeat);
+      expect(storeState.playheadTick).toBe(clampedBeat);
       expect(storeState.mainContentScrollRequest).toBe(clampedBeat);
-      expect(newProject.getPlayheadPosition()).toBe(clampedBeat);
-      expect(KGCore.instance().getCurrentProject().getPlayheadPosition()).toBe(clampedBeat);
+      expect(newProject.getPlayheadTick()).toBe(clampedBeat);
+      expect(KGCore.instance().getCurrentProject().getPlayheadTick()).toBe(clampedBeat);
     });
   });
 });

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { plainToInstance } from 'class-transformer';
 import { describe, expect, it } from 'vitest';
 import { KGProject } from '../../core/KGProject';
+import { upgradeProjectToLatest } from '../../core/project-upgrader/KGProjectUpgrader';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import {
@@ -22,7 +23,7 @@ function loadFixtureProject(): KGProject {
   if (!project) {
     throw new Error('Failed to deserialize MIDI chord detection fixture');
   }
-  return project;
+  return upgradeProjectToLatest(project);
 }
 
 function getFixtureRegion(project: KGProject): KGMidiRegion {
@@ -72,8 +73,8 @@ describe('midi chord detection fixture', () => {
     );
     expect(buildMidiChordRegionSpans(results)).toEqual(
       expectedProgression.map((symbol, barIndex) => ({
-        startBeat: barIndex * 4,
-        endBeat: (barIndex + 1) * 4,
+        startTick: barIndex * 4 * 960,
+        endTick: (barIndex + 1) * 4 * 960,
         symbol,
       })),
     );
@@ -108,8 +109,8 @@ describe('midi chord detection fixture', () => {
     );
     expect(buildMidiChordRegionSpans(results)).toEqual(
       expectedProgression.map((symbol, barIndex) => ({
-        startBeat: barIndex * 4,
-        endBeat: (barIndex + 1) * 4,
+        startTick: barIndex * 4 * 960,
+        endTick: (barIndex + 1) * 4 * 960,
         symbol,
       })),
     );

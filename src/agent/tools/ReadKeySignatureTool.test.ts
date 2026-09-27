@@ -5,6 +5,7 @@ import { KGCore } from '../../core/KGCore';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 describe('ReadKeySignatureTool', () => {
   beforeEach(() => {
@@ -21,8 +22,8 @@ describe('ReadKeySignatureTool', () => {
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     expect(track).not.toBeNull();
     track!.setRegions([
-      new KGKeySignatureRegion('region-2', track!.getId(), track!.getTrackIndex(), 'D major', 4, 4, 4),
-      new KGKeySignatureRegion('region-1', track!.getId(), track!.getTrackIndex(), 'G major', 0, 4, 4),
+      new KGKeySignatureRegion('region-2', track!.getId(), track!.getTrackIndex(), 'D major', 4, 4, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('region-1', track!.getId(), track!.getTrackIndex(), 'G major', 0, 4, 4 * TICKS_PER_QUARTER),
     ]);
 
     vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -34,7 +35,7 @@ describe('ReadKeySignatureTool', () => {
     const result = await tool.execute({});
 
     expect(result.success).toBe(true);
-    expect(result.result).toBe('[Beat: 0]: G major\n[Beat: 16]: D major');
+    expect(result.result).toBe('[Quarter-note: 0]: G major\n[Quarter-note: 16]: D major');
   });
 
   it('preserves line breaks in UI and history display content', () => {
@@ -64,7 +65,7 @@ describe('ReadKeySignatureTool', () => {
     const result = await tool.execute({});
 
     expect(result.success).toBe(true);
-    expect(result.result).toBe('[Beat: 0]: E minor');
+    expect(result.result).toBe('[Quarter-note: 0]: E minor');
   });
 
   it('returns a clean failure when the signature track is missing', async () => {

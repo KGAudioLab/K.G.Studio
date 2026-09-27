@@ -5,11 +5,14 @@ import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { quarterNotesToTicks } from '../../core/timing';
 
-function buildTrack(name: string, id: number, regionStartBeat: number, regionLength: number): KGMidiTrack {
+const q = quarterNotesToTicks;
+
+function buildTrack(name: string, id: number, regionStartTick: number, regionLength: number): KGMidiTrack {
   const track = new KGMidiTrack(name, id);
-  const region = new KGMidiRegion(`region-${id}`, track.getId().toString(), track.getTrackIndex(), `${name} Region`, regionStartBeat, regionLength);
-  region.addNote(new KGMidiNote(`note-${id}`, 0, 4, 60));
+  const region = new KGMidiRegion(`region-${id}`, track.getId().toString(), track.getTrackIndex(), `${name} Region`, q(regionStartTick), q(regionLength));
+  region.addNote(new KGMidiNote(`note-${id}`, 0, q(4), 60));
   track.setRegions([region]);
   return track;
 }
@@ -95,7 +98,7 @@ describe('ReadMusicTool', () => {
     const project = new KGProject('read-music-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const emptyTrack = new KGMidiTrack('Lead', 1);
     emptyTrack.setRegions([
-      new KGMidiRegion('region-1', emptyTrack.getId().toString(), emptyTrack.getTrackIndex(), 'Lead Region', 0, 36),
+      new KGMidiRegion('region-1', emptyTrack.getId().toString(), emptyTrack.getTrackIndex(), 'Lead Region', 0, q(36)),
     ]);
     project.setTracks([emptyTrack]);
 

@@ -1,17 +1,18 @@
 import { KGTrackAutomationPoint, type TrackAutomationType } from '../core/track/KGTrackAutomationPoint';
 import { AUDIO_INTERFACE_CONSTANTS } from '../constants/coreConstants';
+import { TICKS_PER_QUARTER } from '../core/timing';
 
 export interface TrackAutomationValuePoint {
-  beat: number;
+  tick: number;
   value: number;
 }
 
 export interface BakedTrackAutomationPoint {
-  beat: number;
+  tick: number;
   value: number;
 }
 
-const BEAT_EPSILON = 1e-9;
+const TICK_EPSILON = 0;
 const DEFAULT_TRACK_AUTOMATION_VALUES: Record<TrackAutomationType, number> = {
   volume: 0,
   pan: 0,
@@ -38,20 +39,20 @@ export function normalizeTrackAutomationPoints(
 ): TrackAutomationValuePoint[] {
   const normalized = [...points]
     .map(point => ({
-      beat: point instanceof KGTrackAutomationPoint ? point.getBeat() : point.beat,
+      tick: point instanceof KGTrackAutomationPoint ? point.getTick() : point.tick,
       value: point instanceof KGTrackAutomationPoint ? point.getValue() : point.value,
     }))
-    .filter(point => Number.isFinite(point.beat) && Number.isFinite(point.value))
+    .filter(point => Number.isFinite(point.tick) && Number.isFinite(point.value))
     .map(point => ({
-      beat: point.beat,
+      tick: Math.round(point.tick),
       value: clampTrackAutomationValue(type, point.value),
     }))
-    .sort((a, b) => a.beat - b.beat);
+    .sort((a, b) => a.tick - b.tick);
 
   const deduped: TrackAutomationValuePoint[] = [];
   normalized.forEach(point => {
     const lastPoint = deduped[deduped.length - 1];
-    if (lastPoint && Math.abs(lastPoint.beat - point.beat) <= BEAT_EPSILON) {
+    if (lastPoint && Math.abs(lastPoint.tick - point.tick) <= TICK_EPSILON) {
       deduped[deduped.length - 1] = point;
       return;
     }
@@ -64,18 +65,18 @@ export function normalizeTrackAutomationPoints(
 
 export function instantiateTrackAutomationPoints(
   type: TrackAutomationType,
-  points: Array<{ id: string; beat: number; value: number }>
+  points: Array<{ id: string; tick: number; value: number }>
 ): KGTrackAutomationPoint[] {
   return normalizeTrackAutomationPoints(points, type).map(point => {
-    const matchingSource = [...points].reverse().find(source => Math.abs(source.beat - point.beat) <= BEAT_EPSILON);
-    return new KGTrackAutomationPoint(matchingSource?.id ?? '', point.beat, point.value);
+    const matchingSource = [...points].reverse().find(source => Math.abs(source.tick - point.tick) <= TICK_EPSILON);
+    return new KGTrackAutomationPoint(matchingSource?.id ?? '', point.tick, point.value);
   });
 }
 
-export function resolveTrackAutomationValueAtBeat(
+export function resolveTrackAutomationValueAtTick(
   points: Array<TrackAutomationValuePoint | KGTrackAutomationPoint>,
   type: TrackAutomationType,
-  beat: number,
+  tick: number,
   defaultValue: number,
 ): number {
   const normalizedPoints = normalizeTrackAutomationPoints(points, type);
@@ -85,17 +86,17 @@ export function resolveTrackAutomationValueAtBeat(
 
   let previousPoint: TrackAutomationValuePoint | null = null;
   for (const point of normalizedPoints) {
-    if (beat < point.beat) {
+    if (tick < point.tick) {
       if (!previousPoint) {
         return defaultValue;
       }
 
-      const span = point.beat - previousPoint.beat;
-      if (Math.abs(span) <= BEAT_EPSILON) {
+      const span = point.tick - previousPoint.tick;
+      if (Math.abs(span) <= TICK_EPSILON) {
         return point.value;
       }
 
-      const ratio = (beat - previousPoint.beat) / span;
+      const ratio = (tick - previousPoint.tick) / span;
       return previousPoint.value + ((point.value - previousPoint.value) * ratio);
     }
 
@@ -108,19 +109,19 @@ export function resolveTrackAutomationValueAtBeat(
 export function bakeTrackAutomationPointsInWindow(
   points: Array<TrackAutomationValuePoint | KGTrackAutomationPoint>,
   type: TrackAutomationType,
-  windowStartBeat: number,
-  windowEndBeat: number,
+  windowStartTick: number,
+  windowEndTick: number,
   maxIntervalMs: number,
   bpm: number,
   defaultValue: number = getTrackAutomationDefaultValue(type),
 ): BakedTrackAutomationPoint[] {
   const normalizedPoints = normalizeTrackAutomationPoints(points, type);
   const anchorPoint = {
-    beat: windowStartBeat,
-    value: resolveTrackAutomationValueAtBeat(normalizedPoints, type, windowStartBeat, defaultValue),
+    tick: windowStartTick,
+    value: resolveTrackAutomationValueAtTick(normalizedPoints, type, windowStartTick, defaultValue),
   };
 
-  if (windowEndBeat <= windowStartBeat) {
+  if (windowEndTick <= windowStartTick) {
     return [anchorPoint];
   }
 
@@ -129,9 +130,9 @@ export function bakeTrackAutomationPointsInWindow(
     return baked;
   }
 
-  const maxIntervalBeats = !Number.isFinite(maxIntervalMs) || maxIntervalMs <= 0
+  const maxIntervalTicks = !Number.isFinite(maxIntervalMs) || maxIntervalMs <= 0
     ? Number.POSITIVE_INFINITY
-    : (maxIntervalMs / 1000) * (bpm / 60);
+    : Math.max(1, Math.round((maxIntervalMs / 1000) * (bpm / 60) * TICKS_PER_QUARTER));
 
   const appendPoint = (point: BakedTrackAutomationPoint) => {
     const lastPoint = baked[baked.length - 1];
@@ -140,12 +141,12 @@ export function bakeTrackAutomationPointsInWindow(
       return;
     }
 
-    if (Math.abs(lastPoint.beat - point.beat) <= BEAT_EPSILON) {
+    if (Math.abs(lastPoint.tick - point.tick) <= TICK_EPSILON) {
       baked[baked.length - 1] = point;
       return;
     }
 
-    if (Math.abs(lastPoint.value - point.value) <= BEAT_EPSILON) {
+    if (Math.abs(lastPoint.value - point.value) <= TICK_EPSILON) {
       return;
     }
 
@@ -153,7 +154,7 @@ export function bakeTrackAutomationPointsInWindow(
   };
 
   normalizedPoints.forEach(point => {
-    if (point.beat > windowStartBeat && point.beat < windowEndBeat) {
+    if (point.tick > windowStartTick && point.tick < windowEndTick) {
       appendPoint(point);
     }
   });
@@ -161,31 +162,31 @@ export function bakeTrackAutomationPointsInWindow(
   for (let index = 0; index < normalizedPoints.length - 1; index += 1) {
     const startPoint = normalizedPoints[index];
     const endPoint = normalizedPoints[index + 1];
-    const overlapStartBeat = Math.max(windowStartBeat, startPoint.beat);
-    const overlapEndBeat = Math.min(windowEndBeat, endPoint.beat);
+    const overlapStartTick = Math.max(windowStartTick, startPoint.tick);
+    const overlapEndTick = Math.min(windowEndTick, endPoint.tick);
 
-    if (overlapEndBeat - overlapStartBeat <= BEAT_EPSILON) {
+    if (overlapEndTick - overlapStartTick <= TICK_EPSILON) {
       continue;
     }
 
-    if (Math.abs(startPoint.value - endPoint.value) <= BEAT_EPSILON) {
+    if (Math.abs(startPoint.value - endPoint.value) <= TICK_EPSILON) {
       continue;
     }
 
-    const segmentLengthBeats = overlapEndBeat - overlapStartBeat;
-    const segmentCount = Number.isFinite(maxIntervalBeats)
-      ? Math.max(1, Math.ceil(segmentLengthBeats / maxIntervalBeats))
+    const segmentLengthTicks = overlapEndTick - overlapStartTick;
+    const segmentCount = Number.isFinite(maxIntervalTicks)
+      ? Math.max(1, Math.ceil(segmentLengthTicks / maxIntervalTicks))
       : 1;
 
     for (let segmentIndex = 1; segmentIndex <= segmentCount; segmentIndex += 1) {
-      const beat = overlapStartBeat + ((segmentLengthBeats * segmentIndex) / segmentCount);
-      if (beat >= windowEndBeat - BEAT_EPSILON) {
+      const tick = Math.round(overlapStartTick + ((segmentLengthTicks * segmentIndex) / segmentCount));
+      if (tick >= windowEndTick - TICK_EPSILON) {
         continue;
       }
 
-      const ratio = (beat - startPoint.beat) / (endPoint.beat - startPoint.beat);
+      const ratio = (tick - startPoint.tick) / (endPoint.tick - startPoint.tick);
       appendPoint({
-        beat,
+        tick,
         value: clampTrackAutomationValue(type, startPoint.value + ((endPoint.value - startPoint.value) * ratio)),
       });
     }

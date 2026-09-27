@@ -76,7 +76,7 @@ describe('audio tempo detection', () => {
       getGlobalTrackByType: () => null,
     } as unknown as KGProject;
     const region = {
-      getStartFromBeat: () => 8,
+      getStartTick: () => 8,
       getLength: () => 16,
       getAudioDurationSeconds: () => 20,
       getClipStartOffsetSeconds: () => 1.25,

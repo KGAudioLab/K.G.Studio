@@ -17,8 +17,8 @@ interface GlobalMarkerLaneProps {
   onCancelEdit: () => void;
   onBeginEdit: (regionId: string) => void;
   onSelectRegion: (regionId: string, options?: RegionClickOptions) => void;
-  onCreateAtBeat: (startBeat: number) => void;
-  onMoveRegion: (regionId: string, startBeat: number) => void;
+  onCreateAtTick: (startTick: number) => void;
+  onMoveRegion: (regionId: string, startTick: number) => void;
   onResizeRegion: (regionId: string, edge: 'start' | 'end', beat: number) => void;
 }
 
@@ -45,53 +45,54 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
   onCancelEdit,
   onBeginEdit,
   onSelectRegion,
-  onCreateAtBeat,
+  onCreateAtTick,
   onMoveRegion,
   onResizeRegion,
 }) => {
   const laneRef = useRef<HTMLDivElement | null>(null);
-  const [previewBeats, setPreviewBeats] = useState<Record<string, { startBeat: number; length: number }>>({});
+  const [previewTicks, setPreviewBeats] = useState<Record<string, { startTick: number; length: number }>>({});
   const [hoverEdges, setHoverEdges] = useState<Record<string, ResizeEdge>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
   const interactionRef = useRef<{
     mode: 'drag' | 'resize' | null;
     regionId: string;
     initialMouseX: number;
-    initialStartBeat: number;
+    initialStartTick: number;
     initialLength: number;
     resizeEdge: ResizeEdge;
     moved: boolean;
   } | null>(null);
 
-  const totalBeats = maxBars * timeSignature.numerator;
+  const totalTicks = maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
   const beatWidth = useMemo(() => {
     const barWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
     return barWidth / timeSignature.numerator;
   }, [barWidthMultiplier, timeSignature.numerator]);
 
-  const clampStartBeat = (value: number) => Math.max(0, Math.min(totalBeats - 1, value));
-  const clampEndBeat = (value: number) => Math.max(1, Math.min(totalBeats, value));
-  const beatsPerBar = timeSignature.numerator;
+  const clampStartTick = (value: number) => Math.max(0, Math.min(totalTicks - 1, value));
+  const clampEndTick = (value: number) => Math.max(1, Math.min(totalTicks, value));
+  const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+  const ticksPerMeterBeat = ticksPerBar / timeSignature.numerator;
 
-  const getBeatFromClientX = (clientX: number, mode: 'start' | 'end' = 'start') => {
+  const getTickFromClientX = (clientX: number, mode: 'start' | 'end' = 'start') => {
     if (!laneRef.current) return 0;
     const rect = laneRef.current.getBoundingClientRect();
     const relativeX = clientX - rect.left;
-    const rawBeat = relativeX / beatWidth;
+    const rawTick = (relativeX / beatWidth) * ticksPerMeterBeat;
     return mode === 'end'
-      ? clampEndBeat(Math.round(rawBeat))
-      : clampStartBeat(Math.round(rawBeat));
+      ? clampEndTick(Math.round(rawTick))
+      : clampStartTick(Math.round(rawTick));
   };
 
-  const getBarSnappedBeatFromClientX = (clientX: number) => {
-    const beat = getBeatFromClientX(clientX);
-    return clampStartBeat(Math.floor(beat / beatsPerBar) * beatsPerBar);
+  const getBarSnappedTickFromClientX = (clientX: number) => {
+    const beat = getTickFromClientX(clientX);
+    return clampStartTick(Math.floor(beat / ticksPerBar) * ticksPerBar);
   };
 
-  const getRenderedBeatState = (region: KGMarkerRegion) => (
-    previewBeats[region.getId()] ?? {
-      startBeat: region.getStartFromBeat(),
-      length: region.getLength(),
+  const getRenderedTickState = (region: KGMarkerRegion) => (
+    previewTicks[region.getId()] ?? {
+      startTick: region.getStartTick(),
+      length: region.getLengthTicks(),
     }
   );
 
@@ -145,11 +146,11 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
       }
 
       if (interaction.mode === 'drag') {
-        const beatDelta = Math.round(deltaX / beatWidth);
-        const nextStartBeat = clampStartBeat(interaction.initialStartBeat + beatDelta);
+        const tickDelta = Math.round((deltaX / beatWidth) * ticksPerMeterBeat);
+        const nextStartTick = clampStartTick(interaction.initialStartTick + tickDelta);
         setPreviewBeats({
           [interaction.regionId]: {
-            startBeat: nextStartBeat,
+            startTick: nextStartTick,
             length: interaction.initialLength,
           },
         });
@@ -157,18 +158,18 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
       }
 
       if (interaction.mode === 'resize') {
-        const desiredBeat = getBeatFromClientX(
+        const desiredTick = getTickFromClientX(
           event.clientX,
           interaction.resizeEdge === 'end' ? 'end' : 'start'
         );
 
         if (interaction.resizeEdge === 'start') {
-          const nextStartBeat = Math.min(desiredBeat, interaction.initialStartBeat + interaction.initialLength - 1);
-          const endBeat = interaction.initialStartBeat + interaction.initialLength;
+          const nextStartTick = Math.min(desiredTick, interaction.initialStartTick + interaction.initialLength - 1);
+          const endTick = interaction.initialStartTick + interaction.initialLength;
           setPreviewBeats({
             [interaction.regionId]: {
-              startBeat: nextStartBeat,
-              length: Math.max(1, endBeat - nextStartBeat),
+              startTick: nextStartTick,
+              length: Math.max(1, endTick - nextStartTick),
             },
           });
           return;
@@ -176,8 +177,8 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
 
         setPreviewBeats({
           [interaction.regionId]: {
-            startBeat: interaction.initialStartBeat,
-            length: Math.max(1, desiredBeat - interaction.initialStartBeat),
+            startTick: interaction.initialStartTick,
+            length: Math.max(1, desiredTick - interaction.initialStartTick),
           },
         });
       }
@@ -195,7 +196,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
         return;
       }
 
-      const preview = previewBeats[interaction.regionId];
+      const preview = previewTicks[interaction.regionId];
       setPreviewBeats({});
 
       if (!preview) {
@@ -203,14 +204,14 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
       }
 
       if (interaction.mode === 'drag') {
-        onMoveRegion(interaction.regionId, preview.startBeat);
+        onMoveRegion(interaction.regionId, preview.startTick);
         return;
       }
 
       if (interaction.mode === 'resize' && interaction.resizeEdge) {
         const beat = interaction.resizeEdge === 'start'
-          ? preview.startBeat
-          : preview.startBeat + preview.length;
+          ? preview.startTick
+          : preview.startTick + preview.length;
         onResizeRegion(interaction.regionId, interaction.resizeEdge, beat);
       }
     };
@@ -221,7 +222,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [beatWidth, onMoveRegion, onResizeRegion, onSelectRegion, previewBeats, totalBeats]);
+  }, [beatWidth, onMoveRegion, onResizeRegion, onSelectRegion, previewTicks, totalTicks]);
 
   const handleLaneMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -231,7 +232,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
 
     event.preventDefault();
     event.stopPropagation();
-    onCreateAtBeat(getBarSnappedBeatFromClientX(event.clientX));
+    onCreateAtTick(getBarSnappedTickFromClientX(event.clientX));
   };
 
   const handleLaneDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -240,7 +241,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
 
     event.preventDefault();
     event.stopPropagation();
-    onCreateAtBeat(getBarSnappedBeatFromClientX(event.clientX));
+    onCreateAtTick(getBarSnappedTickFromClientX(event.clientX));
   };
 
   return (
@@ -251,11 +252,11 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
       onDoubleClick={handleLaneDoubleClick}
     >
       {markerRegions.map(region => {
-        const { startBeat, length } = getRenderedBeatState(region);
+        const { startTick, length } = getRenderedTickState(region);
         const isSelected = selectedRegionIds.includes(region.getId());
         const isEditing = editingRegionId === region.getId();
-        const left = startBeat * beatWidth;
-        const width = Math.max(beatWidth, length * beatWidth);
+        const left = (startTick / ticksPerMeterBeat) * beatWidth;
+        const width = Math.max(1, (length / ticksPerMeterBeat) * beatWidth);
 
         return (
           <div
@@ -314,8 +315,8 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
                 mode: resizeEdge ? 'resize' : 'drag',
                 regionId: region.getId(),
                 initialMouseX: event.clientX,
-                initialStartBeat: region.getStartFromBeat(),
-                initialLength: region.getLength(),
+                initialStartTick: region.getStartTick(),
+                initialLength: region.getLengthTicks(),
                 resizeEdge,
                 moved: false,
               };

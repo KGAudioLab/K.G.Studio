@@ -14,16 +14,16 @@ export class ImportMidiClipCommand extends KGCommand {
   private trackIndex: number;
   private regionId: string;
   private regionName: string;
-  private startBeat: number;
-  private lengthInBeats: number;
+  private startTick: number;
+  private lengthTicks: number;
   private rawNotes: RawMidiNote[];
   private createdRegion: KGMidiRegion | null = null;
 
   constructor(
     trackId: string,
     trackIndex: number,
-    startBeat: number,
-    lengthInBeats: number,
+    startTick: number,
+    lengthTicks: number,
     rawNotes: RawMidiNote[],
     regionName?: string,
     regionId?: string
@@ -31,8 +31,8 @@ export class ImportMidiClipCommand extends KGCommand {
     super();
     this.trackId = trackId;
     this.trackIndex = trackIndex;
-    this.startBeat = startBeat;
-    this.lengthInBeats = lengthInBeats;
+    this.startTick = startTick;
+    this.lengthTicks = lengthTicks;
     this.rawNotes = rawNotes;
     this.regionId = regionId || generateUniqueId('KGMidiRegion');
     this.regionName = regionName || 'KGOne Clip';
@@ -52,16 +52,16 @@ export class ImportMidiClipCommand extends KGCommand {
       this.trackId,
       this.trackIndex,
       this.regionName,
-      this.startBeat,
-      this.lengthInBeats
+      this.startTick,
+      this.lengthTicks
     );
 
     // Populate notes
     for (const raw of this.rawNotes) {
       const note = new KGMidiNote(
         generateUniqueId('KGMidiNote'),
-        raw.startBeat,
-        raw.endBeat,
+        raw.startTick,
+        raw.endTick,
         raw.pitch,
         raw.velocity
       );
@@ -69,7 +69,7 @@ export class ImportMidiClipCommand extends KGCommand {
     }
 
     track.addRegion(this.createdRegion);
-    console.log(`Imported MIDI clip "${this.regionName}" (${this.rawNotes.length} notes) at beat ${this.startBeat}`);
+    console.log(`Imported MIDI clip "${this.regionName}" (${this.rawNotes.length} notes) at beat ${this.startTick}`);
   }
 
   undo(): void {
@@ -98,15 +98,15 @@ export class ImportMidiClipCommand extends KGCommand {
     trackIndex: number,
     barNumber: number,
     lengthInBars: number,
-    beatsPerBar: number,
+    ticksPerBar: number,
     rawNotes: RawMidiNote[],
     regionName?: string,
     regionId?: string
   ): ImportMidiClipCommand {
-    const startBeat = (barNumber - 1) * beatsPerBar;
-    const lengthInBeats = lengthInBars * beatsPerBar;
+    const startTick = (barNumber - 1) * ticksPerBar;
+    const lengthTicks = lengthInBars * ticksPerBar;
     return new ImportMidiClipCommand(
-      trackId, trackIndex, startBeat, lengthInBeats,
+      trackId, trackIndex, startTick, lengthTicks,
       rawNotes, regionName, regionId
     );
   }

@@ -55,8 +55,8 @@ describe('audio chord detection fixture', () => {
     const { sampleRate, pcm } = decodeMp3ToMonoPcm(FIXTURE_PATH);
     const windows = Array.from({ length: 9 }, (_, barIndex) => ({
       barIndex,
-      startBeat: barIndex * 4,
-      endBeat: (barIndex + 1) * 4,
+      startTick: barIndex * 4,
+      endTick: (barIndex + 1) * 4,
       startSeconds: barIndex * BAR_DURATION_SECONDS,
       endSeconds: (barIndex + 1) * BAR_DURATION_SECONDS,
     }));
@@ -86,8 +86,8 @@ describe('audio chord detection fixture', () => {
     const { sampleRate, pcm } = decodeMp3ToMonoPcm(FIXTURE_PATH);
     const windows = Array.from({ length: 9 }, (_, barIndex) => ({
       barIndex,
-      startBeat: barIndex * 4,
-      endBeat: (barIndex + 1) * 4,
+      startTick: barIndex * 4,
+      endTick: (barIndex + 1) * 4,
       startSeconds: barIndex * BAR_DURATION_SECONDS,
       endSeconds: (barIndex + 1) * BAR_DURATION_SECONDS,
     }));

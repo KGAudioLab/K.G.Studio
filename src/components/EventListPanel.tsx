@@ -25,7 +25,7 @@ const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
     selectedTrackId,
     maxBars,
     timeSignature,
-    playheadPosition,
+    playheadTick,
     refreshProjectState,
   } = useProjectStore();
   const [scopeTab, setScopeTab] = useState<ScopeTab>('region');
@@ -96,7 +96,7 @@ const EventListPanel: React.FC<EventListPanelProps> = ({ isVisible }) => {
             selectedRegionIds={selectedRegionIds}
             maxBars={maxBars}
             timeSignature={timeSignature}
-            playheadPosition={playheadPosition}
+            playheadTick={playheadTick}
             refreshProjectState={refreshProjectState}
           />
         )}

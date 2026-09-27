@@ -67,7 +67,7 @@ export class PasteRegionsCommand extends KGCommand {
     this.createdRegions = [];
 
     // Calculate the base position from the first region to maintain relative positions
-    const basePosition = this.sourceRegions[0].getStartFromBeat();
+    const basePosition = this.sourceRegions[0].getStartTick();
 
     const regionsToAdd: Array<{ targetTrack: KGTrack; region: KGRegion }> = [];
 
@@ -79,7 +79,7 @@ export class PasteRegionsCommand extends KGCommand {
       const newId = generateUniqueId('KGMidiRegion');
       
       // Calculate new position maintaining relative offset
-      const relativeOffset = originalRegion.getStartFromBeat() - basePosition;
+      const relativeOffset = originalRegion.getStartTick() - basePosition;
       const newPosition = this.pastePosition + relativeOffset;
       
       // Create a copy of the region with new position and ID
@@ -92,7 +92,7 @@ export class PasteRegionsCommand extends KGCommand {
           targetTrack.getTrackIndex(),
           `${originalRegion.getName()} (Copy)`,
           newPosition,
-          originalRegion.getLength()
+          originalRegion.getLengthTicks()
         );
         newRegion.setColor(originalRegion.getColor());
         
@@ -101,8 +101,8 @@ export class PasteRegionsCommand extends KGCommand {
         originalNotes.forEach(note => {
           const copiedNote = new KGMidiNote(
             generateUniqueId('KGMidiNote'),
-            note.getStartBeat(),
-            note.getEndBeat(),
+            note.getStartTick(),
+            note.getEndTick(),
             note.getPitch(),
             note.getVelocity()
           );
@@ -111,7 +111,7 @@ export class PasteRegionsCommand extends KGCommand {
         originalRegion.getPitchBends().forEach(pitchBend => {
           (newRegion as KGMidiRegion).addPitchBend(new KGMidiPitchBend(
             generateUniqueId('KGMidiPitchBend'),
-            pitchBend.getBeat(),
+            pitchBend.getTick(),
             pitchBend.getValue()
           ));
         });
@@ -119,7 +119,7 @@ export class PasteRegionsCommand extends KGCommand {
           events.forEach(controllerEvent => {
             (newRegion as KGMidiRegion).addControllerEvent(controller, new KGMidiControllerEvent(
               generateUniqueId('KGMidiControllerEvent'),
-              controllerEvent.getBeat(),
+              controllerEvent.getTick(),
               controllerEvent.getValue()
             ));
           });
@@ -133,7 +133,7 @@ export class PasteRegionsCommand extends KGCommand {
           targetTrack.getTrackIndex(),
           `${originalRegion.getName()} (Copy)`,
           newPosition,
-          originalRegion.getLength(),
+          originalRegion.getLengthTicks(),
           originalRegion.getAudioFileId(),
           originalRegion.getAudioFileName(),
           originalRegion.getAudioDurationSeconds(),
@@ -150,7 +150,7 @@ export class PasteRegionsCommand extends KGCommand {
           targetTrack.getTrackIndex(),
           `${originalRegion.getName()} (Copy)`,
           newPosition,
-          originalRegion.getLength()
+          originalRegion.getLengthTicks()
         );
         newRegion.setColor(originalRegion.getColor());
         
@@ -169,7 +169,7 @@ export class PasteRegionsCommand extends KGCommand {
     });
 
     const latestRegionEnd = this.createdRegions.reduce((maxEnd, region) => (
-      Math.max(maxEnd, region.getStartFromBeat() + region.getLength())
+      Math.max(maxEnd, region.getStartTick() + region.getLengthTicks())
     ), this.pastePosition);
     const requiredMaxBars = Math.ceil(latestRegionEnd / currentProject.getTimeSignature().numerator);
     if (requiredMaxBars > this.maxBarsBeforeExecution) {

@@ -8,8 +8,9 @@ export function upgradeToV14(project: KGProject): KGProject {
 
     const signatureTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Signature);
     if (signatureTrack) {
-      const beatsPerBar = project.getTimeSignature().numerator;
-      const regions = getSortedKeySignatureRegions(signatureTrack, beatsPerBar);
+      const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+      const regions = getSortedKeySignatureRegions(signatureTrack, ticksPerBar);
       signatureTrack.setRegions(regions);
     }
   } finally {

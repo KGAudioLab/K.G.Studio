@@ -12,7 +12,7 @@ import { KGMidiPitchBend } from './midi/KGMidiPitchBend';
 import { KGRegion } from './region/KGRegion';
 import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
-import { getEffectiveBpmAtBeat } from '../util/globalTrackUtil';
+import { getEffectiveBpmAtTick } from '../util/globalTrackUtil';
 import type { ChordGuideData } from './ChordGuideTypes';
 
 interface PlaybackStartOptions {
@@ -39,7 +39,7 @@ export class KGCore {
 
   private status: string = "Ready";
 
-  private playheadPosition: number = 0;  // in beats
+  private playheadTick: number = 0;  // in beats
 
   private selectedItems: Selectable[] = [];
   private copiedItems: Selectable[] = [];
@@ -57,7 +57,7 @@ export class KGCore {
   // Callback for external state updates (e.g., store)
   private playheadUpdateCallback: ((position: number) => void) | null = null;
   private playbackStateChangeCallback: ((isPlaying: boolean) => void) | null = null;
-  private loopBoundaryReachedCallback: ((loopEndBeat: number) => void) | null = null;
+  private loopBoundaryReachedCallback: ((loopEndTick: number) => void) | null = null;
 
   // Selection change callbacks for store synchronization
   private selectionChangeCallbacks: (() => void)[] = [];
@@ -158,7 +158,7 @@ export class KGCore {
     try {
       const audioInterface = KGAudioInterface.instance();
       if (audioInterface.getIsInitialized()) {
-        audioInterface.setBpm(getEffectiveBpmAtBeat(project, 0));
+        audioInterface.setBpm(getEffectiveBpmAtTick(project, 0));
       }
     } catch (error) {
       console.error('Error syncing project with audio interface:', error);
@@ -173,12 +173,12 @@ export class KGCore {
     return this.status;
   }
 
-  public getPlayheadPosition(): number {
-    return this.playheadPosition;
+  public getPlayheadTick(): number {
+    return this.playheadTick;
   }
 
-  public setPlayheadPosition(position: number): void {
-    this.playheadPosition = position;
+  public setPlayheadTick(position: number): void {
+    this.playheadTick = position;
     
     // Sync with audio interface transport if not playing
     // (During playback, audio interface controls transport position)
@@ -209,7 +209,7 @@ export class KGCore {
     this.playbackStateChangeCallback = callback;
   }
 
-  public setLoopBoundaryReachedCallback(callback: ((loopEndBeat: number) => void) | null): void {
+  public setLoopBoundaryReachedCallback(callback: ((loopEndTick: number) => void) | null): void {
     this.loopBoundaryReachedCallback = callback;
   }
 
@@ -258,10 +258,10 @@ export class KGCore {
       await audioInterface.startAudioContext();
       
       // Prepare playback with current project and playhead position
-      audioInterface.preparePlayback(this.currentProject, this.playheadPosition, {
+      audioInterface.preparePlayback(this.currentProject, this.playheadTick, {
         allowStartBeforeLoopStart: options?.preserveLoopPreroll ?? false,
       });
-      audioInterface.setTransportPosition(this.playheadPosition);
+      audioInterface.setTransportPosition(this.playheadTick);
       
       console.log("Playback prepared successfully");
     } catch (error) {
@@ -335,10 +335,11 @@ export class KGCore {
 
       // Move playhead to loop start (use updated range if [0,0] was just set)
       const updatedRange = this.currentProject.getLoopingRange();
-      const beatsPerBar = this.currentProject.getTimeSignature().numerator;
-      const loopStartBeats = updatedRange[0] * beatsPerBar;
+      const currentTimeSignature = this.currentProject.getTimeSignature();
+      const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
+      const loopStartTicks = updatedRange[0] * ticksPerBar;
       if (!options?.preserveLoopPreroll) {
-        this.setPlayheadPosition(loopStartBeats);
+        this.setPlayheadTick(loopStartTicks);
       }
     }
 
@@ -350,7 +351,7 @@ export class KGCore {
 
     // Set up the regular playback update timer
     this.playbackStartTime = performance.now();
-    this.playbackStartPosition = this.playheadPosition;
+    this.playbackStartPosition = this.playheadTick;
 
     this.startPlaybackUpdates();
 
@@ -368,12 +369,12 @@ export class KGCore {
   /**
    * Restart active playback from an explicit project beat without exposing an
    * intermediate stopped state to UI listeners. Ordinary playhead updates must
-   * continue to use setPlayheadPosition so transport timer ticks do not restart
+   * continue to use setPlayheadTick so transport timer ticks do not restart
    * playback.
    */
   public async seekDuringPlayback(position: number): Promise<boolean> {
     if (!this.isPlaying) {
-      this.setPlayheadPosition(position);
+      this.setPlayheadTick(position);
       return true;
     }
 
@@ -382,11 +383,12 @@ export class KGCore {
       const endBar = startBar === 0 && endBarOriginal === 0
         ? this.currentProject.getMaxBars()
         : endBarOriginal;
-      const beatsPerBar = this.currentProject.getTimeSignature().numerator;
-      const loopStartBeat = startBar * beatsPerBar;
-      const loopEndBeat = (endBar + 1) * beatsPerBar;
+      const currentTimeSignature = this.currentProject.getTimeSignature();
+      const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
+      const loopStartTick = startBar * ticksPerBar;
+      const loopEndTick = (endBar + 1) * ticksPerBar;
 
-      if (position < loopStartBeat || position >= loopEndBeat) {
+      if (position < loopStartTick || position >= loopEndTick) {
         return false;
       }
     }
@@ -395,7 +397,7 @@ export class KGCore {
     const seekGeneration = ++this.playbackSeekGeneration;
     this.stopPlaybackUpdates();
     audioInterface.stopPlayback();
-    this.setPlayheadPosition(position);
+    this.setPlayheadTick(position);
 
     try {
       await audioInterface.startAudioContext();
@@ -459,37 +461,38 @@ export class KGCore {
     let newPosition = audioInterface.getTransportPosition();
 
     // Handle looping or end-of-project
-    const beatsPerBar = this.currentProject.getTimeSignature().numerator;
+    const currentTimeSignature = this.currentProject.getTimeSignature();
+      const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
 
     if (this.currentProject.getIsLooping()) {
       // Loop mode: wrap playhead when it reaches loop end
       const [startBar, endBarOriginal] = this.currentProject.getLoopingRange();
       const endBar = (startBar === 0 && endBarOriginal === 0) ? this.currentProject.getMaxBars() : endBarOriginal;
 
-      const loopStartBeats = startBar * beatsPerBar;
-      const loopEndBeats = (endBar + 1) * beatsPerBar; // +1 because endBar is inclusive
-      const previousPosition = this.playheadPosition;
+      const loopStartTicks = startBar * ticksPerBar;
+      const loopEndTicks = (endBar + 1) * ticksPerBar; // +1 because endBar is inclusive
+      const previousPosition = this.playheadTick;
 
       // Tone.Transport position wraps back to loop start. Preserve the loop-end callback behavior.
-      if (this.loopBoundaryReachedCallback && previousPosition < loopEndBeats && newPosition < previousPosition) {
+      if (this.loopBoundaryReachedCallback && previousPosition < loopEndTicks && newPosition < previousPosition) {
         if (this.loopBoundaryReachedCallback) {
           const callback = this.loopBoundaryReachedCallback;
           this.loopBoundaryReachedCallback = null;
-          this.setPlayheadPosition(loopEndBeats);
-          callback(loopEndBeats);
+          this.setPlayheadTick(loopEndTicks);
+          callback(loopEndTicks);
           return;
         }
       }
 
-      newPosition = Math.max(loopStartBeats, Math.min(newPosition, loopEndBeats));
+      newPosition = Math.max(loopStartTicks, Math.min(newPosition, loopEndTicks));
     } else {
       // Non-looping mode: stop at project end
       const maxBars = this.currentProject.getMaxBars();
-      const maxBeats = maxBars * beatsPerBar;
+      const maxBeats = maxBars * ticksPerBar;
 
       if (newPosition >= maxBeats) {
         // Clamp to max and stop
-        this.setPlayheadPosition(maxBeats);
+        this.setPlayheadTick(maxBeats);
         // Stop playback (non-blocking)
         this.stopPlaying();
         return;
@@ -497,7 +500,7 @@ export class KGCore {
     }
 
     // Update playhead position
-    this.setPlayheadPosition(newPosition);
+    this.setPlayheadTick(newPosition);
 
     // TODO: Future enhancements
     // - Sync with Tone.Transport position for more accurate timing
@@ -580,8 +583,8 @@ export class KGCore {
           const note = item as KGMidiNote;
           const clonedNote = new KGMidiNote(
             generateUniqueId('KGMidiNote'),
-            note.getStartBeat(),
-            note.getEndBeat(),
+            note.getStartTick(),
+            note.getEndTick(),
             note.getPitch(),
             note.getVelocity()
           );
@@ -596,8 +599,8 @@ export class KGCore {
             region.getTrackId(),
             region.getTrackIndex(),
             region.getName(),
-            region.getStartFromBeat(),
-            region.getLength()
+            region.getStartTick(),
+            region.getLengthTicks()
           );
           clonedRegion.setColor(region.getColor());
           
@@ -606,8 +609,8 @@ export class KGCore {
           originalNotes.forEach(note => {
             const clonedNote = new KGMidiNote(
               generateUniqueId('KGMidiNote'),
-              note.getStartBeat(),
-              note.getEndBeat(),
+              note.getStartTick(),
+              note.getEndTick(),
               note.getPitch(),
               note.getVelocity()
             );
@@ -616,7 +619,7 @@ export class KGCore {
           region.getPitchBends().forEach(pitchBend => {
             clonedRegion.addPitchBend(new KGMidiPitchBend(
               generateUniqueId('KGMidiPitchBend'),
-              pitchBend.getBeat(),
+              pitchBend.getTick(),
               pitchBend.getValue()
             ));
           });
@@ -624,7 +627,7 @@ export class KGCore {
             events.forEach(controllerEvent => {
               clonedRegion.addControllerEvent(controller, new KGMidiControllerEvent(
                 generateUniqueId('KGMidiControllerEvent'),
-                controllerEvent.getBeat(),
+                controllerEvent.getTick(),
                 controllerEvent.getValue()
               ));
             });
@@ -641,8 +644,8 @@ export class KGCore {
             region.getTrackId(),
             region.getTrackIndex(),
             region.getName(),
-            region.getStartFromBeat(),
-            region.getLength(),
+            region.getStartTick(),
+            region.getLengthTicks(),
             region.getAudioFileId(),
             region.getAudioFileName(),
             region.getAudioDurationSeconds(),
@@ -660,8 +663,8 @@ export class KGCore {
             region.getTrackId(),
             region.getTrackIndex(),
             region.getName(),
-            region.getStartFromBeat(),
-            region.getLength()
+            region.getStartTick(),
+            region.getLengthTicks()
           );
           clonedRegion.setColor(region.getColor());
           clonedItems.push(clonedRegion);

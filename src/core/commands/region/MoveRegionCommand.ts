@@ -10,22 +10,22 @@ import { KGTrack } from '../../track/KGTrack';
  */
 export class MoveRegionCommand extends KGCommand {
   private regionId: string;
-  private newStartFromBeat: number;
+  private newStartTick: number;
   private newTrackId: string;
   private newTrackIndex: number;
   
   // Original state for undo
-  private originalStartFromBeat: number = 0;
+  private originalStartTick: number = 0;
   private originalTrackId: string = '';
   private originalTrackIndex: number = 0;
   private targetRegion: KGRegion | null = null;
   private originalTrack: KGTrack | null = null;
   private targetTrack: KGTrack | null = null;
 
-  constructor(regionId: string, newStartFromBeat: number, newTrackId: string, newTrackIndex: number) {
+  constructor(regionId: string, newStartTick: number, newTrackId: string, newTrackIndex: number) {
     super();
     this.regionId = regionId;
-    this.newStartFromBeat = newStartFromBeat;
+    this.newStartTick = newStartTick;
     this.newTrackId = newTrackId;
     this.newTrackIndex = newTrackIndex;
   }
@@ -64,7 +64,7 @@ export class MoveRegionCommand extends KGCommand {
     this.targetTrack = targetTrack;
 
     // Store original values for undo
-    this.originalStartFromBeat = targetRegion.getStartFromBeat();
+    this.originalStartTick = targetRegion.getStartTick();
     this.originalTrackId = targetRegion.getTrackId();
     this.originalTrackIndex = targetRegion.getTrackIndex();
 
@@ -84,12 +84,12 @@ export class MoveRegionCommand extends KGCommand {
     }
 
     // Update region properties
-    targetRegion.setStartFromBeat(this.newStartFromBeat);
+    targetRegion.setStartTick(this.newStartTick);
     targetRegion.setTrackId(this.newTrackId);
     targetRegion.setTrackIndex(this.newTrackIndex);
 
     const regionName = targetRegion.getName();
-    console.log(`Moved region "${regionName}": position ${this.originalStartFromBeat} → ${this.newStartFromBeat}, track ${this.originalTrackIndex} → ${this.newTrackIndex}`);
+    console.log(`Moved region "${regionName}": position ${this.originalStartTick} → ${this.newStartTick}, track ${this.originalTrackIndex} → ${this.newTrackIndex}`);
   }
 
   undo(): void {
@@ -113,12 +113,12 @@ export class MoveRegionCommand extends KGCommand {
     }
 
     // Restore original region properties
-    this.targetRegion.setStartFromBeat(this.originalStartFromBeat);
+    this.targetRegion.setStartTick(this.originalStartTick);
     this.targetRegion.setTrackId(this.originalTrackId);
     this.targetRegion.setTrackIndex(this.originalTrackIndex);
 
     const regionName = this.targetRegion.getName();
-    console.log(`Restored region "${regionName}": position ${this.newStartFromBeat} → ${this.originalStartFromBeat}, track ${this.newTrackIndex} → ${this.originalTrackIndex}`);
+    console.log(`Restored region "${regionName}": position ${this.newStartTick} → ${this.originalStartTick}, track ${this.newTrackIndex} → ${this.originalTrackIndex}`);
   }
 
   getDescription(): string {
@@ -126,7 +126,7 @@ export class MoveRegionCommand extends KGCommand {
     
     // Check if it's a track change or position change
     const isTrackChange = this.originalTrackId !== this.newTrackId;
-    const isPositionChange = this.originalStartFromBeat !== this.newStartFromBeat;
+    const isPositionChange = this.originalStartTick !== this.newStartTick;
     
     if (isTrackChange && isPositionChange) {
       return `Move region "${regionName}" to different track and position`;
@@ -149,8 +149,8 @@ export class MoveRegionCommand extends KGCommand {
   /**
    * Get the new start position
    */
-  public getNewStartFromBeat(): number {
-    return this.newStartFromBeat;
+  public getNewStartTick(): number {
+    return this.newStartTick;
   }
 
   /**
@@ -170,8 +170,8 @@ export class MoveRegionCommand extends KGCommand {
   /**
    * Get the original start position (only available after execute)
    */
-  public getOriginalStartFromBeat(): number {
-    return this.originalStartFromBeat;
+  public getOriginalStartTick(): number {
+    return this.originalStartTick;
   }
 
   /**
@@ -205,10 +205,10 @@ export class MoveRegionCommand extends KGCommand {
     newTrackIndex: number,
     timeSignature: { numerator: number; denominator: number }
   ): MoveRegionCommand {
-    const beatsPerBar = timeSignature.numerator;
-    const newStartFromBeat = (newBarNumber - 1) * beatsPerBar;
+    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
+    const newStartTick = (newBarNumber - 1) * ticksPerBar;
     
-    return new MoveRegionCommand(regionId, newStartFromBeat, newTrackId, newTrackIndex);
+    return new MoveRegionCommand(regionId, newStartTick, newTrackId, newTrackIndex);
   }
 
   /**
@@ -216,11 +216,11 @@ export class MoveRegionCommand extends KGCommand {
    */
   public static createPositionOnlyMove(
     regionId: string, 
-    newStartFromBeat: number, 
+    newStartTick: number,
     currentTrackId: string, 
     currentTrackIndex: number
   ): MoveRegionCommand {
-    return new MoveRegionCommand(regionId, newStartFromBeat, currentTrackId, currentTrackIndex);
+    return new MoveRegionCommand(regionId, newStartTick, currentTrackId, currentTrackIndex);
   }
 
   /**

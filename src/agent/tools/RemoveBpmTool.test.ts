@@ -5,6 +5,7 @@ import { KGCore } from '../../core/KGCore';
 import { KGTempoRegion } from '../../core/region/KGTempoRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -36,8 +37,8 @@ describe('RemoveBpmTool', () => {
     const project = new KGProject('exact-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 });
     const track = getTempoTrack(project);
     track.setRegions([
-      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 120, 0, 2, 4),
-      new KGTempoRegion('tempo-2', track.getId(), track.getTrackIndex(), 140, 2, 6, 4),
+      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 120, 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('tempo-2', track.getId(), track.getTrackIndex(), 140, 2, 6, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -60,9 +61,9 @@ describe('RemoveBpmTool', () => {
     const project = new KGProject('range-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 });
     const track = getTempoTrack(project);
     track.setRegions([
-      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 120, 0, 2, 4),
-      new KGTempoRegion('tempo-2', track.getId(), track.getTrackIndex(), 128, 2, 2, 4),
-      new KGTempoRegion('tempo-3', track.getId(), track.getTrackIndex(), 140, 4, 4, 4),
+      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 120, 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('tempo-2', track.getId(), track.getTrackIndex(), 128, 2, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('tempo-3', track.getId(), track.getTrackIndex(), 140, 4, 4, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -77,15 +78,15 @@ describe('RemoveBpmTool', () => {
     }))).toEqual([
       { bpm: 120, startBar: 0, lengthBars: 8 },
     ]);
-    expect(result.result).toContain('"128 BPM" at beat 8');
-    expect(result.result).toContain('"140 BPM" at beat 16');
+    expect(result.result).toContain('"128 BPM" at quarter-note 8');
+    expect(result.result).toContain('"140 BPM" at quarter-note 16');
   });
 
   it('returns a successful message when no BPM regions match the range', async () => {
     const project = new KGProject('none-remove-project', 8, 0, 120, { numerator: 4, denominator: 4 });
     const track = getTempoTrack(project);
     track.setRegions([
-      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 120, 0, 8, 4),
+      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 120, 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -100,7 +101,7 @@ describe('RemoveBpmTool', () => {
     const project = new KGProject('single-region-project', 8, 0, 120, { numerator: 4, denominator: 4 });
     const track = getTempoTrack(project);
     track.setRegions([
-      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 132, 0, 8, 4),
+      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 132, 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 
@@ -116,8 +117,8 @@ describe('RemoveBpmTool', () => {
     const project = new KGProject('confirmation-project', 8, 0, 120, { numerator: 4, denominator: 4 });
     const track = getTempoTrack(project);
     track.setRegions([
-      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 128, 2, 2, 4),
-      new KGTempoRegion('tempo-2', track.getId(), track.getTrackIndex(), 140, 4, 4, 4),
+      new KGTempoRegion('tempo-1', track.getId(), track.getTrackIndex(), 128, 2, 2, 4 * TICKS_PER_QUARTER),
+      new KGTempoRegion('tempo-2', track.getId(), track.getTrackIndex(), 140, 4, 4, 4 * TICKS_PER_QUARTER),
     ]);
     mockCore(project);
 

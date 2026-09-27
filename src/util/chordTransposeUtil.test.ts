@@ -19,15 +19,15 @@ describe('chord transpose utilities', () => {
       new KGChordRegion('chord', chordTrack.getId(), chordTrack.getTrackIndex(), 'Cmaj7', 0, 8),
     ]);
 
-    expect(hasChordRegionsInRange(project, { startBeat: 2, endBeat: 6 })).toBe(true);
-    expect(hasChordRegionsInRange(project, { startBeat: 8, endBeat: 10 })).toBe(false);
+    expect(hasChordRegionsInRange(project, { startTick: 2, endTick: 6 })).toBe(true);
+    expect(hasChordRegionsInRange(project, { startTick: 8, endTick: 10 })).toBe(false);
 
-    const plan = buildChordTransposePlan(project, 2, 'D major', { startBeat: 2, endBeat: 6 });
+    const plan = buildChordTransposePlan(project, 2, 'D major', { startTick: 2, endTick: 6 });
     plan.apply();
     expect((chordTrack.getRegions() as KGChordRegion[]).map(region => ({
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
       { symbol: 'Cmaj7', start: 0, length: 2 },
       { symbol: 'Dmaj7', start: 2, length: 4 },
@@ -38,8 +38,8 @@ describe('chord transpose utilities', () => {
     expect((chordTrack.getRegions() as KGChordRegion[]).map(region => ({
       id: region.getId(),
       symbol: region.getSymbol(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([{ id: 'chord', symbol: 'Cmaj7', start: 0, length: 8 }]);
   });
 });

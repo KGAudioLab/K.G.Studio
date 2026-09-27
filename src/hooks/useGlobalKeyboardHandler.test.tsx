@@ -48,7 +48,7 @@ const storeState = {
   openMidiPianoRollWithSheetMusicView: vi.fn(),
   openAudioWaveformViewer: vi.fn(),
   openSpectrogramViewer: vi.fn(),
-  playheadPosition: 12,
+  playheadTick: 12,
   refreshProjectState: vi.fn(),
   pianoRollMode: 'midi-edit' as const,
 };
@@ -180,7 +180,7 @@ describe('useGlobalKeyboardHandler region shortcuts', () => {
     await waitFor(() => {
       expect(regionEditUtilMocks.splitSelectedRegionAtPlayhead).toHaveBeenCalledWith({
         selectedRegionIds: ['region-a', 'region-b'],
-        playheadPosition: 12,
+        playheadTick: 12,
         refreshProjectState: storeState.refreshProjectState,
       });
     });

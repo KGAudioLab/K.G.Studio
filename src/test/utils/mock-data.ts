@@ -4,6 +4,7 @@ import { KGMidiPitchBend } from '../../core/midi/KGMidiPitchBend';
 import { KGProject } from '../../core/KGProject';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { quarterNotesToTicks } from '../../core/timing';
 
 /**
  * Test data factories for creating mock objects
@@ -13,14 +14,14 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 export const createMockMidiNote = (overrides: Partial<{
   pitch: number
   velocity: number
-  startBeat: number
-  endBeat: number
+  startTick: number
+  endTick: number
   id: string
 }> = {}): KGMidiNote => {
   const defaults = {
     id: 'test-note-1',
-    startBeat: 0,
-    endBeat: 1,
+    startTick: 0,
+    endTick: 1,
     pitch: 60, // Middle C
     velocity: 80,
     ...overrides
@@ -28,8 +29,8 @@ export const createMockMidiNote = (overrides: Partial<{
   
   return new KGMidiNote(
     defaults.id,
-    defaults.startBeat,
-    defaults.endBeat,
+    quarterNotesToTicks(defaults.startTick),
+    quarterNotesToTicks(defaults.endTick),
     defaults.pitch,
     defaults.velocity
   );
@@ -40,7 +41,7 @@ export const createMockMidiRegion = (overrides: Partial<{
   trackId: string
   trackIndex: number
   name: string
-  startFromBeat: number
+  startTick: number
   length: number
   notes: KGMidiNote[]
   pitchBends: KGMidiPitchBend[]
@@ -51,7 +52,7 @@ export const createMockMidiRegion = (overrides: Partial<{
     trackId: 'test-track-1',
     trackIndex: 0,
     name: 'Test Region',
-    startFromBeat: 0,
+    startTick: 0,
     length: 4,
     ...overrides
   };
@@ -61,8 +62,8 @@ export const createMockMidiRegion = (overrides: Partial<{
     defaults.trackId,
     defaults.trackIndex,
     defaults.name,
-    defaults.startFromBeat,
-    defaults.length
+    quarterNotesToTicks(defaults.startTick),
+    quarterNotesToTicks(defaults.length)
   );
   
   // Add notes if provided
@@ -91,7 +92,7 @@ export const createMockMidiPitchBend = (overrides: Partial<{
     ...overrides,
   };
 
-  return new KGMidiPitchBend(defaults.id, defaults.beat, defaults.value);
+  return new KGMidiPitchBend(defaults.id, quarterNotesToTicks(defaults.beat), defaults.value);
 };
 
 export const createMockMidiControllerEvent = (overrides: Partial<{
@@ -106,7 +107,7 @@ export const createMockMidiControllerEvent = (overrides: Partial<{
     ...overrides,
   };
 
-  return new KGMidiControllerEvent(defaults.id, defaults.beat, defaults.value);
+  return new KGMidiControllerEvent(defaults.id, quarterNotesToTicks(defaults.beat), defaults.value);
 };
 
 export const createMockMidiTrack = (overrides: Partial<{
@@ -174,8 +175,8 @@ export const createMockProject = (overrides: Partial<{
 // Common test scenarios
 export const createBasicProjectWithTrack = (): { project: KGProject; track: KGMidiTrack; region: KGMidiRegion } => {
   const notes = [
-    createMockMidiNote({ pitch: 60, startBeat: 0, endBeat: 1 }),
-    createMockMidiNote({ pitch: 64, startBeat: 1, endBeat: 2 }),
+    createMockMidiNote({ pitch: 60, startTick: 0, endTick: 1 }),
+    createMockMidiNote({ pitch: 64, startTick: 1, endTick: 2 }),
   ];
   
   const region = createMockMidiRegion({ 

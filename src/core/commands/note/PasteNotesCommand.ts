@@ -10,8 +10,8 @@ import { generateUniqueId } from '../../../util/miscUtil';
  */
 interface CreatedNoteData {
   noteId: string;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   pitch: number;
   velocity: number;
 }
@@ -69,10 +69,10 @@ export class PasteNotesCommand extends KGCommand {
     this.createdNotes = [];
 
     // Calculate relative position within the region
-    const relativeStartPosition = this.pastePosition - targetRegion.getStartFromBeat();
+    const relativeStartPosition = this.pastePosition - targetRegion.getStartTick();
     
     // Calculate the base position from the first note to maintain relative positions
-    const basePosition = this.sourceNotes[0].getStartBeat();
+    const basePosition = this.sourceNotes[0].getStartTick();
 
     // Create new notes at the target position
     this.sourceNotes.forEach((originalNote) => {
@@ -80,16 +80,16 @@ export class PasteNotesCommand extends KGCommand {
       const newId = generateUniqueId('KGMidiNote');
       
       // Calculate new position maintaining relative offset
-      const noteOffset = originalNote.getStartBeat() - basePosition;
-      const newStartBeat = relativeStartPosition + noteOffset;
-      const duration = originalNote.getEndBeat() - originalNote.getStartBeat();
-      const newEndBeat = newStartBeat + duration;
+      const noteOffset = originalNote.getStartTick() - basePosition;
+      const newStartTick = relativeStartPosition + noteOffset;
+      const duration = originalNote.getEndTick() - originalNote.getStartTick();
+      const newEndTick = newStartTick + duration;
       
       // Create a copy of the note with new position and ID
       const newNote = new KGMidiNote(
         newId,
-        newStartBeat,
-        newEndBeat,
+        newStartTick,
+        newEndTick,
         originalNote.getPitch(),
         originalNote.getVelocity()
       );
@@ -97,8 +97,8 @@ export class PasteNotesCommand extends KGCommand {
       // Store created note data for undo
       this.createdNotes.push({
         noteId: newId,
-        startBeat: newStartBeat,
-        endBeat: newEndBeat,
+        startTick: newStartTick,
+        endTick: newEndTick,
         pitch: originalNote.getPitch(),
         velocity: originalNote.getVelocity()
       });

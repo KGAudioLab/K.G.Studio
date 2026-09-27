@@ -26,6 +26,8 @@ import { LocalSeparatorModelCache } from '../util/local-separator/modelCache';
 import { runLocalSeparator } from '../util/local-separator/runner';
 import { LocalOrtRuntimeManager, detectLocalRuntimeSupport } from '../util/local-separator/runtime';
 import type { LocalSeparatorModelConfig, LocalSeparatorModelId } from '../util/local-separator/types';
+import { tickRangeToSeconds, tickToSeconds } from '../util/globalTrackUtil';
+import { ticksPerBar } from '../core/timing';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -888,7 +890,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
   const originalRegionRef = useRef<{
     regionName: string;
     trackName: string;
-    startFromBeat: number;
+    startTick: number;
     trackIndex: number;
   } | null>(null);
 
@@ -1038,7 +1040,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     originalRegionRef.current = {
       regionName: selectedAudioRegion.region.getName(),
       trackName: selectedAudioRegion.trackName,
-      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      startTick: selectedAudioRegion.region.getStartTick(),
       trackIndex: selectedAudioRegion.trackIndex,
     };
     setImportError('');
@@ -1087,7 +1089,12 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       const audioFileName = selectedAudioRegion.region.getAudioFileName();
       const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
       const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
-      const regionLengthSec = selectedAudioRegion.region.getLength() * (60 / bpm);
+      const timelineProject = KGCore.instance().getCurrentProject();
+      const regionLengthSec = tickRangeToSeconds(
+        timelineProject,
+        selectedAudioRegion.region.getStartTick(),
+        selectedAudioRegion.region.getStartTick() + selectedAudioRegion.region.getLengthTicks(),
+      );
       const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
 
       const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
@@ -1210,7 +1217,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
     originalRegionRef.current = {
       regionName: selectedAudioRegion.region.getName(),
       trackName: selectedAudioRegion.trackName,
-      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      startTick: selectedAudioRegion.region.getStartTick(),
       trackIndex: selectedAudioRegion.trackIndex,
     };
     setImportError('');
@@ -1237,7 +1244,12 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       const audioFileId = selectedAudioRegion.region.getAudioFileId();
       const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
       const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
-      const regionLengthSec = selectedAudioRegion.region.getLength() * (60 / bpm);
+      const timelineProject = KGCore.instance().getCurrentProject();
+      const regionLengthSec = tickRangeToSeconds(
+        timelineProject,
+        selectedAudioRegion.region.getStartTick(),
+        selectedAudioRegion.region.getStartTick() + selectedAudioRegion.region.getLengthTicks(),
+      );
       const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
 
       const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
@@ -1352,7 +1364,7 @@ const SeparatorTab: React.FC<{ mode: KGOneMode }> = ({ mode }) => {
       const cmd = new ImportStemsCommand(
         project.getTracks().length,
         snap.trackIndex,
-        snap.startFromBeat,
+        snap.startTick,
         stems,
         maxBars,
       );
@@ -1613,7 +1625,7 @@ const RemixTab: React.FC = () => {
   const originalRegionRef = useRef<{
     regionName: string;
     trackName: string;
-    startFromBeat: number;
+    startTick: number;
     trackIndex: number;
   } | null>(null);
 
@@ -1651,7 +1663,7 @@ const RemixTab: React.FC = () => {
     originalRegionRef.current = {
       regionName: selectedAudioRegion.region.getName(),
       trackName: selectedAudioRegion.trackName,
-      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      startTick: selectedAudioRegion.region.getStartTick(),
       trackIndex: selectedAudioRegion.trackIndex,
     };
     setImportError('');
@@ -1701,7 +1713,12 @@ const RemixTab: React.FC = () => {
       const audioFileName = selectedAudioRegion.region.getAudioFileName();
       const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
       const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
-      const regionLengthSec = selectedAudioRegion.region.getLength() * (60 / bpm);
+      const timelineProject = KGCore.instance().getCurrentProject();
+      const regionLengthSec = tickRangeToSeconds(
+        timelineProject,
+        selectedAudioRegion.region.getStartTick(),
+        selectedAudioRegion.region.getStartTick() + selectedAudioRegion.region.getLengthTicks(),
+      );
       const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
 
       const rawBuffer = await KGAudioFileStorage.loadAudioFile(projectName, audioFileId);
@@ -1874,7 +1891,7 @@ const RemixTab: React.FC = () => {
       const cmd = new ImportStemsCommand(
         project.getTracks().length,
         snap.trackIndex,
-        snap.startFromBeat,
+        snap.startTick,
         [stemEntry],
         maxBars,
       );
@@ -2078,7 +2095,7 @@ const RepaintTab: React.FC = () => {
   const originalRegionRef = useRef<{
     regionName: string;
     trackName: string;
-    startFromBeat: number;
+    startTick: number;
     trackIndex: number;
   } | null>(null);
 
@@ -2112,20 +2129,21 @@ const RepaintTab: React.FC = () => {
   // Computed repaint range in seconds (read-only display, derived from loop + region)
   const computedRepaintRange = useMemo(() => {
     if (!selectedAudioRegion || !isLooping) return null;
-    const beatsPerBar = timeSignature.numerator;
-    const secondsPerBeat = 60 / bpm;
-    const regionStartBeat = selectedAudioRegion.region.getStartFromBeat();
+    const timelineProject = KGCore.instance().getCurrentProject();
+    const barTicks = ticksPerBar(timeSignature);
+    const regionStartTick = selectedAudioRegion.region.getStartTick();
     const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
     const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
-    const regionLengthSec = selectedAudioRegion.region.getLength() * secondsPerBeat;
+    const regionLengthSec = tickRangeToSeconds(timelineProject, regionStartTick, regionStartTick + selectedAudioRegion.region.getLengthTicks());
     const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
     const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
     const uploadedDuration = needsSlice ? effectiveDuration : fullDuration;
-    const loopStartBeat = loopingRange[0] * beatsPerBar;
-    const loopEndBeat = (loopingRange[1] + 1) * beatsPerBar; // endBar is inclusive
-    // Both sliced and non-sliced cases: uploaded audio time 0 ≈ regionStartBeat in the timeline
-    const startRaw = (loopStartBeat - regionStartBeat) * secondsPerBeat;
-    const endRaw = (loopEndBeat - regionStartBeat) * secondsPerBeat;
+    const loopStartTick = loopingRange[0] * barTicks;
+    const loopEndTick = (loopingRange[1] + 1) * barTicks; // endBar is inclusive
+    // Both sliced and non-sliced cases: uploaded audio time 0 ≈ regionStartTick in the timeline
+    const regionStartSeconds = tickToSeconds(timelineProject, regionStartTick);
+    const startRaw = tickToSeconds(timelineProject, loopStartTick) - regionStartSeconds;
+    const endRaw = tickToSeconds(timelineProject, loopEndTick) - regionStartSeconds;
     const startClamped = Math.max(0, startRaw);
     const endClamped = Math.min(uploadedDuration, endRaw);
     return { startClamped, endClamped, uploadedDuration, hasIntersection: endClamped > startClamped };
@@ -2141,19 +2159,20 @@ const RepaintTab: React.FC = () => {
     }
 
     // Re-compute range inline (fresh values independent of the display memo)
-    const beatsPerBar = timeSignature.numerator;
-    const secondsPerBeat = 60 / bpm;
-    const regionStartBeat = selectedAudioRegion.region.getStartFromBeat();
+    const timelineProject = KGCore.instance().getCurrentProject();
+    const barTicks = ticksPerBar(timeSignature);
+    const regionStartTick = selectedAudioRegion.region.getStartTick();
     const clipStart = selectedAudioRegion.region.getClipStartOffsetSeconds();
     const fullDuration = selectedAudioRegion.region.getAudioDurationSeconds();
-    const regionLengthSec = selectedAudioRegion.region.getLength() * secondsPerBeat;
+    const regionLengthSec = tickRangeToSeconds(timelineProject, regionStartTick, regionStartTick + selectedAudioRegion.region.getLengthTicks());
     const effectiveDuration = Math.min(regionLengthSec, fullDuration - clipStart);
     const needsSlice = clipStart > 0.01 || effectiveDuration < fullDuration - 0.01;
     const uploadedDuration = needsSlice ? effectiveDuration : fullDuration;
-    const loopStartBeat = loopingRange[0] * beatsPerBar;
-    const loopEndBeat = (loopingRange[1] + 1) * beatsPerBar;
-    const startClamped = Math.max(0, (loopStartBeat - regionStartBeat) * secondsPerBeat);
-    const endClamped = Math.min(uploadedDuration, (loopEndBeat - regionStartBeat) * secondsPerBeat);
+    const loopStartTick = loopingRange[0] * barTicks;
+    const loopEndTick = (loopingRange[1] + 1) * barTicks;
+    const regionStartSeconds = tickToSeconds(timelineProject, regionStartTick);
+    const startClamped = Math.max(0, tickToSeconds(timelineProject, loopStartTick) - regionStartSeconds);
+    const endClamped = Math.min(uploadedDuration, tickToSeconds(timelineProject, loopEndTick) - regionStartSeconds);
 
     if (endClamped <= startClamped) {
       await showAlert('The loop range does not overlap with the selected audio region. Please adjust the loop range to overlap with the region.');
@@ -2167,7 +2186,7 @@ const RepaintTab: React.FC = () => {
     originalRegionRef.current = {
       regionName: selectedAudioRegion.region.getName(),
       trackName: selectedAudioRegion.trackName,
-      startFromBeat: selectedAudioRegion.region.getStartFromBeat(),
+      startTick: selectedAudioRegion.region.getStartTick(),
       trackIndex: selectedAudioRegion.trackIndex,
     };
     setImportError('');
@@ -2385,7 +2404,7 @@ const RepaintTab: React.FC = () => {
       const cmd = new ImportStemsCommand(
         project.getTracks().length,
         snap.trackIndex,
-        snap.startFromBeat,
+        snap.startTick,
         [stemEntry],
         maxBars,
       );

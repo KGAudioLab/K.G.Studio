@@ -21,6 +21,7 @@ import type { SheetMeasureMetric, SheetQuantization } from './sheetNotationTypes
 import type { InstrumentType } from '../../core/track/KGMidiTrack';
 import SheetMusicView from './SheetMusicView';
 import type { PianoRollMode } from '../../constants';
+import { ticksToPixels } from '../../core/timing';
 
 const NOOP_SHEET_METRICS_CHANGE = (_metrics: SheetMeasureMetric[]) => {};
 
@@ -232,12 +233,12 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     const notes = activeRegion.getNotes();
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     
     return notes.map((note, index) => {
       // Calculate position and size
-      const startBeat = note.getStartBeat() + regionStartBeat; // Absolute beat position
-      const endBeat = note.getEndBeat() + regionStartBeat; // Absolute beat position
+      const startTick = note.getStartTick() + regionStartTick; // Absolute beat position
+      const endTick = note.getEndTick() + regionStartTick; // Absolute beat position
       const pitch = note.getPitch();
       
       // Convert pitch to y position (higher notes have lower y values)
@@ -245,9 +246,9 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
       const pitchIndex = 107 - pitch; // Reverse the pitch to get the index (B7 is 107)
       
       // Calculate position and dimensions
-      const left = startBeat * beatWidth;
+      const left = ticksToPixels(startTick, beatWidth);
       const top = pitchIndex * noteHeight;
-      const width = (endBeat - startBeat) * beatWidth;
+      const width = ticksToPixels(endTick - startTick, beatWidth);
       
       const noteId = note.getId();
       
@@ -303,15 +304,15 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     if (!isRecording || !activeRegion || recordingNotes.length === 0) return null;
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     return recordingNotes.map((note, index) => (
       <div
         key={`recording-note-${index}`}
         className="piano-grid-recording-note"
         style={{
-          left: (note.startBeat + regionStartBeat) * beatWidth,
+          left: ticksToPixels(note.startTick + regionStartTick, beatWidth),
           top: (107 - note.pitch) * noteHeight,
-          width: Math.max((note.endBeat - note.startBeat) * beatWidth, 4),
+          width: Math.max(ticksToPixels(note.endTick - note.startTick, beatWidth), 4),
           height: noteHeight,
           backgroundColor: velocityToColor(note.velocity, 0.35),
           borderColor: velocityToColor(note.velocity, 0.85),
@@ -327,11 +328,11 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
 
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
-    const regionStartBeat = referenceMidiRegion.getStartFromBeat();
+    const regionStartTick = referenceMidiRegion.getStartTick();
 
     return referenceMidiRegion.getNotes().map(note => {
-      const startBeat = regionStartBeat + note.getStartBeat();
-      const endBeat = regionStartBeat + note.getEndBeat();
+      const startTick = regionStartTick + note.getStartTick();
+      const endTick = regionStartTick + note.getEndTick();
       return (
         <div
           key={`reference-note-${referenceMidiRegion.getId()}-${note.getId()}`}
@@ -339,9 +340,9 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           data-reference-region-id={referenceMidiRegion.getId()}
           data-reference-note-id={note.getId()}
           style={{
-            left: startBeat * beatWidth,
+            left: ticksToPixels(startTick, beatWidth),
             top: (107 - note.getPitch()) * noteHeight,
-            width: (endBeat - startBeat) * beatWidth,
+            width: ticksToPixels(endTick - startTick, beatWidth),
             height: noteHeight,
             borderColor: velocityToColor(note.getVelocity()),
           }}
@@ -409,7 +410,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
                   onMouseDown={isAudioView ? () => {} : handleBackgroundMouseDown}
                   isBoxSelecting={isAudioView ? false : isBoxSelectingRef.current}
                   selectionBox={isAudioView ? { startX: 0, startY: 0, endX: 0, endY: 0 } : selectionBoxRef.current}
-                  regionStartBeat={activeRegion?.getStartFromBeat() || 0}
+                  regionStartTick={activeRegion?.getStartTick() || 0}
                   selectedMode={selectedMode}
                   keySignature={keySignature}
                   chordGuide={chordGuide}

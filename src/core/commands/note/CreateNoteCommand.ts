@@ -11,24 +11,24 @@ import { generateUniqueId } from '../../../util/miscUtil';
 export class CreateNoteCommand extends KGCommand {
   private regionId: string;
   private noteId: string;  
-  private startBeat: number;
-  private endBeat: number;
+  private startTick: number;
+  private endTick: number;
   private pitch: number;
   private velocity: number;
   private createdNote: KGMidiNote | null = null;
 
   constructor(
     regionId: string,
-    startBeat: number,
-    endBeat: number,
+    startTick: number,
+    endTick: number,
     pitch: number,
     velocity: number = 127,
     noteId?: string
   ) {
     super();
     this.regionId = regionId;
-    this.startBeat = startBeat;
-    this.endBeat = endBeat;
+    this.startTick = startTick;
+    this.endTick = endTick;
     this.pitch = pitch;
     this.velocity = velocity;
     this.noteId = noteId || generateUniqueId('KGMidiNote');
@@ -58,8 +58,8 @@ export class CreateNoteCommand extends KGCommand {
     // Create the new MIDI note
     this.createdNote = new KGMidiNote(
       this.noteId,
-      this.startBeat,
-      this.endBeat,
+      this.startTick,
+      this.endTick,
       this.pitch,
       this.velocity
     );
@@ -67,7 +67,7 @@ export class CreateNoteCommand extends KGCommand {
     // Add the note to the region
     targetRegion.addNote(this.createdNote);
 
-    console.log(`Created note in region ${this.regionId}: pitch=${this.pitch}, start=${this.startBeat}, end=${this.endBeat}`);
+    console.log(`Created note in region ${this.regionId}: pitch=${this.pitch}, start=${this.startTick}, end=${this.endTick}`);
   }
 
   undo(): void {
@@ -147,7 +147,7 @@ export class CreateNoteCommand extends KGCommand {
     pianoGridElement: HTMLElement,
     beatWidth: number,
     noteHeight: number,
-    regionStartBeat: number,
+    regionStartTick: number,
     noteLength: number,
     velocity: number = 127
   ): CreateNoteCommand {
@@ -166,13 +166,13 @@ export class CreateNoteCommand extends KGCommand {
     const pitch = 107 - pitchIndex; // Convert index to pitch (B7 is 107)
 
     // Calculate note start and end beats
-    const noteStartBeat = beatNumber;
-    const noteEndBeat = noteStartBeat + noteLength;
+    const noteStartTick = beatNumber;
+    const noteEndTick = noteStartTick + noteLength;
 
     return new CreateNoteCommand(
       regionId,
-      noteStartBeat,
-      noteEndBeat,
+      noteStartTick,
+      noteEndTick,
       pitch,
       velocity
     );

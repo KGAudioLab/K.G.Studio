@@ -111,18 +111,18 @@ describe('chordUtil', () => {
       return;
     }
 
-    expect(result.plan.startBeat).toBe(8);
-    expect(result.plan.lengthInBeats).toBe(6);
+    expect(result.plan.startTick).toBe(8);
+    expect(result.plan.lengthTicks).toBe(6);
     expect(result.plan.sourceRegionIds).toEqual(['chord-1', 'chord-2']);
     expect(result.plan.notes).toEqual([
-      { startBeat: 0, endBeat: 4, pitch: 48, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 67, velocity: 127 },
-      { startBeat: 4, endBeat: 6, pitch: 41, velocity: 127 },
-      { startBeat: 4, endBeat: 6, pitch: 53, velocity: 127 },
-      { startBeat: 4, endBeat: 6, pitch: 57, velocity: 127 },
-      { startBeat: 4, endBeat: 6, pitch: 60, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 48, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 60, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 64, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 67, velocity: 127 },
+      { startTick: 4, endTick: 6, pitch: 41, velocity: 127 },
+      { startTick: 4, endTick: 6, pitch: 53, velocity: 127 },
+      { startTick: 4, endTick: 6, pitch: 57, velocity: 127 },
+      { startTick: 4, endTick: 6, pitch: 60, velocity: 127 },
     ]);
   });
 
@@ -138,28 +138,28 @@ describe('chordUtil', () => {
       return;
     }
 
-    expect(result.plan.startBeat).toBe(0);
-    expect(result.plan.lengthInBeats).toBe(16);
+    expect(result.plan.startTick).toBe(0);
+    expect(result.plan.lengthTicks).toBe(16);
     expect(result.plan.sourceRegionIds).toEqual(['chord-1', 'chord-2', 'chord-3', 'chord-4']);
     expect(result.plan.notes).toEqual([
-      { startBeat: 0, endBeat: 4, pitch: 45, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 57, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 50, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 62, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 65, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 69, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 52, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 64, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 68, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 71, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 74, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 47, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 59, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 62, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 65, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 69, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 45, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 57, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 60, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 64, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 50, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 62, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 65, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 69, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 52, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 64, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 68, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 71, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 74, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 47, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 59, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 62, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 65, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 69, velocity: 127 },
     ]);
   });
 
@@ -174,11 +174,11 @@ describe('chordUtil', () => {
 
     expect(result.plan.sourceRegionIds).toEqual(['chord-1']);
     expect(result.plan.notes).toEqual([
-      { startBeat: 0, endBeat: 4, pitch: 52, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 69, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 71, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 74, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 52, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 64, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 69, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 71, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 74, velocity: 127 },
     ]);
   });
 
@@ -195,33 +195,33 @@ describe('chordUtil', () => {
     }
 
     expect(result.plan.sourceRegionIds).toEqual(['chord-1', 'chord-2', 'chord-3', 'chord-4']);
-    expect(result.plan.lengthInBeats).toBe(16);
+    expect(result.plan.lengthTicks).toBe(16);
     expect(result.plan.notes).toEqual([
-      { startBeat: 0, endBeat: 4, pitch: 45, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 57, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 60, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 64, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 67, velocity: 127 },
-      { startBeat: 0, endBeat: 4, pitch: 71, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 50, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 62, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 65, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 69, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 72, velocity: 127 },
-      { startBeat: 4, endBeat: 8, pitch: 76, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 43, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 55, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 59, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 62, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 65, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 69, velocity: 127 },
-      { startBeat: 8, endBeat: 12, pitch: 76, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 46, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 58, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 62, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 65, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 69, velocity: 127 },
-      { startBeat: 12, endBeat: 16, pitch: 72, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 45, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 57, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 60, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 64, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 67, velocity: 127 },
+      { startTick: 0, endTick: 4, pitch: 71, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 50, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 62, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 65, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 69, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 72, velocity: 127 },
+      { startTick: 4, endTick: 8, pitch: 76, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 43, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 55, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 59, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 62, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 65, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 69, velocity: 127 },
+      { startTick: 8, endTick: 12, pitch: 76, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 46, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 58, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 62, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 65, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 69, velocity: 127 },
+      { startTick: 12, endTick: 16, pitch: 72, velocity: 127 },
     ]);
   });
 

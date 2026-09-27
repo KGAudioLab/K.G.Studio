@@ -70,11 +70,11 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
       noteId: n.getId(),
       pitch: n.getPitch(),
       velocity: n.getVelocity(),
-      startBeat: n.getStartBeat(),
-      endBeat: n.getEndBeat(),
+      startTick: n.getStartTick(),
+      endTick: n.getEndTick(),
     }));
 
-    const updates: { noteId: string; pitch?: number; endBeat?: number }[] = [];
+    const updates: { noteId: string; pitch?: number; endTick?: number }[] = [];
 
     if (openTextField === 'pitch') {
       const newPitches = parsePitchInput(textInputValue, selectedNotes);
@@ -83,7 +83,7 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
     } else {
       const newLength = parseLengthInput(textInputValue);
       if (!newLength) { setOpenTextField(null); return; }
-      selectedNotes.forEach(note => updates.push({ noteId: note.getId(), endBeat: note.getStartBeat() + newLength }));
+      selectedNotes.forEach(note => updates.push({ noteId: note.getId(), endTick: note.getStartTick() + newLength }));
     }
 
     if (updates.length > 0) {
@@ -137,8 +137,8 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
       noteId: n.getId(),
       pitch: n.getPitch(),
       velocity: session.originalVelocities[i], // original, before live edits
-      startBeat: n.getStartBeat(),
-      endBeat: n.getEndBeat(),
+      startTick: n.getStartTick(),
+      endTick: n.getEndTick(),
     }));
     const updates = session.notes.map(n => ({ noteId: n.getId(), velocity: committedVelocity }));
 
@@ -254,12 +254,12 @@ const NoteAttributeBar: React.FC<NoteAttributeBarProps> = ({ selectedNotes, isSp
   } else if (selectedNotes.length === 1) {
     const note = selectedNotes[0];
     pitch = String(note.getPitch());
-    length = (note.getEndBeat() - note.getStartBeat()).toFixed(2);
+    length = (note.getEndTick() - note.getStartTick()).toFixed(2);
     velocity = String(note.getVelocity());
     pitchDefault = pitch; lengthDefault = length; velocityDefault = note.getVelocity();
   } else {
     const pitches = selectedNotes.map(n => n.getPitch());
-    const lengths = selectedNotes.map(n => (n.getEndBeat() - n.getStartBeat()).toFixed(2));
+    const lengths = selectedNotes.map(n => (n.getEndTick() - n.getStartTick()).toFixed(2));
     const velocities = selectedNotes.map(n => n.getVelocity());
     pitch = pitches.every(p => p === pitches[0]) ? String(pitches[0]) : '--';
     length = lengths.every(l => l === lengths[0]) ? lengths[0] : '--';

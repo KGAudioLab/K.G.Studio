@@ -11,8 +11,8 @@ const ROOT_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 
 export interface AudioChordWindow {
   barIndex: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   startSeconds: number;
   endSeconds: number;
 }
@@ -27,8 +27,8 @@ export interface AudioChordDetectionRequest {
 
 export interface DetectedAudioChord {
   barIndex: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   symbol: string;
   confidence: number;
   rms: number;
@@ -386,8 +386,8 @@ export function detectChordsFromAudio(
 
     rawResults.push({
       barIndex: window.barIndex,
-      startBeat: window.startBeat,
-      endBeat: window.endBeat,
+      startTick: window.startTick,
+      endTick: window.endTick,
       symbol: analysis.symbol,
       confidence: analysis.confidence,
       rms: analysis.rms,

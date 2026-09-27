@@ -31,8 +31,8 @@ export class UpdateKeySignatureRegionCommand extends KGCommand {
 
     this.previousKeySignature = result.region.getKeySignature();
     const scope = {
-      startBeat: result.region.getStartFromBeat(),
-      endBeat: result.region.getStartFromBeat() + result.region.getLength(),
+      startTick: result.region.getStartTick(),
+      endTick: result.region.getStartTick() + result.region.getLengthTicks(),
     };
     this.transposePlan = buildFollowKeyTransposePlan(project, this.previousKeySignature, this.nextKeySignature, scope);
     this.chordTransposePlan = this.transposeChords

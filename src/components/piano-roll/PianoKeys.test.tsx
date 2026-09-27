@@ -11,7 +11,7 @@ type TestLiveNoteActivityListener = (...args: [{ pitch: number; isNoteOn: boolea
 
 const storeState = {
   tracks: [createMockMidiTrack({ id: 1 })],
-  playheadPosition: 0,
+  playheadTick: 0,
   isPlaying: false,
 };
 
@@ -72,12 +72,12 @@ function renderWithLocale(
 describe('PianoKeys', () => {
   const activeRegion = createMockMidiRegion({
     trackId: '1',
-    notes: [createMockMidiNote({ id: 'note-c4', pitch: 60, startBeat: 0, endBeat: 2 })],
+    notes: [createMockMidiNote({ id: 'note-c4', pitch: 60, startTick: 0, endTick: 2 })],
   });
 
   beforeEach(() => {
     storeState.tracks = [createMockMidiTrack({ id: 1 })];
-    storeState.playheadPosition = 0;
+    storeState.playheadTick = 0;
     storeState.isPlaying = false;
     liveNoteActivityListener = null;
     vi.clearAllMocks();
@@ -122,7 +122,7 @@ describe('PianoKeys', () => {
 
   it('shows playback background feedback without dot for sounding notes in the active region', () => {
     storeState.isPlaying = true;
-    storeState.playheadPosition = 1;
+    storeState.playheadTick = 1;
 
     const { container } = renderWithLocale(<PianoKeys activeRegion={activeRegion} />);
     const key = container.querySelector('[data-note="C4"]') as HTMLElement;
@@ -134,7 +134,7 @@ describe('PianoKeys', () => {
 
   it('preserves source-specific feedback while mouse, MIDI, and playback overlap', () => {
     storeState.isPlaying = true;
-    storeState.playheadPosition = 1;
+    storeState.playheadTick = 1;
 
     const { container, rerender } = renderWithLocale(<PianoKeys activeRegion={activeRegion} />);
     const key = container.querySelector('[data-note="C4"]') as HTMLElement;
@@ -181,7 +181,7 @@ describe('PianoKeys', () => {
 
     const drumRegion = createMockMidiRegion({
       trackId: '1',
-      notes: [createMockMidiNote({ id: 'kick', pitch: 35, startBeat: 0, endBeat: 1 })],
+      notes: [createMockMidiNote({ id: 'kick', pitch: 35, startTick: 0, endTick: 1 })],
     });
 
     const { container } = renderWithLocale(<PianoKeys activeRegion={drumRegion} />, 'zh_cn');
@@ -195,7 +195,7 @@ describe('PianoKeys', () => {
 
     const drumRegion = createMockMidiRegion({
       trackId: '1',
-      notes: [createMockMidiNote({ id: 'hihat', pitch: 42, startBeat: 0, endBeat: 1 })],
+      notes: [createMockMidiNote({ id: 'hihat', pitch: 42, startTick: 0, endTick: 1 })],
     });
 
     const view = renderWithLocale(<PianoKeys activeRegion={drumRegion} />, 'en_us');

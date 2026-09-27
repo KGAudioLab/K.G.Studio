@@ -5,7 +5,7 @@ export type MainContentSnapRounding = 'nearest' | 'ceil' | 'floor';
 export interface MainContentSnapSettings {
   enabled: boolean;
   mode: MainContentSnappingMode;
-  beatsPerBar: number;
+  ticksPerBar: number;
 }
 
 export function snapBarValue(
@@ -18,7 +18,7 @@ export function snapBarValue(
   }
 
   const subdivisions = settings.mode === 'beat'
-    ? Math.max(1, settings.beatsPerBar)
+    ? Math.max(1, settings.ticksPerBar)
     : 1;
   const scaledValue = valueInBars * subdivisions;
   const round = rounding === 'ceil'

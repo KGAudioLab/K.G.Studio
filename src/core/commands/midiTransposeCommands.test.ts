@@ -104,12 +104,12 @@ describe('MIDI transpose commands', () => {
     const command = new UpdateKeySignatureRegionCommand('key', 'D major', true);
     command.execute();
     expect((chordTrack.getRegions() as KGChordRegion[]).map(region => [
-      region.getSymbol(), region.getStartFromBeat(), region.getLength(),
+      region.getSymbol(), region.getStartTick(), region.getLengthTicks(),
     ])).toEqual([['D7', 2, 2], ['C7', 4, 2]]);
 
     command.undo();
     expect((chordTrack.getRegions() as KGChordRegion[]).map(region => [
-      region.getId(), region.getSymbol(), region.getStartFromBeat(), region.getLength(),
+      region.getId(), region.getSymbol(), region.getStartTick(), region.getLengthTicks(),
     ])).toEqual([['chord', 'C7', 2, 4]]);
     expect((signatureTrack.getRegions()[0] as KGKeySignatureRegion).getKeySignature()).toBe('C major');
   });

@@ -18,6 +18,23 @@ import { upgradeToV16 } from './upgradeToV16';
 import { upgradeToV17 } from './upgradeToV17';
 import { upgradeToV18 } from './upgradeToV18';
 import { upgradeToV19 } from './upgradeToV19';
+import { upgradeToV20 } from './upgradeToV20';
+import { KGTempoRegion } from '../region/KGTempoRegion';
+import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
+import { ticksPerBar } from '../timing';
+
+function hydrateDerivedBarState(project: KGProject): void {
+  const barTicks = ticksPerBar(project.getTimeSignature());
+  for (const track of project.getGlobalTracks()) {
+    for (const region of track.getRegions()) {
+      if (region instanceof KGTempoRegion || region instanceof KGKeySignatureRegion) {
+        region.syncBarsFromTicks(barTicks);
+        delete (region as unknown as Record<string, unknown>).startBar;
+        delete (region as unknown as Record<string, unknown>).lengthBars;
+      }
+    }
+  }
+}
 
 /**
  * Upgrade the given project to the latest structure version, one version at a time.
@@ -30,6 +47,7 @@ export function upgradeProjectToLatest(project: KGProject): KGProject {
   const targetVersion = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION;
 
   if (currentVersion >= targetVersion) {
+    hydrateDerivedBarState(project);
     return project;
   }
 
@@ -113,6 +131,10 @@ export function upgradeProjectToLatest(project: KGProject): KGProject {
         workingProject = upgradeToV19(workingProject);
         break;
       }
+      case 20: {
+        workingProject = upgradeToV20(workingProject);
+        break;
+      }
       default: {
         // If an upgrader is missing, throw to prevent loading incompatible structures
         throw new Error(`No upgrader found for project structure version ${nextVersion}`);
@@ -120,5 +142,6 @@ export function upgradeProjectToLatest(project: KGProject): KGProject {
     }
   }
 
+  hydrateDerivedBarState(workingProject);
   return workingProject;
 }

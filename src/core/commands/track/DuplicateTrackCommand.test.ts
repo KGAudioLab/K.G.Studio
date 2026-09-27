@@ -78,7 +78,7 @@ describe('DuplicateTrackCommand', () => {
     expect(duplicate.getTransposeSettings()).toEqual({ followKeySignature: true, transpose: 5 });
     expect(duplicate.getNoTranspose()).toBe(true);
     expect(duplicate.getVolumeAutomation()[0].getId()).not.toBe('volume-source');
-    expect([duplicate.getVolumeAutomation()[0].getBeat(), duplicate.getVolumeAutomation()[0].getValue()]).toEqual([2, -4]);
+    expect([duplicate.getVolumeAutomation()[0].getTick(), duplicate.getVolumeAutomation()[0].getValue()]).toEqual([2, -4]);
     expect(duplicate.getVolumeAutomation()[0].isSelected()).toBe(false);
 
     const copiedRegion = duplicate.getRegions()[0];

@@ -6,6 +6,9 @@ import {
   convertDetectedAudioNotesToRawMidiNotes,
   detectMonophonicNotesFromAudio,
 } from './audioToMidi';
+import { quarterNotesToTicks } from '../core/timing';
+
+const q = quarterNotesToTicks;
 
 function createSineWavePcm(
   frequency: number,
@@ -24,7 +27,7 @@ function createSineWavePcm(
 describe('audioToMidi analysis span helpers', () => {
   it('uses the exact source audio region bounds when loop mode is off', () => {
     const project = new KGProject('Test', 32, 0, 120);
-    const region = new KGAudioRegion('audio-1', '1', 0, 'Audio', 8, 4, 'file-1', 'test.wav', 10, 1.5);
+    const region = new KGAudioRegion('audio-1', '1', 0, 'Audio', q(8), q(4), 'file-1', 'test.wav', 10, 1.5);
 
     const span = buildAudioToMidiAnalysisSpan(project, region, {
       loopModeEnabled: false,
@@ -33,8 +36,8 @@ describe('audioToMidi analysis span helpers', () => {
     });
 
     expect(span).toEqual({
-      regionStartBeat: 8,
-      regionEndBeat: 12,
+      regionStartTick: q(8),
+      regionEndTick: q(12),
       startSeconds: 1.5,
       endSeconds: 3.5,
     });
@@ -42,7 +45,7 @@ describe('audioToMidi analysis span helpers', () => {
 
   it('uses the exact loop overlap when loop-only conversion is enabled', () => {
     const project = new KGProject('Test', 32, 0, 120);
-    const region = new KGAudioRegion('audio-1', '1', 0, 'Audio', 8, 8, 'file-1', 'test.wav', 10, 0.5);
+    const region = new KGAudioRegion('audio-1', '1', 0, 'Audio', q(8), q(8), 'file-1', 'test.wav', 10, 0.5);
 
     const span = buildAudioToMidiAnalysisSpan(project, region, {
       loopModeEnabled: true,
@@ -51,8 +54,8 @@ describe('audioToMidi analysis span helpers', () => {
     });
 
     expect(span).toEqual({
-      regionStartBeat: 12,
-      regionEndBeat: 16,
+      regionStartTick: q(12),
+      regionEndTick: q(16),
       startSeconds: 2.5,
       endSeconds: 4.5,
     });
@@ -65,8 +68,8 @@ describe('audioToMidi note conversion helpers', () => {
     const rawNotes = convertDetectedAudioNotesToRawMidiNotes(
       project,
       {
-        regionStartBeat: 8,
-        regionEndBeat: 12,
+        regionStartTick: q(8),
+        regionEndTick: q(12),
         startSeconds: 0,
         endSeconds: 2,
       },
@@ -82,8 +85,8 @@ describe('audioToMidi note conversion helpers', () => {
 
     expect(rawNotes).toEqual([
       {
-        startBeat: 1,
-        endBeat: 3,
+        startTick: q(1),
+        endTick: q(3),
         pitch: 38,
         velocity: 102,
       },

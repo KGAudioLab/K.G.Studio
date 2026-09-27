@@ -31,14 +31,14 @@ export class KGAudioRegion extends KGRegion {
     trackId: string,
     trackIndex: number,
     name: string,
-    startFromBeat: number = 0,
+    startTick: number = 0,
     length: number = 0,
     audioFileId: string = '',
     audioFileName: string = '',
     audioDurationSeconds: number = 0,
     clipStartOffsetSeconds: number = 0
   ) {
-    super(id, trackId, trackIndex, name, startFromBeat, length);
+    super(id, trackId, trackIndex, name, startTick, length);
     this.__type = 'KGAudioRegion';
     this.audioFileId = audioFileId;
     this.audioFileName = audioFileName;

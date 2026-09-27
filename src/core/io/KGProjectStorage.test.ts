@@ -189,14 +189,14 @@ describe('KGProjectStorage', () => {
 
   it('preserves playhead position when saving and loading', async () => {
     const project = createTestProject('Playhead Song');
-    project.setPlayheadPosition(18.5);
+    project.setPlayheadTick(18500);
 
     await storage.save('Playhead Song', project);
 
     const loaded = await storage.load('Playhead Song');
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.getPlayheadPosition()).toBe(18.5);
+    expect(loaded!.getPlayheadTick()).toBe(18500);
   });
 
   it('defaults playhead position to 0 when loading older project data without the field', async () => {
@@ -207,7 +207,7 @@ describe('KGProjectStorage', () => {
     const projectDir = await projectsDir.getDirectoryHandle('Legacy Song');
     const projectHandle = await projectDir.getFileHandle('project.json');
     const legacyPayload = JSON.parse(await (await projectHandle.getFile()).text()) as Record<string, unknown>;
-    delete legacyPayload.playheadPosition;
+    delete legacyPayload.playheadTick;
 
     const writable = await projectHandle.createWritable();
     await writable.write(JSON.stringify(legacyPayload, null, 2));
@@ -216,7 +216,7 @@ describe('KGProjectStorage', () => {
     const loaded = await storage.load('Legacy Song');
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.getPlayheadPosition()).toBe(0);
+    expect(loaded!.getPlayheadTick()).toBe(0);
   });
 
   it('preserves persisted global-track visibility and metronome state when saving and loading', async () => {
@@ -256,7 +256,7 @@ describe('KGProjectStorage', () => {
     const signatureTrack = project.getGlobalTracks().find(track => track.getType() === GlobalTrackType.Signature);
 
     expect(signatureTrack).toBeDefined();
-    signatureTrack?.addRegion(new KGKeySignatureRegion('signature-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 4, 12, 4));
+    signatureTrack?.addRegion(new KGKeySignatureRegion('signature-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 4, 12, 3840));
 
     await storage.save('Signature Song', project);
 

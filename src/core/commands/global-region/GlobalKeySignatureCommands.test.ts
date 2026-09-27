@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
+import { TICKS_PER_QUARTER } from '../../timing';
 import { GlobalTrackType } from '../../global-track';
 import { KGKeySignatureRegion } from '../../region/KGKeySignatureRegion';
 import { CreateKeySignatureRegionCommand } from './CreateKeySignatureRegionCommand';
@@ -48,7 +49,7 @@ describe('global key signature region commands', () => {
   it('creates additional regions by splitting the covered span and inheriting the key', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('left', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 8, 4),
+      new KGKeySignatureRegion('left', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new CreateKeySignatureRegionCommand(5);
@@ -65,8 +66,8 @@ describe('global key signature region commands', () => {
   it('resizes a shared boundary and keeps the track gapless', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('left', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 4, 4),
-      new KGKeySignatureRegion('right', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 4, 4, 4),
+      new KGKeySignatureRegion('left', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 4, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('right', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 4, 4, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new ResizeKeySignatureRegionCommand('left', 'end', 6);
@@ -81,9 +82,9 @@ describe('global key signature region commands', () => {
   it('deletes a middle region by extending the previous region', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('first', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 2, 4),
-      new KGKeySignatureRegion('middle', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 2, 3, 4),
-      new KGKeySignatureRegion('last', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'D major', 5, 3, 4),
+      new KGKeySignatureRegion('first', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('middle', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 2, 3, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('last', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'D major', 5, 3, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new DeleteKeySignatureRegionCommand('middle');
@@ -98,8 +99,8 @@ describe('global key signature region commands', () => {
   it('deletes the first region by extending the next region leftward', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('first', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 2, 4),
-      new KGKeySignatureRegion('next', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 2, 6, 4),
+      new KGKeySignatureRegion('first', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 2, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('next', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'G major', 2, 6, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new DeleteKeySignatureRegionCommand('first');
@@ -114,7 +115,7 @@ describe('global key signature region commands', () => {
   it('allows deleting the last remaining region', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('only', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 8, 4),
+      new KGKeySignatureRegion('only', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new DeleteKeySignatureRegionCommand('only');
@@ -128,7 +129,7 @@ describe('global key signature region commands', () => {
   it('updates the region key signature with undo support', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('region', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 8, 4),
+      new KGKeySignatureRegion('region', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'C major', 0, 8, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new UpdateKeySignatureRegionCommand('region', 'G major');

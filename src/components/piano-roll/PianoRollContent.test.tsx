@@ -181,12 +181,12 @@ describe('PianoRollContent', () => {
 
   it('renders MIDI reference notes as read-only absolute-timeline outlines', () => {
     const activeRegion = createMockMidiRegion({
-      notes: [createMockMidiNote({ id: 'main-note', startBeat: 0, endBeat: 1 })],
+      notes: [createMockMidiNote({ id: 'main-note', startTick: 0, endTick: 1 })],
     });
     const referenceMidiRegion = createMockMidiRegion({
       id: 'reference-region',
-      startFromBeat: 8,
-      notes: [createMockMidiNote({ id: 'reference-note', startBeat: 1, endBeat: 3, pitch: 60 })],
+      startTick: 8,
+      notes: [createMockMidiNote({ id: 'reference-note', startTick: 1, endTick: 3, pitch: 60 })],
     });
 
     const { container } = render(

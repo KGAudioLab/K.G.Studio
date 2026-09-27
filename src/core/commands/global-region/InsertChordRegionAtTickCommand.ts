@@ -3,19 +3,19 @@ import { KGCore } from '../../KGCore';
 import { GlobalTrackType } from '../../global-track';
 import { KGChordRegion } from '../../region/KGChordRegion';
 import { generateUniqueId } from '../../../util/miscUtil';
-import { findChordRegionAtBeat, findGlobalTrackByType } from '../../../util/globalTrackUtil';
+import { findChordRegionAtTick, findGlobalTrackByType } from '../../../util/globalTrackUtil';
 
-export class InsertChordRegionAtBeatCommand extends KGCommand {
-  private readonly insertBeat: number;
+export class InsertChordRegionAtTickCommand extends KGCommand {
+  private readonly insertTick: number;
   private readonly symbol: string;
   private readonly regionId: string;
   private createdRegion: KGChordRegion | null = null;
   private targetRegionId: string | null = null;
   private originalTargetLength = 0;
 
-  constructor(insertBeat: number, symbol: string = 'C', regionId?: string) {
+  constructor(insertTick: number, symbol: string = 'C', regionId?: string) {
     super();
-    this.insertBeat = insertBeat;
+    this.insertTick = insertTick;
     this.symbol = symbol;
     this.regionId = regionId ?? generateUniqueId('KGChordRegion');
   }
@@ -27,33 +27,33 @@ export class InsertChordRegionAtBeatCommand extends KGCommand {
       throw new Error('Chord global track not found');
     }
 
-    const occupiedRegion = findChordRegionAtBeat(project, this.insertBeat);
+    const occupiedRegion = findChordRegionAtTick(project, this.insertTick);
     if (!occupiedRegion) {
-      throw new Error(`No chord region found at beat ${this.insertBeat}`);
+      throw new Error(`No chord region found at tick ${this.insertTick}`);
     }
 
-    const regionStart = occupiedRegion.getStartFromBeat();
-    const regionEnd = regionStart + occupiedRegion.getLength();
-    if (this.insertBeat <= regionStart || this.insertBeat >= regionEnd) {
-      throw new Error(`Cannot insert chord at beat ${this.insertBeat} without shrinking region below minimum length`);
+    const regionStart = occupiedRegion.getStartTick();
+    const regionEnd = regionStart + occupiedRegion.getLengthTicks();
+    if (this.insertTick <= regionStart || this.insertTick >= regionEnd) {
+      throw new Error(`Cannot insert chord at tick ${this.insertTick} without shrinking region below minimum length`);
     }
 
     this.targetRegionId = occupiedRegion.getId();
-    this.originalTargetLength = occupiedRegion.getLength();
-    occupiedRegion.setLength(this.insertBeat - regionStart);
+    this.originalTargetLength = occupiedRegion.getLengthTicks();
+    occupiedRegion.setLengthTicks(this.insertTick - regionStart);
 
     this.createdRegion = new KGChordRegion(
       this.regionId,
       chordTrack.getId(),
       chordTrack.getTrackIndex(),
       this.symbol,
-      this.insertBeat,
-      regionEnd - this.insertBeat
+      this.insertTick,
+      regionEnd - this.insertTick
     );
 
     chordTrack.setRegions(
       [...chordTrack.getRegions(), this.createdRegion]
-        .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat())
+        .sort((left, right) => left.getStartTick() - right.getStartTick())
     );
   }
 
@@ -72,8 +72,8 @@ export class InsertChordRegionAtBeatCommand extends KGCommand {
       throw new Error(`Chord region ${this.targetRegionId} not found during undo`);
     }
 
-    targetRegion.setLength(this.originalTargetLength);
-    chordTrack.setRegions([...chordTrack.getRegions()].sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat()));
+    targetRegion.setLengthTicks(this.originalTargetLength);
+    chordTrack.setRegions([...chordTrack.getRegions()].sort((left, right) => left.getStartTick() - right.getStartTick()));
   }
 
   getDescription(): string {

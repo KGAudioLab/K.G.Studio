@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
+import { TICKS_PER_QUARTER } from '../../timing';
 import { GlobalTrackType } from '../../global-track';
 import { KGKeySignatureRegion } from '../../region/KGKeySignatureRegion';
 import { WriteKeySignatureTrackCommand } from './WriteKeySignatureTrackCommand';
@@ -28,8 +29,8 @@ describe('WriteKeySignatureTrackCommand', () => {
 
   it('rebuilds the full signature track from explicit entries', () => {
     const command = new WriteKeySignatureTrackCommand('C major', [
-      { startBeat: 8, keySignature: 'G major' },
-      { startBeat: 16, keySignature: 'D major' },
+      { startTick: 8 * TICKS_PER_QUARTER, keySignature: 'G major' },
+      { startTick: 16 * TICKS_PER_QUARTER, keySignature: 'D major' },
     ]);
     command.execute();
 
@@ -48,12 +49,12 @@ describe('WriteKeySignatureTrackCommand', () => {
   it('replaces an existing multi-region track and restores it on undo', () => {
     const signatureTrack = getSignatureTrack();
     signatureTrack.setRegions([
-      new KGKeySignatureRegion('existing-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'F major', 0, 3, 4),
-      new KGKeySignatureRegion('existing-2', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'Bb major', 3, 5, 4),
+      new KGKeySignatureRegion('existing-1', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'F major', 0, 3, 4 * TICKS_PER_QUARTER),
+      new KGKeySignatureRegion('existing-2', signatureTrack.getId(), signatureTrack.getTrackIndex(), 'Bb major', 3, 5, 4 * TICKS_PER_QUARTER),
     ]);
 
     const command = new WriteKeySignatureTrackCommand('A minor', [
-      { startBeat: 12, keySignature: 'E minor' },
+      { startTick: 12 * TICKS_PER_QUARTER, keySignature: 'E minor' },
     ]);
     command.execute();
 

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import KGOnePanel from './KGOnePanel';
 import { KGAudioRegion } from '../core/region/KGAudioRegion';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import { quarterNotesToTicks } from '../core/timing';
 import { LOCAL_SEPARATOR_MODEL_IDS } from '../util/local-separator/config';
 
 const { mockLocalSeparatorDownload } = vi.hoisted(() => ({
@@ -53,7 +54,7 @@ const audioRegion = new KGAudioRegion(
   0,
   'Verse Stem',
   0,
-  4,
+  quarterNotesToTicks(4),
   'audio-file-1',
   'verse.wav',
   2,
@@ -69,6 +70,10 @@ vi.mock('../core/KGCore', () => ({
       getCurrentProject: () => ({
         getTracks: () => [audioTrack],
         getName: () => 'Test Project',
+        getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
+        getBpm: () => 120,
+        getGlobalTracks: () => [],
+        getMaxBars: () => 32,
       }),
       executeCommand: mockExecuteCommand,
     }),

@@ -13,8 +13,8 @@ export class ImportAudioCommand extends KGCommand {
   private audioFileId: string;
   private audioFileName: string;
   private audioDurationSeconds: number;
-  private insertBeat: number;
-  private durationInBeats: number;
+  private insertTick: number;
+  private durationTicks: number;
   private previousMaxBars: number;
   private newMaxBars: number;
   private regionId: string;
@@ -26,8 +26,8 @@ export class ImportAudioCommand extends KGCommand {
     audioFileId: string,
     audioFileName: string,
     audioDurationSeconds: number,
-    insertBeat: number,
-    durationInBeats: number,
+    insertTick: number,
+    durationTicks: number,
     previousMaxBars: number,
     newMaxBars: number
   ) {
@@ -37,8 +37,8 @@ export class ImportAudioCommand extends KGCommand {
     this.audioFileId = audioFileId;
     this.audioFileName = audioFileName;
     this.audioDurationSeconds = audioDurationSeconds;
-    this.insertBeat = insertBeat;
-    this.durationInBeats = durationInBeats;
+    this.insertTick = insertTick;
+    this.durationTicks = durationTicks;
     this.previousMaxBars = previousMaxBars;
     this.newMaxBars = newMaxBars;
     this.regionId = `audio_region_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -54,8 +54,8 @@ export class ImportAudioCommand extends KGCommand {
       this.trackId.toString(),
       this.trackIndex,
       this.audioFileName,
-      this.insertBeat,
-      this.durationInBeats,
+      this.insertTick,
+      this.durationTicks,
       this.audioFileId,
       this.audioFileName,
       this.audioDurationSeconds
@@ -73,7 +73,7 @@ export class ImportAudioCommand extends KGCommand {
       currentProject.setMaxBars(this.newMaxBars);
     }
 
-    console.log(`Imported audio "${this.audioFileName}" at beat ${this.insertBeat}, duration: ${this.durationInBeats} beats`);
+    console.log(`Imported audio "${this.audioFileName}" at beat ${this.insertTick}, duration: ${this.durationTicks} beats`);
   }
 
   undo(): void {

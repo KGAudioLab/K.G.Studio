@@ -3,10 +3,11 @@ import type { ToolParameter, ToolResult } from './BaseTool';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGTempoRegion } from '../../core/region/KGTempoRegion';
 import { findGlobalTrackByType, getSortedTempoRegions } from '../../util/globalTrackUtil';
+import { ticksToQuarterNotes } from '../../core/timing';
 
 export class ReadBpmTool extends BaseTool {
   readonly name = 'read_bpm';
-  readonly description = 'Read the BPM changes from the global Tempo track. If no tempo regions exist, fall back to the project-level BPM and return it at beat 0.';
+  readonly description = 'Read BPM changes from the global Tempo track in quarter-note units. If no tempo regions exist, return the project-level BPM at quarter-note 0.';
 
   readonly parameters: Record<string, ToolParameter> = {};
 
@@ -30,16 +31,17 @@ export class ReadBpmTool extends BaseTool {
         return this.createErrorResult('Tempo global track not found');
       }
 
-      const beatsPerBar = project.getTimeSignature().numerator;
-      const regions = getSortedTempoRegions(track, beatsPerBar)
+      const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+      const regions = getSortedTempoRegions(track, ticksPerBar)
         .filter((region): region is KGTempoRegion => region instanceof KGTempoRegion);
 
       if (regions.length === 0) {
-        return this.createSuccessResult(`[Beat: 0]: ${project.getBpm()} BPM`);
+        return this.createSuccessResult(`[Quarter-note: 0]: ${project.getBpm()} BPM`);
       }
 
       const result = regions
-        .map(region => `[Beat: ${region.getStartFromBeat()}]: ${region.getBpm()} BPM`)
+        .map(region => `[Quarter-note: ${ticksToQuarterNotes(region.getStartTick())}]: ${region.getBpm()} BPM`)
         .join('\n');
       return this.createSuccessResult(result);
     } catch (error) {

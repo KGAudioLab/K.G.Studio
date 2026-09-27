@@ -8,16 +8,16 @@ interface NoteSnapshot {
   noteId: string;
   pitch: number;
   velocity: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
 }
 
 interface NoteUpdate {
   noteId: string;
   pitch?: number;
   velocity?: number;
-  startBeat?: number;
-  endBeat?: number;
+  startTick?: number;
+  endTick?: number;
 }
 
 export class UpdateNotePropertiesCommand extends KGCommand {
@@ -57,8 +57,8 @@ export class UpdateNotePropertiesCommand extends KGCommand {
       if (note) {
         if (update.pitch !== undefined) note.setPitch(update.pitch);
         if (update.velocity !== undefined) note.setVelocity(update.velocity);
-        if (update.startBeat !== undefined) note.setStartBeat(update.startBeat);
-        if (update.endBeat !== undefined) note.setEndBeat(update.endBeat);
+        if (update.startTick !== undefined) note.setStartTick(update.startTick);
+        if (update.endTick !== undefined) note.setEndTick(update.endTick);
       }
     }
   }
@@ -74,8 +74,8 @@ export class UpdateNotePropertiesCommand extends KGCommand {
       if (note) {
         note.setPitch(snap.pitch);
         note.setVelocity(snap.velocity);
-        note.setStartBeat(snap.startBeat);
-        note.setEndBeat(snap.endBeat);
+        note.setStartTick(snap.startTick);
+        note.setEndTick(snap.endTick);
       }
     }
   }

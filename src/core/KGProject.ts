@@ -7,6 +7,7 @@ import { type TimeSignature, WithDefault } from '../types/projectTypes';
 import { TIME_CONSTANTS, KEY_SIGNATURE_MAP } from '../constants/coreConstants';
 import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
 import type { PianoRollSnapValue } from './state/KGPianoRollState';
+import { toTimelineTick, type TimelineTick } from './timing';
 
 // Type for valid key signatures
 export type KeySignature = keyof typeof KEY_SIGNATURE_MAP;
@@ -67,7 +68,7 @@ export class KGProject {
 
   @Expose()
   @WithDefault(0)
-  private playheadPosition: number = 0;
+  private playheadTick: TimelineTick = toTimelineTick(0);
 
   @Expose()
   @WithDefault(true)
@@ -88,7 +89,7 @@ export class KGProject {
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 19;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 20;
   
   @Expose()
   @Type(() => KGTrack, {
@@ -119,7 +120,7 @@ export class KGProject {
   private globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks();
 
   // Constructor
-  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = TIME_CONSTANTS.DEFAULT_BPM, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 2, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks(), showGlobalTracks: boolean = false, isMetronomeEnabled: boolean = false, playheadPosition: number = 0) {
+  constructor(name: string = RESERVED_PROJECT_NAME, maxBars: number = 32, currentBars: number = 0, bpm: number = TIME_CONSTANTS.DEFAULT_BPM, timeSignature: TimeSignature = { numerator: 4, denominator: 4 }, keySignature: KeySignature = "C major", selectedMode: string = "ionian", isLooping: boolean = false, loopingRange: [number, number] = [0, 0], barWidthMultiplier: number = 2, tracks: KGTrack[] = [], projectStructureVersion: number = KGProject.CURRENT_PROJECT_STRUCTURE_VERSION, pianoRollZoom: number = 1, globalTracks: KGGlobalTrack[] = createDefaultGlobalTracks(), showGlobalTracks: boolean = false, isMetronomeEnabled: boolean = false, playheadTick: number = 0) {
     this.name = name;
     this.maxBars = maxBars;
     this.currentBars = currentBars;
@@ -136,7 +137,7 @@ export class KGProject {
     this.globalTracks = globalTracks;
     this.showGlobalTracks = showGlobalTracks;
     this.isMetronomeEnabled = isMetronomeEnabled;
-    this.playheadPosition = playheadPosition;
+    this.playheadTick = toTimelineTick(playheadTick);
   }
 
   // Getters
@@ -233,16 +234,16 @@ export class KGProject {
     return this.isMetronomeEnabled;
   }
 
-  public getPlayheadPosition(): number {
-    return this.playheadPosition;
+  public getPlayheadTick(): TimelineTick {
+    return this.playheadTick;
   }
 
   public setIsMetronomeEnabled(isMetronomeEnabled: boolean): void {
     this.isMetronomeEnabled = isMetronomeEnabled;
   }
 
-  public setPlayheadPosition(playheadPosition: number): void {
-    this.playheadPosition = playheadPosition;
+  public setPlayheadTick(playheadTick: number): void {
+    this.playheadTick = toTimelineTick(playheadTick);
   }
 
   public getIsSnappingEnabled(): boolean {

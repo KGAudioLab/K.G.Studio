@@ -5,6 +5,7 @@ import {
   type WriteChordProgressionEntry,
 } from '../../core/commands/global-region/WriteChordProgressionCommand';
 import { parseChordSymbol } from '../../util/chordUtil';
+import { quarterNotesToTicks, ticksToQuarterNotes } from '../../core/timing';
 
 interface RequestedChordEntry {
   chord: string;
@@ -99,14 +100,14 @@ export class WriteChordProgressionTool extends BaseTool {
 
       const validatedChords = this.validateAndNormalizeChords(params.chords as RequestedChordEntry[]);
       const command = new WriteChordProgressionCommand(validatedChords.map(chord => ({
-        startBeat: chord.startBeat,
+        startTick: chord.startTick,
         length: chord.length,
         symbol: chord.chord,
       })));
       await this.executeCommand(command);
 
       const details = validatedChords
-        .map(chord => `"${chord.chord}" from beat ${chord.startBeat} to beat ${chord.startBeat + chord.length}`)
+        .map(chord => `"${chord.chord}" from quarter-note ${ticksToQuarterNotes(chord.startTick)} to quarter-note ${ticksToQuarterNotes(chord.startTick + chord.length)}`)
         .join(', ');
 
       return this.createSuccessResult(
@@ -123,14 +124,15 @@ export class WriteChordProgressionTool extends BaseTool {
       return null;
     }
 
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    const startBeat = Math.min(...typedArgs.chords.map(chord => chord.start));
-    const endBeat = Math.max(...typedArgs.chords.map(chord => chord.start + chord.length));
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const ticksPerBar = currentTimeSignature.numerator * 960 * (4 / currentTimeSignature.denominator);
+    const startTick = quarterNotesToTicks(Math.min(...typedArgs.chords.map(chord => chord.start)));
+    const endTick = quarterNotesToTicks(Math.max(...typedArgs.chords.map(chord => chord.start + chord.length)));
 
     return {
       chordCount: typedArgs.chords.length,
-      startBar: Math.floor(startBeat / beatsPerBar) + 1,
-      endBar: Math.max(1, Math.ceil(endBeat / beatsPerBar)),
+      startBar: Math.floor(startTick / ticksPerBar) + 1,
+      endBar: Math.max(1, Math.ceil(endTick / ticksPerBar)),
     };
   }
 
@@ -140,14 +142,14 @@ export class WriteChordProgressionTool extends BaseTool {
     }
 
     const validated = chords.map((chord, index) => this.validateChordEntry(chord, index));
-    validated.sort((left, right) => left.startBeat - right.startBeat);
+    validated.sort((left, right) => left.startTick - right.startTick);
 
     for (let index = 1; index < validated.length; index += 1) {
       const previous = validated[index - 1];
       const current = validated[index];
-      if (current.startBeat < previous.startBeat + previous.length) {
+      if (current.startTick < previous.startTick + previous.length) {
         throw new Error(
-          `Chord entry ${index + 1} overlaps with chord entry ${index}. Entry ${index} ends at beat ${previous.startBeat + previous.length}, but entry ${index + 1} starts at beat ${current.startBeat}.`,
+          `Chord entry ${index + 1} overlaps with chord entry ${index}. Entry ${index} ends at beat ${previous.startTick + previous.length}, but entry ${index + 1} starts at beat ${current.startTick}.`,
         );
       }
     }
@@ -182,8 +184,8 @@ export class WriteChordProgressionTool extends BaseTool {
     return {
       chord: parsed.symbol,
       symbol: parsed.symbol,
-      startBeat: chord.start,
-      length: chord.length,
+      startTick: quarterNotesToTicks(chord.start),
+      length: quarterNotesToTicks(chord.length),
     };
   }
 }

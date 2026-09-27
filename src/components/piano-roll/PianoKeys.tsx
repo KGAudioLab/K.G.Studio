@@ -37,7 +37,7 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
   const [midiActivePitches, setMidiActivePitches] = useState<Map<number, number>>(new Map());
   const mouseActivePitchesRef = useRef<Map<number, number>>(new Map());
   const tracks = useProjectStore(state => state.tracks);
-  const playheadPosition = useProjectStore(state => state.playheadPosition);
+  const playheadTick = useProjectStore(state => state.playheadTick);
   const isPlaying = useProjectStore(state => state.isPlaying);
 
   // Check if current active region belongs to a drum track
@@ -53,20 +53,20 @@ const PianoKeys: React.FC<PianoKeysProps> = ({ activeRegion }) => {
     }
 
     const activePitches = new Set<number>();
-    const absolutePlayhead = playheadPosition;
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const absolutePlayhead = playheadTick;
+    const regionStartTick = activeRegion.getStartTick();
 
     activeRegion.getNotes().forEach(note => {
-      const startBeat = regionStartBeat + note.getStartBeat();
-      const endBeat = regionStartBeat + note.getEndBeat();
+      const startTick = regionStartTick + note.getStartTick();
+      const endTick = regionStartTick + note.getEndTick();
 
-      if (absolutePlayhead >= startBeat && absolutePlayhead < endBeat) {
+      if (absolutePlayhead >= startTick && absolutePlayhead < endTick) {
         activePitches.add(note.getPitch());
       }
     });
 
     return activePitches;
-  }, [activeRegion, isPlaying, playheadPosition]);
+  }, [activeRegion, isPlaying, playheadTick]);
 
   useEffect(() => {
     const midiInput = KGMidiInput.instance();

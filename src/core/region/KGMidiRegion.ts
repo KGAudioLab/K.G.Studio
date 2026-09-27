@@ -45,8 +45,8 @@ export class KGMidiRegion extends KGRegion {
   @Type(() => KGMidiControllerEvent)
   protected controllerEventsByType: KGMidiControllerEvent[][] = createEmptyControllerBuckets();
 
-  constructor(id: string, trackId: string, trackIndex: number, name: string, startFromBeat: number = 0, length: number = 0) {
-    super(id, trackId, trackIndex, name, startFromBeat, length);
+  constructor(id: string, trackId: string, trackIndex: number, name: string, startTick: number = 0, length: number = 0) {
+    super(id, trackId, trackIndex, name, startTick, length);
     this.__type = 'KGMidiRegion';
   }
 

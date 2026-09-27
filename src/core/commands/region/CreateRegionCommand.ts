@@ -12,24 +12,24 @@ export class CreateRegionCommand extends KGCommand {
   private trackId: string;
   private trackIndex: number;
   private regionName: string;
-  private startBeat: number;
-  private lengthInBeats: number;
+  private startTick: number;
+  private lengthTicks: number;
   private regionId: string;
   private createdRegion: KGMidiRegion | null = null;
 
   constructor(
     trackId: string,
     trackIndex: number,
-    startBeat: number,
-    lengthInBeats: number,
+    startTick: number,
+    lengthTicks: number,
     regionName?: string,
     regionId?: string
   ) {
     super();
     this.trackId = trackId;
     this.trackIndex = trackIndex;
-    this.startBeat = startBeat;
-    this.lengthInBeats = lengthInBeats;
+    this.startTick = startTick;
+    this.lengthTicks = lengthTicks;
     this.regionId = regionId || generateUniqueId('KGMidiRegion');
     
     // Generate region name if not provided
@@ -56,14 +56,14 @@ export class CreateRegionCommand extends KGCommand {
       this.trackId,
       this.trackIndex,
       this.regionName,
-      this.startBeat,
-      this.lengthInBeats
+      this.startTick,
+      this.lengthTicks
     );
 
     // Add the region to the track
     targetTrack.addRegion(this.createdRegion);
 
-    console.log(`Created region "${this.regionName}" in track ${this.trackId} at beat ${this.startBeat}`);
+    console.log(`Created region "${this.regionName}" in track ${this.trackId} at beat ${this.startTick}`);
   }
 
   undo(): void {
@@ -121,18 +121,18 @@ export class CreateRegionCommand extends KGCommand {
     trackIndex: number,
     barNumber: number,
     lengthInBars: number,
-    beatsPerBar: number,
+    ticksPerBar: number,
     regionName?: string,
     regionId?: string
   ): CreateRegionCommand {
-    const startBeat = (barNumber - 1) * beatsPerBar;
-    const lengthInBeats = lengthInBars * beatsPerBar;
+    const startTick = (barNumber - 1) * ticksPerBar;
+    const lengthTicks = lengthInBars * ticksPerBar;
     
     return new CreateRegionCommand(
       trackId,
       trackIndex,
-      startBeat,
-      lengthInBeats,
+      startTick,
+      lengthTicks,
       regionName,
       regionId
     );

@@ -1,4 +1,5 @@
 import { BaseTool } from './BaseTool';
+import { quarterNotesToTicks, ticksPerBar, ticksToQuarterNotes } from '../../core/timing';
 import type { ToolParameter, ToolResult } from './BaseTool';
 import { DeleteMultipleGlobalRegionsCommand } from '../../core/commands/global-region/DeleteGlobalRegionCommand';
 import { GlobalTrackType } from '../../core/global-track';
@@ -7,8 +8,8 @@ import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 
 interface ChordRemovalSummaryData {
   chordCount: number;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   firstBar: number;
   lastBar: number;
 }
@@ -46,7 +47,7 @@ export class RemoveChordProgressionTool extends BaseTool {
     if (toolResult.result.startsWith('No chord references found')) {
       const summary = this.buildSummaryData(args);
       return summary
-        ? `No chord references found for removal at beats ${summary.startBeat}-${summary.endBeat}.`
+        ? `No chord references found for removal at quarter-notes ${ticksToQuarterNotes(summary.startTick)}-${ticksToQuarterNotes(summary.endTick)}.`
         : undefined;
     }
 
@@ -79,21 +80,21 @@ export class RemoveChordProgressionTool extends BaseTool {
     try {
       this.validateParameters(params);
 
-      const startBeat = params.start as number;
-      const endBeat = params.end as number;
-      this.validateRange(startBeat, endBeat);
+      const startTick = quarterNotesToTicks(params.start as number);
+      const endTick = quarterNotesToTicks(params.end as number);
+      this.validateRange(startTick, endTick);
 
-      const matchingRegions = this.findMatchingRegions(startBeat, endBeat);
+      const matchingRegions = this.findMatchingRegions(startTick, endTick);
       if (matchingRegions.length === 0) {
         return this.createSuccessResult(
-          `No chord references found with start beats in the requested range from beat ${startBeat} to ${endBeat}.`,
+          `No chord references found in the requested quarter-note range ${ticksToQuarterNotes(startTick)} to ${ticksToQuarterNotes(endTick)}.`,
         );
       }
 
       await this.executeCommand(new DeleteMultipleGlobalRegionsCommand(matchingRegions.map(region => region.getId())));
 
       const details = matchingRegions
-        .map(region => `"${region.getSymbol()}" at beat ${region.getStartFromBeat()}`)
+        .map(region => `"${region.getSymbol()}" at quarter-note ${ticksToQuarterNotes(region.getStartTick())}`)
         .join(', ');
       return this.createSuccessResult(
         `Successfully removed ${matchingRegions.length} chord ${matchingRegions.length === 1 ? 'reference' : 'references'} from the global chord track: ${details}.`,
@@ -103,16 +104,16 @@ export class RemoveChordProgressionTool extends BaseTool {
     }
   }
 
-  private validateRange(startBeat: number, endBeat: number): void {
-    if (startBeat < 0) {
-      throw new Error(`Invalid start ${startBeat}. Must be >= 0.`);
+  private validateRange(startTick: number, endTick: number): void {
+    if (startTick < 0) {
+      throw new Error(`Invalid start ${startTick}. Must be >= 0.`);
     }
-    if (endBeat < startBeat) {
-      throw new Error(`Invalid beat range: end (${endBeat}) must be greater than or equal to start (${startBeat}).`);
+    if (endTick < startTick) {
+      throw new Error(`Invalid beat range: end (${endTick}) must be greater than or equal to start (${startTick}).`);
     }
   }
 
-  private findMatchingRegions(startBeat: number, endBeat: number): KGChordRegion[] {
+  private findMatchingRegions(startTick: number, endTick: number): KGChordRegion[] {
     const project = this.getCurrentProject();
     const chordTrack = findGlobalTrackByType(project, GlobalTrackType.Chord);
     if (!chordTrack) {
@@ -121,16 +122,16 @@ export class RemoveChordProgressionTool extends BaseTool {
 
     return chordTrack.getRegions()
       .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
-      .filter(region => this.matchesRange(region.getStartFromBeat(), startBeat, endBeat))
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .filter(region => this.matchesRange(region.getStartTick(), startTick, endTick))
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
   }
 
-  private matchesRange(regionStartBeat: number, startBeat: number, endBeat: number): boolean {
-    if (startBeat === endBeat) {
-      return regionStartBeat === startBeat;
+  private matchesRange(regionStartTick: number, startTick: number, endTick: number): boolean {
+    if (startTick === endTick) {
+      return regionStartTick === startTick;
     }
 
-    return regionStartBeat >= startBeat && regionStartBeat < endBeat;
+    return regionStartTick >= startTick && regionStartTick < endTick;
   }
 
   private buildSummaryData(args: Record<string, unknown>): ChordRemovalSummaryData | null {
@@ -142,28 +143,31 @@ export class RemoveChordProgressionTool extends BaseTool {
       return null;
     }
 
-    const matchingRegions = this.findMatchingRegions(typedArgs.start, typedArgs.end);
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
+    const startTick = quarterNotesToTicks(typedArgs.start);
+    const endTick = quarterNotesToTicks(typedArgs.end);
+    const matchingRegions = this.findMatchingRegions(startTick, endTick);
+    const currentTimeSignature = this.getCurrentProject().getTimeSignature();
+    const barTicks = ticksPerBar(currentTimeSignature);
 
     if (matchingRegions.length === 0) {
-      const bar = Math.floor(typedArgs.start / beatsPerBar) + 1;
+      const bar = Math.floor(startTick / barTicks) + 1;
       return {
         chordCount: 0,
-        startBeat: typedArgs.start,
-        endBeat: typedArgs.end,
+        startTick,
+        endTick,
         firstBar: bar,
         lastBar: bar,
       };
     }
 
-    const firstBeat = Math.min(...matchingRegions.map(region => region.getStartFromBeat()));
-    const lastBeat = Math.max(...matchingRegions.map(region => region.getStartFromBeat() + region.getLength()));
+    const firstBeat = Math.min(...matchingRegions.map(region => region.getStartTick()));
+    const lastBeat = Math.max(...matchingRegions.map(region => region.getStartTick() + region.getLengthTicks()));
     return {
       chordCount: matchingRegions.length,
-      startBeat: typedArgs.start,
-      endBeat: typedArgs.end,
-      firstBar: Math.floor(firstBeat / beatsPerBar) + 1,
-      lastBar: Math.max(1, Math.ceil(lastBeat / beatsPerBar)),
+      startTick,
+      endTick,
+      firstBar: Math.floor(firstBeat / barTicks) + 1,
+      lastBar: Math.max(1, Math.ceil(lastBeat / barTicks)),
     };
   }
 
@@ -181,17 +185,17 @@ export class RemoveChordProgressionTool extends BaseTool {
       return null;
     }
 
-    const beatsPerBar = this.getCurrentProject().getTimeSignature().numerator;
-    const firstBar = Math.floor(typedArgs.start / beatsPerBar) + 1;
-    const lastBeatExclusive = typedArgs.start === typedArgs.end
-      ? typedArgs.start + 1
-      : typedArgs.end;
-    const lastBar = Math.max(1, Math.ceil(lastBeatExclusive / beatsPerBar));
+    const barTicks = ticksPerBar(this.getCurrentProject().getTimeSignature());
+    const startTick = quarterNotesToTicks(typedArgs.start);
+    const endTick = quarterNotesToTicks(typedArgs.end);
+    const firstBar = Math.floor(startTick / barTicks) + 1;
+    const lastTickExclusive = startTick === endTick ? startTick + 1 : endTick;
+    const lastBar = Math.max(1, Math.ceil(lastTickExclusive / barTicks));
 
     return {
       chordCount: Number(countMatch[1]),
-      startBeat: typedArgs.start,
-      endBeat: typedArgs.end,
+      startTick,
+      endTick,
       firstBar,
       lastBar,
     };

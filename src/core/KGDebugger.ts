@@ -22,9 +22,9 @@ export class KGDebugger {
   // Private constructor to prevent direct instantiation
   private constructor() {
     console.log("🔧 KGDebugger initialized - Available methods:", [
-      'convertSelectedRegionToABCNotation(startFromBeat?, length?, asCMajor?)',
+      'convertSelectedRegionToABCNotation(startTick?, length?, asCMajor?)',
       'convertSelectedRegionChordProgressionToABCNotation()',
-      'testQuantizeDuration(durationBeats, timeSignature?)',
+      'testQuantizeDuration(durationTicks, timeSignature?)',
       'debugSelectedItems()',
       'createTestRegion()',
       'testExtractXMLFromString(input)',
@@ -49,14 +49,14 @@ export class KGDebugger {
 
   /**
    * Convert the currently selected region to ABC notation
-   * @param startFromBeat - Optional absolute beat position to start from. Defaults to the region start;
+   * @param startTick - Optional absolute beat position to start from. Defaults to the region start;
    * negative values use the current playhead's rounded beat, rounded down to its containing bar.
    * @param length - Optional conversion length in beats (must be positive and finite)
    * @param asCMajor - Keep the actual K: header and enharmonic preference, but explicitly write
    * accidentals that would otherwise be implied by the key signature.
    */
   public convertSelectedRegionToABCNotation(
-    startFromBeat?: number,
+    startTick?: number,
     length?: number,
     asCMajor: boolean = false,
   ): void {
@@ -107,12 +107,12 @@ export class KGDebugger {
     }
 
     // Use the region start by default, or the playhead's containing bar for a negative start.
-    let effectiveStartBeat = startFromBeat ?? midiRegion.getStartFromBeat();
-    if (effectiveStartBeat < 0) {
-      const roundedPlayheadBeat = Math.round(core.getPlayheadPosition());
-      const beatsPerBar = core.getCurrentProject().getTimeSignature().numerator;
-      effectiveStartBeat = Math.floor(roundedPlayheadBeat / beatsPerBar) * beatsPerBar;
-      console.log(`📍 Negative start requested; using playhead bar at beat: ${effectiveStartBeat}`);
+    let effectiveStartTick = startTick ?? midiRegion.getStartTick();
+    if (effectiveStartTick < 0) {
+      const roundedPlayheadBeat = Math.round(core.getPlayheadTick());
+      const ticksPerBar = core.getCurrentProject().getTimeSignature().numerator;
+      effectiveStartTick = Math.floor(roundedPlayheadBeat / ticksPerBar) * ticksPerBar;
+      console.log(`📍 Negative start requested; using playhead bar at beat: ${effectiveStartTick}`);
     }
 
     if (length !== undefined && (!Number.isFinite(length) || length <= 0)) {
@@ -120,22 +120,22 @@ export class KGDebugger {
       return;
     }
 
-    const endBeat = length !== undefined ? effectiveStartBeat + length : undefined;
+    const endTick = length !== undefined ? effectiveStartTick + length : undefined;
 
     console.log(`🎵 Converting region: "${midiRegion.getName()}"`);
-    console.log(`📍 Region starts at beat: ${midiRegion.getStartFromBeat()}`);
-    console.log(`📍 Conversion starts at beat: ${effectiveStartBeat}`);
-    if (endBeat !== undefined) {
-      console.log(`📍 Conversion ends at beat: ${endBeat}`);
+    console.log(`📍 Region starts at beat: ${midiRegion.getStartTick()}`);
+    console.log(`📍 Conversion starts at beat: ${effectiveStartTick}`);
+    if (endTick !== undefined) {
+      console.log(`📍 Conversion ends at beat: ${endTick}`);
     }
     console.log(`🎼 Notes in region: ${midiRegion.getNotes().length}`);
 
     try {
       const abcNotation = asCMajor
-        ? convertRegionToABCNotation(midiRegion, effectiveStartBeat, endBeat, true)
-        : endBeat === undefined
-          ? convertRegionToABCNotation(midiRegion, effectiveStartBeat)
-          : convertRegionToABCNotation(midiRegion, effectiveStartBeat, endBeat);
+        ? convertRegionToABCNotation(midiRegion, effectiveStartTick, endTick, true)
+        : endTick === undefined
+          ? convertRegionToABCNotation(midiRegion, effectiveStartTick)
+          : convertRegionToABCNotation(midiRegion, effectiveStartTick, endTick);
 
       console.log("✅ ABC Notation conversion successful!");
       console.log("📄 Result:");
@@ -194,17 +194,17 @@ export class KGDebugger {
       return;
     }
 
-    const startBeat = midiRegion.getStartFromBeat();
-    const endBeat = startBeat + midiRegion.getLength();
+    const startTick = midiRegion.getStartTick();
+    const endTick = startTick + midiRegion.getLengthTicks();
 
     console.log(`🎼 Reading chord progression for region: "${midiRegion.getName()}"`);
-    console.log(`📍 Range: beats ${startBeat}-${endBeat}`);
+    console.log(`📍 Range: beats ${startTick}-${endTick}`);
 
     try {
       const output = convertBeatRangeChordProgressionToABCNotation(
         KGCore.instance().getCurrentProject(),
-        startBeat,
-        endBeat,
+        startTick,
+        endTick,
       );
 
       console.log('✅ Chord progression conversion successful!');
@@ -227,38 +227,38 @@ export class KGDebugger {
 
   /**
    * Test the quantization duration method with a specific duration
-   * @param durationBeats - Duration in beats to test
+   * @param durationTicks - Duration in beats to test
    * @param timeSignature - Optional time signature (defaults to project time signature)
    */
-  public testQuantizeDuration(durationBeats: number, timeSignature?: TimeSignature): void {
+  public testQuantizeDuration(durationQuarterNotes: number, timeSignature?: TimeSignature): void {
     const core = KGCore.instance();
     const project = core.getCurrentProject();
     const effectiveTimeSignature = timeSignature ?? project.getTimeSignature();
 
-    console.log(`🧮 Testing quantization for ${durationBeats} beats...`);
+    console.log(`🧮 Testing quantization for ${durationQuarterNotes} quarter notes...`);
     console.log(`⏱️ Time signature: ${effectiveTimeSignature.numerator}/${effectiveTimeSignature.denominator}`);
 
     // Import quantization testing (we'll need to expose some internal methods)
     // For now, let's create a simple test
-    const ticksPerBeat = 480 * (4 / effectiveTimeSignature.denominator);
-    const durationTicks = Math.round(durationBeats * ticksPerBeat);
+    const ticksPerQuarter = 960;
+    const durationTicks = Math.round(durationQuarterNotes * ticksPerQuarter);
 
-    console.log(`🎵 Input: ${durationBeats} beats = ${durationTicks} ticks`);
+    console.log(`🎵 Input: ${durationQuarterNotes} quarter notes = ${durationTicks} ticks`);
 
     // Test different quantization values manually for demonstration
     const testValues = [
-      { name: '1/1', ticks: 1920 },
-      { name: '1/2', ticks: 960 },
-      { name: '1/3', ticks: 640 },
-      { name: '1/4', ticks: 480 },
-      { name: '1/6', ticks: 320 },
-      { name: '1/8', ticks: 240 },
-      { name: '1/12', ticks: 160 },
-      { name: '1/16', ticks: 120 }
+      { name: '1/1', ticks: 3840 },
+      { name: '1/2', ticks: 1920 },
+      { name: '1/3', ticks: 1280 },
+      { name: '1/4', ticks: 960 },
+      { name: '1/6', ticks: 640 },
+      { name: '1/8', ticks: 480 },
+      { name: '1/12', ticks: 320 },
+      { name: '1/16', ticks: 240 }
     ];
 
     console.log("📊 Quantization analysis:");
-    let bestMatch = { name: '1/4', error: Infinity, ticks: 480 };
+    let bestMatch = { name: '1/4', error: Infinity, ticks: 960 };
 
     testValues.forEach(val => {
       const remainder = durationTicks % val.ticks;
@@ -273,11 +273,11 @@ export class KGDebugger {
     });
 
     const quantizedTicks = Math.round(durationTicks / bestMatch.ticks) * bestMatch.ticks;
-    const quantizedBeats = quantizedTicks / ticksPerBeat;
+    const quantizedQuarterNotes = quantizedTicks / ticksPerQuarter;
 
     console.log(`✅ Best match: ${bestMatch.name} grid`);
-    console.log(`🎯 Quantized: ${quantizedBeats} beats = ${quantizedTicks} ticks`);
-    console.log(`📏 Difference: ${Math.abs(durationBeats - quantizedBeats).toFixed(4)} beats`);
+    console.log(`🎯 Quantized: ${quantizedQuarterNotes} quarter notes = ${quantizedTicks} ticks`);
+    console.log(`📏 Difference: ${Math.abs(durationTicks - quantizedTicks)} ticks`);
   }
 
   /**
@@ -302,8 +302,8 @@ export class KGDebugger {
 
       if (type === 'KGMidiRegion') {
         const region = item as KGMidiRegion;
-        console.log(`     📍 Position: ${region.getStartFromBeat()} beats`);
-        console.log(`     📏 Length: ${region.getLength()} beats`);
+        console.log(`     📍 Position: ${region.getStartTick()} beats`);
+        console.log(`     📏 Length: ${region.getLengthTicks()} beats`);
         console.log(`     🎵 Notes: ${region.getNotes().length}`);
         console.log(`     📛 Name: "${region.getName()}"`);
       }
@@ -438,7 +438,7 @@ export class KGDebugger {
   public help(): void {
     console.log("🔧 KGDebugger Help");
     console.log("Available methods:");
-    console.log("  convertSelectedRegionToABCNotation(startFromBeat?, length?, asCMajor?) - Convert selected region to ABC");
+    console.log("  convertSelectedRegionToABCNotation(startTick?, length?, asCMajor?) - Convert selected region to ABC");
     console.log("  convertSelectedRegionChordProgressionToABCNotation() - Convert selected region chord progression to dual ABC views");
     console.log("  testQuantizeDuration(beats, timeSignature?) - Test quantization logic");
     console.log("  debugSelectedItems() - Show info about selected items");

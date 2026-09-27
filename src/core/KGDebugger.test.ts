@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const debuggerMocks = vi.hoisted(() => ({
   selectedItems: [] as Array<Record<string, unknown>>,
   convertRegionToABCNotation: vi.fn(() => 'X:1\nC |'),
-  playheadPosition: 0,
-  beatsPerBar: 4,
+  playheadTick: 0,
+  ticksPerBar: 4,
 }));
 
 vi.mock('./KGCore', () => ({
@@ -12,9 +12,9 @@ vi.mock('./KGCore', () => ({
     instance: () => ({
       getSelectedItems: () => debuggerMocks.selectedItems,
       getCurrentProject: () => ({
-        getTimeSignature: () => ({ numerator: debuggerMocks.beatsPerBar, denominator: 4 }),
+        getTimeSignature: () => ({ numerator: debuggerMocks.ticksPerBar, denominator: 4 }),
       }),
-      getPlayheadPosition: () => debuggerMocks.playheadPosition,
+      getPlayheadTick: () => debuggerMocks.playheadTick,
     }),
   },
 }));
@@ -51,11 +51,11 @@ vi.mock('../stores/projectStore', () => ({
 
 import { KGDebugger } from './KGDebugger';
 
-function createMockMidiRegion(startFromBeat = 4): Record<string, unknown> {
+function createMockMidiRegion(startTick = 4): Record<string, unknown> {
   return {
     getCurrentType: () => 'KGMidiRegion',
     getName: () => 'Test Region',
-    getStartFromBeat: () => startFromBeat,
+    getStartTick: () => startTick,
     getNotes: () => [],
   };
 }
@@ -141,8 +141,8 @@ describe('KGDebugger ABC notation conversion', () => {
     (KGDebugger as unknown as { _instance: KGDebugger | null })._instance = null;
     debuggerMocks.selectedItems.length = 0;
     debuggerMocks.convertRegionToABCNotation.mockClear();
-    debuggerMocks.playheadPosition = 0;
-    debuggerMocks.beatsPerBar = 4;
+    debuggerMocks.playheadTick = 0;
+    debuggerMocks.ticksPerBar = 4;
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     debuggerInstance = KGDebugger.instance();
@@ -159,7 +159,7 @@ describe('KGDebugger ABC notation conversion', () => {
     expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6);
   });
 
-  it('converts through startFromBeat plus length', () => {
+  it('converts through startTick plus length', () => {
     const region = createMockMidiRegion();
     debuggerMocks.selectedItems.push(region);
 
@@ -186,7 +186,7 @@ describe('KGDebugger ABC notation conversion', () => {
     expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 6, undefined, true);
   });
 
-  it('uses the region start when length is provided without startFromBeat', () => {
+  it('uses the region start when length is provided without startTick', () => {
     const region = createMockMidiRegion(10);
     debuggerMocks.selectedItems.push(region);
 
@@ -195,10 +195,10 @@ describe('KGDebugger ABC notation conversion', () => {
     expect(debuggerMocks.convertRegionToABCNotation).toHaveBeenCalledWith(region, 10, 14);
   });
 
-  it('uses the playhead rounded to its containing bar when startFromBeat is negative', () => {
+  it('uses the playhead rounded to its containing bar when startTick is negative', () => {
     const region = createMockMidiRegion();
     debuggerMocks.selectedItems.push(region);
-    debuggerMocks.playheadPosition = 7.6;
+    debuggerMocks.playheadTick = 7.6;
 
     debuggerInstance.convertSelectedRegionToABCNotation(-1, 4);
 

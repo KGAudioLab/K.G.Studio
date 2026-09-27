@@ -6,7 +6,7 @@ import { findGlobalTrackByType } from '../../../util/globalTrackUtil';
 import { generateUniqueId } from '../../../util/miscUtil';
 
 export interface WriteChordProgressionEntry {
-  startBeat: number;
+  startTick: number;
   length: number;
   symbol: string;
 }
@@ -17,8 +17,8 @@ function cloneChordRegion(region: KGChordRegion): KGChordRegion {
     region.getTrackId(),
     region.getTrackIndex(),
     region.getSymbol(),
-    region.getStartFromBeat(),
-    region.getLength(),
+    region.getStartTick(),
+    region.getLengthTicks(),
   );
 }
 
@@ -34,7 +34,7 @@ export class WriteChordProgressionCommand extends KGCommand {
   constructor(replacements: WriteChordProgressionEntry[]) {
     super();
     this.replacements = replacements.map(replacement => ({
-      startBeat: replacement.startBeat,
+      startTick: replacement.startTick,
       length: replacement.length,
       symbol: replacement.symbol,
     }));
@@ -54,18 +54,18 @@ export class WriteChordProgressionCommand extends KGCommand {
 
     const currentRegions = chordTrack.getRegions()
       .filter((region): region is KGChordRegion => region instanceof KGChordRegion)
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
 
-    const sortedReplacements = [...this.replacements].sort((left, right) => left.startBeat - right.startBeat);
+    const sortedReplacements = [...this.replacements].sort((left, right) => left.startTick - right.startTick);
     this.originalRegions = cloneChordRegions(currentRegions);
 
     const preservedRegions: KGChordRegion[] = [];
     for (const region of currentRegions) {
-      const regionStart = region.getStartFromBeat();
-      const regionEnd = regionStart + region.getLength();
+      const regionStart = region.getStartTick();
+      const regionEnd = regionStart + region.getLengthTicks();
       const overlappingReplacements = sortedReplacements.filter(replacement => (
-        replacement.startBeat < regionEnd
-        && replacement.startBeat + replacement.length > regionStart
+        replacement.startTick < regionEnd
+        && replacement.startTick + replacement.length > regionStart
       ));
 
       if (overlappingReplacements.length === 0) {
@@ -73,11 +73,11 @@ export class WriteChordProgressionCommand extends KGCommand {
         continue;
       }
 
-      let cursor = regionStart;
+      let cursor: number = regionStart;
       let fragmentIndex = 0;
       for (const replacement of overlappingReplacements) {
-        const replacementStart = Math.max(regionStart, replacement.startBeat);
-        const replacementEnd = Math.min(regionEnd, replacement.startBeat + replacement.length);
+        const replacementStart = Math.max(regionStart, replacement.startTick);
+        const replacementEnd = Math.min(regionEnd, replacement.startTick + replacement.length);
         if (replacementStart > cursor) {
           preservedRegions.push(new KGChordRegion(
             fragmentIndex === 0 ? region.getId() : generateUniqueId('KGChordRegion'),
@@ -109,12 +109,12 @@ export class WriteChordProgressionCommand extends KGCommand {
       chordTrack.getId(),
       chordTrack.getTrackIndex(),
       replacement.symbol,
-      replacement.startBeat,
+      replacement.startTick,
       replacement.length,
     ));
 
     this.nextRegions = [...preservedRegions, ...replacementRegions]
-      .sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat());
+      .sort((left, right) => left.getStartTick() - right.getStartTick());
 
     chordTrack.setRegions(cloneChordRegions(this.nextRegions));
   }

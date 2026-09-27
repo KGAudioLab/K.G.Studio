@@ -5,12 +5,13 @@ import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGTrack } from '../../track/KGTrack';
 import { REGION_CONSTANTS } from '../../../constants';
+import { secondsToTick, tickToSeconds } from '../../../util/globalTrackUtil';
 
 interface RegionSnapshot {
   regionId: string;
   trackId: string;
   trackIndex: number;
-  startBeat: number;
+  startTick: number;
   length: number;
   clipStartOffsetSeconds?: number;
 }
@@ -21,22 +22,20 @@ interface ProjectedRegionState extends RegionSnapshot {
 
 interface NoteAdjustment {
   noteId: string;
-  originalStartBeat: number;
-  originalEndBeat: number;
+  originalStartTick: number;
+  originalEndTick: number;
 }
 
 interface PitchBendAdjustment {
   pitchBendId: string;
-  originalBeat: number;
+  originalTick: number;
 }
 
 interface ControllerEventAdjustment {
   controller: number;
   controllerEventId: string;
-  originalBeat: number;
+  originalTick: number;
 }
-
-const EPSILON = 1e-9;
 
 function getRegionById(tracks: KGTrack[], regionId: string): { region: KGRegion; track: KGTrack } | null {
   for (const track of tracks) {
@@ -51,7 +50,7 @@ function getRegionById(tracks: KGTrack[], regionId: string): { region: KGRegion;
 function rangesOverlap(aStart: number, aLength: number, bStart: number, bLength: number): boolean {
   const aEnd = aStart + aLength;
   const bEnd = bStart + bLength;
-  return aStart < bEnd - EPSILON && aEnd > bStart + EPSILON;
+  return aStart < bEnd && aEnd > bStart;
 }
 
 function validateNoProjectedOverlaps(projectedStates: ProjectedRegionState[], allTracks: KGTrack[]): void {
@@ -68,8 +67,8 @@ function validateNoProjectedOverlaps(projectedStates: ProjectedRegionState[], al
         regionId: region.getId(),
         trackId: region.getTrackId(),
         trackIndex: region.getTrackIndex(),
-        startBeat: region.getStartFromBeat(),
-        length: region.getLength(),
+        startTick: region.getStartTick(),
+        length: region.getLengthTicks(),
         clipStartOffsetSeconds: region instanceof KGAudioRegion ? region.getClipStartOffsetSeconds() : undefined,
         region,
       };
@@ -78,7 +77,7 @@ function validateNoProjectedOverlaps(projectedStates: ProjectedRegionState[], al
         continue;
       }
 
-      if (rangesOverlap(projectedState.startBeat, projectedState.length, comparisonState.startBeat, comparisonState.length)) {
+      if (rangesOverlap(projectedState.startTick, projectedState.length, comparisonState.startTick, comparisonState.length)) {
         throw new Error(`Cannot complete this edit because "${projectedState.region.getName()}" would overlap another region on its track.`);
       }
     }
@@ -87,15 +86,15 @@ function validateNoProjectedOverlaps(projectedStates: ProjectedRegionState[], al
 
 export class MoveMultipleRegionsCommand extends KGCommand {
   private readonly primaryRegionId: string;
-  private readonly startBeatDelta: number;
+  private readonly startTickDelta: number;
   private readonly regionIdsToMove: string[];
   private originalStates: RegionSnapshot[] = [];
   private targetRegions: KGRegion[] = [];
 
-  constructor(primaryRegionId: string, startBeatDelta: number, regionIdsToMove: string[]) {
+  constructor(primaryRegionId: string, startTickDelta: number, regionIdsToMove: string[]) {
     super();
     this.primaryRegionId = primaryRegionId;
-    this.startBeatDelta = startBeatDelta;
+    this.startTickDelta = startTickDelta;
     this.regionIdsToMove = [...regionIdsToMove];
   }
 
@@ -114,8 +113,8 @@ export class MoveMultipleRegionsCommand extends KGCommand {
     }
 
     const projectedStates: ProjectedRegionState[] = resolvedRegions.map(({ region, track }) => {
-      const newStartBeat = region.getStartFromBeat() + this.startBeatDelta;
-      if (newStartBeat < -EPSILON) {
+      const newStartTick = region.getStartTick() + this.startTickDelta;
+      if (newStartTick < 0) {
         throw new Error(`Cannot move regions because "${region.getName()}" would start before bar 1.`);
       }
 
@@ -123,8 +122,8 @@ export class MoveMultipleRegionsCommand extends KGCommand {
         regionId: region.getId(),
         trackId: track.getId().toString(),
         trackIndex: track.getTrackIndex(),
-        startBeat: Math.max(0, newStartBeat),
-        length: region.getLength(),
+        startTick: Math.max(0, newStartTick),
+        length: region.getLengthTicks(),
         clipStartOffsetSeconds: region instanceof KGAudioRegion ? region.getClipStartOffsetSeconds() : undefined,
         region,
       };
@@ -136,17 +135,17 @@ export class MoveMultipleRegionsCommand extends KGCommand {
       regionId: region.getId(),
       trackId: track.getId().toString(),
       trackIndex: track.getTrackIndex(),
-      startBeat: region.getStartFromBeat(),
-      length: region.getLength(),
+      startTick: region.getStartTick(),
+      length: region.getLengthTicks(),
       clipStartOffsetSeconds: region instanceof KGAudioRegion ? region.getClipStartOffsetSeconds() : undefined,
     }));
     this.targetRegions = resolvedRegions.map(({ region }) => region);
 
     projectedStates.forEach(projectedState => {
-      projectedState.region.setStartFromBeat(projectedState.startBeat);
+      projectedState.region.setStartTick(projectedState.startTick);
     });
 
-    console.log(`Moved ${projectedStates.length} regions by ${this.startBeatDelta.toFixed(3)} beats`);
+    console.log(`Moved ${projectedStates.length} regions by ${this.startTickDelta} ticks`);
   }
 
   undo(): void {
@@ -159,7 +158,7 @@ export class MoveMultipleRegionsCommand extends KGCommand {
       if (!region) {
         return;
       }
-      region.setStartFromBeat(originalState.startBeat);
+      region.setStartTick(originalState.startTick);
     });
   }
 
@@ -173,8 +172,8 @@ export class MoveMultipleRegionsCommand extends KGCommand {
 export class ResizeMultipleRegionsCommand extends KGCommand {
   private readonly primaryRegionId: string;
   private readonly resizeEdge: 'start' | 'end';
-  private readonly primaryStartBeatDelta: number;
-  private readonly primaryEndBeatDelta: number;
+  private readonly primaryStartTickDelta: number;
+  private readonly primaryEndTickDelta: number;
   private readonly regionIdsToResize: string[];
   private originalStates: RegionSnapshot[] = [];
   private targetRegions: KGRegion[] = [];
@@ -185,23 +184,21 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
   constructor(
     primaryRegionId: string,
     resizeEdge: 'start' | 'end',
-    primaryStartBeatDelta: number,
-    primaryEndBeatDelta: number,
+    primaryStartTickDelta: number,
+    primaryEndTickDelta: number,
     regionIdsToResize: string[]
   ) {
     super();
     this.primaryRegionId = primaryRegionId;
     this.resizeEdge = resizeEdge;
-    this.primaryStartBeatDelta = primaryStartBeatDelta;
-    this.primaryEndBeatDelta = primaryEndBeatDelta;
+    this.primaryStartTickDelta = primaryStartTickDelta;
+    this.primaryEndTickDelta = primaryEndTickDelta;
     this.regionIdsToResize = [...regionIdsToResize];
   }
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
     const tracks = project.getTracks();
-    const bpm = project.getBpm();
-    const secondsPerBeat = 60 / bpm;
 
     const resolvedRegions = this.regionIdsToResize.map(regionId => {
       const resolved = getRegionById(tracks, regionId);
@@ -216,19 +213,19 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
     }
 
     const projectedStates: ProjectedRegionState[] = resolvedRegions.map(({ region, track }) => {
-      const startDelta = this.resizeEdge === 'start' ? this.primaryStartBeatDelta : 0;
-      const endDelta = this.resizeEdge === 'end' ? this.primaryEndBeatDelta : 0;
+      const startDelta = this.resizeEdge === 'start' ? this.primaryStartTickDelta : 0;
+      const endDelta = this.resizeEdge === 'end' ? this.primaryEndTickDelta : 0;
 
-      const newStartBeat = region.getStartFromBeat() + startDelta;
+      const newStartTick = region.getStartTick() + startDelta;
       const newLength = this.resizeEdge === 'start'
-        ? region.getLength() - startDelta
-        : region.getLength() + endDelta;
+        ? region.getLengthTicks() - startDelta
+        : region.getLengthTicks() + endDelta;
 
-      if (newStartBeat < -EPSILON) {
+      if (newStartTick < 0) {
         throw new Error(`Cannot resize regions because "${region.getName()}" would start before bar 1.`);
       }
 
-      if (newLength < REGION_CONSTANTS.MIN_REGION_LENGTH - EPSILON) {
+      if (newLength < REGION_CONSTANTS.MIN_REGION_LENGTH) {
         throw new Error(`Cannot resize regions because "${region.getName()}" would become shorter than the minimum region length.`);
       }
 
@@ -238,11 +235,10 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         const audioDuration = region.getAudioDurationSeconds();
 
         if (this.resizeEdge === 'start') {
-          const beatOffset = newStartBeat - region.getStartFromBeat();
-          const secondsDelta = beatOffset * secondsPerBeat;
+          const secondsDelta = tickToSeconds(project, newStartTick) - tickToSeconds(project, region.getStartTick());
           const nextOffset = region.getClipStartOffsetSeconds() + secondsDelta;
 
-          if (nextOffset < -EPSILON) {
+          if (nextOffset < 0) {
             throw new Error(`Cannot resize regions because "${region.getName()}" would extend before the start of its audio file.`);
           }
 
@@ -250,8 +246,12 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         }
 
         const effectiveOffset = clipStartOffsetSeconds ?? 0;
-        const maxLengthInBeats = (audioDuration - effectiveOffset) / secondsPerBeat;
-        if (newLength > maxLengthInBeats + EPSILON) {
+        const maxEndTick = secondsToTick(
+          project,
+          tickToSeconds(project, newStartTick) + Math.max(0, audioDuration - effectiveOffset),
+        );
+        const maxLengthTicks = maxEndTick - newStartTick;
+        if (newLength > maxLengthTicks) {
           throw new Error(`Cannot resize regions because "${region.getName()}" would extend past the end of its audio file.`);
         }
       }
@@ -260,7 +260,7 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         regionId: region.getId(),
         trackId: track.getId().toString(),
         trackIndex: track.getTrackIndex(),
-        startBeat: Math.max(0, newStartBeat),
+        startTick: Math.max(0, newStartTick),
         length: newLength,
         clipStartOffsetSeconds,
         region,
@@ -273,8 +273,8 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
       regionId: region.getId(),
       trackId: track.getId().toString(),
       trackIndex: track.getTrackIndex(),
-      startBeat: region.getStartFromBeat(),
-      length: region.getLength(),
+      startTick: region.getStartTick(),
+      length: region.getLengthTicks(),
       clipStartOffsetSeconds: region instanceof KGAudioRegion ? region.getClipStartOffsetSeconds() : undefined,
     }));
     this.targetRegions = resolvedRegions.map(({ region }) => region);
@@ -285,33 +285,33 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
     projectedStates.forEach(projectedState => {
       const region = projectedState.region;
       if (this.resizeEdge === 'start' && region instanceof KGMidiRegion) {
-        const beatOffset = projectedState.startBeat - region.getStartFromBeat();
+        const tickOffset = projectedState.startTick - region.getStartTick();
         const adjustments: NoteAdjustment[] = region.getNotes().map(note => ({
           noteId: note.getId(),
-          originalStartBeat: note.getStartBeat(),
-          originalEndBeat: note.getEndBeat(),
+          originalStartTick: note.getStartTick(),
+          originalEndTick: note.getEndTick(),
         }));
         this.noteAdjustments.set(region.getId(), adjustments);
 
         region.getNotes().forEach(note => {
-          note.setStartBeat(note.getStartBeat() - beatOffset);
-          note.setEndBeat(note.getEndBeat() - beatOffset);
+          note.setStartTick(note.getStartTick() - tickOffset);
+          note.setEndTick(note.getEndTick() - tickOffset);
         });
         this.pitchBendAdjustments.set(region.getId(), region.getPitchBends().map(pitchBend => ({
           pitchBendId: pitchBend.getId(),
-          originalBeat: pitchBend.getBeat(),
+          originalTick: pitchBend.getTick(),
         })));
         region.getPitchBends().forEach(pitchBend => {
-          pitchBend.setBeat(pitchBend.getBeat() - beatOffset);
+          pitchBend.setTick(pitchBend.getTick() - tickOffset);
         });
         this.controllerEventAdjustments.set(region.getId(), region.getAllControllerEventsFlattened().map(({ controller, event }) => ({
           controller,
           controllerEventId: event.getId(),
-          originalBeat: event.getBeat(),
+          originalTick: event.getTick(),
         })));
         region.getControllerEventsByType().forEach(events => {
           events.forEach(event => {
-            event.setBeat(event.getBeat() - beatOffset);
+            event.setTick(event.getTick() - tickOffset);
           });
         });
       }
@@ -320,8 +320,8 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         region.setClipStartOffsetSeconds(projectedState.clipStartOffsetSeconds);
       }
 
-      region.setStartFromBeat(projectedState.startBeat);
-      region.setLength(projectedState.length);
+      region.setStartTick(projectedState.startTick);
+      region.setLengthTicks(projectedState.length);
     });
 
     console.log(`Resized ${projectedStates.length} regions from ${this.resizeEdge}`);
@@ -343,15 +343,15 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         adjustments.forEach(adjustment => {
           const note = region.getNotes().find(candidate => candidate.getId() === adjustment.noteId);
           if (note) {
-            note.setStartBeat(adjustment.originalStartBeat);
-            note.setEndBeat(adjustment.originalEndBeat);
+            note.setStartTick(adjustment.originalStartTick);
+            note.setEndTick(adjustment.originalEndTick);
           }
         });
         const pitchBendAdjustments = this.pitchBendAdjustments.get(region.getId()) ?? [];
         pitchBendAdjustments.forEach(adjustment => {
           const pitchBend = region.getPitchBends().find(candidate => candidate.getId() === adjustment.pitchBendId);
           if (pitchBend) {
-            pitchBend.setBeat(adjustment.originalBeat);
+            pitchBend.setTick(adjustment.originalTick);
           }
         });
         const controllerEventAdjustments = this.controllerEventAdjustments.get(region.getId()) ?? [];
@@ -359,7 +359,7 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
           const controllerEvent = region.getControllerEvents(adjustment.controller)
             .find(candidate => candidate.getId() === adjustment.controllerEventId);
           if (controllerEvent) {
-            controllerEvent.setBeat(adjustment.originalBeat);
+            controllerEvent.setTick(adjustment.originalTick);
           }
         });
       }
@@ -368,8 +368,8 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
         region.setClipStartOffsetSeconds(originalState.clipStartOffsetSeconds);
       }
 
-      region.setStartFromBeat(originalState.startBeat);
-      region.setLength(originalState.length);
+      region.setStartTick(originalState.startTick);
+      region.setLengthTicks(originalState.length);
     });
   }
 

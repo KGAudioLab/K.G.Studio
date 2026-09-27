@@ -4,6 +4,9 @@ import { KGCore } from '../../KGCore';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { SplitSelectedNotesCommand } from './SplitSelectedNotesCommand';
 import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../../test/utils/mock-data';
+import { quarterNotesToTicks } from '../../timing';
+
+const q = quarterNotesToTicks;
 
 vi.mock('../../KGCore', () => ({
   KGCore: {
@@ -34,7 +37,7 @@ describe('SplitSelectedNotesCommand', () => {
   });
 
   it('splits one selected note into two halves and selects both results', () => {
-    const splitNote = createMockMidiNote({ id: 'note-a', startBeat: 1, endBeat: 5, pitch: 64, velocity: 90 });
+    const splitNote = createMockMidiNote({ id: 'note-a', startTick: 1, endTick: 5, pitch: 64, velocity: 90 });
     splitNote.select();
     const region = createMockMidiRegion({
       id: 'region-1',
@@ -46,15 +49,15 @@ describe('SplitSelectedNotesCommand', () => {
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
     mockCore.getSelectedItems.mockReturnValue([splitNote]);
 
-    const command = new SplitSelectedNotesCommand(region.getId(), [splitNote.getId()], 3);
+    const command = new SplitSelectedNotesCommand(region.getId(), [splitNote.getId()], q(3));
 
     command.execute();
 
     const notes = region.getNotes();
     expect(notes).toHaveLength(2);
-    expect(notes.map(note => [note.getStartBeat(), note.getEndBeat(), note.getPitch(), note.getVelocity()])).toEqual([
-      [1, 3, 64, 90],
-      [3, 5, 64, 90],
+    expect(notes.map(note => [note.getStartTick(), note.getEndTick(), note.getPitch(), note.getVelocity()])).toEqual([
+      [q(1), q(3), 64, 90],
+      [q(3), q(5), 64, 90],
     ]);
     expect(notes.every(note => note.isSelected())).toBe(true);
     expect(command.getSplitCount()).toBe(1);
@@ -64,9 +67,9 @@ describe('SplitSelectedNotesCommand', () => {
   });
 
   it('splits multiple selected notes in one undoable operation and leaves uncrossed selected notes unchanged', () => {
-    const noteA = createMockMidiNote({ id: 'note-a', startBeat: 0, endBeat: 4, pitch: 60, velocity: 70 });
-    const noteB = createMockMidiNote({ id: 'note-b', startBeat: 1, endBeat: 2, pitch: 62, velocity: 75 });
-    const noteC = createMockMidiNote({ id: 'note-c', startBeat: 2, endBeat: 5, pitch: 65, velocity: 80 });
+    const noteA = createMockMidiNote({ id: 'note-a', startTick: 0, endTick: 4, pitch: 60, velocity: 70 });
+    const noteB = createMockMidiNote({ id: 'note-b', startTick: 1, endTick: 2, pitch: 62, velocity: 75 });
+    const noteC = createMockMidiNote({ id: 'note-c', startTick: 2, endTick: 5, pitch: 65, velocity: 80 });
     [noteA, noteB, noteC].forEach(note => note.select());
     const region = createMockMidiRegion({
       id: 'region-1',
@@ -78,18 +81,18 @@ describe('SplitSelectedNotesCommand', () => {
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
     mockCore.getSelectedItems.mockReturnValue([noteA, noteB, noteC]);
 
-    const command = new SplitSelectedNotesCommand(region.getId(), [noteA.getId(), noteB.getId(), noteC.getId()], 3);
+    const command = new SplitSelectedNotesCommand(region.getId(), [noteA.getId(), noteB.getId(), noteC.getId()], q(3));
 
     command.execute();
 
     const notes = region.getNotes();
     expect(notes).toHaveLength(5);
-    expect(notes.map(note => [note.getStartBeat(), note.getEndBeat(), note.getPitch()])).toEqual([
-      [0, 3, 60],
-      [3, 4, 60],
-      [1, 2, 62],
-      [2, 3, 65],
-      [3, 5, 65],
+    expect(notes.map(note => [note.getStartTick(), note.getEndTick(), note.getPitch()])).toEqual([
+      [0, q(3), 60],
+      [q(3), q(4), 60],
+      [q(1), q(2), 62],
+      [q(2), q(3), 65],
+      [q(3), q(5), 65],
     ]);
     expect(command.getSplitCount()).toBe(2);
     expect(command.getUnchangedSelectedNoteIds()).toEqual(['note-b']);
@@ -100,12 +103,12 @@ describe('SplitSelectedNotesCommand', () => {
     expect(mockCore.addSelectedItems).toHaveBeenLastCalledWith([noteA, noteB, noteC]);
 
     command.execute();
-    expect(region.getNotes().map(note => [note.getStartBeat(), note.getEndBeat(), note.getPitch()])).toEqual([
-      [0, 3, 60],
-      [3, 4, 60],
-      [1, 2, 62],
-      [2, 3, 65],
-      [3, 5, 65],
+    expect(region.getNotes().map(note => [note.getStartTick(), note.getEndTick(), note.getPitch()])).toEqual([
+      [0, q(3), 60],
+      [q(3), q(4), 60],
+      [q(1), q(2), 62],
+      [q(2), q(3), 65],
+      [q(3), q(5), 65],
     ]);
   });
 
@@ -122,7 +125,7 @@ describe('SplitSelectedNotesCommand', () => {
     mockCore.getCurrentProject.mockReturnValue(createMockProject({ tracks: [track] }));
     mockCore.getSelectedItems.mockReturnValue([noteA, noteB]);
 
-    const command = new SplitSelectedNotesCommand(region.getId(), [noteA.getId(), noteB.getId()], 3);
+    const command = new SplitSelectedNotesCommand(region.getId(), [noteA.getId(), noteB.getId()], q(3));
 
     expect(() => command.execute()).toThrow(
       'The playhead is not inside any selected note. Move the playhead inside a selected note before splitting.'

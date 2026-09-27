@@ -6,14 +6,14 @@ import { findGlobalTrackContainingRegion, findNonOverlappingNeighborBounds } fro
 
 export class MoveGlobalRegionCommand extends KGCommand {
   private readonly regionId: string;
-  private readonly desiredStartBeat: number;
+  private readonly desiredStartTick: number;
   private targetRegion: KGGlobalRegion | null = null;
-  private originalStartBeat = 0;
+  private originalStartTick = 0;
 
-  constructor(regionId: string, desiredStartBeat: number) {
+  constructor(regionId: string, desiredStartTick: number) {
     super();
     this.regionId = regionId;
-    this.desiredStartBeat = desiredStartBeat;
+    this.desiredStartTick = desiredStartTick;
   }
 
   execute(): void {
@@ -24,24 +24,24 @@ export class MoveGlobalRegionCommand extends KGCommand {
     }
 
     this.targetRegion = result.region;
-    this.originalStartBeat = result.region.getStartFromBeat();
+    this.originalStartTick = result.region.getStartTick();
 
     if (result.track.getType() !== GlobalTrackType.Marker && result.track.getType() !== GlobalTrackType.Chord) {
-      result.region.setStartFromBeat(this.desiredStartBeat);
+      result.region.setStartTick(this.desiredStartTick);
       return;
     }
 
-    const { minStartBeat, maxEndBeat } = findNonOverlappingNeighborBounds(
+    const { minStartTick, maxEndTick } = findNonOverlappingNeighborBounds(
       project,
       result.track.getType() as GlobalTrackType.Marker | GlobalTrackType.Chord,
       this.regionId,
-      this.desiredStartBeat
+      this.desiredStartTick
     );
-    const maxStartBeat = Math.max(minStartBeat, maxEndBeat - result.region.getLength());
-    const clampedStartBeat = Math.max(minStartBeat, Math.min(this.desiredStartBeat, maxStartBeat));
-    result.region.setStartFromBeat(clampedStartBeat);
+    const maxStartTick = Math.max(minStartTick, maxEndTick - result.region.getLengthTicks());
+    const clampedStartTick = Math.max(minStartTick, Math.min(this.desiredStartTick, maxStartTick));
+    result.region.setStartTick(clampedStartTick);
 
-    result.track.setRegions([...result.track.getRegions()].sort((left, right) => left.getStartFromBeat() - right.getStartFromBeat()));
+    result.track.setRegions([...result.track.getRegions()].sort((left, right) => left.getStartTick() - right.getStartTick()));
   }
 
   undo(): void {
@@ -49,7 +49,7 @@ export class MoveGlobalRegionCommand extends KGCommand {
       throw new Error('Cannot undo: no global region was moved');
     }
 
-    this.targetRegion.setStartFromBeat(this.originalStartBeat);
+    this.targetRegion.setStartTick(this.originalStartTick);
   }
 
   getDescription(): string {

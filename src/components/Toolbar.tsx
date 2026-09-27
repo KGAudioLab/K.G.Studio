@@ -51,7 +51,7 @@ const Toolbar: React.FC = () => {
     projectName, setProjectName,
     savedProjectName, setSavedProjectName,
     bpm, timeSignature, keySignature, setStatus,
-    isPlaying, isPreparingPlayback, startPlaying, stopTransport, setPlayheadPosition,
+    isPlaying, isPreparingPlayback, startPlaying, stopTransport, setPlayheadTick,
     currentTime, setBpm, setTimeSignature, setKeySignature,
     maxBars, setMaxBars,
     barWidthMultiplier, setBarWidthMultiplier,
@@ -66,7 +66,7 @@ const Toolbar: React.FC = () => {
     // Selection state
     selectedRegionIds, selectedTrackId,
     // Playhead and refresh
-    playheadPosition, refreshProjectState,
+    playheadTick, refreshProjectState,
     requestMainContentScroll, requestPianoRollScroll, bumpAudioWaveformRedrawVersion
   } = useProjectStore();
 
@@ -85,7 +85,7 @@ const Toolbar: React.FC = () => {
   const tempoRegions = (tempoTrack?.getRegions() ?? [])
     .filter((region): region is KGTempoRegion => region instanceof KGTempoRegion)
     .sort((left, right) => left.getStartBar() - right.getStartBar());
-  const playheadBar = Math.floor(playheadPosition / timeSignature.numerator);
+  const playheadBar = Math.floor(playheadTick / (timeSignature.numerator * 960 * (4 / timeSignature.denominator)));
   const activeKeySignatureRegion = signatureRegions.find(
     region => playheadBar >= region.getStartBar() && playheadBar < region.getEndBar()
   ) ?? null;
@@ -655,7 +655,7 @@ const Toolbar: React.FC = () => {
       if (isPlaying || isRecording) {
         await stopTransport();
       }
-      setPlayheadPosition(0);
+      setPlayheadTick(0);
       requestMainContentScroll(0);
       requestPianoRollScroll(0);
     } catch (error) {
@@ -764,8 +764,8 @@ const Toolbar: React.FC = () => {
       const nextKeySignature = newKeySignature as KeySignature;
       if (activeKeySignatureRegion) {
         const scope = {
-          startBeat: activeKeySignatureRegion.getStartFromBeat(),
-          endBeat: activeKeySignatureRegion.getStartFromBeat() + activeKeySignatureRegion.getLength(),
+          startTick: activeKeySignatureRegion.getStartTick(),
+          endTick: activeKeySignatureRegion.getStartTick() + activeKeySignatureRegion.getLengthTicks(),
         };
         const shouldAsk = getKeySignatureTransposeDelta(activeKeySignatureRegion.getKeySignature(), nextKeySignature) !== 0
           && hasChordRegionsInTracks(globalTracks, scope);
@@ -903,7 +903,7 @@ const Toolbar: React.FC = () => {
 
     const status = await splitSelectedRegionAtPlayhead({
       selectedRegionIds,
-      playheadPosition,
+      playheadTick,
       refreshProjectState,
     });
     if (!status) {
@@ -913,7 +913,7 @@ const Toolbar: React.FC = () => {
     setStatus(status);
 
     if (DEBUG_MODE.TOOLBAR) {
-      console.log(`Split selected region at beat ${playheadPosition}`);
+      console.log(`Split selected region at tick ${playheadTick}`);
     }
   };
 

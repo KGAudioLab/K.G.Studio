@@ -32,16 +32,16 @@ export class CreateNotesCommand extends CreateMidiEventsCommand {
 export class CreateNoteCommand extends CreateNotesCommand {
   constructor(
     regionId: string,
-    startBeat: number,
-    endBeat: number,
+    startTick: number,
+    endTick: number,
     pitch: number,
     velocity: number = 127,
     noteId?: string
   ) {
     super([{
       regionId,
-      startBeat,
-      endBeat,
+      startTick,
+      endTick,
       pitch,
       velocity,
       noteId
@@ -89,7 +89,7 @@ export class CreateNoteCommand extends CreateNotesCommand {
     pianoGridElement: HTMLElement,
     beatWidth: number,
     noteHeight: number,
-    regionStartBeat: number,
+    regionStartTick: number,
     noteLength: number,
     velocity: number = 127
   ): CreateNoteCommand {
@@ -108,13 +108,13 @@ export class CreateNoteCommand extends CreateNotesCommand {
     const pitch = 107 - pitchIndex; // Convert index to pitch (B7 is 107)
 
     // Calculate note start and end beats
-    const noteStartBeat = beatNumber;
-    const noteEndBeat = noteStartBeat + noteLength;
+    const noteStartTick = beatNumber;
+    const noteEndTick = noteStartTick + noteLength;
 
     return new CreateNoteCommand(
       regionId,
-      noteStartBeat,
-      noteEndBeat,
+      noteStartTick,
+      noteEndTick,
       pitch,
       velocity
     );

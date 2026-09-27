@@ -5,6 +5,9 @@ import { KGCore } from '../../core/KGCore';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
 import { findGlobalTrackByType } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../../core/global-track';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 function mockCore(project: KGProject) {
   vi.spyOn(KGCore, 'instance').mockReturnValue({
@@ -53,7 +56,7 @@ describe('WriteMarkersTool', () => {
     expect((markerTrack.getRegions()[0] as KGMarkerRegion).getName()).toBe('Intro Section');
     expect(tool.buildToolHistoryContent({}, result)).toBe(result.result);
     expect(tool.buildToolResultDisplayContent({}, result)).toContain('Successfully wrote 1 marker annotation');
-    expect(result.result).toContain('[Beat: 4; Length: 4]: Intro Section');
+    expect(result.result).toContain('[Quarter-note: 4; Length: 4]: Intro Section');
   });
 
   it('builds a confirmation summary for the affected beat span', () => {
@@ -66,7 +69,7 @@ describe('WriteMarkersTool', () => {
         { marker: 'Intro', beat: 0, length: 4 },
         { marker: 'Verse', beat: 8, length: 4 },
       ],
-    })).toBe('Allow writing 2 marker annotations to the global Marker track from beat 0 to beat 12?');
+    })).toBe('Allow writing 2 marker annotations to the global Marker track from quarter-note 0 to quarter-note 12?');
   });
 
   it('rejects an empty marker list', async () => {
@@ -125,8 +128,8 @@ describe('WriteMarkersTool', () => {
     const project = new KGProject('preserve-project', 8, 0, 120, { numerator: 4, denominator: 4 }, 'C major');
     const markerTrack = getMarkerTrack(project);
     markerTrack.setRegions([
-      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Long Intro', 0, 8),
-      new KGMarkerRegion('marker-2', markerTrack.getId(), markerTrack.getTrackIndex(), 'Outro', 8, 4),
+      new KGMarkerRegion('marker-1', markerTrack.getId(), markerTrack.getTrackIndex(), 'Long Intro', 0, q(8)),
+      new KGMarkerRegion('marker-2', markerTrack.getId(), markerTrack.getTrackIndex(), 'Outro', q(8), q(4)),
     ]);
     mockCore(project);
 
@@ -141,14 +144,14 @@ describe('WriteMarkersTool', () => {
     expect(result.success).toBe(true);
     expect((markerTrack.getRegions() as KGMarkerRegion[]).map(region => ({
       name: region.getName(),
-      start: region.getStartFromBeat(),
-      length: region.getLength(),
+      start: region.getStartTick(),
+      length: region.getLengthTicks(),
     }))).toEqual([
-      { name: 'Long Intro', start: 0, length: 3 },
-      { name: 'Hit', start: 3, length: 2 },
-      { name: 'Long Intro', start: 5, length: 3 },
-      { name: 'Outro', start: 8, length: 2 },
-      { name: 'Drop', start: 10, length: 2 },
+      { name: 'Long Intro', start: 0, length: q(3) },
+      { name: 'Hit', start: q(3), length: q(2) },
+      { name: 'Long Intro', start: q(5), length: q(3) },
+      { name: 'Outro', start: q(8), length: q(2) },
+      { name: 'Drop', start: q(10), length: q(2) },
     ]);
     expect(result.result).toContain('annotation-only');
   });

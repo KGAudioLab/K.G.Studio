@@ -24,14 +24,15 @@ export class ResizeKeySignatureRegionCommand extends KGCommand {
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Signature);
     if (!track) {
       throw new Error('Signature global track not found');
     }
 
-    const regions = getSortedKeySignatureRegions(track, beatsPerBar);
-    this.previousRegions = cloneKeySignatureRegions(regions, beatsPerBar);
+    const regions = getSortedKeySignatureRegions(track, ticksPerBar);
+    this.previousRegions = cloneKeySignatureRegions(regions, ticksPerBar);
 
     const targetIndex = regions.findIndex(region => region.getId() === this.regionId);
     if (targetIndex === -1) {
@@ -51,8 +52,8 @@ export class ResizeKeySignatureRegionCommand extends KGCommand {
         Math.min(this.desiredBar, targetEndBar - 1)
       );
 
-      previousRegion.setLengthBars(clampedBoundaryBar - previousRegion.getStartBar(), beatsPerBar);
-      targetRegion.setBarRange(clampedBoundaryBar, targetEndBar - clampedBoundaryBar, beatsPerBar);
+      previousRegion.setLengthBars(clampedBoundaryBar - previousRegion.getStartBar(), ticksPerBar);
+      targetRegion.setBarRange(clampedBoundaryBar, targetEndBar - clampedBoundaryBar, ticksPerBar);
       return;
     }
 
@@ -67,8 +68,8 @@ export class ResizeKeySignatureRegionCommand extends KGCommand {
       Math.min(this.desiredBar, nextRegionEndBar - 1)
     );
 
-    targetRegion.setLengthBars(clampedBoundaryBar - targetRegion.getStartBar(), beatsPerBar);
-    nextRegion.setBarRange(clampedBoundaryBar, nextRegionEndBar - clampedBoundaryBar, beatsPerBar);
+    targetRegion.setLengthBars(clampedBoundaryBar - targetRegion.getStartBar(), ticksPerBar);
+    nextRegion.setBarRange(clampedBoundaryBar, nextRegionEndBar - clampedBoundaryBar, ticksPerBar);
   }
 
   undo(): void {
@@ -78,8 +79,9 @@ export class ResizeKeySignatureRegionCommand extends KGCommand {
       throw new Error('Signature global track not found during undo');
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    track.setRegions(cloneKeySignatureRegions(this.previousRegions, beatsPerBar));
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    track.setRegions(cloneKeySignatureRegions(this.previousRegions, ticksPerBar));
   }
 
   getDescription(): string {

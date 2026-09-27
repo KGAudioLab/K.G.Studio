@@ -13,10 +13,10 @@ export class KGChordRegion extends KGGlobalRegion {
     trackId: string,
     trackIndex: number,
     symbol: string,
-    startFromBeat: number = 0,
+    startTick: number = 0,
     length: number = 0
   ) {
-    super(id, trackId, trackIndex, symbol, startFromBeat, length);
+    super(id, trackId, trackIndex, symbol, startTick, length);
     this.__type = 'KGChordRegion';
     this.symbol = symbol;
     super.setName(symbol);

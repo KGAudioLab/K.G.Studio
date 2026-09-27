@@ -36,8 +36,8 @@ describe('KGMidiRegion', () => {
       expect(testRegion.getTrackId()).toBe('track-1');
       expect(testRegion.getTrackIndex()).toBe(2);
       expect(testRegion.getName()).toBe('My Region');
-      expect(testRegion.getStartFromBeat()).toBe(4);
-      expect(testRegion.getLength()).toBe(8);
+      expect(testRegion.getStartTick()).toBe(4);
+      expect(testRegion.getLengthTicks()).toBe(8);
       expect(testRegion.getNotes()).toEqual([]);
       expect(testRegion.getPitchBends()).toEqual([]);
     });
@@ -45,8 +45,8 @@ describe('KGMidiRegion', () => {
     it('should use default values for optional parameters', () => {
       const defaultRegion = new KGMidiRegion('region-1', 'track-1', 0, 'Default Region');
 
-      expect(defaultRegion.getStartFromBeat()).toBe(0);
-      expect(defaultRegion.getLength()).toBe(0);
+      expect(defaultRegion.getStartTick()).toBe(0);
+      expect(defaultRegion.getLengthTicks()).toBe(0);
       expect(defaultRegion.getNotes()).toEqual([]);
       expect(defaultRegion.getPitchBends()).toEqual([]);
     });
@@ -62,9 +62,9 @@ describe('KGMidiRegion', () => {
     let note3: KGMidiNote;
 
     beforeEach(() => {
-      note1 = createMockMidiNote({ id: 'note-1', pitch: 60, startBeat: 0, endBeat: 1 });
-      note2 = createMockMidiNote({ id: 'note-2', pitch: 64, startBeat: 1, endBeat: 2 });
-      note3 = createMockMidiNote({ id: 'note-3', pitch: 67, startBeat: 2, endBeat: 3 });
+      note1 = createMockMidiNote({ id: 'note-1', pitch: 60, startTick: 0, endTick: 1 });
+      note2 = createMockMidiNote({ id: 'note-2', pitch: 64, startTick: 1, endTick: 2 });
+      note3 = createMockMidiNote({ id: 'note-3', pitch: 67, startTick: 2, endTick: 3 });
     });
 
     describe('addNote', () => {
@@ -137,7 +137,7 @@ describe('KGMidiRegion', () => {
 
       it('should remove all instances when note ID appears multiple times', () => {
         // Add another note with same ID as note1
-        const duplicateNote = createMockMidiNote({ id: 'note-1', pitch: 72, startBeat: 3, endBeat: 4 });
+        const duplicateNote = createMockMidiNote({ id: 'note-1', pitch: 72, startTick: 3, endTick: 4 });
         region.addNote(duplicateNote);
 
         expect(region.getNotes()).toHaveLength(4);
@@ -290,8 +290,8 @@ describe('KGMidiRegion', () => {
       expect(region.getTrackId()).toBe('test-track-1');
       expect(region.getTrackIndex()).toBe(0);
       expect(region.getName()).toBe('Test Region');
-      expect(region.getStartFromBeat()).toBe(0);
-      expect(region.getLength()).toBe(4);
+      expect(region.getStartTick()).toBe(0);
+      expect(region.getLengthTicks()).toBe(4);
     });
 
     it('should inherit selection functionality', () => {
@@ -308,11 +308,11 @@ describe('KGMidiRegion', () => {
       region.setName('Updated Region');
       expect(region.getName()).toBe('Updated Region');
 
-      region.setStartFromBeat(8);
-      expect(region.getStartFromBeat()).toBe(8);
+      region.setStartTick(8);
+      expect(region.getStartTick()).toBe(8);
 
-      region.setLength(12);
-      expect(region.getLength()).toBe(12);
+      region.setLengthTicks(12);
+      expect(region.getLengthTicks()).toBe(12);
     });
   });
 
@@ -333,8 +333,8 @@ describe('KGMidiRegion', () => {
 
   describe('edge cases and error handling', () => {
     it('should handle notes with overlapping time ranges', () => {
-      const overlappingNote1 = createMockMidiNote({ id: 'overlap-1', pitch: 60, startBeat: 0, endBeat: 2 });
-      const overlappingNote2 = createMockMidiNote({ id: 'overlap-2', pitch: 64, startBeat: 1, endBeat: 3 });
+      const overlappingNote1 = createMockMidiNote({ id: 'overlap-1', pitch: 60, startTick: 0, endTick: 2 });
+      const overlappingNote2 = createMockMidiNote({ id: 'overlap-2', pitch: 64, startTick: 1, endTick: 3 });
 
       region.addNote(overlappingNote1);
       region.addNote(overlappingNote2);
@@ -346,8 +346,8 @@ describe('KGMidiRegion', () => {
     });
 
     it('should handle notes with same pitch but different timing', () => {
-      const sameNote1 = createMockMidiNote({ id: 'same-1', pitch: 60, startBeat: 0, endBeat: 1 });
-      const sameNote2 = createMockMidiNote({ id: 'same-2', pitch: 60, startBeat: 2, endBeat: 3 });
+      const sameNote1 = createMockMidiNote({ id: 'same-1', pitch: 60, startTick: 0, endTick: 1 });
+      const sameNote2 = createMockMidiNote({ id: 'same-2', pitch: 60, startTick: 2, endTick: 3 });
 
       region.addNote(sameNote1);
       region.addNote(sameNote2);
@@ -357,7 +357,7 @@ describe('KGMidiRegion', () => {
 
     it('should handle notes outside region boundaries', () => {
       // Region is from beat 0 to 4, but note extends beyond
-      const outsideNote = createMockMidiNote({ id: 'outside', pitch: 60, startBeat: 3, endBeat: 6 });
+      const outsideNote = createMockMidiNote({ id: 'outside', pitch: 60, startTick: 3, endTick: 6 });
 
       region.addNote(outsideNote);
 
@@ -369,18 +369,18 @@ describe('KGMidiRegion', () => {
 
     it('should handle zero-length region', () => {
       const zeroRegion = new KGMidiRegion('zero', 'track', 0, 'Zero Length', 0, 0);
-      const note = createMockMidiNote({ id: 'note', pitch: 60, startBeat: 0, endBeat: 1 });
+      const note = createMockMidiNote({ id: 'note', pitch: 60, startTick: 0, endTick: 1 });
 
       zeroRegion.addNote(note);
 
       expect(zeroRegion.getNotes()).toHaveLength(1);
-      expect(zeroRegion.getLength()).toBe(0);
+      expect(zeroRegion.getLengthTicks()).toBe(0);
     });
   });
 
   describe('data consistency', () => {
     it('should maintain note references correctly', () => {
-      const originalNote = createMockMidiNote({ id: 'ref-test', pitch: 60, startBeat: 0, endBeat: 1 });
+      const originalNote = createMockMidiNote({ id: 'ref-test', pitch: 60, startTick: 0, endTick: 1 });
       
       region.addNote(originalNote);
       const retrievedNote = region.getNotes()[0];
@@ -421,7 +421,7 @@ describe('KGMidiRegion', () => {
     });
 
     it('preserves pitch bends through class-transformer serialization', () => {
-      region.addNote(createMockMidiNote({ id: 'note-1', pitch: 60, startBeat: 0, endBeat: 1 }));
+      region.addNote(createMockMidiNote({ id: 'note-1', pitch: 60, startTick: 0, endTick: 1 }));
       region.addPitchBend(new KGMidiPitchBend('bend-1', 0.5, 12288));
       region.addControllerEvent(11, new KGMidiControllerEvent('cc-1', 0.25, 96));
 
@@ -444,7 +444,7 @@ describe('KGMidiRegion', () => {
         trackId: 'track-1',
         trackIndex: 0,
         name: 'Legacy Region',
-        startFromBeat: 0,
+        startTick: 0,
         length: 4,
         notes: [],
       });

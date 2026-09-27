@@ -33,8 +33,8 @@ describe('track automation commands', () => {
 
   it('creates and dedupes same-beat automation points', () => {
     const command = new CreateTrackAutomationPointsCommand(1, 'volume', [
-      { beat: 1, value: -6, pointId: 'point-1' },
-      { beat: 1, value: -3, pointId: 'point-2' },
+      { tick: 1, value: -6, pointId: 'point-1' },
+      { tick: 1, value: -3, pointId: 'point-2' },
     ]);
 
     command.execute();
@@ -67,11 +67,11 @@ describe('track automation commands', () => {
       1,
       'pan',
       [
-        { pointId: 'point-1', beat: 1, value: -0.5 },
-        { pointId: 'point-2', beat: 2, value: 0.5 },
+        { pointId: 'point-1', tick: 1, value: -0.5 },
+        { pointId: 'point-2', tick: 2, value: 0.5 },
       ],
       [
-        { pointId: 'point-1', beat: 2, value: -0.25 },
+        { pointId: 'point-1', tick: 2, value: -0.25 },
       ]
     );
 

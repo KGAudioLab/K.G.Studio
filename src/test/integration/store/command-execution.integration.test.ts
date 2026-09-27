@@ -80,8 +80,8 @@ describe('Command Execution Integration Tests', () => {
       const createdNote = updatedRegion.getNotes().find(note => note.getId() === createCommand.getNoteId());
       expect(createdNote).toBeDefined();
       expect(createdNote!.getPitch()).toBe(60);
-      expect(createdNote!.getStartBeat()).toBe(0);
-      expect(createdNote!.getEndBeat()).toBe(1);
+      expect(createdNote!.getStartTick()).toBe(0);
+      expect(createdNote!.getEndTick()).toBe(1);
       
       // Verify command history state
       expect(commandHistory.canUndo()).toBe(true);

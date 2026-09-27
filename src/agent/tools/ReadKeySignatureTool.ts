@@ -3,10 +3,11 @@ import type { ToolParameter, ToolResult } from './BaseTool';
 import { GlobalTrackType } from '../../core/global-track';
 import { KGKeySignatureRegion } from '../../core/region/KGKeySignatureRegion';
 import { findGlobalTrackByType, getSortedKeySignatureRegions } from '../../util/globalTrackUtil';
+import { ticksToQuarterNotes } from '../../core/timing';
 
 export class ReadKeySignatureTool extends BaseTool {
   readonly name = 'read_key_signature';
-  readonly description = 'Read the key-signature changes from the global Signature track. If no key-signature regions exist, fall back to the project-level key signature and return it at beat 0.';
+  readonly description = 'Read key-signature changes from the global Signature track in quarter-note units. If no regions exist, return the project-level key signature at quarter-note 0.';
 
   readonly parameters: Record<string, ToolParameter> = {};
 
@@ -30,16 +31,17 @@ export class ReadKeySignatureTool extends BaseTool {
         return this.createErrorResult('Signature global track not found');
       }
 
-      const beatsPerBar = project.getTimeSignature().numerator;
-      const regions = getSortedKeySignatureRegions(track, beatsPerBar)
+      const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+      const regions = getSortedKeySignatureRegions(track, ticksPerBar)
         .filter((region): region is KGKeySignatureRegion => region instanceof KGKeySignatureRegion);
 
       if (regions.length === 0) {
-        return this.createSuccessResult(`[Beat: 0]: ${project.getKeySignature()}`);
+        return this.createSuccessResult(`[Quarter-note: 0]: ${project.getKeySignature()}`);
       }
 
       const result = regions
-        .map(region => `[Beat: ${region.getStartFromBeat()}]: ${region.getKeySignature()}`)
+        .map(region => `[Quarter-note: ${ticksToQuarterNotes(region.getStartTick())}]: ${region.getKeySignature()}`)
         .join('\n');
       return this.createSuccessResult(result);
     } catch (error) {

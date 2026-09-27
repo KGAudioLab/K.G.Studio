@@ -9,8 +9,8 @@ import { generateUniqueId } from '../../../util/miscUtil';
 
 export interface NoteCreationData {
   regionId: string;
-  startBeat: number;
-  endBeat: number;
+  startTick: number;
+  endTick: number;
   pitch: number;
   velocity: number;
   noteId?: string;
@@ -18,7 +18,7 @@ export interface NoteCreationData {
 
 export interface PitchBendCreationData {
   regionId: string;
-  beat: number;
+  tick: number;
   value: number;
   pitchBendId?: string;
 }
@@ -26,7 +26,7 @@ export interface PitchBendCreationData {
 export interface ControllerEventCreationData {
   regionId: string;
   controller: number;
-  beat: number;
+  tick: number;
   value: number;
   controllerEventId?: string;
 }
@@ -69,8 +69,8 @@ export class CreateMidiEventsCommand extends KGCommand {
       const targetRegion = this.resolveRegion(tracks, noteData.regionId);
       const newNote = new KGMidiNote(
         noteData.noteId!,
-        noteData.startBeat,
-        noteData.endBeat,
+        noteData.startTick,
+        noteData.endTick,
         noteData.pitch,
         noteData.velocity
       );
@@ -82,7 +82,7 @@ export class CreateMidiEventsCommand extends KGCommand {
       const targetRegion = this.resolveRegion(tracks, pitchBendData.regionId);
       const newPitchBend = new KGMidiPitchBend(
         pitchBendData.pitchBendId!,
-        pitchBendData.beat,
+        pitchBendData.tick,
         pitchBendData.value
       );
       targetRegion.addPitchBend(newPitchBend);
@@ -93,7 +93,7 @@ export class CreateMidiEventsCommand extends KGCommand {
       const targetRegion = this.resolveRegion(tracks, controllerEventData.regionId);
       const newControllerEvent = new KGMidiControllerEvent(
         controllerEventData.controllerEventId!,
-        controllerEventData.beat,
+        controllerEventData.tick,
         controllerEventData.value
       );
       targetRegion.addControllerEvent(controllerEventData.controller, newControllerEvent);

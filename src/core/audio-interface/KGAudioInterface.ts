@@ -14,13 +14,13 @@ import {
   bakeMidiAutomationPointsInWindow,
   collectRegionMidiAutomationPoints,
   normalizeMidiAutomationPoints,
-  resolveMidiAutomationValueAtBeat,
-  resolveSustainExtendedEndBeat,
+  resolveMidiAutomationValueAtTick,
+  resolveSustainExtendedEndTick,
 } from '../../util/midiAutomationUtil';
 import {
   bakeTrackAutomationPointsInWindow,
   getTrackAutomationDefaultValue,
-  resolveTrackAutomationValueAtBeat,
+  resolveTrackAutomationValueAtTick,
 } from '../../util/trackAutomationUtil';
 import * as Tone from 'tone';
 import { KGAudioBus } from './KGAudioBus';
@@ -38,7 +38,8 @@ import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 import { KGMetronome } from './KGMetronome';
 import { GlobalTrackType } from '../global-track';
-import { beatRangeToSeconds, beatToSeconds, findGlobalTrackByType, getEffectiveBpmAtBeat, getSortedTempoRegions, secondsToBeat } from '../../util/globalTrackUtil';
+import { tickRangeToSeconds, tickToSeconds, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions, secondsToTick } from '../../util/globalTrackUtil';
+import { TICKS_PER_QUARTER, ticksPerBar, ticksPerMeterBeat } from '../timing';
 
 interface PreparePlaybackOptions {
   allowStartBeforeLoopStart?: boolean;
@@ -77,9 +78,9 @@ export class KGAudioInterface {
   private scheduledEvents: Set<number> = new Set(); // Tone event IDs
   private delayedTransportStartTimeoutId: number | null = null;
   private delayedTransportStartSeconds: number = 0;
-  private virtualPrerollStartBeat: number | null = null;
+  private virtualPrerollStartTick: number | null = null;
   private virtualPrerollStartAudioTime: number | null = null;
-  private playbackOriginBeat: number = 0;
+  private playbackOriginTick: number = 0;
   private playbackOriginSeconds: number = 0;
 
   // Master volume control
@@ -133,6 +134,7 @@ export class KGAudioInterface {
       
       // Configure transport settings
       Tone.Transport.bpm.value = TIME_CONSTANTS.DEFAULT_BPM; // Default BPM
+      Tone.Transport.PPQ = TICKS_PER_QUARTER;
       Tone.Transport.timeSignature = [TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.numerator, TIME_CONSTANTS.DEFAULT_TIME_SIGNATURE.denominator]; // Default time signature
       
       // Initialize metronome sampler in background (non-blocking)
@@ -466,69 +468,70 @@ export class KGAudioInterface {
 
     try {
       // Set project BPM and time signature FIRST (this affects timing calculations)
-      Tone.Transport.bpm.value = getEffectiveBpmAtBeat(project, Math.max(startPosition, 0));
+      Tone.Transport.bpm.value = getEffectiveBpmAtTick(project, Math.max(startPosition, 0));
       const timeSignature = project.getTimeSignature();
-      const secondsPerBeat = 60 / Math.max(1, getEffectiveBpmAtBeat(project, Math.max(startPosition, 0)));
-      const resumeSafetyOffsetBeats =
-        KGAudioInterface.AUDIO_RESUME_SAFETY_OFFSET_SECONDS / secondsPerBeat;
+      const secondsPerQuarter = 60 / Math.max(1, getEffectiveBpmAtTick(project, Math.max(startPosition, 0)));
+      const resumeSafetyOffsetTicks = Math.max(1, Math.round(
+        (KGAudioInterface.AUDIO_RESUME_SAFETY_OFFSET_SECONDS / secondsPerQuarter) * TICKS_PER_QUARTER
+      ));
       Tone.Transport.timeSignature = [timeSignature.numerator, timeSignature.denominator];
 
       console.log(`Setting Tone.js BPM to ${Tone.Transport.bpm.value}, actual value: ${Tone.Transport.bpm.value}`);
 
       // Configure loop settings
       const isLooping = project.getIsLooping();
-      let scheduleStartBeat = 0;
-      let scheduleEndBeat = Infinity;
+      let scheduleStartTick = 0;
+      let scheduleEndTick = Infinity;
 
       if (isLooping) {
         const [startBar, endBarOriginal] = project.getLoopingRange();
-        const beatsPerBar = timeSignature.numerator;
+        const projectTicksPerBar = ticksPerBar(timeSignature);
 
         // Handle [0, 0] case - use full project
         const endBar = (startBar === 0 && endBarOriginal === 0) ? project.getMaxBars() : endBarOriginal;
 
-        scheduleStartBeat = startBar * beatsPerBar;
-        scheduleEndBeat = (endBar + 1) * beatsPerBar; // +1 because endBar is inclusive
+        scheduleStartTick = startBar * projectTicksPerBar;
+        scheduleEndTick = (endBar + 1) * projectTicksPerBar; // +1 because endBar is inclusive
 
         // Adjust start position to loop start if before loop range
-        if (startPosition < scheduleStartBeat && !options?.allowStartBeforeLoopStart) {
-          startPosition = scheduleStartBeat;
+        if (startPosition < scheduleStartTick && !options?.allowStartBeforeLoopStart) {
+          startPosition = scheduleStartTick;
         }
 
-        this.setPlaybackOrigin(project, startPosition >= scheduleStartBeat ? scheduleStartBeat : startPosition);
+        this.setPlaybackOrigin(project, startPosition >= scheduleStartTick ? scheduleStartTick : startPosition);
 
         // Configure Tone.Transport loop boundaries
-        const loopStartTime = this.projectBeatToTransportTime(scheduleStartBeat);
-        const loopEndTime = this.projectBeatToTransportTime(scheduleEndBeat);
+        const loopStartTime = this.projectTickToTransportTime(scheduleStartTick);
+        const loopEndTime = this.projectTickToTransportTime(scheduleEndTick);
         Tone.Transport.setLoopPoints(loopStartTime, loopEndTime);
         Tone.Transport.loop = true;
 
-        console.log(`Loop mode enabled: bars [${startBar}, ${endBar}], beats [${scheduleStartBeat}, ${scheduleEndBeat}]`);
+        console.log(`Loop mode enabled: bars [${startBar}, ${endBar}], beats [${scheduleStartTick}, ${scheduleEndTick}]`);
       } else {
         Tone.Transport.loop = false;
         console.log("Loop mode disabled");
         this.setPlaybackOrigin(project, startPosition);
       }
 
-      const playbackWindowStartBeat = isLooping && options?.scheduleFullLoop
-        ? scheduleStartBeat
-        : Math.max(startPosition, scheduleStartBeat);
+      const playbackWindowStartTick = isLooping && options?.scheduleFullLoop
+        ? scheduleStartTick
+        : Math.max(startPosition, scheduleStartTick);
 
       if (isLooping && options?.scheduleFullLoop) {
         const eventId = Tone.Transport.schedule(() => {
-          Tone.Transport.bpm.value = getEffectiveBpmAtBeat(project, scheduleStartBeat);
-        }, this.projectBeatToTransportTime(scheduleStartBeat));
+          Tone.Transport.bpm.value = getEffectiveBpmAtTick(project, scheduleStartTick);
+        }, this.projectTickToTransportTime(scheduleStartTick));
         this.scheduledEvents.add(eventId);
       }
-      this.scheduleTempoChanges(project, playbackWindowStartBeat, scheduleEndBeat);
+      this.scheduleTempoChanges(project, playbackWindowStartTick, scheduleEndTick);
 
       if (startPosition < 0) {
-        this.delayedTransportStartSeconds = Math.abs(startPosition) * (60 / project.getBpm());
-        this.virtualPrerollStartBeat = startPosition;
+        this.delayedTransportStartSeconds = (Math.abs(startPosition) / TICKS_PER_QUARTER) * (60 / project.getBpm());
+        this.virtualPrerollStartTick = startPosition;
         this.virtualPrerollStartAudioTime = null;
       } else {
         this.delayedTransportStartSeconds = 0;
-        this.virtualPrerollStartBeat = null;
+        this.virtualPrerollStartTick = null;
         this.virtualPrerollStartAudioTime = null;
       }
 
@@ -537,7 +540,7 @@ export class KGAudioInterface {
 
       // Start metronome if enabled
       if (this.isMetronomeEnabled) {
-        this.metronome.start(startPosition, timeSignature.numerator, playbackDelay);
+        this.metronome.start(startPosition, ticksPerBar(timeSignature), ticksPerMeterBeat(timeSignature), playbackDelay);
       }
 
       // Schedule all MIDI events
@@ -546,18 +549,18 @@ export class KGAudioInterface {
         const audioBus = this.trackAudioBuses.get(trackId);
         const playerBus = this.trackAudioPlayerBuses.get(trackId);
         const interpolationIntervalMs = (configManager.get('audio.midi_automation_interpolation_interval_ms') as number) ?? 10;
-        const initialAutomationBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
-        const automationWindowStartBeat = isLooping && options?.scheduleFullLoop
-          ? scheduleStartBeat
-          : initialAutomationBeat;
+        const initialAutomationTick = isLooping ? Math.max(startPosition, scheduleStartTick) : startPosition;
+        const automationWindowStartTick = isLooping && options?.scheduleFullLoop
+          ? scheduleStartTick
+          : initialAutomationTick;
 
-        this.applyTrackAutomationAtBeat(track, initialAutomationBeat);
+        this.applyTrackAutomationAtBeat(track, initialAutomationTick);
         this.scheduleTrackAutomation(
           track,
-          automationWindowStartBeat,
-          scheduleEndBeat,
+          automationWindowStartTick,
+          scheduleEndTick,
           interpolationIntervalMs,
-          getEffectiveBpmAtBeat(project, automationWindowStartBeat),
+          getEffectiveBpmAtTick(project, automationWindowStartTick),
           isLooping && options?.scheduleFullLoop
         );
 
@@ -565,16 +568,16 @@ export class KGAudioInterface {
         
         // Schedule MIDI track events
         if (audioBus && track.getType() === 'MIDI') {
-          const trackNotes: Array<{ note: KGMidiNote; absoluteStartBeat: number; absoluteEndBeat: number }> = [];
+          const trackNotes: Array<{ note: KGMidiNote; absoluteStartTick: number; absoluteEndTick: number }> = [];
           const trackPitchBends = collectRegionMidiAutomationPoints(
             track.getRegions()
               .filter(region => region.getCurrentType() === 'KGMidiRegion')
               .map(region => {
                 const midiRegion = region as unknown as { getPitchBends: () => KGMidiPitchBend[] };
                 return {
-                  startBeat: region.getStartFromBeat(),
+                  startTick: region.getStartTick(),
                   points: midiRegion.getPitchBends().map(pitchBend => ({
-                    beat: pitchBend.getBeat(),
+                    tick: pitchBend.getTick(),
                     value: pitchBend.getValue(),
                   })),
                 };
@@ -585,11 +588,11 @@ export class KGAudioInterface {
               track.getRegions()
                 .filter(region => region.getCurrentType() === 'KGMidiRegion')
                 .map(region => {
-                  const midiRegion = region as unknown as { getControllerEvents: (controller: number) => Array<{ getBeat: () => number; getValue: () => number }> };
+                  const midiRegion = region as unknown as { getControllerEvents: (controller: number) => Array<{ getTick: () => number; getValue: () => number }> };
                   return {
-                    startBeat: region.getStartFromBeat(),
+                    startTick: region.getStartTick(),
                     points: midiRegion.getControllerEvents(controller).map(event => ({
-                      beat: event.getBeat(),
+                      tick: event.getTick(),
                       value: event.getValue(),
                     })),
                   };
@@ -606,75 +609,75 @@ export class KGAudioInterface {
 
             if (region.getCurrentType() === 'KGMidiRegion') {
               const midiRegion = region as unknown as { getNotes: () => KGMidiNote[] };
-              const regionStartBeat = region.getStartFromBeat();
+              const regionStartTick = region.getStartTick();
 
               // Get notes from region (assuming it has a getNotes method)
               if (midiRegion.getNotes) {
                 midiRegion.getNotes().forEach((note: KGMidiNote) => {
                   // Calculate absolute note timing in beats (note position + region start position)
-                  const noteStartBeat = note.getStartBeat() + regionStartBeat;
-                  const noteEndBeat = note.getEndBeat() + regionStartBeat;
-                  const sustainedEndBeat = resolveSustainExtendedEndBeat(
+                  const noteStartTick = note.getStartTick() + regionStartTick;
+                  const noteEndTick = note.getEndTick() + regionStartTick;
+                  const sustainedEndTick = resolveSustainExtendedEndTick(
                     trackControllerEvents[64],
-                    noteEndBeat,
+                    noteEndTick,
                     0
                   );
 
                   // Skip notes outside loop range when looping
-                  if (noteStartBeat >= scheduleEndBeat || sustainedEndBeat <= scheduleStartBeat) {
+                  if (noteStartTick >= scheduleEndTick || sustainedEndTick <= scheduleStartTick) {
                     return; // Skip notes outside the loop range
                   }
 
                   // In a full-loop schedule, retain earlier notes for future wraps.
-                  if (noteStartBeat < playbackWindowStartBeat) {
+                  if (noteStartTick < playbackWindowStartTick) {
                     return; // Skip notes that would have already finished before playback starts
                   }
                   trackNotes.push({
                     note,
-                    absoluteStartBeat: noteStartBeat,
-                    absoluteEndBeat: sustainedEndBeat,
+                    absoluteStartTick: noteStartTick,
+                    absoluteEndTick: sustainedEndTick,
                   });
                 });
               }
             }
           });
 
-          const initialPitchBendBeat = isLooping ? Math.max(startPosition, scheduleStartBeat) : startPosition;
-          const initialPitchBendValue = resolveMidiAutomationValueAtBeat(
+          const initialPitchBendTick = isLooping ? Math.max(startPosition, scheduleStartTick) : startPosition;
+          const initialPitchBendValue = resolveMidiAutomationValueAtTick(
             trackPitchBends,
-            initialPitchBendBeat,
+            initialPitchBendTick,
             MIDI_PITCH_BEND_CENTER
           );
           audioBus.setLiveMidiPitchBend(midiPitchBendToNormalized(initialPitchBendValue));
-          const expressionInitialValue = resolveMidiAutomationValueAtBeat(
+          const expressionInitialValue = resolveMidiAutomationValueAtTick(
             mergedExpressionEvents,
-            initialPitchBendBeat,
+            initialPitchBendTick,
             127,
             'linear'
           );
           audioBus.setLiveMidiExpression(clampMidiControllerValue(expressionInitialValue) / 127);
-          const sustainInitialValue = resolveMidiAutomationValueAtBeat(
+          const sustainInitialValue = resolveMidiAutomationValueAtTick(
             trackControllerEvents[64],
-            initialPitchBendBeat,
+            initialPitchBendTick,
             0,
             'step'
           );
           audioBus.setLiveMidiSustain(sustainInitialValue >= 64);
 
-          const pitchBendWindowStartBeat = isLooping ? scheduleStartBeat : Math.max(startPosition, 0);
+          const pitchBendWindowStartTick = isLooping ? scheduleStartTick : Math.max(startPosition, 0);
           const bakedTrackPitchBends = bakeMidiAutomationPointsInWindow(
             trackPitchBends,
-            pitchBendWindowStartBeat,
-            scheduleEndBeat,
+            pitchBendWindowStartTick,
+            scheduleEndTick,
             {
               maxIntervalMs: interpolationIntervalMs,
-              bpm: getEffectiveBpmAtBeat(project, pitchBendWindowStartBeat),
+              bpm: getEffectiveBpmAtTick(project, pitchBendWindowStartTick),
               defaultValue: MIDI_PITCH_BEND_CENTER,
             }
           );
 
-          bakedTrackPitchBends.forEach(({ beat, value }) => {
-            if (!isLooping && beat <= pitchBendWindowStartBeat) {
+          bakedTrackPitchBends.forEach(({ tick, value }) => {
+            if (!isLooping && tick <= pitchBendWindowStartTick) {
               return;
             }
 
@@ -683,26 +686,26 @@ export class KGAudioInterface {
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
                 audioBus.scheduleLiveMidiPitchBend(midiPitchBendToNormalized(value), time);
               }
-            }, this.projectBeatToTransportTime(beat));
+            }, this.projectTickToTransportTime(tick));
 
             this.scheduledEvents.add(eventId);
           });
 
           const bakedExpressionEvents = bakeMidiAutomationPointsInWindow(
             mergedExpressionEvents,
-            pitchBendWindowStartBeat,
-            scheduleEndBeat,
+            pitchBendWindowStartTick,
+            scheduleEndTick,
             {
               maxIntervalMs: interpolationIntervalMs,
-              bpm: getEffectiveBpmAtBeat(project, pitchBendWindowStartBeat),
+              bpm: getEffectiveBpmAtTick(project, pitchBendWindowStartTick),
               defaultValue: 127,
               interpolationMode: 'linear',
               quantizeValue: clampMidiControllerValue,
             }
           );
 
-          bakedExpressionEvents.forEach(({ beat, value }) => {
-            if (!isLooping && beat <= pitchBendWindowStartBeat) {
+          bakedExpressionEvents.forEach(({ tick, value }) => {
+            if (!isLooping && tick <= pitchBendWindowStartTick) {
               return;
             }
 
@@ -711,26 +714,26 @@ export class KGAudioInterface {
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
                 audioBus.scheduleLiveMidiExpression(value / 127, time);
               }
-            }, this.projectBeatToTransportTime(beat));
+            }, this.projectTickToTransportTime(tick));
 
             this.scheduledEvents.add(eventId);
           });
 
           const bakedSustainEvents = bakeMidiAutomationPointsInWindow(
             trackControllerEvents[64],
-            pitchBendWindowStartBeat,
-            scheduleEndBeat,
+            pitchBendWindowStartTick,
+            scheduleEndTick,
             {
               maxIntervalMs: interpolationIntervalMs,
-              bpm: getEffectiveBpmAtBeat(project, pitchBendWindowStartBeat),
+              bpm: getEffectiveBpmAtTick(project, pitchBendWindowStartTick),
               defaultValue: 0,
               interpolationMode: 'step',
               quantizeValue: clampMidiControllerValue,
             }
           );
 
-          bakedSustainEvents.forEach(({ beat, value }) => {
-            if (!isLooping && beat <= pitchBendWindowStartBeat) {
+          bakedSustainEvents.forEach(({ tick, value }) => {
+            if (!isLooping && tick <= pitchBendWindowStartTick) {
               return;
             }
 
@@ -739,19 +742,19 @@ export class KGAudioInterface {
               if (audioBus.shouldPlayWithSolo(hasSoloedTracks)) {
                 audioBus.setLiveMidiSustain(value >= 64, time);
               }
-            }, this.projectBeatToTransportTime(beat));
+            }, this.projectTickToTransportTime(tick));
 
             this.scheduledEvents.add(eventId);
           });
 
-          trackNotes.forEach(({ note, absoluteStartBeat, absoluteEndBeat }) => {
-            const noteStartTime = this.projectBeatToTransportTime(absoluteStartBeat);
-            const noteDurationSeconds = beatRangeToSeconds(project, absoluteStartBeat, absoluteEndBeat);
+          trackNotes.forEach(({ note, absoluteStartTick, absoluteEndTick }) => {
+            const noteStartTime = this.projectTickToTransportTime(absoluteStartTick);
+            const noteDurationSeconds = tickRangeToSeconds(project, absoluteStartTick, absoluteEndTick);
             const velocity = note.getVelocity() / 127;
             const noteName = pitchToNoteNameString(note.getPitch());
 
             console.log(
-              `Scheduling note ${noteName} at beat ${Number(absoluteStartBeat.toFixed ? absoluteStartBeat.toFixed(3) : absoluteStartBeat.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDurationSeconds).toFixed(3))}, delay: ${playbackDelay}s`
+              `Scheduling note ${noteName} at tick ${Number(absoluteStartTick.toFixed ? absoluteStartTick.toFixed(3) : absoluteStartTick.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${Number(Number(noteStartTime).toFixed(3))}, duration: ${Number(Number(noteDurationSeconds).toFixed(3))}, delay: ${playbackDelay}s`
             );
 
             const eventId = Tone.Transport.schedule((time) => {
@@ -770,11 +773,11 @@ export class KGAudioInterface {
           track.getRegions().forEach(region => {
             if (region.getCurrentType() === 'KGAudioRegion') {
               const audioRegion = region as unknown as KGAudioRegion;
-              const regionStartBeat = region.getStartFromBeat();
-              const regionEndBeat = regionStartBeat + region.getLength();
+              const regionStartTick = region.getStartTick();
+              const regionEndTick = regionStartTick + region.getLengthTicks();
 
               // Skip regions outside loop range when looping
-              if (regionStartBeat >= scheduleEndBeat || regionEndBeat <= scheduleStartBeat) {
+              if (regionStartTick >= scheduleEndTick || regionEndTick <= scheduleStartTick) {
                 return;
               }
 
@@ -784,13 +787,13 @@ export class KGAudioInterface {
               const audioFileId = audioRegion.getAudioFileId();
 
               const scheduleRegionResume = (
-                resumeBeat: number,
-                maximumEndBeat: number,
+                resumeTick: number,
+                maximumEndTick: number,
                 once: boolean
               ): void => {
-                const offsetSeconds = beatRangeToSeconds(project, regionStartBeat, resumeBeat);
-                const remainingSeconds = beatRangeToSeconds(project, resumeBeat, regionEndBeat);
-                const maximumDurationSeconds = beatRangeToSeconds(project, resumeBeat, maximumEndBeat);
+                const offsetSeconds = tickRangeToSeconds(project, regionStartTick, resumeTick);
+                const remainingSeconds = tickRangeToSeconds(project, resumeTick, regionEndTick);
+                const maximumDurationSeconds = tickRangeToSeconds(project, resumeTick, maximumEndTick);
                 const availableAudioSeconds = audioDurationSeconds - clipStartOffsetSeconds - offsetSeconds;
                 const effectiveRemainingSeconds = Math.min(
                   remainingSeconds,
@@ -804,12 +807,12 @@ export class KGAudioInterface {
 
                 // Resume just after the transport boundary so Tone cannot miss
                 // the event, compensating both source offset and duration.
-                const safeResumeBeat = Math.min(
-                  resumeBeat + resumeSafetyOffsetBeats,
-                  regionEndBeat,
-                  maximumEndBeat
+                const safeResumeTick = Math.min(
+                  resumeTick + resumeSafetyOffsetTicks,
+                  regionEndTick,
+                  maximumEndTick
                 );
-                const extraOffsetSeconds = beatRangeToSeconds(project, resumeBeat, safeResumeBeat);
+                const extraOffsetSeconds = tickRangeToSeconds(project, resumeTick, safeResumeTick);
                 const adjustedRemainingSeconds = Math.max(0, effectiveRemainingSeconds - extraOffsetSeconds);
                 if (adjustedRemainingSeconds <= 0) {
                   return;
@@ -827,31 +830,31 @@ export class KGAudioInterface {
                     clipStartOffsetSeconds + offsetSeconds + extraOffsetSeconds,
                     adjustedRemainingSeconds
                   );
-                }, this.projectBeatToTransportTime(safeResumeBeat));
+                }, this.projectTickToTransportTime(safeResumeTick));
                 this.scheduledEvents.add(eventId);
               };
 
               // Skip regions that start before playback start position
-              if (regionStartBeat < startPosition) {
+              if (regionStartTick < startPosition) {
                 const isFullLoopSeek = isLooping && options?.scheduleFullLoop;
-                if (!isFullLoopSeek || startPosition > scheduleStartBeat) {
-                  scheduleRegionResume(startPosition, isLooping ? scheduleEndBeat : regionEndBeat, Boolean(isFullLoopSeek));
+                if (!isFullLoopSeek || startPosition > scheduleStartTick) {
+                  scheduleRegionResume(startPosition, isLooping ? scheduleEndTick : regionEndTick, Boolean(isFullLoopSeek));
                 }
                 if (!(isLooping && options?.scheduleFullLoop)) {
                   return;
                 }
 
-                if (regionStartBeat < scheduleStartBeat) {
+                if (regionStartTick < scheduleStartTick) {
                   // The source begins before the loop. Re-enter it from the
                   // loop-start offset on every wrap instead of scheduling its
                   // out-of-loop project start at transport time zero.
-                  scheduleRegionResume(scheduleStartBeat, scheduleEndBeat, false);
+                  scheduleRegionResume(scheduleStartTick, scheduleEndTick, false);
                   return;
                 }
               }
 
               // Effective duration: region length in seconds, capped at available audio after clip offset
-              const regionLengthSeconds = beatRangeToSeconds(project, regionStartBeat, regionEndBeat);
+              const regionLengthSeconds = tickRangeToSeconds(project, regionStartTick, regionEndTick);
               let effectiveDurationSeconds = Math.min(
                 regionLengthSeconds,
                 audioDurationSeconds - clipStartOffsetSeconds
@@ -864,15 +867,15 @@ export class KGAudioInterface {
 
               // Cap duration at loop boundary to prevent overlap on loop re-trigger
               if (isLooping) {
-                const maxDurationBeats = scheduleEndBeat - regionStartBeat;
-                const maxDurationSeconds = beatRangeToSeconds(project, regionStartBeat, regionStartBeat + maxDurationBeats);
+                const maxDurationTicks = scheduleEndTick - regionStartTick;
+                const maxDurationSeconds = tickRangeToSeconds(project, regionStartTick, regionStartTick + maxDurationTicks);
                 effectiveDurationSeconds = Math.min(effectiveDurationSeconds, maxDurationSeconds);
               }
 
-              const regionStartTime = this.projectBeatToTransportTime(regionStartBeat);
+              const regionStartTime = this.projectTickToTransportTime(regionStartTick);
 
               console.log(
-                `Scheduling audio region "${region.getName()}" at beat ${regionStartBeat}, clipOffset: ${clipStartOffsetSeconds}s, duration: ${effectiveDurationSeconds}s`
+                `Scheduling audio region "${region.getName()}" at tick ${regionStartTick}, clipOffset: ${clipStartOffsetSeconds}s, duration: ${effectiveDurationSeconds}s`
               );
 
               const eventId = Tone.Transport.schedule((time) => {
@@ -907,11 +910,11 @@ export class KGAudioInterface {
         throw new Error('Audio context not started');
       }
 
-      if (this.delayedTransportStartSeconds > 0 && this.virtualPrerollStartBeat !== null) {
+      if (this.delayedTransportStartSeconds > 0 && this.virtualPrerollStartTick !== null) {
         this.virtualPrerollStartAudioTime = Tone.now();
         this.delayedTransportStartTimeoutId = Tone.getContext().setTimeout(() => {
           this.delayedTransportStartTimeoutId = null;
-          this.virtualPrerollStartBeat = null;
+          this.virtualPrerollStartTick = null;
           this.virtualPrerollStartAudioTime = null;
           Tone.Transport.start();
         }, this.delayedTransportStartSeconds);
@@ -971,9 +974,11 @@ export class KGAudioInterface {
       const noteName = pitchToNoteNameString(note.getPitch());
       const velocity = note.getVelocity() / 127; // Normalize to 0-1
       
-      // Convert note duration from beats to Tone.js time format
-      const durationInBeats = note.getEndBeat() - note.getStartBeat();
-      const duration = this.beatsToToneTime(durationInBeats);
+      // Preview duration follows the project tempo map at the current playhead.
+      const durationTicks = note.getEndTick() - note.getStartTick();
+      const project = KGCore.instance().getCurrentProject();
+      const previewStartTick = Math.max(0, this.getTransportPosition());
+      const duration = tickRangeToSeconds(project, previewStartTick, previewStartTick + durationTicks) as Tone.Unit.Time;
       const triggerTime = time ?? Tone.now();
       this.applyTrackAutomationForCurrentBeat(trackId);
       
@@ -1205,11 +1210,10 @@ export class KGAudioInterface {
    */
   public setTransportPosition(position: number): void {
     try {
-      // Convert beats to Tone.js time format
       const safePosition = Math.max(0, position);
-      const toneTime = this.projectBeatToTransportTime(safePosition);
+      const toneTime = this.projectTickToTransportTime(safePosition);
       Tone.Transport.position = toneTime;
-      console.log(`Set transport position to ${position} beats (${toneTime})`);
+      console.log(`Set transport position to ${position} ticks (${toneTime})`);
     } catch (error) {
       console.error('Error setting transport position:', error);
     }
@@ -1220,23 +1224,23 @@ export class KGAudioInterface {
    */
   public getTransportPosition(): number {
     try {
-      if (this.virtualPrerollStartBeat !== null && this.virtualPrerollStartAudioTime !== null) {
+      if (this.virtualPrerollStartTick !== null && this.virtualPrerollStartAudioTime !== null) {
         const project = KGCore.instance().getCurrentProject();
-        const secondsPerBeat = 60 / project.getBpm();
+        const secondsPerQuarter = 60 / project.getBpm();
         const elapsedSeconds = Math.max(0, Tone.now() - this.virtualPrerollStartAudioTime);
-        const elapsedBeats = elapsedSeconds / secondsPerBeat;
-        return Math.min(0, this.virtualPrerollStartBeat + elapsedBeats);
+        const elapsedTicks = (elapsedSeconds / secondsPerQuarter) * TICKS_PER_QUARTER;
+        return Math.min(0, this.virtualPrerollStartTick + elapsedTicks);
       }
 
       const transportSeconds = Number(Tone.Transport.seconds);
       if (Number.isFinite(transportSeconds)) {
-        return secondsToBeat(
+        return secondsToTick(
           KGCore.instance().getCurrentProject(),
           this.playbackOriginSeconds + Math.max(0, transportSeconds)
         );
       }
 
-      return this.transportTimeToProjectBeat(KGCore.instance().getCurrentProject(), Tone.Transport.position);
+      return this.transportTimeToProjectTick(KGCore.instance().getCurrentProject(), Tone.Transport.position);
     } catch (error) {
       console.error('Error getting transport position:', error);
       return 0;
@@ -1250,9 +1254,9 @@ export class KGAudioInterface {
   }
 
   /** Start the metronome mid-playback without restarting the transport. */
-  public startMetronomeDuringPlayback(currentPositionBeats: number, beatsPerBar: number): void {
+  public startMetronomeDuringPlayback(currentPositionTicks: number, barTicks: number, meterBeatTicks: number): void {
     const playbackDelay = (ConfigManager.instance().get('audio.playback_delay') as number) ?? 0.2;
-    this.metronome.start(currentPositionBeats, beatsPerBar, playbackDelay);
+    this.metronome.start(currentPositionTicks, barTicks, meterBeatTicks, playbackDelay);
   }
 
   /** Stop the metronome mid-playback without stopping the transport. */
@@ -1448,24 +1452,24 @@ export class KGAudioInterface {
     }
 
     this.delayedTransportStartSeconds = 0;
-    this.virtualPrerollStartBeat = null;
+    this.virtualPrerollStartTick = null;
     this.virtualPrerollStartAudioTime = null;
   }
 
   // ===== PRIVATE UTILITY METHODS =====
 
-  private applyTrackAutomationAtBeat(track: { getId(): number; getVolumeAutomation(): Array<{ getBeat(): number; getValue(): number }>; getPanAutomation(): Array<{ getBeat(): number; getValue(): number }> }, beat: number): void {
+  private applyTrackAutomationAtBeat(track: { getId(): number; getVolumeAutomation(): Array<{ getTick(): number; getValue(): number }>; getPanAutomation(): Array<{ getTick(): number; getValue(): number }> }, tick: number): void {
     const trackId = track.getId().toString();
     const audioBus = this.trackAudioBuses.get(trackId);
     const playerBus = this.trackAudioPlayerBuses.get(trackId);
-    const volumePoints = track.getVolumeAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
-    const panPoints = track.getPanAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+    const volumePoints = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
 
     const nextVolume = volumePoints.length > 0
-      ? resolveTrackAutomationValueAtBeat(volumePoints, 'volume', beat, getTrackAutomationDefaultValue('volume'))
+      ? resolveTrackAutomationValueAtTick(volumePoints, 'volume', tick, getTrackAutomationDefaultValue('volume'))
       : null;
     const nextPan = panPoints.length > 0
-      ? resolveTrackAutomationValueAtBeat(panPoints, 'pan', beat, getTrackAutomationDefaultValue('pan'))
+      ? resolveTrackAutomationValueAtTick(panPoints, 'pan', tick, getTrackAutomationDefaultValue('pan'))
       : null;
 
     if (audioBus) {
@@ -1490,9 +1494,9 @@ export class KGAudioInterface {
   }
 
   private scheduleTrackAutomation(
-    track: { getId(): number; getVolumeAutomation(): Array<{ getBeat(): number; getValue(): number }>; getPanAutomation(): Array<{ getBeat(): number; getValue(): number }> },
-    windowStartBeat: number,
-    windowEndBeat: number,
+    track: { getId(): number; getVolumeAutomation(): Array<{ getTick(): number; getValue(): number }>; getPanAutomation(): Array<{ getTick(): number; getValue(): number }> },
+    windowStartTick: number,
+    windowEndTick: number,
     interpolationIntervalMs: number,
     bpm: number,
     includeWindowStart = false
@@ -1504,12 +1508,12 @@ export class KGAudioInterface {
       return;
     }
 
-    const volumePoints = track.getVolumeAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
-    const panPoints = track.getPanAutomation().map(point => ({ beat: point.getBeat(), value: point.getValue() }));
+    const volumePoints = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
 
-    bakeTrackAutomationPointsInWindow(volumePoints, 'volume', windowStartBeat, windowEndBeat, interpolationIntervalMs, bpm)
-      .forEach(({ beat, value }) => {
-        if (includeWindowStart ? beat < windowStartBeat : beat <= windowStartBeat) {
+    bakeTrackAutomationPointsInWindow(volumePoints, 'volume', windowStartTick, windowEndTick, interpolationIntervalMs, bpm)
+      .forEach(({ tick, value }) => {
+        if (includeWindowStart ? tick < windowStartTick : tick <= windowStartTick) {
           return;
         }
 
@@ -1521,13 +1525,13 @@ export class KGAudioInterface {
             playerBus.setAutomationVolume(value);
           }
           this.updateAllEffectiveVolumes();
-        }, this.projectBeatToTransportTime(beat));
+        }, this.projectTickToTransportTime(tick));
         this.scheduledEvents.add(eventId);
       });
 
-    bakeTrackAutomationPointsInWindow(panPoints, 'pan', windowStartBeat, windowEndBeat, interpolationIntervalMs, bpm)
-      .forEach(({ beat, value }) => {
-        if (includeWindowStart ? beat < windowStartBeat : beat <= windowStartBeat) {
+    bakeTrackAutomationPointsInWindow(panPoints, 'pan', windowStartTick, windowEndTick, interpolationIntervalMs, bpm)
+      .forEach(({ tick, value }) => {
+        if (includeWindowStart ? tick < windowStartTick : tick <= windowStartTick) {
           return;
         }
 
@@ -1538,31 +1542,32 @@ export class KGAudioInterface {
           if (playerBus) {
             playerBus.scheduleAutomationPan(value, time);
           }
-        }, this.projectBeatToTransportTime(beat));
+        }, this.projectTickToTransportTime(tick));
         this.scheduledEvents.add(eventId);
       });
   }
 
-  private scheduleTempoChanges(project: KGProject, windowStartBeat: number, windowEndBeat: number): void {
+  private scheduleTempoChanges(project: KGProject, windowStartTick: number, windowEndTick: number): void {
     const tempoTrack = findGlobalTrackByType(project, GlobalTrackType.Tempo);
     if (!tempoTrack) {
       return;
     }
 
-    const tempoRegions = getSortedTempoRegions(tempoTrack, project.getTimeSignature().numerator);
+    const projectTicksPerBar = ticksPerBar(project.getTimeSignature());
+    const tempoRegions = getSortedTempoRegions(tempoTrack, projectTicksPerBar);
     if (tempoRegions.length === 0) {
       return;
     }
 
     tempoRegions.forEach((region) => {
-      const regionStartBeat = region.getStartBar() * project.getTimeSignature().numerator;
-      if (regionStartBeat <= windowStartBeat || regionStartBeat >= windowEndBeat) {
+      const regionStartTick = region.getStartTick();
+      if (regionStartTick <= windowStartTick || regionStartTick >= windowEndTick) {
         return;
       }
 
       const eventId = Tone.Transport.schedule(() => {
         Tone.Transport.bpm.value = region.getBpm();
-      }, this.projectBeatToTransportTime(regionStartBeat));
+      }, this.projectTickToTransportTime(regionStartTick));
       this.scheduledEvents.add(eventId);
     });
   }
@@ -1617,47 +1622,36 @@ export class KGAudioInterface {
 
   // ===== TIME CONVERSION UTILITIES =====
 
-  /**
-   * Convert beats to Tone.js time format using raw seconds
-   * This approach handles triplets and all subdivisions correctly
-   */
-  private beatsToToneTime(beats: number): Tone.Unit.Time {
-    return beatToSeconds(KGCore.instance().getCurrentProject(), beats) as Tone.Unit.Time;
-  }
-
-  private setPlaybackOrigin(project: KGProject, beat: number): void {
-    this.playbackOriginBeat = Math.max(0, beat);
-    this.playbackOriginSeconds = beatToSeconds(project, this.playbackOriginBeat);
+  private setPlaybackOrigin(project: KGProject, tick: number): void {
+    this.playbackOriginTick = Math.max(0, Math.round(tick));
+    this.playbackOriginSeconds = tickToSeconds(project, this.playbackOriginTick);
   }
 
   private resetPlaybackOrigin(): void {
-    this.playbackOriginBeat = 0;
+    this.playbackOriginTick = 0;
     this.playbackOriginSeconds = 0;
   }
 
-  private projectBeatToTransportTime(beat: number): Tone.Unit.Time {
-    const clampedBeat = Math.max(0, beat);
-    const transportBeats = Math.max(0, clampedBeat - this.playbackOriginBeat);
-    const transportTicks = Math.round(transportBeats * Tone.Transport.PPQ);
+  private projectTickToTransportTime(tick: number): Tone.Unit.Time {
+    const clampedTick = Math.max(0, tick);
+    const transportTicks = Math.round(clampedTick - this.playbackOriginTick);
     return transportTicks === 0 ? 0 : `${transportTicks}i` as Tone.Unit.Time;
   }
 
-  private transportTimeToProjectBeat(project: KGProject, toneTime: Tone.Unit.Time): number {
+  private transportTimeToProjectTick(project: KGProject, toneTime: Tone.Unit.Time): number {
     if (typeof toneTime === 'string' && toneTime.endsWith('i')) {
       const ticks = Number.parseFloat(toneTime.slice(0, -1));
-      return this.playbackOriginBeat + (Number.isFinite(ticks) ? ticks / Tone.Transport.PPQ : 0);
+      return this.playbackOriginTick + (Number.isFinite(ticks) ? ticks : 0);
     }
 
     const numericTime = typeof toneTime === 'number' ? toneTime : Tone.Time(toneTime).toSeconds();
-    return this.playbackOriginBeat + Math.max(0, numericTime);
+    return secondsToTick(project, this.playbackOriginSeconds + Math.max(0, numericTime));
   }
 
-  /**
-   * Convert Tone.js time format to beats
-   */
-  private toneTimeToBeats(toneTime: Tone.Unit.Time): number {
+  /** Convert Tone.js time format to project ticks. */
+  private toneTimeToTicks(toneTime: Tone.Unit.Time): number {
     const seconds = Tone.Time(toneTime).toSeconds();
-    return secondsToBeat(KGCore.instance().getCurrentProject(), seconds);
+    return secondsToTick(KGCore.instance().getCurrentProject(), seconds);
   }
 
   /**

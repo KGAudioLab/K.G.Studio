@@ -2,9 +2,12 @@ import React from 'react';
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Playhead from './Playhead';
+import { TICKS_PER_QUARTER } from '../../core/timing';
+
+const q = (quarterNotes: number): number => quarterNotes * TICKS_PER_QUARTER;
 
 const storeState = {
-  playheadPosition: 2,
+  playheadTick: q(2),
   playheadSeekPreviewPosition: null as number | null,
   timeSignature: { numerator: 4, denominator: 4 },
 };
@@ -38,7 +41,7 @@ describe('Playhead', () => {
   });
 
   it('renders the drag preview position ahead of playback updates', () => {
-    storeState.playheadSeekPreviewPosition = 5;
+    storeState.playheadSeekPreviewPosition = q(5);
 
     const { container } = render(<Playhead context="piano-roll" />);
 

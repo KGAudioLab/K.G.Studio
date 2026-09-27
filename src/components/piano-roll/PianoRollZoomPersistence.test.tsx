@@ -5,6 +5,9 @@ import PianoRoll from './PianoRoll';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
+import { quarterNotesToTicks } from '../../core/timing';
+
+const q = quarterNotesToTicks;
 
 const pianoRollState = {
   zoom: 1,
@@ -41,12 +44,12 @@ const secondRegion = createMockMidiRegion({
   id: 'region-2',
   trackId: '1',
   trackIndex: 0,
-  startFromBeat: 12,
+  startTick: 12,
   length: 8,
 });
 const track = createMockMidiTrack({ id: 1, regions: [region, secondRegion] });
-const audioRegion = new KGAudioRegion('audio-1', '2', 1, 'Audio Region', 18, 8);
-const secondAudioRegion = new KGAudioRegion('audio-2', '2', 1, 'Second Audio Region', 16, 8);
+const audioRegion = new KGAudioRegion('audio-1', '2', 1, 'Audio Region', q(18), q(8));
+const secondAudioRegion = new KGAudioRegion('audio-2', '2', 1, 'Second Audio Region', q(16), q(8));
 const audioTrack = new KGAudioTrack('Audio Track', 2);
 audioTrack.setRegions([audioRegion, secondAudioRegion]);
 
@@ -66,11 +69,11 @@ const storeState = {
   keySignature: 'C major',
   selectedMode: 'ionian',
   setSelectedMode: vi.fn(),
-  playheadPosition: 0,
+  playheadTick: 0,
   isPlaying: false,
   autoScrollEnabled: false,
   bpm: 120,
-  pianoRollScrollRequest: null,
+  pianoRollScrollRequest: null as number | null,
   selectedNoteIds: [],
   automationRedrawVersion: 0,
 };
@@ -179,7 +182,10 @@ describe('PianoRoll zoom persistence', () => {
     pianoRollState.setPianoRollZoom.mockClear();
     pianoRollState.setCurrentSnap.mockClear();
     storeState.pianoRollHeight = 500;
-    storeState.playheadPosition = 0;
+    storeState.playheadTick = 0;
+    storeState.pianoRollScrollRequest = null;
+    storeState.isPlaying = false;
+    storeState.autoScrollEnabled = false;
     storeState.setPianoRollHeight.mockClear();
     document.documentElement.style.setProperty('--region-piano-key-width', '60px');
     document.documentElement.style.setProperty('--region-grid-beat-width', '40px');
@@ -249,7 +255,7 @@ describe('PianoRoll zoom persistence', () => {
   });
 
   it('centers the playhead only after switching between open MIDI regions', async () => {
-    storeState.playheadPosition = 16;
+    storeState.playheadTick = q(16);
     const view = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
 
     expect(latestNoteScrollElement?.scrollLeft).toBe(0);
@@ -259,8 +265,16 @@ describe('PianoRoll zoom persistence', () => {
     await waitFor(() => expect(latestNoteScrollElement?.scrollLeft).toBe(540));
   });
 
+  it('centers a tick-based scroll request from the main grid', async () => {
+    storeState.pianoRollScrollRequest = q(20);
+
+    render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
+
+    await waitFor(() => expect(latestNoteScrollElement?.scrollLeft).toBe(700));
+  });
+
   it('centers a cross-type audio switch without reserving a piano-key gutter', async () => {
-    storeState.playheadPosition = 20;
+    storeState.playheadTick = q(20);
     const view = render(<PianoRoll onClose={vi.fn()} regionId="region-1" />);
 
     view.rerender(
@@ -276,7 +290,7 @@ describe('PianoRoll zoom persistence', () => {
   });
 
   it('centers audio-to-audio and audio-to-MIDI switches while the panel stays open', async () => {
-    storeState.playheadPosition = 20;
+    storeState.playheadTick = q(20);
     const view = render(
       <PianoRoll
         onClose={vi.fn()}

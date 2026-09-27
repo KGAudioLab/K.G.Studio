@@ -1,6 +1,7 @@
 import { TOOLBAR_CONSTANTS } from '../../constants';
 import type { SheetMeasureMetric } from './sheetNotationTypes';
 import { getSheetPlayheadPixel } from './sheetNotation';
+import { ticksToPixels } from '../../core/timing';
 
 export type RegionPlayheadRelation = 'before' | 'inside' | 'after';
 type ViewportSwitchAlignment = 'center' | 'region-start' | 'region-end';
@@ -18,8 +19,8 @@ export interface PendingModeSwitchRequest {
 
 export interface RegionSwitchRequestOptions {
   playheadBeat: number;
-  regionStartBeat: number;
-  regionEndBeat: number;
+  regionStartTick: number;
+  regionEndTick: number;
   sourceSheetMusicViewEnabled: boolean;
   destinationSheetMusicViewEnabled: boolean;
   destinationSheetMusicTrackScopeEnabled: boolean;
@@ -28,8 +29,8 @@ export interface RegionSwitchRequestOptions {
 
 export interface ModeSwitchRequestOptions {
   playheadBeat: number;
-  regionStartBeat: number;
-  regionEndBeat: number;
+  regionStartTick: number;
+  regionEndTick: number;
   sourceSheetMusicViewEnabled: boolean;
   destinationSheetMusicViewEnabled: boolean;
   destinationSheetMusicTrackScopeEnabled: boolean;
@@ -39,21 +40,21 @@ export interface ScrollLeftForViewportRequestOptions {
   request: PendingModeSwitchRequest;
   container: HTMLDivElement;
   sheetMeasureMetrics: SheetMeasureMetric[];
-  activeRegionStartBeat: number;
-  activeRegionEndBeat: number;
-  songEndBeat: number;
+  activeRegionStartTick: number;
+  activeRegionEndTick: number;
+  songEndTick: number;
 }
 
 export function getRegionPlayheadRelation(
   playheadBeat: number,
-  regionStartBeat: number,
-  regionEndBeat: number
+  regionStartTick: number,
+  regionEndTick: number
 ): RegionPlayheadRelation {
-  if (playheadBeat < regionStartBeat) {
+  if (playheadBeat < regionStartTick) {
     return 'before';
   }
 
-  if (playheadBeat > regionEndBeat) {
+  if (playheadBeat > regionEndTick) {
     return 'after';
   }
 
@@ -62,13 +63,13 @@ export function getRegionPlayheadRelation(
 
 export function createPendingModeSwitchRequest({
   playheadBeat,
-  regionStartBeat,
-  regionEndBeat,
+  regionStartTick,
+  regionEndTick,
   sourceSheetMusicViewEnabled,
   destinationSheetMusicViewEnabled,
   destinationSheetMusicTrackScopeEnabled,
 }: ModeSwitchRequestOptions): PendingModeSwitchRequest {
-  const relation = getRegionPlayheadRelation(playheadBeat, regionStartBeat, regionEndBeat);
+  const relation = getRegionPlayheadRelation(playheadBeat, regionStartTick, regionEndTick);
   const enteringTrackScopeSheet = (
     !sourceSheetMusicViewEnabled &&
     destinationSheetMusicViewEnabled &&
@@ -102,21 +103,21 @@ export function createPendingModeSwitchRequest({
     destinationSheetMusicViewEnabled,
     destinationSheetMusicTrackScopeEnabled,
     alignment: relation === 'before' ? 'region-start' : 'region-end',
-    anchorBeat: relation === 'before' ? regionStartBeat : regionEndBeat,
+    anchorBeat: relation === 'before' ? regionStartTick : regionEndTick,
     clampScope: 'region',
   };
 }
 
 export function createPendingRegionSwitchRequest({
   playheadBeat,
-  regionStartBeat,
-  regionEndBeat,
+  regionStartTick,
+  regionEndTick,
   sourceSheetMusicViewEnabled,
   destinationSheetMusicViewEnabled,
   destinationSheetMusicTrackScopeEnabled,
   destinationHasPianoKeys,
 }: RegionSwitchRequestOptions): PendingModeSwitchRequest | null {
-  if (getRegionPlayheadRelation(playheadBeat, regionStartBeat, regionEndBeat) !== 'inside') {
+  if (getRegionPlayheadRelation(playheadBeat, regionStartTick, regionEndTick) !== 'inside') {
     return null;
   }
 
@@ -151,18 +152,18 @@ function getHorizontalViewportMetrics(
   };
 }
 
-function getPixelForAbsoluteBeat(
+function getPixelForAbsoluteTick(
   beat: number,
   sheetMusicViewEnabled: boolean,
   sheetMusicTrackScopeEnabled: boolean,
   sheetMeasureMetrics: SheetMeasureMetric[],
-  activeRegionStartBeat: number
+  activeRegionStartTick: number
 ): number {
   if (sheetMusicViewEnabled) {
     return getSheetPlayheadPixel(
       sheetMusicTrackScopeEnabled
         ? Math.max(0, beat)
-        : Math.max(0, beat - activeRegionStartBeat),
+        : Math.max(0, beat - activeRegionStartTick),
       sheetMeasureMetrics
     );
   }
@@ -170,27 +171,27 @@ function getPixelForAbsoluteBeat(
   const beatWidth = parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
   ) || 40;
-  return beat * beatWidth;
+  return ticksToPixels(beat, beatWidth);
 }
 
 function getScopeBoundsInPixels(
   request: PendingModeSwitchRequest,
   sheetMeasureMetrics: SheetMeasureMetric[],
-  activeRegionStartBeat: number,
-  activeRegionEndBeat: number,
-  songEndBeat: number
+  activeRegionStartTick: number,
+  activeRegionEndTick: number,
+  songEndTick: number
 ): { startPx: number; endPx: number } {
   if (request.destinationSheetMusicViewEnabled) {
     if (request.clampScope === 'track') {
       return {
         startPx: getSheetPlayheadPixel(0, sheetMeasureMetrics),
-        endPx: getSheetPlayheadPixel(songEndBeat, sheetMeasureMetrics),
+        endPx: getSheetPlayheadPixel(songEndTick, sheetMeasureMetrics),
       };
     }
 
     return {
       startPx: getSheetPlayheadPixel(0, sheetMeasureMetrics),
-      endPx: getSheetPlayheadPixel(activeRegionEndBeat - activeRegionStartBeat, sheetMeasureMetrics),
+      endPx: getSheetPlayheadPixel(activeRegionEndTick - activeRegionStartTick, sheetMeasureMetrics),
     };
   }
 
@@ -201,13 +202,13 @@ function getScopeBoundsInPixels(
   if (request.clampScope === 'track') {
     return {
       startPx: 0,
-      endPx: songEndBeat * beatWidth,
+      endPx: ticksToPixels(songEndTick, beatWidth),
     };
   }
 
   return {
-    startPx: activeRegionStartBeat * beatWidth,
-    endPx: activeRegionEndBeat * beatWidth,
+    startPx: ticksToPixels(activeRegionStartTick, beatWidth),
+    endPx: ticksToPixels(activeRegionEndTick, beatWidth),
   };
 }
 
@@ -250,28 +251,28 @@ export function getScrollLeftForViewportRequest({
   request,
   container,
   sheetMeasureMetrics,
-  activeRegionStartBeat,
-  activeRegionEndBeat,
-  songEndBeat,
+  activeRegionStartTick,
+  activeRegionEndTick,
+  songEndTick,
 }: ScrollLeftForViewportRequestOptions): number {
   const { visibleWidth } = getHorizontalViewportMetrics(
     container,
     request.destinationSheetMusicViewEnabled,
     request.destinationHasPianoKeys ?? !request.destinationSheetMusicViewEnabled
   );
-  const pixelPosition = getPixelForAbsoluteBeat(
+  const pixelPosition = getPixelForAbsoluteTick(
     request.anchorBeat,
     request.destinationSheetMusicViewEnabled,
     request.destinationSheetMusicTrackScopeEnabled,
     sheetMeasureMetrics,
-    activeRegionStartBeat
+    activeRegionStartTick
   );
   const { startPx, endPx } = getScopeBoundsInPixels(
     request,
     sheetMeasureMetrics,
-    activeRegionStartBeat,
-    activeRegionEndBeat,
-    songEndBeat
+    activeRegionStartTick,
+    activeRegionEndTick,
+    songEndTick
   );
 
   if (request.alignment === 'region-start') {
@@ -295,10 +296,10 @@ export function getScrollLeftForViewportRequest({
   });
 }
 
-export function getRegionStartScrollLeft(startBeat: number): number {
+export function getRegionStartScrollLeft(startTick: number): number {
   const beatWidth = parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')
   ) || TOOLBAR_CONSTANTS.BASE_BAR_WIDTH;
 
-  return Math.max(0, startBeat * beatWidth);
+  return Math.max(0, ticksToPixels(startTick, beatWidth));
 }

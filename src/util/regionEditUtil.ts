@@ -9,7 +9,7 @@ import { showAlert, showConfirm } from './dialogUtil';
 
 interface SplitSelectedRegionParams {
   selectedRegionIds: string[];
-  playheadPosition: number;
+  playheadTick: number;
   refreshProjectState: () => void;
 }
 
@@ -20,7 +20,7 @@ interface MergeSelectedMidiRegionsParams {
 
 export const splitSelectedRegionAtPlayhead = async ({
   selectedRegionIds,
-  playheadPosition,
+  playheadTick,
   refreshProjectState,
 }: SplitSelectedRegionParams): Promise<string | null> => {
   const {
@@ -41,14 +41,14 @@ export const splitSelectedRegionAtPlayhead = async ({
     return splitSelectedNotesAtPlayhead({
       activeRegionId,
       selectedNoteIds,
-      playheadPosition,
+      playheadTick,
       refreshProjectState,
     });
   }
 
   return splitSingleSelectedRegionAtPlayhead({
     selectedRegionIds,
-    playheadPosition,
+    playheadTick,
     refreshProjectState,
   });
 };
@@ -56,12 +56,12 @@ export const splitSelectedRegionAtPlayhead = async ({
 const splitSelectedNotesAtPlayhead = async ({
   activeRegionId,
   selectedNoteIds,
-  playheadPosition,
+  playheadTick,
   refreshProjectState,
 }: {
   activeRegionId: string;
   selectedNoteIds: string[];
-  playheadPosition: number;
+  playheadTick: number;
   refreshProjectState: () => void;
 }): Promise<string | null> => {
   const tracks = KGCore.instance().getCurrentProject().getTracks();
@@ -87,9 +87,9 @@ const splitSelectedNotesAtPlayhead = async ({
     return null;
   }
 
-  const regionRelativePlayhead = playheadPosition - activeRegion.getStartFromBeat();
+  const regionRelativePlayhead = playheadTick - activeRegion.getStartTick();
   const splitCount = selectedNotes.filter(note => (
-    note.getStartBeat() < regionRelativePlayhead && regionRelativePlayhead < note.getEndBeat()
+    note.getStartTick() < regionRelativePlayhead && regionRelativePlayhead < note.getEndTick()
   )).length;
   if (splitCount === 0) {
     await showAlert('The playhead is not inside any selected note. Move the playhead inside a selected note before splitting.');
@@ -100,7 +100,7 @@ const splitSelectedNotesAtPlayhead = async ({
     const command = new SplitSelectedNotesCommand(activeRegionId, selectedNoteIds, regionRelativePlayhead);
     KGCore.instance().executeCommand(command, { rethrow: true });
     refreshProjectState();
-    return `Split ${splitCount} note${splitCount === 1 ? '' : 's'} at beat ${playheadPosition.toFixed(2)}`;
+    return `Split ${splitCount} note${splitCount === 1 ? '' : 's'} at tick ${Math.round(playheadTick)}`;
   } catch (error) {
     await showAlert(error instanceof Error ? error.message : 'Unable to split the selected notes.');
     return null;
@@ -109,7 +109,7 @@ const splitSelectedNotesAtPlayhead = async ({
 
 const splitSingleSelectedRegionAtPlayhead = async ({
   selectedRegionIds,
-  playheadPosition,
+  playheadTick,
   refreshProjectState,
 }: SplitSelectedRegionParams): Promise<string | null> => {
   if (selectedRegionIds.length === 0) {
@@ -139,19 +139,19 @@ const splitSingleSelectedRegionAtPlayhead = async ({
     return null;
   }
 
-  const regionStart = targetRegion.getStartFromBeat();
-  const regionEnd = regionStart + targetRegion.getLength();
+  const regionStart = targetRegion.getStartTick();
+  const regionEnd = regionStart + targetRegion.getLengthTicks();
 
-  if (playheadPosition <= regionStart || playheadPosition >= regionEnd) {
+  if (playheadTick <= regionStart || playheadTick >= regionEnd) {
     await showAlert('The playhead is not inside the selected region. Move the playhead inside the region before splitting.');
     return null;
   }
 
-  const command = new SplitRegionCommand(regionId, playheadPosition);
+  const command = new SplitRegionCommand(regionId, playheadTick);
   KGCore.instance().executeCommand(command);
   refreshProjectState();
 
-  return `Split region at beat ${playheadPosition.toFixed(2)}`;
+  return `Split region at tick ${Math.round(playheadTick)}`;
 };
 
 export const mergeSelectedMidiRegions = async ({
@@ -196,18 +196,18 @@ export const mergeSelectedMidiRegions = async ({
   }
 
   const sortedSelectedRegions = [...selectedMidiRegions].sort((a, b) => {
-    const startDelta = a.getStartFromBeat() - b.getStartFromBeat();
+    const startDelta = a.getStartTick() - b.getStartTick();
     if (startDelta !== 0) {
       return startDelta;
     }
-    return a.getLength() - b.getLength();
+    return a.getLengthTicks() - b.getLengthTicks();
   });
 
   let regionIdsToMerge = selectedRegionIds;
   const firstSelectedRegion = sortedSelectedRegions[0];
   const lastSelectedRegion = sortedSelectedRegions[sortedSelectedRegions.length - 1];
-  const spanStart = firstSelectedRegion.getStartFromBeat();
-  const spanEnd = lastSelectedRegion.getStartFromBeat() + lastSelectedRegion.getLength();
+  const spanStart = firstSelectedRegion.getStartTick();
+  const spanEnd = lastSelectedRegion.getStartTick() + lastSelectedRegion.getLengthTicks();
 
   const targetTrack = tracks.find(track => track.getId().toString() === targetTrackId);
   const inBetweenRegions = targetTrack
@@ -215,8 +215,8 @@ export const mergeSelectedMidiRegions = async ({
     .filter(region => (
       region instanceof KGMidiRegion &&
       !selectedRegionIdSet.has(region.getId()) &&
-      region.getStartFromBeat() >= spanStart &&
-      region.getStartFromBeat() <= spanEnd
+      region.getStartTick() >= spanStart &&
+      region.getStartTick() <= spanEnd
     )) ?? [];
 
   if (inBetweenRegions.length > 0) {

@@ -9,13 +9,14 @@ import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
+import { tickRangeToSeconds } from '../../../util/globalTrackUtil';
 
 /**
  * Command to split a region into two at the given beat position.
  *
- * MIDI regions: notes whose startBeat is before the split stay in region 1
- * (endBeat is NOT clamped even if it crosses the boundary). Notes whose
- * startBeat is at or after the split go to region 2 with their beat
+ * MIDI regions: notes whose startTick is before the split stay in region 1
+ * (endTick is NOT clamped even if it crosses the boundary). Notes whose
+ * startTick is at or after the split go to region 2 with their beat
  * positions shifted so they are relative to the new region start.
  *
  * Audio regions: both halves share the same audioFileId / audioFileName /
@@ -24,7 +25,7 @@ import { useProjectStore } from '../../../stores/projectStore';
  */
 export class SplitRegionCommand extends KGCommand {
   private regionId: string;
-  private splitAtBeat: number; // absolute beat position of the playhead
+  private splitAtTick: number; // absolute beat position of the playhead
 
   // Stored during execute(), used during undo()
   private originalRegion: KGRegion | null = null;
@@ -33,10 +34,10 @@ export class SplitRegionCommand extends KGCommand {
   private targetTrack: KGTrack | null = null;
   private originalRegionIndex: number = -1;
 
-  constructor(regionId: string, splitAtBeat: number) {
+  constructor(regionId: string, splitAtTick: number) {
     super();
     this.regionId = regionId;
-    this.splitAtBeat = splitAtBeat;
+    this.splitAtTick = splitAtTick;
   }
 
   execute(): void {
@@ -62,13 +63,13 @@ export class SplitRegionCommand extends KGCommand {
     this.targetTrack = targetTrack;
     this.originalRegion = originalRegion;
 
-    const regionStart = originalRegion.getStartFromBeat();
-    const regionLength = originalRegion.getLength();
-    const splitOffsetBeats = this.splitAtBeat - regionStart;
+    const regionStart = originalRegion.getStartTick();
+    const regionLength = originalRegion.getLengthTicks();
+    const splitOffsetTicks = this.splitAtTick - regionStart;
 
-    if (splitOffsetBeats <= 0 || splitOffsetBeats >= regionLength) {
+    if (splitOffsetTicks <= 0 || splitOffsetTicks >= regionLength) {
       throw new Error(
-        `Split point ${this.splitAtBeat} is not within region range [${regionStart}, ${regionStart + regionLength})`
+        `Split point ${this.splitAtTick} is not within region range [${regionStart}, ${regionStart + regionLength})`
       );
     }
 
@@ -82,7 +83,7 @@ export class SplitRegionCommand extends KGCommand {
         trackIdx,
         originalRegion.getName(),
         regionStart,
-        splitOffsetBeats
+        splitOffsetTicks
       );
 
       const region2 = new KGMidiRegion(
@@ -90,19 +91,19 @@ export class SplitRegionCommand extends KGCommand {
         trackId,
         trackIdx,
         originalRegion.getName() + ' (2)',
-        this.splitAtBeat,
-        regionLength - splitOffsetBeats
+        this.splitAtTick,
+        regionLength - splitOffsetTicks
       );
       region1.setColor(originalRegion.getColor());
       region2.setColor(originalRegion.getColor());
 
       for (const note of originalRegion.getNotes()) {
-        if (note.getStartBeat() < splitOffsetBeats) {
-          // Stays in region 1 — copy as-is, do not clamp endBeat
+        if (note.getStartTick() < splitOffsetTicks) {
+          // Stays in region 1 — copy as-is, do not clamp endTick
           region1.addNote(new KGMidiNote(
             generateUniqueId('KGMidiNote'),
-            note.getStartBeat(),
-            note.getEndBeat(),
+            note.getStartTick(),
+            note.getEndTick(),
             note.getPitch(),
             note.getVelocity()
           ));
@@ -110,8 +111,8 @@ export class SplitRegionCommand extends KGCommand {
           // Goes into region 2 — shift both beats relative to new region start
           region2.addNote(new KGMidiNote(
             generateUniqueId('KGMidiNote'),
-            note.getStartBeat() - splitOffsetBeats,
-            note.getEndBeat() - splitOffsetBeats,
+            note.getStartTick() - splitOffsetTicks,
+            note.getEndTick() - splitOffsetTicks,
             note.getPitch(),
             note.getVelocity()
           ));
@@ -119,32 +120,32 @@ export class SplitRegionCommand extends KGCommand {
       }
 
       for (const pitchBend of originalRegion.getPitchBends()) {
-        if (pitchBend.getBeat() < splitOffsetBeats) {
+        if (pitchBend.getTick() < splitOffsetTicks) {
           region1.addPitchBend(new KGMidiPitchBend(
             generateUniqueId('KGMidiPitchBend'),
-            pitchBend.getBeat(),
+            pitchBend.getTick(),
             pitchBend.getValue()
           ));
         } else {
           region2.addPitchBend(new KGMidiPitchBend(
             generateUniqueId('KGMidiPitchBend'),
-            pitchBend.getBeat() - splitOffsetBeats,
+            pitchBend.getTick() - splitOffsetTicks,
             pitchBend.getValue()
           ));
         }
       }
 
       for (const { controller, event } of originalRegion.getAllControllerEventsFlattened()) {
-        if (event.getBeat() < splitOffsetBeats) {
+        if (event.getTick() < splitOffsetTicks) {
           region1.addControllerEvent(controller, new KGMidiControllerEvent(
             generateUniqueId('KGMidiControllerEvent'),
-            event.getBeat(),
+            event.getTick(),
             event.getValue()
           ));
         } else {
           region2.addControllerEvent(controller, new KGMidiControllerEvent(
             generateUniqueId('KGMidiControllerEvent'),
-            event.getBeat() - splitOffsetBeats,
+            event.getTick() - splitOffsetTicks,
             event.getValue()
           ));
         }
@@ -154,8 +155,8 @@ export class SplitRegionCommand extends KGCommand {
       this.region2 = region2;
 
     } else if (originalRegion instanceof KGAudioRegion) {
-      const bpm = KGCore.instance().getCurrentProject().getBpm();
-      const splitOffsetSeconds = splitOffsetBeats * (60 / bpm);
+      const project = KGCore.instance().getCurrentProject();
+      const splitOffsetSeconds = tickRangeToSeconds(project, regionStart, this.splitAtTick);
 
       this.region1 = new KGAudioRegion(
         generateUniqueId('KGAudioRegion'),
@@ -163,7 +164,7 @@ export class SplitRegionCommand extends KGCommand {
         trackIdx,
         originalRegion.getName(),
         regionStart,
-        splitOffsetBeats,
+        splitOffsetTicks,
         originalRegion.getAudioFileId(),
         originalRegion.getAudioFileName(),
         originalRegion.getAudioDurationSeconds(),
@@ -176,8 +177,8 @@ export class SplitRegionCommand extends KGCommand {
         trackId,
         trackIdx,
         originalRegion.getName() + ' (2)',
-        this.splitAtBeat,
-        regionLength - splitOffsetBeats,
+        this.splitAtTick,
+        regionLength - splitOffsetTicks,
         originalRegion.getAudioFileId(),
         originalRegion.getAudioFileName(),
         originalRegion.getAudioDurationSeconds(),
@@ -202,7 +203,7 @@ export class SplitRegionCommand extends KGCommand {
       console.log(`Closed piano roll because active region ${this.regionId} is being split`);
     }
 
-    console.log(`Split region "${originalRegion.getName()}" at beat ${this.splitAtBeat} (offset ${splitOffsetBeats} beats)`);
+    console.log(`Split region "${originalRegion.getName()}" at tick ${this.splitAtTick} (offset ${splitOffsetTicks} ticks)`);
   }
 
   undo(): void {

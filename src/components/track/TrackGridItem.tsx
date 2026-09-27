@@ -108,7 +108,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const audioWaveformRedrawVersion = useProjectStore(state => state.audioWaveformRedrawVersion);
   const recordingMode = useProjectStore(state => state.recordingMode);
   const recordingTargetTrackIndex = useProjectStore(state => state.recordingTargetTrackIndex);
-  const recordingCommitStartBeatAbsolute = useProjectStore(state => state.recordingCommitStartBeatAbsolute);
+  const recordingCommitStartTickAbsolute = useProjectStore(state => state.recordingCommitStartTickAbsolute);
   const recordingAudioPreviewCurrentBeat = useProjectStore(state => state.recordingAudioPreviewCurrentBeat);
   const recordingAudioPreviewPeaks = useProjectStore(state => state.recordingAudioPreviewPeaks);
   const recordingAudioPreviewFileName = useProjectStore(state => state.recordingAudioPreviewFileName);
@@ -446,7 +446,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       const snapSettings = {
         enabled: mainContentState.isSnappingEnabled(),
         mode: mainContentState.getSnappingMode(),
-        beatsPerBar: storeTimeSignature.numerator,
+        ticksPerBar: storeTimeSignature.numerator,
       };
 
       if (resizeAction === 'end') {
@@ -650,7 +650,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       finalBarNumber = Math.max(1, snapBarValue(rawBarNumber, {
         enabled: mainContentState.isSnappingEnabled(),
         mode: mainContentState.getSnappingMode(),
-        beatsPerBar: storeTimeSignature.numerator,
+        ticksPerBar: storeTimeSignature.numerator,
       }));
       
       // Calculate the closest track based on vertical position
@@ -749,11 +749,11 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   };
   const shouldRenderRecordingPreview = recordingMode === 'audio'
     && recordingTargetTrackIndex === index
-    && recordingAudioPreviewCurrentBeat >= recordingCommitStartBeatAbsolute;
+    && recordingAudioPreviewCurrentBeat >= recordingCommitStartTickAbsolute;
   const previewRegionStyle = shouldRenderRecordingPreview
     ? {
-        left: `${(recordingCommitStartBeatAbsolute / storeTimeSignature.numerator) * (containerWidth / maxBars)}px`,
-        width: `${Math.max(0, ((recordingAudioPreviewCurrentBeat - recordingCommitStartBeatAbsolute) / storeTimeSignature.numerator) * (containerWidth / maxBars))}px`,
+        left: `${(recordingCommitStartTickAbsolute / storeTimeSignature.numerator) * (containerWidth / maxBars)}px`,
+        width: `${Math.max(0, ((recordingAudioPreviewCurrentBeat - recordingCommitStartTickAbsolute) / storeTimeSignature.numerator) * (containerWidth / maxBars))}px`,
         position: 'absolute' as const,
       }
     : null;
@@ -890,8 +890,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           id="audio-recording-preview"
           name={recordingAudioPreviewFileName ?? 'Recording'}
           style={previewRegionStyle}
-          barNumber={(recordingCommitStartBeatAbsolute / storeTimeSignature.numerator) + 1}
-          length={(recordingAudioPreviewCurrentBeat - recordingCommitStartBeatAbsolute) / storeTimeSignature.numerator}
+          barNumber={(recordingCommitStartTickAbsolute / storeTimeSignature.numerator) + 1}
+          length={(recordingAudioPreviewCurrentBeat - recordingCommitStartTickAbsolute) / storeTimeSignature.numerator}
           trackIndex={index}
           previewWaveformPeaks={recordingAudioPreviewPeaks}
           isPreview

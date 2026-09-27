@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { pixelsToTicks, ticksToPixels } from '../../core/timing';
 import { KGCore } from '../../core/KGCore';
 import { CreateMidiEventsCommand } from '../../core/commands/note/CreateMidiEventsCommand';
 import { UpdateControllerEventPropertiesCommand } from '../../core/commands/note/UpdateControllerEventPropertiesCommand';
@@ -17,7 +18,7 @@ import {
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { useProjectStore } from '../../stores/projectStore';
 import { PIANO_ROLL_CONSTANTS } from '../../constants';
-import { getSnappedBeatPosition } from './pianoRollSnap';
+import { getSnappedTickPosition } from './pianoRollSnap';
 import {
   getAutomationLabel,
   getAutomationInterpolationMode,
@@ -30,8 +31,8 @@ interface AutomationPoint {
   id: string;
   kind: 'pitch-bend' | 'controller';
   controller: number | null;
-  relativeBeat: number;
-  absoluteBeat: number;
+  relativeTick: number;
+  absoluteTick: number;
   value: number;
   label: string;
 }
@@ -55,7 +56,7 @@ interface SelectionBoxState {
 }
 
 interface PreviewPoint {
-  absoluteBeat: number;
+  absoluteTick: number;
   value: number;
 }
 
@@ -84,7 +85,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   const preventBackgroundClearRef = useRef(false);
   const dragStateRef = useRef<{
     primaryPointId: string;
-    originAbsoluteBeat: number;
+    originAbsoluteTick: number;
     originValue: number;
     originClientX: number;
     originClientY: number;
@@ -201,14 +202,14 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       return [];
     }
 
-    const regionStartBeat = activeRegion.getStartFromBeat();
+    const regionStartTick = activeRegion.getStartTick();
     if (automationType === 'pitch-bend') {
       return activeRegion.getPitchBends().map((pitchBend) => ({
         id: pitchBend.getId(),
         kind: 'pitch-bend' as const,
         controller: null,
-        relativeBeat: pitchBend.getBeat(),
-        absoluteBeat: regionStartBeat + pitchBend.getBeat(),
+        relativeTick: pitchBend.getTick(),
+        absoluteTick: regionStartTick + pitchBend.getTick(),
         value: pitchBend.getValue(),
         label: `${midiPitchBendToSignedValue(pitchBend.getValue())}`,
       }));
@@ -223,8 +224,8 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       id: event.getId(),
       kind: 'controller' as const,
       controller,
-      relativeBeat: event.getBeat(),
-      absoluteBeat: regionStartBeat + event.getBeat(),
+      relativeTick: event.getTick(),
+      absoluteTick: regionStartTick + event.getTick(),
       value: event.getValue(),
       label: `${event.getValue()}`,
     }));
@@ -241,7 +242,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
 
   const laneLabel = getAutomationLabel(automationType, t);
   const interpolationMode = getAutomationInterpolationMode(automationType);
-  const totalBeats = maxBars * timeSignature.numerator;
+  const totalTicks = maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
   const totalWidth = 'calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width))';
   const minValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MIN : 0;
   const maxValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MAX : 127;
@@ -268,22 +269,22 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
 
   const renderedPoints = points.map(point => {
     const preview = previewPoints[point.id];
-    const absoluteBeat = preview?.absoluteBeat ?? point.absoluteBeat;
+    const absoluteTick = preview?.absoluteTick ?? point.absoluteTick;
     const value = preview?.value ?? point.value;
 
     return {
       ...point,
-      absoluteBeat,
+      absoluteTick,
       value,
       label: getPointLabel(value),
-      x: absoluteBeat * beatWidth + keyWidth,
+      x: ticksToPixels(absoluteTick, beatWidth) + keyWidth,
       y: toY(value),
       isSelected: selectedPointIdSet.has(point.id),
     };
   });
   const renderedPointsSorted = [...renderedPoints].sort((leftPoint, rightPoint) => {
-    if (leftPoint.absoluteBeat !== rightPoint.absoluteBeat) {
-      return leftPoint.absoluteBeat - rightPoint.absoluteBeat;
+    if (leftPoint.absoluteTick !== rightPoint.absoluteTick) {
+      return leftPoint.absoluteTick - rightPoint.absoluteTick;
     }
 
     return leftPoint.id.localeCompare(rightPoint.id);
@@ -299,7 +300,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     linePoints.push({
       ...lastPoint,
       id: `${lastPoint.id}-tail`,
-      x: beatWidth * totalBeats + keyWidth,
+      x: ticksToPixels(totalTicks, beatWidth) + keyWidth,
     });
 
     return linePoints.map(point => `${point.x},${point.y}`).join(' ');
@@ -314,7 +315,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       id: `${point.id}-step`,
       x1: point.x,
       y1: point.y,
-      x2: index < renderedPointsSorted.length - 1 ? renderedPointsSorted[index + 1].x : beatWidth * totalBeats + keyWidth,
+      x2: index < renderedPointsSorted.length - 1 ? renderedPointsSorted[index + 1].x : ticksToPixels(totalTicks, beatWidth) + keyWidth,
     }));
   })();
 
@@ -412,18 +413,18 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       return {};
     }
 
-    const rawAbsoluteBeat = (coordinates.x - keyWidth) / beatWidth;
-    const snappedAbsoluteBeat = KGPianoRollState.instance().getCurrentSnap() === PIANO_ROLL_NO_SNAP
-      ? rawAbsoluteBeat
-      : getSnappedBeatPosition(rawAbsoluteBeat, KGPianoRollState.instance().getCurrentSnap());
-    const beatDelta = snappedAbsoluteBeat - dragState.originAbsoluteBeat;
+    const rawAbsoluteTick = pixelsToTicks(coordinates.x - keyWidth, beatWidth);
+    const snappedAbsoluteTick = KGPianoRollState.instance().getCurrentSnap() === PIANO_ROLL_NO_SNAP
+      ? rawAbsoluteTick
+      : getSnappedTickPosition(rawAbsoluteTick, KGPianoRollState.instance().getCurrentSnap());
+    const tickDelta = snappedAbsoluteTick - dragState.originAbsoluteTick;
     const rawDeltaValue = toValue(coordinates.y) - dragState.originValue;
     const valueDelta = Math.min(dragState.maxDeltaValue, Math.max(dragState.minDeltaValue, rawDeltaValue));
 
     const nextPreview: Record<string, PreviewPoint> = {};
     dragState.selectedPoints.forEach(point => {
       nextPreview[point.id] = {
-        absoluteBeat: point.absoluteBeat + beatDelta,
+        absoluteTick: point.absoluteTick + tickDelta,
         value: point.value + valueDelta,
       };
     });
@@ -475,14 +476,14 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       if (automationType === 'pitch-bend') {
         const snapshots = dragState.selectedPoints.map(point => ({
           pitchBendId: point.id,
-          beat: point.relativeBeat,
+          tick: point.relativeTick,
           value: point.value,
         }));
         const updates = dragState.selectedPoints.map(point => {
           const preview = pendingPreview[point.id];
           return {
             pitchBendId: point.id,
-            beat: preview.absoluteBeat - activeRegion.getStartFromBeat(),
+            tick: preview.absoluteTick - activeRegion.getStartTick(),
             value: preview.value,
           };
         });
@@ -493,7 +494,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
           const snapshots = dragState.selectedPoints.map(point => ({
             controllerEventId: point.id,
             controller,
-            beat: point.relativeBeat,
+            tick: point.relativeTick,
             value: point.value,
           }));
           const updates = dragState.selectedPoints.map(point => {
@@ -501,7 +502,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
             return {
               controllerEventId: point.id,
               controller,
-              beat: preview.absoluteBeat - activeRegion.getStartFromBeat(),
+              tick: preview.absoluteTick - activeRegion.getStartTick(),
               value: preview.value,
             };
           });
@@ -557,7 +558,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
 
     dragStateRef.current = {
       primaryPointId: pointId,
-      originAbsoluteBeat: point.absoluteBeat,
+      originAbsoluteTick: point.absoluteTick,
       originValue: point.value,
       originClientX: event.clientX,
       originClientY: event.clientY,
@@ -672,18 +673,18 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       return;
     }
 
-    const rawAbsoluteBeat = (coordinates.x - keyWidth) / beatWidth;
+    const rawAbsoluteTick = pixelsToTicks(coordinates.x - keyWidth, beatWidth);
     const currentSnap = KGPianoRollState.instance().getCurrentSnap();
-    const absoluteBeat = currentSnap === PIANO_ROLL_NO_SNAP
-      ? rawAbsoluteBeat
-      : getSnappedBeatPosition(rawAbsoluteBeat, currentSnap);
-    const relativeBeat = absoluteBeat - activeRegion.getStartFromBeat();
+    const absoluteTick = currentSnap === PIANO_ROLL_NO_SNAP
+      ? rawAbsoluteTick
+      : getSnappedTickPosition(rawAbsoluteTick, currentSnap);
+    const relativeTick = absoluteTick - activeRegion.getStartTick();
     const value = toValue(coordinates.y);
 
     if (automationType === 'pitch-bend') {
       const command = new CreateMidiEventsCommand([], [{
         regionId: activeRegion.getId(),
-        beat: relativeBeat,
+        tick: relativeTick,
         value,
       }]);
       KGCore.instance().executeCommand(command);
@@ -700,7 +701,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       const command = new CreateMidiEventsCommand([], [], [{
         regionId: activeRegion.getId(),
         controller,
-        beat: relativeBeat,
+        tick: relativeTick,
         value,
       }]);
       KGCore.instance().executeCommand(command);
@@ -789,7 +790,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
             className="piano-roll-automation-svg"
             width="100%"
             height={laneHeight}
-            viewBox={`0 0 ${beatWidth * totalBeats + keyWidth} ${laneHeight}`}
+            viewBox={`0 0 ${ticksToPixels(totalTicks, beatWidth) + keyWidth} ${laneHeight}`}
             preserveAspectRatio="none"
           >
             {interpolationMode === 'linear' && renderedPoints.length > 0 && (

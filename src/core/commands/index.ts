@@ -45,7 +45,7 @@ export { MergeMidiRegionsCommand } from './region/MergeMidiRegionsCommand';
 // Global region commands
 export { CreateGlobalMarkerRegionCommand } from './global-region/CreateGlobalMarkerRegionCommand';
 export { CreateChordRegionCommand } from './global-region/CreateChordRegionCommand';
-export { InsertChordRegionAtBeatCommand } from './global-region/InsertChordRegionAtBeatCommand';
+export { InsertChordRegionAtTickCommand } from './global-region/InsertChordRegionAtTickCommand';
 export {
   ReplaceChordRegionsInRangeCommand,
   type ChordRegionReplacementData,

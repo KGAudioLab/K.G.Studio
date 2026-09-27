@@ -26,14 +26,15 @@ export class CreateTempoRegionCommand extends KGCommand {
 
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
-    const beatsPerBar = project.getTimeSignature().numerator;
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
     const track = findGlobalTrackByType(project, GlobalTrackType.Tempo);
     if (!track) {
       throw new Error('Tempo global track not found');
     }
 
-    const existingRegions = getSortedTempoRegions(track, beatsPerBar);
-    this.previousRegions = cloneTempoRegions(existingRegions, beatsPerBar);
+    const existingRegions = getSortedTempoRegions(track, ticksPerBar);
+    this.previousRegions = cloneTempoRegions(existingRegions, ticksPerBar);
 
     const songEndBar = getSongEndBar(project);
     const clampedStartBar = Math.max(0, Math.min(this.startBar, Math.max(0, songEndBar - 1)));
@@ -46,7 +47,7 @@ export class CreateTempoRegionCommand extends KGCommand {
         getEffectiveBpmAtBar(project, clampedStartBar),
         0,
         Math.max(1, songEndBar),
-        beatsPerBar
+        ticksPerBar
       );
       track.setRegions([this.createdRegion]);
       return;
@@ -63,7 +64,7 @@ export class CreateTempoRegionCommand extends KGCommand {
       throw new Error(`Bar ${clampedStartBar} is not a valid split point`);
     }
 
-    containingRegion.setLengthBars(clampedStartBar - regionStartBar, beatsPerBar);
+    containingRegion.setLengthBars(clampedStartBar - regionStartBar, ticksPerBar);
     this.createdRegion = new KGTempoRegion(
       this.regionId,
       track.getId(),
@@ -71,7 +72,7 @@ export class CreateTempoRegionCommand extends KGCommand {
       containingRegion.getBpm(),
       clampedStartBar,
       regionEndBar - clampedStartBar,
-      beatsPerBar
+      ticksPerBar
     );
     track.setRegions([...existingRegions, this.createdRegion].sort((left, right) => left.getStartBar() - right.getStartBar()));
   }
@@ -83,8 +84,9 @@ export class CreateTempoRegionCommand extends KGCommand {
       throw new Error('Tempo global track not found during undo');
     }
 
-    const beatsPerBar = project.getTimeSignature().numerator;
-    track.setRegions(cloneTempoRegions(this.previousRegions, beatsPerBar));
+    const projectTimeSignature = project.getTimeSignature();
+  const ticksPerBar = projectTimeSignature.numerator * 960 * (4 / projectTimeSignature.denominator);
+    track.setRegions(cloneTempoRegions(this.previousRegions, ticksPerBar));
   }
 
   getDescription(): string {

@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import GlobalChordLane from './GlobalChordLane';
 import { KGChordRegion } from '../../core/region/KGChordRegion';
+import { TICKS_PER_QUARTER } from '../../core/timing';
 
 describe('GlobalChordLane', () => {
-  const baseRegion = new KGChordRegion('chord-1', 'global-chord', 3, 'Cmaj7', 0, 4);
+  const baseRegion = new KGChordRegion('chord-1', 'global-chord', 3, 'Cmaj7', 0, 4 * TICKS_PER_QUARTER);
 
   beforeEach(() => {
     document.documentElement.style.setProperty('--track-grid-bar-width', '40');
@@ -28,7 +29,7 @@ describe('GlobalChordLane', () => {
         popupRegionId={null}
         onClosePopup={vi.fn()}
         onSelectRegion={vi.fn()}
-        onCreateAtBeat={vi.fn()}
+        onCreateAtTick={vi.fn()}
         onMoveRegion={vi.fn()}
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
@@ -43,7 +44,7 @@ describe('GlobalChordLane', () => {
   });
 
   it('creates a new region at a bar-aligned beat on empty-lane double click and modifier click', () => {
-    const onCreateAtBeat = vi.fn();
+    const onCreateAtTick = vi.fn();
 
     const { container } = render(
       <GlobalChordLane
@@ -55,7 +56,7 @@ describe('GlobalChordLane', () => {
         popupRegionId={null}
         onClosePopup={vi.fn()}
         onSelectRegion={vi.fn()}
-        onCreateAtBeat={onCreateAtBeat}
+        onCreateAtTick={onCreateAtTick}
         onMoveRegion={vi.fn()}
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
@@ -81,8 +82,8 @@ describe('GlobalChordLane', () => {
     fireEvent.doubleClick(lane, { clientX: 159, clientY: 10 });
     fireEvent.mouseDown(lane, { clientX: 81, clientY: 10, ctrlKey: true, button: 0 });
 
-    expect(onCreateAtBeat).toHaveBeenNthCalledWith(1, 16);
-    expect(onCreateAtBeat).toHaveBeenNthCalledWith(2, 8);
+    expect(onCreateAtTick).toHaveBeenNthCalledWith(1, 12 * TICKS_PER_QUARTER);
+    expect(onCreateAtTick).toHaveBeenNthCalledWith(2, 8 * TICKS_PER_QUARTER);
   });
 
   it('snaps drag moves to whole beats', async () => {
@@ -98,7 +99,7 @@ describe('GlobalChordLane', () => {
         popupRegionId={null}
         onClosePopup={vi.fn()}
         onSelectRegion={vi.fn()}
-        onCreateAtBeat={vi.fn()}
+        onCreateAtTick={vi.fn()}
         onMoveRegion={onMoveRegion}
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
@@ -125,7 +126,7 @@ describe('GlobalChordLane', () => {
     await waitFor(() => expect(region.style.left).toBe('20px'));
     fireEvent.mouseUp(window, { clientX: 32, clientY: 10 });
 
-    expect(onMoveRegion).toHaveBeenCalledWith('chord-1', 2);
+    expect(onMoveRegion).toHaveBeenCalledWith('chord-1', 2 * TICKS_PER_QUARTER);
   });
 
   it('passes modifier state through region selection clicks', () => {
@@ -141,7 +142,7 @@ describe('GlobalChordLane', () => {
         popupRegionId={null}
         onClosePopup={vi.fn()}
         onSelectRegion={onSelectRegion}
-        onCreateAtBeat={vi.fn()}
+        onCreateAtTick={vi.fn()}
         onMoveRegion={vi.fn()}
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
@@ -157,7 +158,7 @@ describe('GlobalChordLane', () => {
   });
 
   it('drops the dragged selected chord onto a track row for import', () => {
-    const secondRegion = new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4, 4);
+    const secondRegion = new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4 * TICKS_PER_QUARTER, 4 * TICKS_PER_QUARTER);
     const onDropChordRegionsToTrack = vi.fn();
     const trackGrid = document.createElement('div');
     trackGrid.className = 'track-grid';
@@ -175,7 +176,7 @@ describe('GlobalChordLane', () => {
         popupRegionId={null}
         onClosePopup={vi.fn()}
         onSelectRegion={vi.fn()}
-        onCreateAtBeat={vi.fn()}
+        onCreateAtTick={vi.fn()}
         onMoveRegion={vi.fn()}
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
@@ -206,7 +207,7 @@ describe('GlobalChordLane', () => {
   });
 
   it('still moves the chord horizontally when the drag ends back on the lane', () => {
-    const secondRegion = new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4, 4);
+    const secondRegion = new KGChordRegion('chord-2', 'global-chord', 3, 'F', 4 * TICKS_PER_QUARTER, 4 * TICKS_PER_QUARTER);
     const onMoveRegion = vi.fn();
     vi.spyOn(document, 'elementFromPoint').mockReturnValue(null);
 
@@ -220,7 +221,7 @@ describe('GlobalChordLane', () => {
         popupRegionId={null}
         onClosePopup={vi.fn()}
         onSelectRegion={vi.fn()}
-        onCreateAtBeat={vi.fn()}
+        onCreateAtTick={vi.fn()}
         onMoveRegion={onMoveRegion}
         onResizeRegion={vi.fn()}
         onChangeChord={vi.fn()}
@@ -246,6 +247,6 @@ describe('GlobalChordLane', () => {
     fireEvent.mouseMove(window, { clientX: 32, clientY: 10 });
     fireEvent.mouseUp(window, { clientX: 32, clientY: 10 });
 
-    expect(onMoveRegion).toHaveBeenCalledWith('chord-1', 2);
+    expect(onMoveRegion).toHaveBeenCalledWith('chord-1', 2 * TICKS_PER_QUARTER);
   });
 });

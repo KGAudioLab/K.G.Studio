@@ -1,5 +1,6 @@
 import { Expose } from 'class-transformer';
 import type { Selectable } from '../../components/interfaces';
+import { toTimelineTick, type TimelineTick } from '../timing';
 
 /**
  * KGRegion - Base class for regions in the DAW
@@ -22,10 +23,10 @@ export class KGRegion implements Selectable {
   protected name: string = '';
   
   @Expose()
-  protected startFromBeat: number = 0;
+  protected startTick: TimelineTick = toTimelineTick(0);
   
   @Expose()
-  protected length: number = 0;
+  protected lengthTicks: TimelineTick = toTimelineTick(0);
 
   @Expose()
   protected color?: string;
@@ -33,13 +34,13 @@ export class KGRegion implements Selectable {
   @Expose()
   protected selected: boolean = false;
 
-  constructor(id: string, trackId: string, trackIndex: number, name: string, startFromBeat: number = 0, length: number = 0) {
+  constructor(id: string, trackId: string, trackIndex: number, name: string, startTick: number = 0, length: number = 0) {
     this.id = id;
     this.trackId = trackId;
     this.trackIndex = trackIndex;
     this.name = name;
-    this.startFromBeat = startFromBeat;
-    this.length = length;
+    this.startTick = toTimelineTick(startTick);
+    this.lengthTicks = toTimelineTick(length);
 
     this.selected = false;
   }
@@ -61,12 +62,12 @@ export class KGRegion implements Selectable {
     return this.name;
   }
 
-  public getStartFromBeat(): number {
-    return this.startFromBeat;
+  public getStartTick(): TimelineTick {
+    return this.startTick;
   }
 
-  public getLength(): number {
-    return this.length;
+  public getLengthTicks(): TimelineTick {
+    return this.lengthTicks;
   }
 
   public getColor(): string | undefined {
@@ -90,12 +91,12 @@ export class KGRegion implements Selectable {
     this.name = name;
   }
 
-  public setStartFromBeat(startFromBeat: number): void {
-    this.startFromBeat = startFromBeat;
+  public setStartTick(startTick: number): void {
+    this.startTick = toTimelineTick(startTick);
   }
 
-  public setLength(length: number): void {
-    this.length = length;
+  public setLengthTicks(lengthTicks: number): void {
+    this.lengthTicks = toTimelineTick(lengthTicks);
   }
 
   public setColor(color: string | undefined): void {
