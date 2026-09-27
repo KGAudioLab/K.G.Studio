@@ -139,7 +139,9 @@ export class KGProjectStorage {
       if (!project) return null;
 
       project.setName(name);
-      return upgradeProjectToLatest(project);
+      const upgradedProject = upgradeProjectToLatest(project);
+      upgradedProject.refreshMetronomeTrack();
+      return upgradedProject;
     } catch (error) {
       console.error(`Error loading project "${name}":`, error);
       return null;

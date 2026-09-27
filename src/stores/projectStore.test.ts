@@ -21,6 +21,8 @@ const pianoRollStateMocks = vi.hoisted(() => ({
 
 const audioStorageMocks = vi.hoisted(() => ({
   loadAudioFile: vi.fn(),
+  storeAudioFile: vi.fn(),
+  generateAudioFileId: vi.fn(),
 }));
 
 const toneMocks = vi.hoisted(() => {
@@ -29,6 +31,7 @@ const toneMocks = vi.hoisted(() => {
 
   class MockToneAudioBuffer {
     public set = toneBufferSet;
+    public duration = 0.5;
   }
 
   return {
@@ -55,6 +58,11 @@ const mockProject = {
   getMaxBars: () => 32,
   getBarWidthMultiplier: () => 1,
   getTracks: () => mockTracks,
+  refreshMetronomeTrack: vi.fn(),
+  getMetronomeTrack: () => ({
+    getId: () => -1,
+    getInstrument: () => 'woodblock' as const,
+  }),
   getGlobalTracks: () => createDefaultGlobalTracks(),
   getBpm: () => 120,
   getKeySignature: () => 'C major',
@@ -173,6 +181,8 @@ vi.mock('../core/audio-interface/KGAudioInterface', () => ({
 vi.mock('../core/io/KGAudioFileStorage', () => ({
   KGAudioFileStorage: {
     loadAudioFile: audioStorageMocks.loadAudioFile,
+    storeAudioFile: audioStorageMocks.storeAudioFile,
+    generateAudioFileId: audioStorageMocks.generateAudioFileId,
   },
 }));
 
@@ -224,6 +234,8 @@ describe('projectStore piano roll state', () => {
     mockCore.setPlayheadTick.mockClear();
     mockCore.seekDuringPlayback.mockReset();
     mockCore.seekDuringPlayback.mockResolvedValue(true);
+    mockCore.stopPlaying.mockReset();
+    mockCore.stopPlaying.mockResolvedValue(undefined);
     mockCore.undo.mockReset();
     mockCore.undo.mockReturnValue(true);
     mockCore.redo.mockReset();
@@ -247,6 +259,10 @@ describe('projectStore piano roll state', () => {
     mockAudioInterface.loadAudioBufferForTrack.mockReset();
     mockAudioInterface.setMetronomeEnabled.mockReset();
     audioStorageMocks.loadAudioFile.mockReset();
+    audioStorageMocks.storeAudioFile.mockReset();
+    audioStorageMocks.storeAudioFile.mockResolvedValue(undefined);
+    audioStorageMocks.generateAudioFileId.mockReset();
+    audioStorageMocks.generateAudioFileId.mockReturnValue('recording-file-id');
     toneMocks.decodeAudioData.mockReset();
     toneMocks.toneBufferSet.mockReset();
     mockSelectedItems = [];
@@ -464,6 +480,17 @@ describe('projectStore piano roll state', () => {
     expect(state.isMetronomeEnabled).toBe(true);
   });
 
+  it('stops active playback before applying a time-signature change', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({ isPlaying: true });
+
+    useProjectStore.getState().setTimeSignature({ numerator: 3, denominator: 4 });
+    await vi.runAllTimersAsync();
+
+    expect(mockCore.stopPlaying).toHaveBeenCalledTimes(1);
+    expect(mockCore.executeCommand).toHaveBeenCalled();
+  });
+
   it('persists global-track visibility changes to the project', async () => {
     const { useProjectStore } = await import('./projectStore');
 
@@ -602,6 +629,18 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.seekDuringPlayback).not.toHaveBeenCalled();
   });
 
+  it('keeps ordinary playhead updates clamped to the visible timeline', async () => {
+    const { useProjectStore } = await import('./projectStore');
+
+    act(() => {
+      useProjectStore.getState().setPlayheadTick(-quarterNotesToTicks(4));
+    });
+
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(0);
+    expect(mockCore.setPlayheadTick).toHaveBeenCalledWith(0);
+    expect(useProjectStore.getState().playheadTick).toBe(0);
+  });
+
   it('stops at the requested target and reports a playback failure when restart fails', async () => {
     mockCore.seekDuringPlayback.mockRejectedValueOnce(new Error('restart failed'));
     const { useProjectStore } = await import('./projectStore');
@@ -615,7 +654,43 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.setStatus).toHaveBeenCalled();
   });
 
-  it('starts and stops audio-track recording without requiring a selected region', async () => {
+  it('preserves a negative one-bar count-in when audio recording starts at bar 1', async () => {
+    const { KGAudioTrack: RuntimeAudioTrack } = await import('../core/track/KGAudioTrack');
+    const audioTrack = new RuntimeAudioTrack('Audio 1', 1);
+    audioTrack.setTrackIndex(0);
+    mockTracks = [audioTrack];
+
+    const { useProjectStore } = await import('./projectStore');
+    act(() => {
+      useProjectStore.getState().setSelectedTrack('1');
+      useProjectStore.getState().setPlayheadTick(0);
+    });
+
+    await act(async () => {
+      await useProjectStore.getState().startRecording();
+    });
+
+    const oneBarTicks = quarterNotesToTicks(4);
+    expect(mockProject.setPlayheadTick).toHaveBeenLastCalledWith(-oneBarTicks);
+    expect(mockCore.setPlayheadTick).toHaveBeenLastCalledWith(-oneBarTicks);
+    expect(useProjectStore.getState().playheadTick).toBe(-oneBarTicks);
+    expect(useProjectStore.getState().recordingAudioPreviewCurrentTick).toBe(0);
+    expect(mockAudioInterface.startAudioRecording).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1999);
+      await Promise.resolve();
+    });
+    expect(mockAudioInterface.startAudioRecording).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+    });
+    expect(mockAudioInterface.startAudioRecording).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts and stops bar-2 audio recording without requiring a selected region', async () => {
     const { KGAudioTrack } = await import('../core/track/KGAudioTrack');
     const audioTrack = new KGAudioTrack('Audio 1', 1);
     audioTrack.setTrackIndex(0);
@@ -625,7 +700,7 @@ describe('projectStore piano roll state', () => {
 
     act(() => {
       useProjectStore.getState().setSelectedTrack('1');
-      useProjectStore.getState().setPlayheadTick(quarterNotesToTicks(8));
+      useProjectStore.getState().setPlayheadTick(quarterNotesToTicks(4));
     });
 
     await act(async () => {
@@ -640,7 +715,8 @@ describe('projectStore piano roll state', () => {
     expect(mockCore.startPlaying).toHaveBeenCalledWith({ preserveLoopPreroll: false });
     expect(mockAudioInterface.startAudioRecording).toHaveBeenCalled();
     expect(useProjectStore.getState().recordingMode).toBe('audio');
-    expect(useProjectStore.getState().recordingCommitStartTickAbsolute).toBe(quarterNotesToTicks(8));
+    expect(useProjectStore.getState().recordingCommitStartTickAbsolute).toBe(quarterNotesToTicks(4));
+    expect(useProjectStore.getState().recordingStartTickAbsolute).toBe(0);
 
     await act(async () => {
       await useProjectStore.getState().stopTransport();
@@ -649,7 +725,64 @@ describe('projectStore piano roll state', () => {
     expect(mockAudioInterface.stopAudioRecording).toHaveBeenCalled();
     expect(useProjectStore.getState().isRecording).toBe(false);
     expect(useProjectStore.getState().recordingMode).toBeNull();
-    expect(useProjectStore.getState().playheadTick).toBe(quarterNotesToTicks(8));
+    expect(useProjectStore.getState().playheadTick).toBe(quarterNotesToTicks(4));
+  });
+
+  it('commits a non-empty audio recording as a playable audio region command', async () => {
+    Object.defineProperty(File.prototype, 'arrayBuffer', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(new ArrayBuffer(16)),
+    });
+    const { KGAudioTrack: RuntimeAudioTrack } = await import('../core/track/KGAudioTrack');
+    const audioTrack = new RuntimeAudioTrack('Audio 1', 1);
+    audioTrack.setTrackIndex(0);
+    mockTracks = [audioTrack];
+    const commitTick = quarterNotesToTicks(4);
+    mockAudioInterface.getTransportPosition.mockReturnValue(quarterNotesToTicks(5));
+    mockAudioInterface.stopAudioRecording.mockResolvedValue({
+      blob: new Blob(['recorded-audio'], { type: 'audio/webm' }),
+      mimeType: 'audio/webm',
+      durationSeconds: 0.5,
+      peaks: [{ min: -0.25, max: 0.25 }],
+    });
+    toneMocks.decodeAudioData.mockImplementation((
+      _buffer: ArrayBuffer,
+      onSuccess: (decoded: AudioBuffer) => void,
+    ) => {
+      onSuccess({ duration: 0.5 } as AudioBuffer);
+    });
+
+    const { useProjectStore } = await import('./projectStore');
+    act(() => {
+      useProjectStore.getState().setSelectedTrack('1');
+      useProjectStore.getState().setPlayheadTick(commitTick);
+    });
+    await act(async () => {
+      await useProjectStore.getState().startRecording();
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await useProjectStore.getState().stopTransport();
+    });
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(audioStorageMocks.storeAudioFile).toHaveBeenCalledWith(
+      'Test Project',
+      'recording-file-id',
+      expect.any(File),
+    );
+    expect(mockAudioInterface.loadAudioBufferForTrack).toHaveBeenCalledWith(
+      '1',
+      'recording-file-id',
+      expect.any(toneMocks.ToneAudioBuffer),
+    );
+    const command = mockCore.executeCommand.mock.calls[0]?.[0];
+    expect(command?.constructor.name).toBe('ImportAudioCommand');
+    expect(command).toEqual(expect.objectContaining({
+      insertTick: commitTick,
+      durationTicks: quarterNotesToTicks(1),
+    }));
   });
 
   it('bumps track automation redraw version on undo and redo', async () => {

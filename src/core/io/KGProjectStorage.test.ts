@@ -145,6 +145,22 @@ describe('KGProjectStorage', () => {
     expect(loaded!.getBpm()).toBe(120);
   });
 
+  it('recreates the virtual metronome without persisting it in project.json', async () => {
+    const project = createTestProject('Virtual Track');
+    await storage.save('Virtual Track', project);
+
+    const projects = await mockRoot.getDirectoryHandle('projects');
+    const projectDirectory = await projects.getDirectoryHandle('Virtual Track');
+    const projectFile = await projectDirectory.getFileHandle('project.json');
+    const rawProject = JSON.parse(await (await projectFile.getFile()).text()) as Record<string, unknown>;
+    const loaded = await storage.load('Virtual Track');
+
+    expect(rawProject).not.toHaveProperty('metronomeTrack');
+    expect(rawProject.tracks).toEqual([]);
+    expect(loaded!.getTracks()).toEqual([]);
+    expect(loaded!.getPlaybackTracks()).toEqual([loaded!.getMetronomeTrack()]);
+  });
+
   it('preserves track mute and solo state when saving and loading', async () => {
     const track = new KGTrack('Track 1', 1);
     track.setMuted(true);

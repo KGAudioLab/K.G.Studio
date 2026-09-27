@@ -43,8 +43,11 @@ function createMockAudioBus() {
     setAutomationPan: vi.fn(),
     scheduleAutomationPan: vi.fn(),
     applyEffectiveVolume: vi.fn(),
+    setMuted: vi.fn(),
+    setSolo: vi.fn(),
     getSolo: vi.fn().mockReturnValue(false),
     shouldPlayWithSolo: vi.fn().mockReturnValue(true),
+    triggerPitchBendAwareAttack: vi.fn(),
   };
 }
 
@@ -124,7 +127,8 @@ describe('KGAudioInterface preroll playback', () => {
     ;(audio as unknown as { isInitialized: boolean }).isInitialized = true
     ;(audio as unknown as { isAudioContextStarted: boolean }).isAudioContextStarted = true;
 
-    const metronomeStart = vi.spyOn((audio as unknown as { metronome: { start: (...args: unknown[]) => void } }).metronome, 'start');
+    const metronomeBus = createMockAudioBus();
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('-1', metronomeBus);
     audio.setMetronomeEnabled(true);
 
     audio.preparePlayback(project, -q(2));
@@ -132,10 +136,13 @@ describe('KGAudioInterface preroll playback', () => {
 
     expect(MockTransport.position).toBe(0);
     expect(MockTransport.start).not.toHaveBeenCalled();
-    expect(metronomeStart).toHaveBeenCalledWith(-q(2), q(4), q(1), 0.2);
+    expect(metronomeBus.triggerPitchBendAwareAttack).not.toHaveBeenCalled();
     expect(audio.getTransportPosition()).toBeCloseTo(-q(2), 2);
 
-    vi.advanceTimersByTime(500);
+    vi.advanceTimersByTime(200);
+    expect(metronomeBus.triggerPitchBendAwareAttack).toHaveBeenCalledWith(60, 0.2, 1, 0.125, false);
+
+    vi.advanceTimersByTime(300);
     expect(audio.getTransportPosition()).toBeCloseTo(-q(1), 1);
 
     vi.advanceTimersByTime(500);
@@ -148,6 +155,9 @@ describe('KGAudioInterface preroll playback', () => {
     const audio = KGAudioInterface.instance()
     ;(audio as unknown as { isInitialized: boolean }).isInitialized = true
     ;(audio as unknown as { isAudioContextStarted: boolean }).isAudioContextStarted = true;
+    const metronomeBus = createMockAudioBus();
+    ;(audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('-1', metronomeBus);
+    audio.setMetronomeEnabled(true);
 
     audio.preparePlayback(project, -q(2));
     audio.startPlayback();
@@ -155,8 +165,28 @@ describe('KGAudioInterface preroll playback', () => {
     vi.runAllTimers();
 
     expect(MockTransport.start).not.toHaveBeenCalled();
+    expect(metronomeBus.triggerPitchBendAwareAttack).not.toHaveBeenCalled();
     expect(MockTransport.stop).toHaveBeenCalledTimes(1);
     expect(audio.getTransportPosition()).toBe(0);
+  });
+
+  it('gates the metronome bus live and exempts it from user-track solo', () => {
+    const audio = KGAudioInterface.instance();
+    const metronomeBus = createMockAudioBus();
+    const userBus = createMockAudioBus();
+    userBus.getSolo.mockReturnValue(true);
+    const buses = (audio as unknown as { trackAudioBuses: Map<string, ReturnType<typeof createMockAudioBus>> }).trackAudioBuses;
+    buses.set('-1', metronomeBus);
+    buses.set('1', userBus);
+
+    audio.setMetronomeEnabled(false);
+    audio.setMetronomeEnabled(true);
+    audio.setTrackSolo('1', true);
+
+    expect(metronomeBus.setMuted).toHaveBeenNthCalledWith(1, true);
+    expect(metronomeBus.setMuted).toHaveBeenNthCalledWith(2, false);
+    expect(metronomeBus.applyEffectiveVolume).toHaveBeenLastCalledWith(false);
+    expect(userBus.applyEffectiveVolume).toHaveBeenLastCalledWith(true);
   });
 
   it('allows a first-pass start before the loop start when explicitly requested', () => {

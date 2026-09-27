@@ -6,6 +6,7 @@ import { KGAudioTrack } from '../../core/track/KGAudioTrack';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
 import type { RegionPreviewContentStyle } from '../interfaces';
+import { quarterNotesToTicks } from '../../core/timing';
 
 const storeState = {
   selectedRegionIds: [] as string[],
@@ -14,8 +15,8 @@ const storeState = {
   trackAutomationRedrawVersion: 0,
   recordingMode: 'audio' as 'audio' | 'midi' | null,
   recordingTargetTrackIndex: 0,
-  recordingCommitStartTickAbsolute: 4,
-  recordingAudioPreviewCurrentBeat: 8,
+  recordingCommitStartTickAbsolute: quarterNotesToTicks(4),
+  recordingAudioPreviewCurrentTick: quarterNotesToTicks(5),
   recordingAudioPreviewPeaks: [{ min: -0.5, max: 0.5 }],
   recordingAudioPreviewFileName: 'Recording' as string | null,
   timeSignature: { numerator: 4, denominator: 4 },
@@ -64,6 +65,8 @@ describe('TrackGridItem preview behavior', () => {
     onDragStart?: (regionId: string, initialX: number, initialY: number) => void;
     onDrag?: (regionId: string, deltaX: number, deltaY: number) => void;
     onDragEnd?: (regionId: string) => void;
+    barNumber?: number;
+    length?: number;
   };
 
   beforeAll(() => {
@@ -95,8 +98,8 @@ describe('TrackGridItem preview behavior', () => {
     storeState.trackAutomationRedrawVersion = 0;
     storeState.recordingMode = 'audio';
     storeState.recordingTargetTrackIndex = 0;
-    storeState.recordingCommitStartTickAbsolute = 4;
-    storeState.recordingAudioPreviewCurrentBeat = 8;
+    storeState.recordingCommitStartTickAbsolute = quarterNotesToTicks(4);
+    storeState.recordingAudioPreviewCurrentTick = quarterNotesToTicks(5);
     storeState.recordingAudioPreviewPeaks = [{ min: -0.5, max: 0.5 }];
     storeState.recordingAudioPreviewFileName = 'Recording';
     storeState.timeSignature = { numerator: 4, denominator: 4 };
@@ -217,7 +220,39 @@ describe('TrackGridItem preview behavior', () => {
       />
     );
 
-    expect(regionItemProps.get('audio-recording-preview')).toBeTruthy();
+    expect(regionItemProps.get('audio-recording-preview')).toEqual(expect.objectContaining({
+      style: expect.objectContaining({ left: '100px', width: '25px' }),
+      barNumber: 2,
+      length: 0.25,
+    }));
+  });
+
+  it('positions the recording preview with denominator-aware ticks per bar', () => {
+    storeState.timeSignature = { numerator: 6, denominator: 8 };
+    storeState.recordingCommitStartTickAbsolute = quarterNotesToTicks(3);
+    storeState.recordingAudioPreviewCurrentTick = quarterNotesToTicks(3.5);
+    const track = new KGAudioTrack('Audio Track', 1);
+    track.setTrackIndex(0);
+
+    render(
+      <TrackGridItem
+        track={track}
+        index={0}
+        isDragging={false}
+        isDragOver={false}
+        regions={[]}
+        maxBars={8}
+        selectedRegionId={null}
+        gridContainerRef={createGridContainerRef()}
+        onDoubleClick={vi.fn()}
+      />
+    );
+
+    const preview = getRegionItem('audio-recording-preview');
+    expect(preview.style.left).toBe('100px');
+    expect(Number.parseFloat(preview.style.width as string)).toBeCloseTo(100 / 6);
+    expect(preview.barNumber).toBe(2);
+    expect(preview.length).toBeCloseTo(1 / 6);
   });
 
   it('previews end resize for all selected regions across track rows', () => {

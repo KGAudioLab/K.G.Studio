@@ -16,6 +16,7 @@ import { buildRegionSurfaceColors, resolveRegionColor } from '../../util/regionC
 import { isAcceptedMidiImportFile } from '../../util/midiUtil';
 import { isAcceptedAudioImportFile } from '../../util/audioImportUtil';
 import { snapBarValue } from '../../util/mainContentSnapUtil';
+import { ticksPerBar } from '../../core/timing';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -109,7 +110,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const recordingMode = useProjectStore(state => state.recordingMode);
   const recordingTargetTrackIndex = useProjectStore(state => state.recordingTargetTrackIndex);
   const recordingCommitStartTickAbsolute = useProjectStore(state => state.recordingCommitStartTickAbsolute);
-  const recordingAudioPreviewCurrentBeat = useProjectStore(state => state.recordingAudioPreviewCurrentBeat);
+  const recordingAudioPreviewCurrentTick = useProjectStore(state => state.recordingAudioPreviewCurrentTick);
   const recordingAudioPreviewPeaks = useProjectStore(state => state.recordingAudioPreviewPeaks);
   const recordingAudioPreviewFileName = useProjectStore(state => state.recordingAudioPreviewFileName);
   const storeTimeSignature = useProjectStore(state => state.timeSignature);
@@ -749,11 +750,12 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   };
   const shouldRenderRecordingPreview = recordingMode === 'audio'
     && recordingTargetTrackIndex === index
-    && recordingAudioPreviewCurrentBeat >= recordingCommitStartTickAbsolute;
+    && recordingAudioPreviewCurrentTick >= recordingCommitStartTickAbsolute;
+  const recordingPreviewTicksPerBar = ticksPerBar(storeTimeSignature);
   const previewRegionStyle = shouldRenderRecordingPreview
     ? {
-        left: `${(recordingCommitStartTickAbsolute / storeTimeSignature.numerator) * (containerWidth / maxBars)}px`,
-        width: `${Math.max(0, ((recordingAudioPreviewCurrentBeat - recordingCommitStartTickAbsolute) / storeTimeSignature.numerator) * (containerWidth / maxBars))}px`,
+        left: `${(recordingCommitStartTickAbsolute / recordingPreviewTicksPerBar) * (containerWidth / maxBars)}px`,
+        width: `${Math.max(0, ((recordingAudioPreviewCurrentTick - recordingCommitStartTickAbsolute) / recordingPreviewTicksPerBar) * (containerWidth / maxBars))}px`,
         position: 'absolute' as const,
       }
     : null;
@@ -890,8 +892,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
           id="audio-recording-preview"
           name={recordingAudioPreviewFileName ?? 'Recording'}
           style={previewRegionStyle}
-          barNumber={(recordingCommitStartTickAbsolute / storeTimeSignature.numerator) + 1}
-          length={(recordingAudioPreviewCurrentBeat - recordingCommitStartTickAbsolute) / storeTimeSignature.numerator}
+          barNumber={(recordingCommitStartTickAbsolute / recordingPreviewTicksPerBar) + 1}
+          length={(recordingAudioPreviewCurrentTick - recordingCommitStartTickAbsolute) / recordingPreviewTicksPerBar}
           trackIndex={index}
           previewWaveformPeaks={recordingAudioPreviewPeaks}
           isPreview
