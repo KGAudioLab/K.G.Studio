@@ -10,7 +10,7 @@ Pour commencer, vous pouvez soit utiliser le **LLM local intégré au navigateur
 
 K.G.Studio peut exécuter **Gemma 4 E4B** entièrement dans votre navigateur avec accélération WebGPU. Aucune requête API externe n’est envoyée, aucun coût supplémentaire n’est engagé, et vos données restent sur votre machine.
 
-1. Dans **Réglages ⚙️ → Général → Fournisseur LLM**, sélectionnez **LLM local (navigateur)**.
+1. Dans **Réglages ⚙️ → Assistant musical → Fournisseur LLM**, sélectionnez **LLM local (navigateur)**.
 2. Le modèle (~2,8 Go) se télécharge automatiquement lors de la première ouverture du chat, puis reste en cache local pour les lancements suivants.
 3. Vous pouvez régler la **Longueur de contexte** (32k / 64k / 128k tokens) selon votre matériel.
 4. Commencez à dialoguer.
@@ -23,17 +23,18 @@ K.G.Studio peut exécuter **Gemma 4 E4B** entièrement dans votre navigateur ave
 
 ### Configurer un fournisseur LLM externe
 
-Allez dans **Réglages ⚙️ → Général → Fournisseur LLM**. Selon le fournisseur choisi, vous devrez renseigner la clé API appropriée et, si besoin, une URL de base personnalisée.
+Allez dans **Réglages ⚙️ → Assistant musical → Fournisseur LLM**. Selon le fournisseur choisi, vous devrez renseigner la clé API appropriée et, si besoin, une URL de base personnalisée.
 
 ---
 
 ### Utiliser OpenAI
 
 1. Récupérez une clé API OpenAI depuis [**OpenAI**](https://platform.openai.com/account/api-keys).
-2. Dans **Réglages ⚙️ → Général → Fournisseur LLM**, choisissez **OpenAI**.
-3. Saisissez votre clé dans **OpenAI → Clé**.
-4. Sélectionnez le modèle voulu dans **OpenAI → Modèle**. Pour un bon compromis coût / performances, `gpt-5.4-mini` est recommandé.
-5. Vous pouvez activer **Mode Flex** si vous acceptez une latence plus variable en échange d’un coût potentiellement réduit.
+2. Ouvrez **Réglages ⚙️ → Assistant musical**, puis cliquez sur le préréglage **OpenAI** sous **Fournisseur LLM (compatible OpenAI)**. Il renseigne la connexion et active le mode **Compatible OpenAI**.
+3. Saisissez votre clé API dans **Fournisseur LLM (compatible OpenAI) → Clé**.
+4. Le préréglage définit le modèle `gpt-6.1-sol`. Vous pouvez saisir un autre modèle accessible à votre compte.
+
+Les préréglages comprennent OpenAI, Claude (via OpenRouter), OpenRouter, Ollama, llama.cpp et CLIProxyAPI. Un clic remplace la clé, l’URL de base et le modèle, puis active le mode Compatible OpenAI. Pour les abonnements ChatGPT ou Claude pris en charge, [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) propose une connexion locale compatible utilisant les accès disponibles avec votre abonnement. Tous les préréglages effacent la clé. Saisissez la clé de votre fournisseur ou serveur si une authentification est requise.
 
 ---
 
@@ -42,10 +43,10 @@ Allez dans **Réglages ⚙️ → Général → Fournisseur LLM**. Selon le four
 OpenRouter donne accès à de nombreux modèles via une API unique, y compris certaines options gratuites.
 
 1. Créez une clé API sur [**OpenRouter**](https://openrouter.ai/keys).
-2. Dans **Réglages ⚙️ → Général → Fournisseur LLM**, choisissez **Serveur compatible OpenAI**.
-3. Saisissez votre clé dans **Serveur compatible OpenAI → Clé**.
+2. Ouvrez **Réglages ⚙️ → Assistant musical** et cliquez sur le préréglage **OpenRouter** sous **Fournisseur LLM (compatible OpenAI)**.
+3. Saisissez votre clé dans **Fournisseur LLM (compatible OpenAI) → Clé**.
 4. Consultez les modèles disponibles sur la [**page des modèles OpenRouter**](https://openrouter.ai/models).
-5. Saisissez le nom du modèle dans **Serveur compatible OpenAI → Modèle**. Les séries recommandées comprennent :
+5. Saisissez le nom du modèle dans **Fournisseur LLM (compatible OpenAI) → Modèle**. Les séries recommandées comprennent :
     - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6` : [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — meilleur équilibre qualité/coût pour la série Claude
     - Modèles gratuits :
         - `OpenAI: GPT-OSS 120B` (MODÈLE GRATUIT : `openai/gpt-oss-120b:free` : [Link](https://openrouter.ai/openai/gpt-oss-120b:free))
@@ -55,7 +56,7 @@ OpenRouter donne accès à de nombreux modèles via une API unique, y compris ce
         - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b` : [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
         - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it` : [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
         - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it` : [Link](https://openrouter.ai/google/gemma-4-31b-it))
-6. Saisissez `https://openrouter.ai/api/v1` dans **Serveur compatible OpenAI → URL de base**.
+6. Saisissez `https://openrouter.ai/api/v1` dans **Fournisseur LLM (compatible OpenAI) → URL de base**.
 
 ### Opérations DAW de base
 

@@ -5,9 +5,11 @@ import ChatBox from './ChatBox';
 import { I18nContext } from '../i18n/I18nProvider';
 import type { ResolvedLocaleCode } from '../i18n/types';
 import { translate } from '../i18n/translate';
+import { OpenAICompatibleLLMProvider } from '../agent/llm/LLMProvider';
 import type { ChatMessage } from '../types/projectTypes';
 
 const {
+  providerConfig,
   agentCoreMock,
   processUserMessageMock,
   processStreamMock,
@@ -17,6 +19,7 @@ const {
   conversationStorageMock,
   showConfirmMock,
 } = vi.hoisted(() => ({
+  providerConfig: new Map<string, string>(),
   agentCoreMock: {
     setLLMProvider: vi.fn(),
     getLLMProvider: vi.fn(() => ({ getPreferredSystemPromptPath: vi.fn() })),
@@ -100,9 +103,11 @@ vi.mock('../core/config/ConfigManager', () => ({
       getIsInitialized: () => true,
       initialize: vi.fn().mockResolvedValue(undefined),
       get: (key: string) => {
+        if (providerConfig.has(key)) return providerConfig.get(key);
         if (key === 'general.llm_provider') {
           return 'openai';
         }
+        if (key === 'general.openai_compatible.reasoning_effort') return undefined;
         return '';
       },
       addChangeListener: () => () => undefined,
@@ -234,6 +239,7 @@ describe('ChatBox', () => {
   });
 
   beforeEach(() => {
+    providerConfig.clear();
     processUserMessageMock.mockReset();
     processStreamMock.mockClear();
     clearChatHistoryAndUIMock.mockClear();
@@ -263,6 +269,18 @@ describe('ChatBox', () => {
       getTodos: vi.fn(() => []),
       subscribeTodoChanges: vi.fn(() => () => undefined),
     });
+  });
+
+  it.each([
+    ['https://api.openai.com/v1', 'saved-gpt'],
+    ['https://openrouter.ai/api/v1', 'anthropic/saved-claude'],
+  ])('routes migrated compatible settings through %s', async (url, model) => {
+    providerConfig.set('general.llm_provider', 'openai_compatible');
+    providerConfig.set('general.openai_compatible.api_key', 'migrated-key');
+    providerConfig.set('general.openai_compatible.base_url', url);
+    providerConfig.set('general.openai_compatible.model', model);
+    renderWithLocale('en_us');
+    await waitFor(() => expect(OpenAICompatibleLLMProvider).toHaveBeenCalledWith('migrated-key', model, url, 'medium'));
   });
 
   it('renders the English assistant title under en_us', () => {

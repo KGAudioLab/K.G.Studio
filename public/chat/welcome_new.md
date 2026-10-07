@@ -4,10 +4,10 @@ Welcome to **K.G.Studio Musician Assistant** — your in‑browser AI partner fo
 ### Quick Start
 **Set up K.G.Studio Musician Assistant**
 - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
-- In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
-- In **OpenAI Compatible Server → Key**, paste your key. Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh. Keep it safe.
-- In **OpenAI Compatible Server → Model**, enter `qwen/qwen3-30b-a3b:free`. Note: non‑free models may require billing.
-- In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1`.
+- In **Settings ⚙️ → Music Assistant → LLM Provider**, select **OpenAI Compatible**.
+- In **LLM Provider (OpenAI Compatible) → Key**, paste your key. Note: on non‑localhost, your key isn’t persisted; you’ll re‑enter it after refresh. Keep it safe.
+- In **LLM Provider (OpenAI Compatible) → Model**, enter `qwen/qwen3-30b-a3b:free`. Note: non‑free models may require billing.
+- In **LLM Provider (OpenAI Compatible) → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 *(Alternatively, you can use the official OpenAI API, or any OpenAI‑compatible service)*
 

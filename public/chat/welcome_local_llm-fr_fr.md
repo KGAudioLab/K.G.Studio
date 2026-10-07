@@ -23,7 +23,7 @@ Exemple :
 - Il n’est pas nécessaire de changer de sélection vers une autre région uniquement pour `read_music`, car `read_music` peut lire la musique sur l’ensemble des pistes.
 
 ### Utiliser plutôt un LLM externe
-- Si vous souhaitez utiliser un modèle plus grand dans le cloud ou auto-hébergé, ouvrez **Réglages -> Général -> Fournisseur LLM** et quittez **LLM local (navigateur)**.
-- Pour un modèle cloud, vous pouvez utiliser **OpenAI**, ou **Serveur compatible OpenAI** avec un fournisseur comme OpenRouter.
-- Pour un modèle auto-hébergé, choisissez **Serveur compatible OpenAI** puis renseignez l’**URL de base** et le **Modèle** de votre serveur.
+- Si vous souhaitez utiliser un modèle plus grand dans le cloud ou auto-hébergé, ouvrez **Réglages -> Assistant musical -> Fournisseur LLM** et quittez **LLM local (navigateur)**.
+- Pour un modèle cloud, choisissez le préréglage **OpenAI**, **Claude (via OpenRouter)** ou **OpenRouter** sous **Fournisseur LLM (compatible OpenAI)**. Chaque préréglage active le mode **Compatible OpenAI**.
+- Pour un modèle auto-hébergé, choisissez **Fournisseur LLM (compatible OpenAI)** puis renseignez l’**URL de base** et le **Modèle** de votre serveur.
 - Après changement de fournisseur, démarrez une nouvelle conversation pour repartir proprement avec le nouveau modèle.

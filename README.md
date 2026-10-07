@@ -105,7 +105,7 @@ There are two ways to use K.G.Studio Musician Assistant: **Local LLM (Browser)**
 K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acceleration. No API calls are made, no cost is incurred, and your data never leaves your machine.
 
   - Click here to start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
-  - In **Settings ⚙️ → General → LLM Provider**, select **Local LLM (Browser)** (this is the default).
+  - In **Settings ⚙️ → Music Assistant → LLM Provider**, select **Local LLM (Browser)** (this is the default).
   - The model (~2.8 GB) downloads automatically the first time you open the chat and is cached in your browser's OPFS (Origin Private File System) for instant subsequent launches.
   - Optionally, configure the **Context Length** (32k / 64k / 128k tokens) — larger values require more VRAM.
   - Start chatting! No key, no account, no network traffic after the initial model download.
@@ -117,11 +117,11 @@ K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acc
 #### Option B: External LLM Provider (Higher Quality)
 
   - Click here to start using the app online: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
-  - [Click here to get a free OpenRouter API Key](https://openrouter.ai/keys) (you may need an OpenRouter account).
-  - In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible**.
-  - In **OpenAI Compatible Server → Key**, paste your key. (Note: on non‑localhost, your key isn't persisted by default for security; you can enable "Persist API Keys on Non-Localhost" in Settings to persist them, though this may increase XSS risk.)
-  - In **OpenAI Compatible Server → Model**, enter `openai/gpt-oss-120b:free`. (Note: this is a free model; non‑free models may require billing; free model providers may collect your data, check the model page for details; this project is **not** affiliated with OpenRouter or any model provider.)
-  - In **OpenAI Compatible Server → Base URL**, enter `https://openrouter.ai/api/v1`.
+  - [Get an OpenRouter API key](https://openrouter.ai/keys) (an OpenRouter account is required).
+  - In **Settings ⚙️ → Music Assistant → LLM Provider**, select **OpenAI Compatible**.
+  - In **LLM Provider (OpenAI Compatible) → Key**, paste your key. (Note: on non‑localhost, your key isn't persisted by default for security; you can enable "Persist API Keys on Non-Localhost" in Settings to persist them, though this may increase XSS risk.)
+  - In **LLM Provider (OpenAI Compatible) → Model**, enter the model ID of your choice from the [OpenRouter Models Page](https://openrouter.ai/models). Check its pricing and data policies before use; K.G.Studio is **not** affiliated with OpenRouter or any model provider.
+  - In **LLM Provider (OpenAI Compatible) → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 **Tips:**
 - You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend: `qwen/qwen3.6-35b-a3b`, `google/gemma-4-26b-a4b-it`, or `google/gemma-4-31b-it`.
@@ -184,11 +184,12 @@ npm run dev
 K.G.Studio loads defaults from `./public/config.json` (with an internal fallback) and persists user edits in the browser via `ConfigManager` + IndexedDB. IndexedDB is your browser’s own local database stored on your device; it does not leave your machine and is cleared if you clear this site’s data. Modify settings via the in‑app Settings panel.
 
 - **General**
+  - Soundfont base URL (CDN for instrument samples)
+- **Music Assistant**
   - LLM provider: OpenAI, or OpenAI‑compatible
   - API keys and models for the selected provider
   - Persist API Keys on Non-Localhost: Enable to persist API keys on non-localhost environments (security opt-in, not recommended for shared/production environments)
   - OpenAI‑compatible base URL (for self‑hosted gateways)
-  - Soundfont base URL (CDN for instrument samples)
 - **Behavior**
   - Chatbox default open on startup
 - **Templates**
@@ -272,40 +273,37 @@ You can find the detailed user guide [here](./docs/USER_GUIDE.md).
 
 ### Configuring Your LLM Provider
 
-Navigate to **Settings ⚙️ → General → LLM Provider**. Depending on your chosen provider, you will need to supply the appropriate API Key and, if applicable, a custom base URL (for non-official OpenAI-compatible services such as Ollama, OpenRouter, etc.).
+Navigate to **Settings ⚙️ → Music Assistant → LLM Provider**. Depending on your chosen provider, you will need to supply the appropriate API Key and, if applicable, a custom base URL (for non-official OpenAI-compatible services such as Ollama, OpenRouter, etc.).
 
 Note: due to CORS limitations with some providers, Google Gemini and Anthropic Claude are currently supported via OpenRouter only.
 
 ### Using OpenAI models
 
 1. Obtain an OpenAI API Key from [**OpenAI**](https://platform.openai.com/account/api-keys). You may need to create an account and add a payment method to generate an API Key.
-2. In **Settings ⚙️ → General → LLM Provider**, select **OpenAI** as your provider.
-3. Enter your API Key in **OpenAI → Key**.
-4. Select your preferred model from the **OpenAI → Model** dropdown. For a good balance between performance and cost, we recommend `gpt-5.4`.
-5. Optionally, choose whether to enable Flex Mode in **OpenAI → Flex Mode**. Flex Mode offers discounted pricing, but may result in slower response times or server-side errors.
+2. Open **Settings ⚙️ → Music Assistant**, then click the **OpenAI** preset under **LLM Provider (OpenAI Compatible)**. This fills the connection fields and selects **OpenAI Compatible** mode.
+3. Enter your API key in **LLM Provider (OpenAI Compatible) → Key**.
+4. The preset sets Model to `gpt-6.1-sol`. You can edit it to use another model available to your account.
+
+Connection presets are available for OpenAI, Claude (via OpenRouter), OpenRouter, Ollama, llama.cpp, and CLIProxyAPI. Clicking a preset replaces Key, Base URL, and Model and activates OpenAI Compatible mode. For supported ChatGPT or Claude subscriptions, [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) can provide a local compatible connection using your available subscription access. All presets clear the key. Enter your provider or server key if authentication is required.
 
 ### Using OpenRouter
 
-OpenRouter is a platform that provides unified access to a wide range of language models—including free options—from various providers. This makes it easy to experiment and find the model that best suits your needs.
+OpenRouter is a platform that provides unified access to a wide range of language models from various providers. This makes it easy to experiment and find the model that best suits your needs.
 
 1. Obtain an API Key from [**OpenRouter**](https://openrouter.ai/keys). Registration is required; for paid models, a payment method may also be necessary.
-2. In **Settings ⚙️ → General → LLM Provider**, select **OpenAI Compatible** as your provider.
-3. Enter your API Key in **OpenAI Compatible Server → Key**.
-4. Browse available models on the [**OpenRouter Models Page**](https://openrouter.ai/models). Use the "Prompt Pricing" filter to identify free models.  
+2. Open **Settings ⚙️ → Music Assistant** and click the **OpenRouter** preset under **LLM Provider (OpenAI Compatible)**.
+3. Enter your API Key in **LLM Provider (OpenAI Compatible) → Key**.
+4. Browse available models on the [**OpenRouter Models Page**](https://openrouter.ai/models) and compare their pricing and capabilities.
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
-5. Enter your chosen model name in **OpenAI Compatible Server → Model**. Recommended model series include:
+5. Enter your chosen model name in **LLM Provider (OpenAI Compatible) → Model**. Recommended model series include:
     - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — best balance of quality and cost for the Claude series
-    - Free Models:
-        - `OpenAI: GPT-OSS 120B` (FREE MODEL: `openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free))
-        - `Google: Gemma 4 26B A4B IT` (FREE MODEL: `google/gemma-4-26b-a4b-it:free`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it:free))
-        - `Google: Gemma 4 31B IT` (FREE MODEL: `google/gemma-4-31b-it:free`: [Link](https://openrouter.ai/google/gemma-4-31b-it:free))
     - For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend:
         - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
         - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
         - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
-    - Note: free model providers may collect your data; check the model page for details before use
-    - Note: free model availability changes frequently — for the latest free options, visit the [OpenRouter Models Page](https://openrouter.ai/models) and use the **Prompt Pricing** filter to find currently free models
-6. Input the base URL `https://openrouter.ai/api/v1` **OpenAI Compatible Server → Base URL**.
+6. Input the base URL `https://openrouter.ai/api/v1` **LLM Provider (OpenAI Compatible) → Base URL**.
+
+You can also browse the [OpenRouter Models Page](https://openrouter.ai/models) for currently available free models. Availability changes over time; K.G.Studio does not recommend specific free models for music editing.
 
 ### About the agent and LLM providers
 

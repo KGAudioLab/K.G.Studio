@@ -17,6 +17,7 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   const { t } = useI18n();
   const sections = [
     { id: 'general' as SettingsSection, label: t('settings.sidebar.general') },
+    { id: 'music_assistant' as SettingsSection, label: t('settings.sidebar.musicAssistant') },
     { id: 'audio_io' as SettingsSection, label: t('settings.sidebar.audioIo') },
     { id: 'behavior' as SettingsSection, label: t('settings.sidebar.behavior') },
     { id: 'templates' as SettingsSection, label: t('settings.sidebar.templates') },

@@ -5,12 +5,12 @@
 ### 快速開始
 **配置 K.G.Studio 音樂創作助手**
 - [點擊這裡獲取免費的 OpenRouter API Key](https://openrouter.ai/keys)（您可能需要一個 OpenRouter 帳號）。
-- 進入 **設定 ⚙️ → 通用 → LLM 提供方**，選擇 **OpenAI 兼容服務**。
-- 在 **OpenAI 兼容服務 → 密鑰** 中貼上您的 Key。注意：在非 localhost 環境下，Key 預設不會持久化，重新整理後需要重新輸入，請妥善保管。
-- 在 **OpenAI 兼容服務 → 模型** 中輸入 `qwen/qwen3-30b-a3b:free`。注意：非免費模型可能需要計費。
-- 在 **OpenAI 兼容服務 → 基礎 URL** 中輸入 `https://openrouter.ai/api/v1`。
+- 進入 **設定 ⚙️ → 音樂創作助手 → LLM 提供方**，選擇 **LLM 提供方（OpenAI 相容）**。
+- 在 **LLM 提供方（OpenAI 相容） → 密鑰** 中貼上您的 Key。注意：在非 localhost 環境下，Key 預設不會持久化，重新整理後需要重新輸入，請妥善保管。
+- 在 **LLM 提供方（OpenAI 相容） → 模型** 中輸入 `qwen/qwen3-30b-a3b:free`。注意：非免費模型可能需要計費。
+- 在 **LLM 提供方（OpenAI 相容） → 基礎 URL** 中輸入 `https://openrouter.ai/api/v1`。
 
-*（或者，您也可以使用官方 OpenAI API，或者任何 OpenAI 兼容服務。）*
+*（或者，您也可以使用官方 OpenAI API，或者任何 LLM 提供方（OpenAI 相容）。）*
 
 **基本 DAW 操作**
 - 在音軌上雙擊（或按住 Ctrl/Cmd 再點擊）可建立區域。

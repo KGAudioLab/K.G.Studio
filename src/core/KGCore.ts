@@ -98,7 +98,8 @@ export class KGCore {
       // Run app-level migrations (e.g., IndexedDB -> OPFS project migration)
       this.setMigrating(true);
       try {
-        await KGConfigUpgrader.upgradeToLatest();
+        const upgrades = await KGConfigUpgrader.upgradeToLatest();
+        if (upgrades > 0) await configManager.reloadFromStorage();
       } finally {
         this.setMigrating(false);
       }

@@ -50,8 +50,9 @@ function extractErrorDetails(error: unknown): { code?: string; message?: string 
 export class OpenAICompatibleLLMProvider implements LLMProvider {
   private client: OpenAI;
   private model: string;
+  private thinkingLevel?: string;
 
-  constructor(apiKey: string, model: string, baseURL?: string) {
+  constructor(apiKey: string, model: string, baseURL?: string, thinkingLevel?: string) {
     const normalizedBaseURL = baseURL?.replace(/\/chat\/completions\/?$/, '') || undefined;
 
     this.client = new OpenAI({
@@ -60,6 +61,7 @@ export class OpenAICompatibleLLMProvider implements LLMProvider {
       dangerouslyAllowBrowser: true,
     });
     this.model = model;
+    this.thinkingLevel = thinkingLevel?.trim();
   }
 
   getContextWindow(): number | undefined {
@@ -159,6 +161,11 @@ export class OpenAICompatibleLLMProvider implements LLMProvider {
       messages: openaiMessages,
       stream: true,
     };
+
+    if (this.thinkingLevel) {
+      // Compatible servers may support effort values beyond this SDK's enum.
+      requestParams.reasoning_effort = this.thinkingLevel as OpenAI.ChatCompletionCreateParamsStreaming['reasoning_effort'];
+    }
 
     if (tools && tools.length > 0) {
       requestParams.tools = tools as unknown as OpenAI.ChatCompletionTool[];
