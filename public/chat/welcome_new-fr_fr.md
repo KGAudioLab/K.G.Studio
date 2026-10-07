@@ -5,10 +5,10 @@ Bienvenue dans **l’assistant musical K.G.Studio**, votre partenaire IA dans le
 ### Démarrage rapide
 **Configurer l’assistant musical K.G.Studio**
 - [Cliquez ici pour obtenir une clé API OpenRouter gratuite](https://openrouter.ai/keys) ; un compte OpenRouter peut être nécessaire.
-- Dans **Réglages ⚙️ → Général → Fournisseur LLM**, sélectionnez **Serveur compatible OpenAI**.
-- Dans **Serveur compatible OpenAI → Clé**, collez votre clé. Remarque : hors localhost, la clé n’est pas conservée après rechargement.
-- Dans **Serveur compatible OpenAI → Modèle**, saisissez `qwen/qwen3-30b-a3b:free`.
-- Dans **Serveur compatible OpenAI → URL de base**, saisissez `https://openrouter.ai/api/v1`.
+- Dans **Réglages ⚙️ → Assistant musical → Fournisseur LLM**, sélectionnez **Fournisseur LLM (compatible OpenAI)**.
+- Dans **Fournisseur LLM (compatible OpenAI) → Clé**, collez votre clé. Remarque : hors localhost, la clé n’est pas conservée après rechargement.
+- Dans **Fournisseur LLM (compatible OpenAI) → Modèle**, saisissez `qwen/qwen3-30b-a3b:free`.
+- Dans **Fournisseur LLM (compatible OpenAI) → URL de base**, saisissez `https://openrouter.ai/api/v1`.
 
 *(Vous pouvez aussi utiliser l’API officielle OpenAI ou tout autre service compatible OpenAI.)*
 

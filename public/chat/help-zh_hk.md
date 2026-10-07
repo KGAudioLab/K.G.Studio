@@ -10,7 +10,7 @@
 
 K.G.Studio 可以通過 WebGPU 在瀏覽器中直接運行 **Gemma 4 E4B**。不會產生外部 API 呼叫費用，資料也不會離開您的裝置。
 
-1. 進入 **設定 ⚙️ → 通用 → LLM 提供方**，選擇 **本地 LLM（瀏覽器）**（預設選項）。
+1. 進入 **設定 ⚙️ → 音樂創作助手 → LLM 提供方**，選擇 **本地 LLM（瀏覽器）**（預設選項）。
 2. 第一次開啟聊天時會自動下載模型（約 2.8 GB），後續會快取在本地瀏覽器中。
 3. 可選設定 **上下文長度**（32k / 64k / 128k tokens）；越大越佔顯存。
 4. 現在就可以開始聊天，無需 Key、帳號或持續聯網。
@@ -23,17 +23,18 @@ K.G.Studio 可以通過 WebGPU 在瀏覽器中直接運行 **Gemma 4 E4B**。不
 
 ### 配置外部 LLM 提供方
 
-進入 **設定 ⚙️ → 通用 → LLM 提供方**。根據所選提供方，您需要填寫對應的 API Key，以及在需要時填寫 Base URL（例如 Ollama、OpenRouter 等 OpenAI 兼容服務）。
+進入 **設定 ⚙️ → 音樂創作助手 → LLM 提供方**。根據所選提供方，您需要填寫對應的 API Key，以及在需要時填寫 Base URL（例如 Ollama、OpenRouter 等 LLM 提供方（OpenAI 相容））。
 
 ---
 
 ### 使用 OpenAI GPT 系列
 
 1. 在 [**OpenAI**](https://platform.openai.com/account/api-keys) 取得 API Key。您可能需要先註冊帳號並新增付款方式。
-2. 在 **設定 ⚙️ → 通用 → LLM 提供方** 中選擇 **OpenAI**。
-3. 在 **OpenAI → 密鑰** 中填入 API Key。
-4. 在 **OpenAI → 模型** 下拉中選擇模型。若希望在成本和效果之間取得平衡，推薦 `gpt-5.4-mini`。
-5. 可選：在 **OpenAI → Flex 模式** 中啟用 Flex Mode。它可能降低成本，但也可能帶來更高延遲或更多服務端錯誤。
+2. 開啟 **設定 ⚙️ → 音樂創作助手**，點擊 **LLM 提供方（OpenAI 相容）** 下的 **OpenAI** 預設。它會填寫連線欄位並切換至 **OpenAI 相容** 模式。
+3. 在 **LLM 提供方（OpenAI 相容）→ 密鑰** 中輸入您的 API Key。
+4. 預設會將模型設為 `gpt-6.1-sol`，您也可以填寫帳戶可用的其他模型。
+
+可用預設包括 OpenAI、Claude（透過 OpenRouter）、OpenRouter、Ollama、llama.cpp 和 CLIProxyAPI。點擊預設會替換密鑰、基礎 URL 和模型，並切換至 OpenAI 相容模式。對於受支援的 ChatGPT 或 Claude 訂閱，[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 可提供本地相容連線，使用訂閱所提供的模型存取權限。所有預設都會清空密鑰。如果需要驗證，請輸入提供方或伺服器的密鑰。
 
 ---
 
@@ -42,11 +43,11 @@ K.G.Studio 可以通過 WebGPU 在瀏覽器中直接運行 **Gemma 4 E4B**。不
 OpenRouter 提供統一接口，可訪問多個語言模型提供方的模型，其中也包含免費選項，適合比較不同模型表現。
 
 1. 在 [**OpenRouter**](https://openrouter.ai/keys) 取得 API Key。需要註冊；使用付費模型時可能還需要綁定付款方式。
-2. 在 **設定 ⚙️ → 通用 → LLM 提供方** 中選擇 **OpenAI 兼容服務**。
-3. 在 **OpenAI 兼容服務 → 密鑰** 中填入 API Key。
+2. 開啟 **設定 ⚙️ → 音樂創作助手**，點擊 **LLM 提供方（OpenAI 相容）** 下的 **OpenRouter** 預設。
+3. 在 **LLM 提供方（OpenAI 相容） → 密鑰** 中填入 API Key。
 4. 在 [**OpenRouter Models Page**](https://openrouter.ai/models) 瀏覽可用模型，並可使用 "Prompt Pricing" 過濾免費模型。  
    **注意：** 各模型提供方的資料保留與隱私策略可能不同，使用前請自行查看。
-5. 在 **OpenAI 兼容服務 → 模型** 中填入模型名。推薦系列包括：
+5. 在 **LLM 提供方（OpenAI 相容） → 模型** 中填入模型名。推薦系列包括：
    - `Anthropic: Claude Sonnet 4.6`（`anthropic/claude-sonnet-4.6`）—— Claude 系列裡質量和成本平衡較好
    - 免費模型：
      - `OpenAI: GPT-OSS 120B`（免費：`openai/gpt-oss-120b:free`）
@@ -58,7 +59,7 @@ OpenRouter 提供統一接口，可訪問多個語言模型提供方的模型，
      - `Google: Gemma 4 31B IT`（`google/gemma-4-31b-it`）
    - 注意：免費模型會經常變化，請以 OpenRouter 模型頁中的 **Prompt Pricing** 過濾結果為準
    - 注意：免費模型提供方可能會收集您的資料，使用前請先查看模型頁面說明
-6. 在 **OpenAI 兼容服務 → 基礎 URL** 中填寫 `https://openrouter.ai/api/v1`。
+6. 在 **LLM 提供方（OpenAI 相容） → 基礎 URL** 中填寫 `https://openrouter.ai/api/v1`。
 
 ### 基本 DAW 操作
 

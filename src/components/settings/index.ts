@@ -4,3 +4,4 @@ export { default as GeneralSettings } from './sections/GeneralSettings.tsx';
 export { default as AudioIOSettings } from './sections/AudioIOSettings.tsx';
 export { default as BehaviorSettings } from './sections/BehaviorSettings.tsx';
 export { default as TemplatesSettings } from './sections/TemplatesSettings.tsx';
+export { default as MusicAssistantSettings } from './sections/MusicAssistantSettings.tsx';

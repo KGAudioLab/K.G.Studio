@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import './Settings.css';
 import SettingsSidebar from './SettingsSidebar';
 import GeneralSettings from './sections/GeneralSettings';
+import MusicAssistantSettings from './sections/MusicAssistantSettings';
 import BehaviorSettings from './sections/BehaviorSettings';
 import AudioIOSettings from './sections/AudioIOSettings';
 import TemplatesSettings from './sections/TemplatesSettings';
 import ChordGuideSettings from './sections/ChordGuideSettings';
 
-export type SettingsSection = 'general' | 'audio_io' | 'behavior' | 'templates' | 'chord_guide';
+export type SettingsSection = 'general' | 'music_assistant' | 'audio_io' | 'behavior' | 'templates' | 'chord_guide';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -20,6 +21,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     switch (activeSection) {
       case 'general':
         return <GeneralSettings />;
+      case 'music_assistant':
+        return <MusicAssistantSettings />;
       case 'behavior':
         return <BehaviorSettings />;
       case 'audio_io':

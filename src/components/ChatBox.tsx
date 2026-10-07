@@ -123,6 +123,7 @@ const createLLMProviderFromConfig = (): LLMProvider => {
   let apiKey: string;
   let model: string;
   let baseURL: string | undefined;
+  let thinkingLevel: string | undefined;
 
   switch (providerType) {
     case LOCAL_LLM_PROVIDER_KEY:
@@ -142,10 +143,11 @@ const createLLMProviderFromConfig = (): LLMProvider => {
       apiKey = configManager.get('general.openai_compatible.api_key') as string;
       model = configManager.get('general.openai_compatible.model') as string;
       baseURL = configManager.get('general.openai_compatible.base_url') as string || undefined;
+      thinkingLevel = (configManager.get('general.openai_compatible.reasoning_effort') as string | undefined) ?? 'medium';
       break;
   }
 
-  return new OpenAICompatibleLLMProvider(apiKey, model, baseURL);
+  return new OpenAICompatibleLLMProvider(apiKey, model, baseURL, thinkingLevel);
 };
 
 interface ChatBoxProps {
@@ -458,6 +460,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ isVisible }) => {
 
       const unsubscribe = configManager.addChangeListener((changedKeys) => {
         if (
+          changedKeys.includes('__all__') ||
           changedKeys.includes('general.llm_provider') ||
           changedKeys.includes('general.local_browser.context_length') ||
           changedKeys.some(k => k.startsWith('general.openai.')) ||

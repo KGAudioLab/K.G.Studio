@@ -23,7 +23,7 @@ Example:
 - You do not need to switch the selection to another region just for `read_music`, because `read_music` can fetch music across all tracks.
 
 ### Use an External LLM Instead
-- If you want a larger cloud or self-hosted model, open **Settings -> General -> LLM Provider** and switch away from **Local LLM (Browser)**.
-- For a cloud model, you can use **OpenAI**, or choose **OpenAI Compatible** and enter a provider such as OpenRouter.
+- If you want a larger cloud or self-hosted model, open **Settings -> Music Assistant -> LLM Provider** and switch away from **Local LLM (Browser)**.
+- For a cloud model, choose the **OpenAI**, **Claude (via OpenRouter)**, or **OpenRouter** preset under **LLM Provider (OpenAI Compatible)**. Each preset activates **OpenAI Compatible** mode.
 - For a self-hosted model, choose **OpenAI Compatible** and enter your server's **Base URL** and **Model**.
 - After switching providers, start a new conversation so the chat uses the new model cleanly.

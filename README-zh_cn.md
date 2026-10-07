@@ -105,7 +105,7 @@ K.G.Studio 是一款轻量、现代化的 DAW，完全运行于浏览器中，�
 K.G.Studio 可以借助 WebGPU 加速，在浏览器中直接运行 **Gemma 4 E4B**。不会产生 API 调用，不会产生费用，您的数据也不会离开本机。
 
   - 点击这里开始在线使用应用：[K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
-  - 在 **设置 ⚙️ → 通用 → LLM 提供方** 中选择 **本地 LLM（浏览器）**（默认选项）。
+  - 在 **设置 ⚙️ → 音乐创作助手 → LLM 提供方** 中选择 **本地 LLM（浏览器）**（默认选项）。
   - 第一次打开聊天时，模型（约 2.8 GB）会自动下载，并缓存在浏览器的 OPFS（Origin Private File System）中，后续启动几乎可即时使用。
   - 您也可以选择配置 **上下文长度**（32k / 64k / 128k tokens）；数值越大，对显存要求越高。
   - 现在就可以开始聊天。除首次下载模型外，无需 Key、无需账号，也无需持续联网。
@@ -117,14 +117,14 @@ K.G.Studio 可以借助 WebGPU 加速，在浏览器中直接运行 **Gemma 4 E4
 #### 方案 B：外部 LLM 提供方（更高质量）
 
   - 点击这里开始在线使用应用：[K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
-  - [点击这里获取免费 OpenRouter API Key](https://openrouter.ai/keys)（您可能需要一个 OpenRouter 账号）。
-  - 在 **设置 ⚙️ → 通用 → LLM 提供方** 中选择 **OpenAI Compatible**。
-  - 在 **OpenAI Compatible Server → 密钥** 中粘贴您的 Key。（注意：在非 localhost 环境中，出于安全原因，您的 Key 默认不会被持久化；您可以在设置中启用 “Persist API Keys on Non-Localhost” 以允许持久化，但这可能增加 XSS 风险。）
-  - 在 **OpenAI Compatible Server → 模型** 中输入 `openai/gpt-oss-120b:free`。（注意：这是一个免费模型；非免费模型可能需要付费；免费模型提供方可能会收集您的数据，请查看模型页面中的说明；本项目与 OpenRouter 或任何模型提供方 **没有关联关系**。）
-  - 在 **OpenAI Compatible Server → 基础 URL** 中输入 `https://openrouter.ai/api/v1`。
+  - [获取 OpenRouter API Key](https://openrouter.ai/keys)（需要一个 OpenRouter 账号）。
+  - 在 **设置 ⚙️ → 音乐创作助手 → LLM 提供方** 中选择 **OpenAI Compatible**。
+  - 在 **LLM 提供方（OpenAI 兼容） → 密钥** 中粘贴您的 Key。（注意：在非 localhost 环境中，出于安全原因，您的 Key 默认不会被持久化；您可以在设置中启用 “Persist API Keys on Non-Localhost” 以允许持久化，但这可能增加 XSS 风险。）
+  - 在 **LLM 提供方（OpenAI 兼容） → 模型** 中输入您从 [OpenRouter 模型页面](https://openrouter.ai/models) 选择的模型 ID。使用前请查看其价格和数据政策；K.G.Studio 与 OpenRouter 或任何模型提供方 **没有关联关系**。
+  - 在 **LLM 提供方（OpenAI 兼容） → 基础 URL** 中输入 `https://openrouter.ai/api/v1`。
 
 **提示：**
-- 您也可以使用官方 OpenAI API、其他 OpenAI 兼容服务，或自托管 LLM 服务器（如 Ollama、vLLM）。请注意，不同模型的质量差异较大，并非所有模型都同样适合音乐编辑任务。对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐：`qwen/qwen3.6-35b-a3b`、`google/gemma-4-26b-a4b-it` 或 `google/gemma-4-31b-it`。
+- 您也可以使用官方 OpenAI API、其他 LLM 提供方（OpenAI 兼容），或自托管 LLM 服务器（如 Ollama、vLLM）。请注意，不同模型的质量差异较大，并非所有模型都同样适合音乐编辑任务。对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐：`qwen/qwen3.6-35b-a3b`、`google/gemma-4-26b-a4b-it` 或 `google/gemma-4-31b-it`。
 - 如果您已订阅 OpenAI 或其他 LLM 提供方，可以使用 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 运行一个本地代理服务器，通过现有订阅转发请求，而无需单独准备 API Key。
 
 ### 基本 DAW 操作
@@ -156,7 +156,7 @@ K.G.Studio 可以借助 WebGPU 加速，在浏览器中直接运行 **Gemma 4 E4
 - **带自动对齐拍点的速度检测**：在钢琴卷帘工具栏运行 **Detect Tempo**，即可分析音频区域的 BPM，并可选择自动重新对齐项目的 Tempo Track。
 - **全局轨系统**：四条持久存在的全局轨 **Marker**、**Tempo**、**Key Signature** 和 **Chord** 共同提供项目级结构，所有功能（播放时序、和弦检测、五线谱显示）都会参考它们。
 - **K.G.One Music Studio 集成**：连接本地 [K.G.One](https://github.com/KGAudioLab/K.G.One) 服务器后，可解锁 GPU 加速的 **Full Song Generation**（ACE-Step 1.5）、**Clip & MIDI Loop Generation**（Foundation-1）以及更多 **Stem Separation** 模型。
-- **多种 LLM 提供方**：支持 OpenAI、Claude / Gemini（通过 OpenRouter）、OpenAI 兼容服务（Ollama、vLLM 等），或内置的本地浏览器 LLM，无需 Key。
+- **多种 LLM 提供方**：支持 OpenAI、Claude / Gemini（通过 OpenRouter）、LLM 提供方（OpenAI 兼容）（Ollama、vLLM 等），或内置的本地浏览器 LLM，无需 Key。
 - **音轨与区域编辑**：支持添加/重排音轨、创建/移动/缩放区域、套索多选、批量移动/缩放、合并与拆分区域，以及完整撤销/重做。
 - **钢琴卷帘**：支持音符、pitch bend 和 MIDI CC 自动化轨；支持基于 VexFlow 的五线谱视图；支持音频到 MIDI 参考用途的频谱叠加层。
 - **真实乐器**：基于 Tone.js 的 sampler，搭配高质量 FluidR3 soundfonts。您还可以直接从麦克风录制到音频轨。
@@ -186,11 +186,12 @@ npm run dev
 K.G.Studio 会从 `./public/config.json` 加载默认配置（内部也提供回退默认值），并通过 `ConfigManager` + IndexedDB 将用户修改持久化到浏览器中。IndexedDB 是浏览器在您设备上的本地数据库；数据不会离开您的机器，如果您清除此站点的数据，它也会被清除。请通过应用内的设置面板修改配置。
 
 - **通用**
-  - LLM 提供方：OpenAI，或 OpenAI 兼容服务
+  - Soundfont 基础 URL（乐器采样 CDN）
+- **音乐创作助手**
+  - LLM 提供方：OpenAI，或 LLM 提供方（OpenAI 兼容）
   - 当前所选提供方对应的 API Key 与模型
   - 在非 localhost 环境持久化 API Key：启用后，可在非 localhost 环境中持久化 API Key（属于安全风险自担选项，不建议在共享或生产环境中开启）
-  - OpenAI 兼容服务的基础 URL（适用于自托管网关）
-  - Soundfont 基础 URL（乐器采样 CDN）
+  - LLM 提供方（OpenAI 兼容）的基础 URL（适用于自托管网关）
 - **行为**
   - 启动时默认打开聊天框
 - **模板**
@@ -202,7 +203,7 @@ K.G.Studio 会从 `./public/config.json` 加载默认配置（内部也提供回
 - 项目和音频文件保存在浏览器的 OPFS（Origin Private File System）中；配置保存在 IndexedDB 中。所有数据都留在您的设备上。
 - 网络访问仅用于：
   - 从配置的 soundfont CDN 下载乐器采样
-  - 与您选择的 LLM 提供方通信（例如 OpenAI 或 OpenAI 兼容服务）
+  - 与您选择的 LLM 提供方通信（例如 OpenAI 或 LLM 提供方（OpenAI 兼容））
 - 除上述两种情况外，应用均可在本地工作。即使您阻止这些端点，应用仍可加载；但在网络恢复之前，乐器回放和 AI 功能将无法使用。
 - 出于安全考虑，当应用运行在非本地主机环境中时，我们默认不会将您的 API Key 持久化到 IndexedDB（以降低 XSS 风险）。这意味着您每次启动 K.G.Studio 时都需要重新输入。如需在非本地主机环境中启用持久化，请在设置中开启 “Persist API Keys on Non-Localhost”（不建议在共享或生产环境中启用）。
 
@@ -274,40 +275,37 @@ K.G.Studio 会从 `./public/config.json` 加载默认配置（内部也提供回
 
 ### 配置您的 LLM 提供方
 
-进入 **设置 ⚙️ → 通用 → LLM 提供方**。根据您选择的提供方，您需要填写对应的 API Key，并在需要时填写自定义基础 URL（适用于 Ollama、OpenRouter 等非官方 OpenAI 兼容服务）。
+进入 **设置 ⚙️ → 音乐创作助手 → LLM 提供方**。根据您选择的提供方，您需要填写对应的 API Key，并在需要时填写自定义基础 URL（适用于 Ollama、OpenRouter 等非官方 LLM 提供方（OpenAI 兼容））。
 
 注意：由于部分提供方存在 CORS 限制，Google Gemini 和 Anthropic Claude 当前仅支持通过 OpenRouter 使用。
 
 ### 使用 OpenAI 模型
 
 1. 在 [**OpenAI**](https://platform.openai.com/account/api-keys) 获取 OpenAI API Key。您可能需要先注册账号并添加支付方式，才能生成 API Key。
-2. 在 **设置 ⚙️ → 通用 → LLM 提供方** 中选择 **OpenAI** 作为提供方。
-3. 在 **OpenAI → 密钥** 中输入您的 API Key。
-4. 在 **OpenAI → 模型** 下拉中选择您偏好的模型。若希望在性能与成本之间取得较好平衡，我们推荐 `gpt-5.4`。
-5. 您也可以选择是否在 **OpenAI → Flex 模式** 中启用 Flex Mode。Flex Mode 可以降低价格，但也可能带来更慢的响应时间或更多服务端错误。
+2. 打开 **设置 ⚙️ → 音乐创作助手**，点击 **LLM 提供方（OpenAI 兼容）** 下的 **OpenAI** 预设。它会填写连接字段并切换到 **OpenAI 兼容** 模式。
+3. 在 **LLM 提供方（OpenAI 兼容）→ 密钥** 中输入您的 API Key。
+4. 预设会将模型设为 `gpt-6.1-sol`，您也可以填写账户可用的其他模型。
+
+可用预设包括 OpenAI、Claude（通过 OpenRouter）、OpenRouter、Ollama、llama.cpp 和 CLIProxyAPI。点击预设会替换密钥、基础 URL 和模型，并切换到 OpenAI 兼容模式。对于受支持的 ChatGPT 或 Claude 订阅，[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 可提供本地兼容连接，使用订阅所提供的模型访问权限。所有预设都会清空密钥。如果需要身份验证，请输入提供方或服务器的密钥。
 
 ### 使用 OpenRouter
 
-OpenRouter 是一个统一接入平台，可让您访问来自多个提供方的大量语言模型，其中也包含免费选项，便于比较并找到最适合您需求的模型。
+OpenRouter 是一个统一接入平台，可让您访问来自多个提供方的大量语言模型，便于比较并找到最适合您需求的模型。
 
 1. 在 [**OpenRouter**](https://openrouter.ai/keys) 获取 API Key。需要注册；若使用付费模型，可能还需要绑定支付方式。
-2. 在 **设置 ⚙️ → 通用 → LLM 提供方** 中选择 **OpenAI Compatible** 作为提供方。
-3. 在 **OpenAI Compatible Server → 密钥** 中输入您的 API Key。
-4. 在 [**OpenRouter Models Page**](https://openrouter.ai/models) 浏览可用模型。您可以使用 “Prompt Pricing” 筛选免费模型。  
+2. 打开 **设置 ⚙️ → 音乐创作助手**，点击 **LLM 提供方（OpenAI 兼容）** 下的 **OpenRouter** 预设。
+3. 在 **LLM 提供方（OpenAI 兼容） → 密钥** 中输入您的 API Key。
+4. 在 [**OpenRouter 模型页面**](https://openrouter.ai/models) 浏览可用模型，并比较其价格和功能。
    **注意：** 不同模型提供方的数据保留与隐私政策可能不同，请在使用前自行查看。
-5. 在 **OpenAI Compatible Server → 模型** 中输入您所选的模型名。推荐系列包括：
+5. 在 **LLM 提供方（OpenAI 兼容） → 模型** 中输入您所选的模型名。推荐系列包括：
     - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — Claude 系列中质量与成本平衡较好的选择
-    - 免费模型：
-        - `OpenAI: GPT-OSS 120B`（免费模型：`openai/gpt-oss-120b:free`: [Link](https://openrouter.ai/openai/gpt-oss-120b:free)）
-        - `Google: Gemma 4 26B A4B IT`（免费模型：`google/gemma-4-26b-a4b-it:free`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it:free)）
-        - `Google: Gemma 4 31B IT`（免费模型：`google/gemma-4-31b-it:free`: [Link](https://openrouter.ai/google/gemma-4-31b-it:free)）
     - 对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐：
         - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
         - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
         - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
-    - 注意：免费模型提供方可能会收集您的数据，使用前请先查看模型页面说明
-    - 注意：免费模型的可用性变化频繁。如需查看最新免费选项，请访问 [OpenRouter Models Page](https://openrouter.ai/models)，并使用 **Prompt Pricing** 过滤当前免费模型
-6. 在 **OpenAI Compatible Server → 基础 URL** 中填写 `https://openrouter.ai/api/v1`。
+6. 在 **LLM 提供方（OpenAI 兼容） → 基础 URL** 中填写 `https://openrouter.ai/api/v1`。
+
+您也可以在 [OpenRouter 模型页面](https://openrouter.ai/models) 浏览当前可用的免费模型。可用性会随时间变化；K.G.Studio 不再推荐用于音乐编辑的特定免费模型。
 
 ### 关于 agent 与 LLM 提供方
 

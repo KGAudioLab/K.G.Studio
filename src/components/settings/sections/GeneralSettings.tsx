@@ -1,31 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
-import { LocalLLMModelManager, type LocalLLMModelState } from '../../../util/localLLMModelManager';
 import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
 import { SoundfontInstrumentCache, type SoundfontCacheSummary } from '../../../util/soundfontInstrumentCache';
 import { useI18n } from '../../../i18n/useI18n';
 import type { LanguageSetting } from '../../../i18n/types';
 import {
-  formatLocalLLMContextLength,
-  LOCAL_LLM_CONTEXT_LENGTH_OPTIONS,
-  LOCAL_LLM_DEFAULT_MODEL_URL,
-  LOCAL_LLM_DEFAULT_CONTEXT_LENGTH,
-  LOCAL_LLM_DISPLAY_NAME,
-  LOCAL_LLM_PROVIDER_KEY,
-  normalizeLocalLLMContextLength,
-  type LocalLLMContextLength,
-} from '../../../util/localLLMConfig';
-import {
   LOCAL_SEPARATOR_MODEL_CONFIGS,
   LOCAL_SEPARATOR_MODEL_IDS,
 } from '../../../util/local-separator/config';
-import {
-  DEFAULT_AGENT_MODE,
-  getEffectiveAgentMode,
-  isAgentModeForcedByProvider,
-  normalizeAgentMode,
-  type AgentMode,
-} from '../../../util/agentMode';
 
 const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> = {
   en_us: 'English',
@@ -37,23 +19,6 @@ const LANGUAGE_OPTION_LABELS: Record<Exclude<LanguageSetting, 'auto'>, string> =
 const GeneralSettings: React.FC = () => {
   const { t, setLanguageSetting } = useI18n();
   const [language, setLanguage] = useState<LanguageSetting>('auto');
-  const [agentMode, setAgentMode] = useState<AgentMode>(DEFAULT_AGENT_MODE);
-  const [llmProvider, setLlmProvider] = useState<string>(LOCAL_LLM_PROVIDER_KEY);
-  const [openaiKey, setOpenaiKey] = useState<string>('');
-  const [openaiModel, setOpenaiModel] = useState<string>('');
-  const [geminiKey, setGeminiKey] = useState<string>('');
-  const [geminiModel, setGeminiModel] = useState<string>('');
-  const [claudeKey, setClaudeKey] = useState<string>('');
-  const [claudeModel, setClaudeModel] = useState<string>('');
-  const [claudeOpenRouterKey, setClaudeOpenRouterKey] = useState<string>('');
-  const [claudeOpenRouterBaseUrl, setClaudeOpenRouterBaseUrl] = useState<string>('');
-  const [claudeOpenRouterModel, setClaudeOpenRouterModel] = useState<string>('');
-  const [openaiFlex, setOpenaiFlex] = useState<boolean>(false);
-  const [persistApiKeysNonLocalhost, setPersistApiKeysNonLocalhost] = useState<boolean>(false);
-  const [autoCompactThresholdPercent, setAutoCompactThresholdPercent] = useState<80 | 90 | 95>(90);
-  const [compatibleKey, setCompatibleKey] = useState<string>('');
-  const [compatibleBaseUrl, setCompatibleBaseUrl] = useState<string>('');
-  const [compatibleModel, setCompatibleModel] = useState<string>('');
   const [soundfontBaseUrl, setSoundfontBaseUrl] = useState<string>('');
   const [kgoneEnabled, setKgoneEnabled] = useState<boolean>(false);
   const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
@@ -64,9 +29,6 @@ const GeneralSettings: React.FC = () => {
   const [isDeletingSoundfontCache, setIsDeletingSoundfontCache] = useState<boolean>(false);
   const [selectedCachedSoundfontInstrument, setSelectedCachedSoundfontInstrument] = useState<string>('');
   const [isDeletingCachedSoundfontInstrument, setIsDeletingCachedSoundfontInstrument] = useState<boolean>(false);
-  const [localContextLength, setLocalContextLength] = useState<LocalLLMContextLength>(LOCAL_LLM_DEFAULT_CONTEXT_LENGTH);
-  const [localModelState, setLocalModelState] = useState<LocalLLMModelState>(LocalLLMModelManager.getState());
-  const [localModelUrl, setLocalModelUrl] = useState<string>('');
   const [uvr5ModelUrl, setUvr5ModelUrl] = useState<string>('');
   const [htdemucsModelUrl, setHtdemucsModelUrl] = useState<string>('');
   const [isUvr5ModelCached, setIsUvr5ModelCached] = useState<boolean>(false);
@@ -76,20 +38,6 @@ const GeneralSettings: React.FC = () => {
   const [isDeletingHtdemucsModel, setIsDeletingHtdemucsModel] = useState<boolean>(false);
 
   const configManager = ConfigManager.instance();
-
-  const isLocalEnvironment = useMemo(() => {
-    try {
-      if (typeof window === 'undefined' || typeof window.location === 'undefined') {
-        return false;
-      }
-      const { protocol, hostname } = window.location;
-      if (protocol === 'file:') return true;
-      const localHosts = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0']);
-      return localHosts.has(hostname);
-    } catch {
-      return false;
-    }
-  }, []);
 
   const refreshUvr5ModelCacheState = useCallback(async () => {
     setIsCheckingUvr5ModelCache(true);
@@ -146,27 +94,6 @@ const GeneralSettings: React.FC = () => {
       }
 
       setLanguage(((configManager.get('general.language') as LanguageSetting | undefined) ?? 'auto'));
-      setAgentMode(normalizeAgentMode(configManager.get('general.agent_mode')));
-      setLlmProvider((configManager.get('general.llm_provider') as string) || LOCAL_LLM_PROVIDER_KEY);
-      setOpenaiKey((configManager.get('general.openai.api_key') as string) || '');
-      setOpenaiModel((configManager.get('general.openai.model') as string) || '');
-      setOpenaiFlex((configManager.get('general.openai.flex') as boolean) ?? false);
-      setPersistApiKeysNonLocalhost((configManager.get('general.persist_api_keys_non_localhost') as boolean) ?? false);
-      setAutoCompactThresholdPercent(
-        ((configManager.get('general.auto_compact_threshold_percent') as 80 | 90 | 95 | undefined) ?? 90),
-      );
-      setGeminiKey((configManager.get('general.gemini.api_key') as string) || '');
-      setGeminiModel((configManager.get('general.gemini.model') as string) || '');
-      setClaudeKey((configManager.get('general.claude.api_key') as string) || '');
-      setClaudeModel((configManager.get('general.claude.model') as string) || '');
-      setClaudeOpenRouterKey((configManager.get('general.claude_openrouter.api_key') as string) || '');
-      setClaudeOpenRouterBaseUrl((configManager.get('general.claude_openrouter.base_url') as string) || '');
-      setClaudeOpenRouterModel((configManager.get('general.claude_openrouter.model') as string) || '');
-      setCompatibleKey((configManager.get('general.openai_compatible.api_key') as string) || '');
-      setCompatibleBaseUrl((configManager.get('general.openai_compatible.base_url') as string) || '');
-      setCompatibleModel((configManager.get('general.openai_compatible.model') as string) || '');
-      setLocalContextLength(normalizeLocalLLMContextLength(configManager.get('general.local_browser.context_length')));
-      setLocalModelUrl((configManager.get('general.local_browser.model_url') as string) || LOCAL_LLM_DEFAULT_MODEL_URL);
       setUvr5ModelUrl(
         (configManager.get('general.uvr5_web_runtime.mdx_net_model_url') as string)
         || LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.mdxMedium].download.defaultUrl,
@@ -183,10 +110,8 @@ const GeneralSettings: React.FC = () => {
     };
 
     loadConfig();
-    const unsubscribe = LocalLLMModelManager.subscribe(setLocalModelState);
     void refreshUvr5ModelCacheState();
     void refreshSoundfontCacheState();
-    return unsubscribe;
   }, [configManager, refreshSoundfontCacheState, refreshUvr5ModelCacheState]);
 
   // Debounced save function for text inputs
@@ -203,27 +128,6 @@ const GeneralSettings: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, [configManager]);
 
-  // Save configuration when values change
-  const handleLlmProviderChange = async (value: string) => {
-    setLlmProvider(value);
-    try {
-      await configManager.set('general.llm_provider', value);
-      console.log('LLM provider changed to:', value);
-    } catch (error) {
-      console.error('Failed to save LLM provider:', error);
-    }
-  };
-
-  const handleAgentModeChange = async (value: AgentMode) => {
-    setAgentMode(value);
-    try {
-      await configManager.set('general.agent_mode', value);
-      console.log('Agent mode changed to:', value);
-    } catch (error) {
-      console.error('Failed to save agent mode:', error);
-    }
-  };
-
   const handleLanguageChange = async (value: LanguageSetting) => {
     setLanguage(value);
     try {
@@ -231,100 +135,6 @@ const GeneralSettings: React.FC = () => {
     } catch (error) {
       console.error('Failed to save language:', error);
     }
-  };
-
-  const handleOpenaiKeyChange = (value: string) => {
-    setOpenaiKey(value);
-    debouncedSave('general.openai.api_key', value);
-  };
-
-  const handleOpenaiModelChange = (value: string) => {
-    setOpenaiModel(value);
-    debouncedSave('general.openai.model', value);
-  };
-
-  const handleOpenaiFlexChange = async (value: string) => {
-    const boolValue = value === 'yes';
-    setOpenaiFlex(boolValue);
-    try {
-      await configManager.set('general.openai.flex', boolValue);
-      console.log('OpenAI Flex Mode changed to:', boolValue);
-    } catch (error) {
-      console.error('Failed to save OpenAI Flex Mode:', error);
-    }
-  };
-
-  const handlePersistApiKeysNonLocalhostChange = async (value: string) => {
-    const boolValue = value === 'yes';
-    setPersistApiKeysNonLocalhost(boolValue);
-    try {
-      await configManager.set('general.persist_api_keys_non_localhost', boolValue);
-      console.log('Persist API Keys Non-Localhost changed to:', boolValue);
-    } catch (error) {
-      console.error('Failed to save Persist API Keys Non-Localhost:', error);
-    }
-  };
-
-  const handleAutoCompactThresholdChange = async (value: string) => {
-    const parsed = Number(value);
-    const normalized: 80 | 90 | 95 = parsed === 80 || parsed === 95 ? parsed : 90;
-    setAutoCompactThresholdPercent(normalized);
-    try {
-      await configManager.set('general.auto_compact_threshold_percent', normalized);
-      console.log('Auto-compact threshold changed to:', normalized);
-    } catch (error) {
-      console.error('Failed to save auto-compact threshold:', error);
-    }
-  };
-
-  const handleGeminiKeyChange = (value: string) => {
-    setGeminiKey(value);
-    debouncedSave('general.gemini.api_key', value);
-  };
-
-  const handleGeminiModelChange = (value: string) => {
-    setGeminiModel(value);
-    debouncedSave('general.gemini.model', value);
-  };
-
-  const handleClaudeKeyChange = (value: string) => {
-    setClaudeKey(value);
-    debouncedSave('general.claude.api_key', value);
-  };
-
-  const handleClaudeModelChange = (value: string) => {
-    setClaudeModel(value);
-    debouncedSave('general.claude.model', value);
-  };
-
-  const handleClaudeOpenRouterKeyChange = (value: string) => {
-    setClaudeOpenRouterKey(value);
-    debouncedSave('general.claude_openrouter.api_key', value);
-  };
-
-  const handleClaudeOpenRouterModelChange = (value: string) => {
-    setClaudeOpenRouterModel(value);
-    debouncedSave('general.claude_openrouter.model', value);
-  };
-
-  const handleClaudeOpenRouterBaseUrlChange = (value: string) => {
-    setClaudeOpenRouterBaseUrl(value);
-    debouncedSave('general.claude_openrouter.base_url', value);
-  };
-
-  const handleCompatibleKeyChange = (value: string) => {
-    setCompatibleKey(value);
-    debouncedSave('general.openai_compatible.api_key', value);
-  };
-
-  const handleCompatibleBaseUrlChange = (value: string) => {
-    setCompatibleBaseUrl(value);
-    debouncedSave('general.openai_compatible.base_url', value);
-  };
-
-  const handleCompatibleModelChange = (value: string) => {
-    setCompatibleModel(value);
-    debouncedSave('general.openai_compatible.model', value);
   };
 
   const handleSoundfontBaseUrlChange = (value: string) => {
@@ -346,11 +156,6 @@ const GeneralSettings: React.FC = () => {
     debouncedSave('general.kgone.base_url', value);
   };
 
-  const handleLocalModelUrlChange = (value: string) => {
-    setLocalModelUrl(value);
-    debouncedSave('general.local_browser.model_url', value);
-  };
-
   const handleUvr5ModelUrlChange = (value: string) => {
     setUvr5ModelUrl(value);
     debouncedSave('general.uvr5_web_runtime.mdx_net_model_url', value);
@@ -359,14 +164,6 @@ const GeneralSettings: React.FC = () => {
   const handleHtdemucsModelUrlChange = (value: string) => {
     setHtdemucsModelUrl(value);
     debouncedSave('general.uvr5_web_runtime.htdemucs_4s_model_url', value);
-  };
-
-  const handleDeleteLocalModel = async () => {
-    try {
-      await LocalLLMModelManager.deleteCachedModel();
-    } catch (error) {
-      console.error('Failed to delete local language model cache:', error);
-    }
   };
 
   const handleDeleteUvr5Model = async () => {
@@ -424,24 +221,7 @@ const GeneralSettings: React.FC = () => {
     }
   };
 
-  const handleLocalContextLengthChange = async (value: string) => {
-    const parsed = Number(value);
-    const normalized = normalizeLocalLLMContextLength(parsed);
-    setLocalContextLength(normalized);
-    try {
-      await configManager.set('general.local_browser.context_length', normalized);
-      console.log('Local browser context length changed to:', normalized);
-    } catch (error) {
-      console.error('Failed to save local browser context length:', error);
-    }
-  };
 
-  const localRuntimeMessage = localModelState.runtimeSupport.reason;
-  const hasLocalRuntimeHardFailure = !localModelState.runtimeSupport.supported;
-  const isAgentModeOverriddenByLocalProvider = isAgentModeForcedByProvider(llmProvider);
-  const effectiveAgentMode = getEffectiveAgentMode(configManager);
-
-  // NOTE: Gemini and Claude are not supported yet due to CORS issues.
   return (
     <div className="settings-section">
       <div className="settings-section-header">
@@ -469,206 +249,6 @@ const GeneralSettings: React.FC = () => {
             <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
               {t('settings.general.language.help')}
             </div>
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>{t('settings.general.llmProvider.section')}</h4>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.llmProvider.label')}
-            </label>
-            <select
-              className="settings-select"
-              value={llmProvider}
-              onChange={(e) => handleLlmProviderChange(e.target.value)}
-            >
-              <option value={LOCAL_LLM_PROVIDER_KEY}>{t('settings.general.llmProvider.local')}</option>
-              <option value="openai">{t('settings.general.llmProvider.openai')}</option>
-              {/* <option value="gemini">Gemini</option>
-              <option value="claude">Claude</option> */}
-              <option value="claude_openrouter">{t('settings.general.llmProvider.claudeOpenRouter')}</option>
-              <option value="openai_compatible">{t('settings.general.llmProvider.openaiCompatible')}</option>
-            </select>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.persistKeys.label')}
-            </label>
-            <select
-              className="settings-select"
-              value={persistApiKeysNonLocalhost ? 'yes' : 'no'}
-              onChange={(e) => handlePersistApiKeysNonLocalhostChange(e.target.value)}
-            >
-              <option value="no">{t('settings.no')}</option>
-              <option value="yes">{t('settings.yes')}</option>
-            </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.persistKeys.help')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label" htmlFor="general-auto-compact-threshold">
-              {t('settings.general.autoCompactThreshold.label')}
-            </label>
-            <select
-              id="general-auto-compact-threshold"
-              className="settings-select"
-              value={autoCompactThresholdPercent}
-              onChange={(e) => void handleAutoCompactThresholdChange(e.target.value)}
-            >
-              <option value="95">{t('settings.general.autoCompactThreshold.conservative')}</option>
-              <option value="90">{t('settings.general.autoCompactThreshold.standard')}</option>
-              <option value="80">{t('settings.general.autoCompactThreshold.early')}</option>
-            </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.autoCompactThreshold.help')}
-            </div>
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>{t('settings.general.musicAssistant.section')}</h4>
-
-          <div className="settings-item">
-            <label className="settings-label" htmlFor="general-agent-mode-select">
-              {t('settings.general.musicAssistant.agentMode.label')}
-            </label>
-            <select
-              id="general-agent-mode-select"
-              className="settings-select"
-              value={agentMode}
-              onChange={(e) => void handleAgentModeChange(e.target.value as AgentMode)}
-              disabled={isAgentModeOverriddenByLocalProvider}
-            >
-              <option value="regular">{t('settings.general.musicAssistant.agentMode.regular')}</option>
-              <option value="efficient">{t('settings.general.musicAssistant.agentMode.efficient')}</option>
-            </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {isAgentModeOverriddenByLocalProvider
-                ? t('settings.general.musicAssistant.agentMode.localOverride')
-                : t('settings.general.musicAssistant.agentMode.help')}
-            </div>
-            {effectiveAgentMode !== agentMode && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                {t('settings.general.musicAssistant.agentMode.effectiveValue', {
-                  mode: t('settings.general.musicAssistant.agentMode.efficient'),
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
-
-          {hasLocalRuntimeHardFailure && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a', marginTop: '4px', marginBottom: '8px' }}>
-              {localRuntimeMessage}
-            </div>
-          )}
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.localRuntime.cachedStatus')}
-            </label>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {localModelState.isChecking
-                ? t('settings.general.localRuntime.cacheChecking')
-                : localModelState.isCached
-                  ? t('settings.general.localRuntime.cacheDownloaded')
-                  : t('settings.general.localRuntime.cacheMissing')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label" htmlFor="local-llm-context-length">
-              {t('settings.general.localRuntime.contextLength')}
-            </label>
-            <select
-              id="local-llm-context-length"
-              className="settings-select"
-              value={localContextLength}
-              onChange={(e) => void handleLocalContextLengthChange(e.target.value)}
-            >
-              {LOCAL_LLM_CONTEXT_LENGTH_OPTIONS.map(option => (
-                <option key={option} value={option}>
-                  {formatLocalLLMContextLength(option)}
-                </option>
-              ))}
-            </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.localRuntime.contextHelp')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.localRuntime.downloadUrl')}
-            </label>
-            <input
-              type="text"
-              className="settings-input"
-              placeholder={`e.g. ${LOCAL_LLM_DEFAULT_MODEL_URL}`}
-              value={localModelUrl}
-              onChange={(e) => handleLocalModelUrlChange(e.target.value)}
-            />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.localRuntime.downloadHelp')}{' '}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleLocalModelUrlChange(LOCAL_LLM_DEFAULT_MODEL_URL);
-                }}
-                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
-              >
-                {t('settings.restoreDefault')}
-              </a>
-            </div>
-          </div>
-
-          {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
-              {t('settings.general.localRuntime.autoDownload')}
-            </div>
-          )}
-
-          {(localModelState.isDownloading || localModelState.progressText) && (
-            <div className="settings-progress-block">
-              <div
-                className="settings-progress-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.max(0, Math.min(100, localModelState.progressPercent))}
-              >
-                <div className="settings-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localModelState.progressPercent))}%` }} />
-              </div>
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
-                {localModelState.progressText}
-              </div>
-            </div>
-          )}
-
-          {localModelState.error && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a', marginTop: '8px' }}>
-              {localModelState.error}
-            </div>
-          )}
-
-          <div className="settings-item" style={{ marginTop: '12px' }}>
-            <button
-              type="button"
-              className="settings-btn settings-btn-danger"
-              onClick={() => void handleDeleteLocalModel()}
-              disabled={localModelState.isDeleting || localModelState.isDownloading || !localModelState.isCached}
-            >
-              {localModelState.isDeleting ? t('settings.deleting') : t('settings.deleteCachedModel')}
-            </button>
           </div>
         </div>
 
@@ -751,280 +331,6 @@ const GeneralSettings: React.FC = () => {
             >
               {isDeletingHtdemucsModel ? t('settings.deleting') : t('settings.deleteCachedModel')}
             </button>
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>{t('settings.general.openai.section')}</h4>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.key')}
-            </label>
-            <input
-              type="password"
-              className="settings-input"
-              placeholder={t('settings.general.openai.keyPlaceholder')}
-              value={openaiKey}
-              onChange={(e) => handleOpenaiKeyChange(e.target.value)}
-            />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {isLocalEnvironment
-                ? t('settings.general.keys.persisted')
-                : persistApiKeysNonLocalhost
-                  ? t('settings.general.keys.persisted')
-                  : t('settings.general.keys.sessionOnly')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.model')}
-            </label>
-            <select
-              className="settings-select"
-              value={openaiModel}
-              onChange={(e) => handleOpenaiModelChange(e.target.value)}
-            >
-              <option value="gpt-5.4">gpt-5.4</option>
-              <option value="gpt-5.4-mini">gpt-5.4-mini</option>
-              <option value="gpt-5.4-nano">gpt-5.4-nano</option>
-              <option value="gpt-5.2">gpt-5.2</option>
-              <option value="gpt-5-mini">gpt-5-mini</option>
-              <option value="gpt-5-nano">gpt-5-nano</option>
-              <option value="gpt-4o">gpt-4o</option>
-            </select>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.flexMode')}
-            </label>
-            <select
-              className="settings-select"
-              value={openaiFlex ? 'yes' : 'no'}
-              onChange={(e) => handleOpenaiFlexChange(e.target.value)}
-            >
-              <option value="no">{t('settings.no')}</option>
-              <option value="yes">{t('settings.yes')}</option>
-            </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.openai.flexHelp')}
-            </div>
-          </div>
-        </div>
-
-        {/* <div className="settings-group">
-          <h4>Gemini</h4>
-          
-          <div className="settings-item">
-            <label className="settings-label">
-              Key
-            </label>
-            <input 
-              type="password" 
-              className="settings-input"
-              placeholder="Enter your Gemini API key"
-              value={geminiKey}
-              onChange={(e) => handleGeminiKeyChange(e.target.value)}
-            />
-          </div>
-          
-          <div className="settings-item">
-            <label className="settings-label">
-              Model
-            </label>
-            <input 
-              type="text" 
-              className="settings-input"
-              placeholder="e.g. gemini-2.5-flash"
-              value={geminiModel}
-              onChange={(e) => handleGeminiModelChange(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>Claude</h4>
-          
-          <div className="settings-item">
-            <label className="settings-label">
-              Key
-            </label>
-            <input 
-              type="password" 
-              className="settings-input"
-              placeholder="Enter your Claude API key"
-              value={claudeKey}
-              onChange={(e) => handleClaudeKeyChange(e.target.value)}
-            />
-          </div>
-          
-          <div className="settings-item">
-            <label className="settings-label">
-              Model
-            </label>
-            <input 
-              type="text" 
-              className="settings-input"
-              placeholder="e.g. claude-sonnet-4-0"
-              value={claudeModel}
-              onChange={(e) => handleClaudeModelChange(e.target.value)}
-            />
-          </div>
-        </div> */}
-
-        <div className="settings-group">
-          <h4>{t('settings.general.claudeOpenRouter.section')}</h4>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.key')}
-            </label>
-            <input
-              type="password"
-              className="settings-input"
-              placeholder={t('settings.general.claudeOpenRouter.keyPlaceholder')}
-              value={claudeOpenRouterKey}
-              onChange={(e) => handleClaudeOpenRouterKeyChange(e.target.value)}
-            />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {isLocalEnvironment
-                ? t('settings.general.keys.persisted')
-                : persistApiKeysNonLocalhost
-                  ? t('settings.general.keys.persisted')
-                  : t('settings.general.keys.sessionOnly')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.baseUrl')}
-            </label>
-            <input
-              type="text"
-              className="settings-input"
-              placeholder="e.g. https://openrouter.ai/api/v1"
-              value={claudeOpenRouterBaseUrl}
-              onChange={(e) => handleClaudeOpenRouterBaseUrlChange(e.target.value)}
-            />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.claudeOpenRouter.baseUrlHelp')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.model')}
-            </label>
-            <select
-              className="settings-select"
-              value={claudeOpenRouterModel}
-              onChange={(e) => handleClaudeOpenRouterModelChange(e.target.value)}
-            >
-              <option value="anthropic/claude-sonnet-4.6">claude-sonnet-4.6</option>
-              <option value="anthropic/claude-opus-4.6">claude-opus-4.6</option>
-              <option value="anthropic/claude-sonnet-4.5">claude-sonnet-4.5</option>
-              <option value="anthropic/claude-opus-4.5">claude-opus-4.5</option>
-              <option value="anthropic/claude-sonnet-4">claude-sonnet-4</option>
-              <option value="anthropic/claude-opus-4.1">claude-opus-4.1</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>{t('settings.general.openaiCompatible.section')}</h4>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.key')}
-            </label>
-            <input
-              type="password"
-              className="settings-input"
-              placeholder={t('settings.general.openaiCompatible.keyPlaceholder')}
-              value={compatibleKey}
-              onChange={(e) => handleCompatibleKeyChange(e.target.value)}
-            />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {isLocalEnvironment
-                ? t('settings.general.keys.persisted')
-                : persistApiKeysNonLocalhost
-                  ? t('settings.general.keys.persisted')
-                  : t('settings.general.keys.sessionOnly')}
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.baseUrl')}
-            </label>
-            <input
-              type="text"
-              className="settings-input"
-              placeholder={t('settings.general.openaiCompatible.baseUrlPlaceholder')}
-              value={compatibleBaseUrl}
-              onChange={(e) => handleCompatibleBaseUrlChange(e.target.value)}
-            />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-              {t('settings.general.openaiCompatible.baseUrlHelp')}{' '}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCompatibleBaseUrlChange('http://localhost:11434/v1/chat/completions');
-                }}
-                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
-              >
-                Ollama
-              </a>
-              {' | '}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCompatibleBaseUrlChange('http://localhost:8080/v1/chat/completions');
-                }}
-                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
-              >
-                llama.cpp
-              </a>
-              {' | '}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCompatibleBaseUrlChange('http://127.0.0.1:8317/v1/chat/completions');
-                }}
-                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
-              >
-                CLIProxyAPI
-              </a>
-              {' | '}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCompatibleBaseUrlChange('https://openrouter.ai/api/v1/chat/completions');
-                }}
-                style={{ color: '#5a9fd4', textDecoration: 'underline', cursor: 'pointer' }}
-              >
-                OpenRouter
-              </a>
-            </div>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.openai.model')}
-            </label>
-            <input
-              type="text"
-              className="settings-input"
-              placeholder={t('settings.general.openaiCompatible.modelPlaceholder')}
-              value={compatibleModel}
-              onChange={(e) => handleCompatibleModelChange(e.target.value)}
-            />
           </div>
         </div>
 

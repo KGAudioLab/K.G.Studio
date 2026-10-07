@@ -3,7 +3,7 @@
 You selected OpenAI Compatible as your LLM Provider, but no Base URL is configured.
 
 How to fix:
-- Go to **Settings ⚙️ → General → OpenAI Compatible Server**
+- Go to **Settings ⚙️ → Music Assistant → LLM Provider (OpenAI Compatible)**
 - Enter the **Base URL** for your provider (e.g., `https://openrouter.ai/api/v1` for OpenRouter, `http://localhost:11434/api/chat` for Ollama, etc.)
 
 After updating your settings, try your request again.

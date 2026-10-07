@@ -43,6 +43,7 @@ interface AppConfig {
       api_key: string;
       base_url: string;
       model: string;
+      reasoning_effort?: string;
     };
     soundfont: {
       base_url: string;
@@ -190,6 +191,24 @@ export class ConfigManager {
     }
   }
 
+  /** Reload upgraded storage into the current session without persisting defaults or credentials. */
+  public async reloadFromStorage(): Promise<void> {
+    if (!this.isInitialized || !this.defaultConfig) {
+      await this.initialize();
+      return;
+    }
+    const managedKGOne = this.kgoneServerManaged ? { ...this.config.general.kgone } : null;
+    const managedSoundfont = this.soundfontServerManaged ? { ...this.config.general.soundfont } : null;
+    const savedConfig = await this.storage.load(ConfigManager.CONFIG_KEY, Object);
+    this.config = enforceDefaultHotkeysForAppConfig(
+      this.mergeConfigs(this.defaultConfig, savedConfig as Partial<AppConfig> | null),
+      this.defaultConfig,
+    );
+    if (managedKGOne) this.config.general.kgone = managedKGOne;
+    if (managedSoundfont) this.config.general.soundfont = managedSoundfont;
+    this.notifyChangeListeners(['__all__']);
+  }
+
   /**
    * Load default configuration from config.json file
    */
@@ -235,7 +254,8 @@ export class ConfigManager {
           openai_compatible: {
             api_key: '',
             base_url: '',
-            model: ''
+            model: '',
+            reasoning_effort: 'medium'
           },
           local_browser: {
             context_length: 32768,
