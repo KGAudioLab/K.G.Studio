@@ -31,6 +31,7 @@ import { ListAllTracksTool } from './ListAllTracksTool';
 import { ListAllAvailableInstrumentsTool } from './ListAllAvailableInstrumentsTool';
 import { CreateNewTrackTool } from './CreateNewTrackTool';
 import { UpdateTrackTool } from './UpdateTrackTool';
+import { UpdateTrackStatusTool } from './UpdateTrackStatusTool';
 import { DeleteTrackTool } from './DeleteTrackTool';
 
 export {
@@ -55,6 +56,7 @@ export {
   ListAllAvailableInstrumentsTool,
   CreateNewTrackTool,
   UpdateTrackTool,
+  UpdateTrackStatusTool,
   DeleteTrackTool,
 };
 
@@ -81,6 +83,7 @@ export const AVAILABLE_TOOLS = {
   list_all_available_instruments: ListAllAvailableInstrumentsTool,
   create_new_track: CreateNewTrackTool,
   update_track: UpdateTrackTool,
+  update_track_status: UpdateTrackStatusTool,
   delete_track: DeleteTrackTool,
 } as const;
 

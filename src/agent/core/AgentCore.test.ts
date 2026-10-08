@@ -6,6 +6,7 @@ import type { StreamChunk } from '../llm/StreamingTypes';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ReadMusicTool } from '../tools/ReadMusicTool';
 import { AdvancedReadMusicTool } from '../tools/AdvancedReadMusicTool';
+import { UpdateTrackStatusTool } from '../tools/UpdateTrackStatusTool';
 
 const configState = new Map<string, unknown>([
   ['general.agent_mode', 'regular'],
@@ -87,6 +88,58 @@ describe('AgentCore todo integration', () => {
     AgentCore.instance().setLLMProvider(new ScriptedProvider([
       [{ type: 'done', content: '', finishReason: 'stop' }],
     ]));
+  });
+
+  it.each(['regular', 'advanced', 'efficient'])('gates update_track_status exposure and execution in %s mode', async mode => {
+    configState.set('general.agent_mode', mode);
+    const args = { track_id: '1', status_type: 'mute', value: true };
+    const execute = vi.spyOn(UpdateTrackStatusTool.prototype, 'execute')
+      .mockResolvedValue({ success: true, result: 'Track status updated' });
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_status', args, 'status_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+    const approval = vi.fn(async () => 'allow' as const);
+    try {
+      const chunks: StreamChunk[] = [];
+      for await (const chunk of AgentCore.instance().processUserInput('Mute Lead', { requestToolApproval: approval })) chunks.push(chunk);
+      const names = provider.tools[0].map(tool => tool.function.name);
+      const result = chunks.find(chunk => chunk.type === 'tool_result')?.toolResult;
+      if (mode === 'efficient') {
+        expect(names).not.toContain('update_track_status');
+        expect(execute).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ success: false, result: "Tool 'update_track_status' is not available in Efficient Mode." });
+      } else {
+        expect(names).toContain('update_track_status');
+        expect(approval).toHaveBeenCalledWith(expect.objectContaining({ id: 'status_1' }), mode);
+        expect(execute).toHaveBeenCalledWith(args);
+        expect(result?.success).toBe(true);
+      }
+    } finally {
+      execute.mockRestore();
+    }
+  });
+
+  it.each(['regular', 'advanced'])('does not update track status after approval is denied in %s', async mode => {
+    configState.set('general.agent_mode', mode);
+    const execute = vi.spyOn(UpdateTrackStatusTool.prototype, 'execute');
+    const provider = new ScriptedProvider([[
+      { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_status', { track_id: '1', status_type: 'solo', value: true }, 'status_1') },
+      { type: 'done', content: '', finishReason: 'tool_calls' },
+    ]]);
+    AgentCore.instance().setLLMProvider(provider);
+    try {
+      const chunks: StreamChunk[] = [];
+      for await (const chunk of AgentCore.instance().processUserInput('Solo Lead', { requestToolApproval: async () => 'deny' })) chunks.push(chunk);
+      expect(execute).not.toHaveBeenCalled();
+      expect(chunks.find(chunk => chunk.type === 'tool_result')?.toolResult).toMatchObject({ success: false, denied: true });
+    } finally {
+      execute.mockRestore();
+    }
   });
 
   it('updates todo state through the update_todo_list tool during the agent loop', async () => {
