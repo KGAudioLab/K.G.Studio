@@ -33,6 +33,7 @@ import { CreateNewTrackTool } from './CreateNewTrackTool';
 import { UpdateTrackTool } from './UpdateTrackTool';
 import { UpdateTrackStatusTool } from './UpdateTrackStatusTool';
 import { UpdateTrackVolumeTool } from './UpdateTrackVolumeTool';
+import { RemoveTrackAutomationTool } from './RemoveTrackAutomationTool';
 import { UpdateTrackAutomationTool } from './UpdateTrackAutomationTool';
 import { UpdateTrackPanTool } from './UpdateTrackPanTool';
 import { DeleteTrackTool } from './DeleteTrackTool';
@@ -63,6 +64,7 @@ export {
   UpdateTrackVolumeTool,
   UpdateTrackPanTool,
   UpdateTrackAutomationTool,
+  RemoveTrackAutomationTool,
   DeleteTrackTool,
 };
 
@@ -93,6 +95,7 @@ export const AVAILABLE_TOOLS = {
   update_track_volume: UpdateTrackVolumeTool,
   update_track_pan: UpdateTrackPanTool,
   update_track_automation: UpdateTrackAutomationTool,
+  remove_track_automation: RemoveTrackAutomationTool,
   delete_track: DeleteTrackTool,
 } as const;
 

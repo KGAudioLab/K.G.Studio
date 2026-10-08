@@ -6,6 +6,8 @@ import { createMockMidiControllerEvent, createMockMidiPitchBend, createMockMidiR
 import { I18nContext } from '../../i18n/I18nProvider';
 import type { ResolvedLocaleCode } from '../../i18n/types';
 import { translate } from '../../i18n/translate';
+import { RemoveTrackAutomationTool } from '../../agent/tools/RemoveTrackAutomationTool';
+import type { KGCommand } from '../../core/commands/KGCommand';
 import { TICKS_PER_QUARTER } from '../../core/timing';
 
 const coreMock = {
@@ -115,6 +117,35 @@ describe('PianoRollAutomationLane', () => {
     restore();
     rerender(lane(5));
     expect(container.querySelectorAll('.piano-roll-automation-point')).toHaveLength(1);
+    expect(container.querySelector('.piano-roll-automation-scroll-layer')).toBe(mountedLane);
+  });
+
+  it.each(['cc-1', 'pitch-bend'] as const)('redraws visible %s after tool removal and undo/redo', async type => {
+    const region = createMockMidiRegion({ trackId: '1', trackIndex: 0, startTick: 0 });
+    if (type === 'pitch-bend') region.addPitchBend(createMockMidiPitchBend({ id: 'bend', beat: 1, value: 8192 }));
+    else region.addControllerEvent(1, createMockMidiControllerEvent({ id: 'cc', beat: 1, value: 127 }));
+    storeState.tracks = [createMockMidiTrack({ id: 1, regions: [region] })];
+    coreMock.currentProjectTracks = storeState.tracks;
+    const lane = (version: number) => (
+      <I18nContext.Provider value={{ languageSetting: 'en_us', resolvedLocale: 'en_us', setLanguageSetting: async () => undefined, t: (key, params) => translate(key, params, 'en_us') }}>
+        <PianoRollAutomationLane activeRegion={region} automationType={type} maxBars={8} timeSignature={{ numerator: 4, denominator: 4 }} redrawVersion={version} />
+      </I18nContext.Provider>
+    );
+    const { container, rerender } = render(lane(0));
+    const mountedLane = container.querySelector('.piano-roll-automation-scroll-layer');
+    expect(container.querySelectorAll('.piano-roll-automation-point')).toHaveLength(1);
+    const result = await new RemoveTrackAutomationTool().execute({ track_id: '1', automation_type: type === 'pitch-bend' ? 'pitch_bend' : 'cc1', position: TICKS_PER_QUARTER, length: 1 });
+    expect(result.success).toBe(true);
+    const command = coreMock.executeCommand.mock.calls[0][0] as KGCommand;
+    // The parent forwards the redraw version advanced by centralized project refreshes.
+    rerender(lane(1));
+    expect(container.querySelectorAll('.piano-roll-automation-point')).toHaveLength(0);
+    command.undo();
+    rerender(lane(2));
+    expect(container.querySelectorAll('.piano-roll-automation-point')).toHaveLength(1);
+    command.execute();
+    rerender(lane(3));
+    expect(container.querySelectorAll('.piano-roll-automation-point')).toHaveLength(0);
     expect(container.querySelector('.piano-roll-automation-scroll-layer')).toBe(mountedLane);
   });
 

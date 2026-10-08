@@ -15,8 +15,7 @@ import { signedPitchBendToMidiValue } from '../../util/midiUtil';
 import { ticksPerBar } from '../../core/timing';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 
-const AUTOMATION_TYPES = ['volume', 'pan', 'pitch_bend', 'cc1', 'cc2', 'cc7', 'cc11', 'cc64'] as const;
-type AutomationType = typeof AUTOMATION_TYPES[number];
+import { AUTOMATION_TYPES, type AutomationType } from './automationToolTypes';
 const VALUE_DESCRIPTION = 'Finite value: volume [-60, 12] dB (decimals allowed); pan [-1, 1] (decimals allowed, -1 left, 0 center, 1 right); pitch_bend integer [-8192, 8191] (0 center); cc1/cc2/cc7/cc11 integer [0, 127]; cc64 exactly 0 (off) or 127 (on). Invalid values return an error without clamping or rounding.';
 
 /** Region preparation and event upsert form a single undo entry. */

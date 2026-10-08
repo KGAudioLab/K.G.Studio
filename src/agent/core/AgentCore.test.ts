@@ -8,6 +8,7 @@ import { ReadMusicTool } from '../tools/ReadMusicTool';
 import { AdvancedReadMusicTool } from '../tools/AdvancedReadMusicTool';
 import { UpdateTrackStatusTool } from '../tools/UpdateTrackStatusTool';
 import { UpdateTrackVolumeTool } from '../tools/UpdateTrackVolumeTool';
+import { RemoveTrackAutomationTool } from '../tools/RemoveTrackAutomationTool';
 import { UpdateTrackAutomationTool } from '../tools/UpdateTrackAutomationTool';
 import { UpdateTrackPanTool } from '../tools/UpdateTrackPanTool';
 
@@ -354,8 +355,9 @@ describe('AgentCore todo integration', () => {
     await collectChunks('Inspect available tools again.');
 
     expect(provider.systemPrompts[1]).toBe('system prompt:prompts/system_advanced.md');
-    expect(provider.tools[1].map(tool => tool.function.name).filter(name => name !== 'update_track_automation')).toEqual(provider.tools[0].map(tool => tool.function.name));
+    expect(provider.tools[1].map(tool => tool.function.name).filter(name => name !== 'update_track_automation' && name !== 'remove_track_automation')).toEqual(provider.tools[0].map(tool => tool.function.name));
     expect(provider.tools[1].map(tool => tool.function.name)).toContain('update_track_automation');
+    expect(provider.tools[1].map(tool => tool.function.name)).toContain('remove_track_automation');
     const advancedRead = provider.tools[1].find(tool => tool.function.name === 'read_music')!;
     expect(advancedRead.function.description).toContain('structured JSON');
     expect(JSON.stringify(advancedRead.function.parameters)).toContain('tick');
@@ -376,6 +378,27 @@ describe('AgentCore todo integration', () => {
       const chunks = await collectChunks('Automate pan.');
       const names = provider.tools[0].map(tool => tool.function.name);
       expect(names.includes('update_track_automation')).toBe(mode === 'advanced');
+      expect(execute).toHaveBeenCalledTimes(mode === 'advanced' ? 1 : 0);
+      expect(chunks.find(chunk => chunk.type === 'tool_result')?.toolResult?.success).toBe(mode === 'advanced');
+      if (mode === 'advanced') expect(execute).toHaveBeenCalledWith(expect.objectContaining({ position: 123 }));
+    } finally { execute.mockRestore(); }
+  });
+
+  it.each(['regular', 'efficient', 'advanced'] as const)('advertises and executes automation removal only in Advanced mode (%s)', async mode => {
+    configState.set('general.agent_mode', mode);
+    const execute = vi.spyOn(RemoveTrackAutomationTool.prototype, 'execute').mockResolvedValue({ success: true, result: 'updated' });
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('remove_track_automation', { track_id: '1', automation_type: 'pan', position: 123, length: 1 }, 'automation_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+    try {
+      const chunks = await collectChunks('Automate pan.');
+      const names = provider.tools[0].map(tool => tool.function.name);
+      expect(names.includes('remove_track_automation')).toBe(mode === 'advanced');
       expect(execute).toHaveBeenCalledTimes(mode === 'advanced' ? 1 : 0);
       expect(chunks.find(chunk => chunk.type === 'tool_result')?.toolResult?.success).toBe(mode === 'advanced');
       if (mode === 'advanced') expect(execute).toHaveBeenCalledWith(expect.objectContaining({ position: 123 }));
