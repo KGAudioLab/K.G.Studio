@@ -30,10 +30,27 @@ describe('ConfigManager reload after migration', () => {
     manager.addChangeListener(listener);
     await manager.reloadFromStorage();
     expect(manager.get('general.llm_provider')).toBe('openai_compatible');
-    expect(manager.get('general.openai_compatible')).toEqual({ api_key: 'saved-key', model: 'saved-model', base_url: 'https://api.openai.com/v1' });
+    expect(manager.get('general.openai_compatible')).toEqual({ api_key: 'saved-key', model: 'saved-model', base_url: 'https://api.openai.com/v1', reasoning_effort: 'medium' });
     expect(manager.get('general.openai.flex')).toBe(true);
     expect(listener).toHaveBeenCalledExactlyOnceWith(['__all__']);
     expect(storage.save).not.toHaveBeenCalled();
+  });
+
+  it('loads the V7 mode in the same session and allows selecting regular afterward', async () => {
+    const config = { general: { agent_mode: 'regular' } };
+    storage.load.mockImplementation(async () => structuredClone(config));
+    storage.getRaw.mockImplementation(async () => structuredClone(config));
+    storage.saveRaw.mockImplementation(async (_key, value) => Object.assign(config, structuredClone(value)));
+    const { ConfigManager } = await import('./ConfigManager');
+    const { upgradeConfigToV7 } = await import('../config-upgrader/upgradeConfigToV7');
+    const manager = ConfigManager.instance();
+    await manager.initialize();
+    expect(manager.get('general.agent_mode')).toBe('regular');
+    await upgradeConfigToV7();
+    await manager.reloadFromStorage();
+    expect(manager.get('general.agent_mode')).toBe('advanced');
+    await manager.set('general.agent_mode', 'regular');
+    expect(manager.get('general.agent_mode')).toBe('regular');
   });
 
   it('preserves managed server overrides and default hotkeys across reloads', async () => {
@@ -57,6 +74,7 @@ describe('ConfigManager reload after migration', () => {
     const manager = ConfigManager.instance();
     await manager.reloadFromStorage();
     expect(manager.getIsInitialized()).toBe(true);
+    expect(manager.get('general.agent_mode')).toBe('advanced');
     expect(manager.get('general.llm_provider')).toBe('local_browser');
   });
 

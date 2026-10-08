@@ -404,6 +404,34 @@ describe('useStreamProcessor', () => {
     expect(toolResultMessage?.toolResultDisplayContent).toBe('raw music result');
   });
 
+  it('renders advanced object results using the executing mode without object coercion', async () => {
+    const payload = { tracks: [{ track_id: 1, track_name: 'Melody', notes: [] }] };
+    vi.spyOn(AgentCore, 'instance').mockReturnValue({
+      getAgentState: () => ({ getTodos: () => [] }),
+      processUserInput: async function* () {
+        yield { type: 'tool_call', content: '', agentMode: 'advanced', toolCall: {
+          id: 'advanced-read', type: 'function', function: { name: 'read_music', arguments: '{}' },
+        } };
+        yield { type: 'tool_result', content: '', agentMode: 'advanced', toolResult: {
+          toolCallId: 'advanced-read', name: 'read_music', success: true, result: payload,
+        } };
+        yield { type: 'done', content: '' };
+      },
+    } as unknown as AgentCore);
+    const messages: ChatMessage[] = [];
+    const { result } = renderHook(() => useStreamProcessor({
+      onMessageAdd: message => messages.push(message),
+      onMessageUpdate: () => undefined,
+      onMessageRemove: () => undefined,
+      onProcessingChange: () => undefined,
+    }));
+    await act(async () => { await result.current.processStream('Read advanced music.'); });
+    const message = messages.find(message => message.toolName === 'read_music');
+    expect(message?.toolRawResult).toBe(JSON.stringify(payload, null, 2));
+    expect(message?.toolResultDisplayContent).toBe('Read Melody, 0 notes.');
+    expect(message?.content).not.toContain('[object Object]');
+  });
+
   it('uses tool-specific history and UI strings for error results when provided', async () => {
     vi.spyOn(AgentCore, 'instance').mockReturnValue({
       getAgentState: () => ({

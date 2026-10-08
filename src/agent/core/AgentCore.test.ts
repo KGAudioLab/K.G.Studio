@@ -5,6 +5,7 @@ import type { Message, ToolCall } from './AgentState';
 import type { StreamChunk } from '../llm/StreamingTypes';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ReadMusicTool } from '../tools/ReadMusicTool';
+import { AdvancedReadMusicTool } from '../tools/AdvancedReadMusicTool';
 
 const configState = new Map<string, unknown>([
   ['general.agent_mode', 'regular'],
@@ -269,6 +270,92 @@ describe('AgentCore todo integration', () => {
     expect(toolNames).toContain('write_chord_progression');
   });
 
+  it('uses the separate advanced prompt and mode-specific schemas with the same tool names', async () => {
+    const provider = new ScriptedProvider([]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    await collectChunks('Inspect available tools.');
+    configState.set('general.agent_mode', 'advanced');
+    await collectChunks('Inspect available tools again.');
+
+    expect(provider.systemPrompts[1]).toBe('system prompt:prompts/system_advanced.md');
+    expect(provider.tools[1].map(tool => tool.function.name)).toEqual(provider.tools[0].map(tool => tool.function.name));
+    const advancedRead = provider.tools[1].find(tool => tool.function.name === 'read_music')!;
+    expect(advancedRead.function.description).toContain('structured JSON');
+    expect(JSON.stringify(advancedRead.function.parameters)).toContain('tick');
+  });
+
+  it('streams structured JSON and serializes the result envelope once for the LLM', async () => {
+    configState.set('general.agent_mode', 'advanced');
+    const payload = { tracks: [{ track_id: 1, notes: [] }] };
+    const execute = vi.spyOn(AdvancedReadMusicTool.prototype, 'execute').mockResolvedValue({ success: true, result: payload });
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('read_music', {}, 'json_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+    try {
+      const chunks = await collectChunks('Read music.');
+      expect(chunks.find(chunk => chunk.type === 'tool_call')?.agentMode).toBe('advanced');
+      const result = chunks.find(chunk => chunk.type === 'tool_result');
+      expect(result?.agentMode).toBe('advanced');
+      expect(result?.toolResult?.result).toEqual(payload);
+      const message = provider.calls[1].find(message => message.role === 'tool');
+      expect(JSON.parse(message!.content as string)).toEqual({ success: true, result: payload });
+    } finally {
+      execute.mockRestore();
+    }
+  });
+
+  it('passes the executing mode to approvals and stops denied advanced edits', async () => {
+    configState.set('general.agent_mode', 'advanced');
+    const provider = new ScriptedProvider([[
+      { type: 'tool_call', content: '', toolCall: makeToolCall('add_notes', { notes: [{ pitch: 'C4', start: 960, length: 480 }] }, 'edit_1') },
+      { type: 'done', content: '', finishReason: 'tool_calls' },
+    ]]);
+    AgentCore.instance().setLLMProvider(provider);
+    const approval = vi.fn(async () => {
+      configState.set('general.agent_mode', 'regular');
+      return 'deny' as const;
+    });
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of AgentCore.instance().processUserInput('Add a note.', { requestToolApproval: approval })) chunks.push(chunk);
+    expect(approval).toHaveBeenCalledWith(expect.objectContaining({ id: 'edit_1' }), 'advanced');
+    expect(chunks.find(chunk => chunk.type === 'tool_result')).toMatchObject({ agentMode: 'advanced', toolResult: { denied: true, success: false } });
+  });
+
+  it.each(['regular', 'advanced'])('enforces regular tool restrictions in %s mode', async (mode) => {
+    configState.set('general.agent_mode', mode);
+    const availabilitySpy = vi.spyOn(ReadMusicTool.prototype, 'isAvailableInRegularMode')
+      .mockReturnValue(false);
+    const executeSpy = vi.spyOn(ReadMusicTool.prototype, 'execute');
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall('read_music', {}, 'tool_1') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+
+    try {
+      const chunks = await collectChunks('Read the current region.');
+      expect(provider.tools[0].map(tool => tool.function.name)).not.toContain('read_music');
+      const result = chunks.find(chunk => chunk.type === 'tool_result' && chunk.toolResult?.name === 'read_music');
+      expect(result?.toolResult?.success).toBe(false);
+      expect(result?.toolResult?.result).toBe(
+        `Tool 'read_music' is not available in ${mode === 'advanced' ? 'Advanced Mode' : 'Regular Mode'}.`,
+      );
+      expect(executeSpy).not.toHaveBeenCalled();
+    } finally {
+      availabilitySpy.mockRestore();
+      executeSpy.mockRestore();
+    }
+  });
+
   it('uses the compact system prompt in efficient mode', async () => {
     configState.set('general.agent_mode', 'efficient');
     const provider = new ScriptedProvider([
@@ -281,8 +368,8 @@ describe('AgentCore todo integration', () => {
     expect(provider.systemPrompts[0]).toBe('system prompt:prompts/system_compact.md');
   });
 
-  it('forces efficient mode when the local browser provider is selected', async () => {
-    configState.set('general.agent_mode', 'regular');
+  it.each(['regular', 'advanced'])('forces efficient mode for the local browser provider with %s configured', async (mode) => {
+    configState.set('general.agent_mode', mode);
     configState.set('general.llm_provider', 'local_browser');
     const provider = new ScriptedProvider([
       [{ type: 'done', content: '', finishReason: 'stop' }],

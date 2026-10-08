@@ -6,6 +6,7 @@ import { upgradeConfigToV3 } from './upgradeConfigToV3';
 import { upgradeConfigToV4 } from './upgradeConfigToV4';
 import { upgradeConfigToV5 } from './upgradeConfigToV5';
 import { upgradeConfigToV6 } from './upgradeConfigToV6';
+import { upgradeConfigToV7 } from './upgradeConfigToV7';
 import { ConfigManager } from '../config/ConfigManager';
 
 /**
@@ -57,6 +58,10 @@ export class KGConfigUpgrader {
         }
         case 6: {
           await upgradeConfigToV6(ConfigManager.instance().getDefaults()?.general);
+          break;
+        }
+        case 7: {
+          await upgradeConfigToV7();
           break;
         }
         default: {

@@ -229,7 +229,7 @@ export class ConfigManager {
       this.defaultConfig = {
         general: {
           language: 'auto',
-          agent_mode: 'regular',
+          agent_mode: 'advanced',
           llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           auto_compact_threshold_percent: 90,

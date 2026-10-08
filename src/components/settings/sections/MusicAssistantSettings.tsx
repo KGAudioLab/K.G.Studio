@@ -322,6 +322,7 @@ const MusicAssistantSettings: React.FC = () => {
               onChange={(e) => void handleAgentModeChange(e.target.value as AgentMode)}
               disabled={isAgentModeOverriddenByLocalProvider}
             >
+              <option value="advanced">{t('settings.general.musicAssistant.agentMode.advanced')}</option>
               <option value="regular">{t('settings.general.musicAssistant.agentMode.regular')}</option>
               <option value="efficient">{t('settings.general.musicAssistant.agentMode.efficient')}</option>
             </select>

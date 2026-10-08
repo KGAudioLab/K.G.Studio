@@ -8,7 +8,9 @@ import { KGMidiRegion } from './region/KGMidiRegion';
 import { convertRegionToABCNotation, convertBeatRangeChordProgressionToABCNotation } from '../util/abcNotationUtil';
 import { extractXMLFromString } from '../util/xmlUtil';
 import { AgentCore } from '../agent/core/AgentCore';
-import { AVAILABLE_TOOLS } from '../agent/tools';
+import { AVAILABLE_TOOLS, createToolInstance } from '../agent/tools';
+import { ConfigManager } from './config/ConfigManager';
+import { getEffectiveAgentMode } from '../util/agentMode';
 import type { TimeSignature } from '../types/projectTypes';
 import { useProjectStore } from '../stores/projectStore';
 
@@ -368,11 +370,13 @@ export class KGDebugger {
    *
    * Usage examples in browser console:
    *
-   *   // Single tool call:
-   *   await KGDebugger.testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}')
+   *   // Uses the effective Agent Mode. Advanced timing is ticks (960 per quarter);
+   *   // Regular/Efficient timing is quarter-note units.
+   *   // Single tool call (two bars in Advanced Mode):
+   *   await KGDebugger.testToolCall('{"name":"read_music","arguments":{"start":0,"length":7680}}')
    *
    *   // Multiple tool calls:
-   *   await KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start":0,"end_beat":4}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start":0,"length":1}]}}]')
+   *   await KGDebugger.testToolCall('[{"name":"remove_notes","arguments":{"start":0,"end":3840}},{"name":"add_notes","arguments":{"notes":[{"pitch":"C4","start":0,"length":960}]}}]')
    *
    *   // Can also pass a JS object directly (no need to stringify):
    *   await KGDebugger.testToolCall({name:"read_music",arguments:{start:0}})
@@ -394,7 +398,10 @@ export class KGDebugger {
         calls = [input as { name: string; arguments: Record<string, unknown> }];
       }
 
-      console.log(`🔧 Executing ${calls.length} tool call(s)...\n`);
+      const configManager = ConfigManager.instance();
+      if (!configManager.getIsInitialized()) await configManager.initialize();
+      const agentMode = getEffectiveAgentMode(configManager);
+      console.log(`🔧 Executing ${calls.length} tool call(s) in ${agentMode} mode...\n`);
 
       for (let i = 0; i < calls.length; i++) {
         const call = calls[i];
@@ -404,13 +411,19 @@ export class KGDebugger {
         console.log(`── Tool call ${i + 1}/${calls.length}: ${toolName}`);
         console.log(`   Arguments: ${JSON.stringify(toolArgs, null, 2)}`);
 
-        const ToolClass = AVAILABLE_TOOLS[toolName as keyof typeof AVAILABLE_TOOLS];
-        if (!ToolClass) {
+        const toolInstance = createToolInstance(toolName, agentMode);
+        if (!toolInstance) {
           console.error(`   ❌ Unknown tool: "${toolName}". Available tools: ${Object.keys(AVAILABLE_TOOLS).join(', ')}`);
           continue;
         }
 
-        const toolInstance = new ToolClass();
+        const available = agentMode === 'efficient'
+          ? toolInstance.isAvailableInEfficientMode()
+          : toolInstance.isAvailableInRegularMode();
+        if (!available) {
+          console.error(`   ❌ Tool "${toolName}" is not available in ${agentMode} mode.`);
+          continue;
+        }
         const result = await toolInstance.execute(toolArgs);
 
         // Sync UI state on success
@@ -420,7 +433,7 @@ export class KGDebugger {
 
         const icon = result.success ? '✅' : '❌';
         console.log(`   ${icon} Success: ${result.success}`);
-        console.log(`   Result: ${result.result}\n`);
+        console.log('   Result:', result.result);
       }
 
       console.log('🔧 Tool execution complete.');
@@ -457,12 +470,12 @@ export class KGDebugger {
     console.log("  - Results are logged to console and copied to clipboard when possible");
     console.log("  - Use browser developer tools for best experience");
     console.log("");
-    console.log("💡 testToolCall examples:");
+    console.log("💡 testToolCall uses the effective Agent Mode. Advanced examples below use ticks (960 per quarter note):");
     console.log('  await KGDebugger.testToolCall(\'{"name":"get_user_selected_music_range_and_track","arguments":{}}\')');
     console.log('  await KGDebugger.testToolCall(\'{"name":"list_all_tracks","arguments":{}}\')');
-    console.log('  await KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":8}}\')');
-    console.log('  await KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:1}]}})');
-    console.log('  await KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end_beat:4}},{name:"read_music",arguments:{}}])');
+    console.log('  await KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":7680}}\')');
+    console.log('  await KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:960}]}})');
+    console.log('  await KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end:3840}},{name:"read_music",arguments:{}}])');
     console.log("");
     console.log("💡 KGOne input examples:");
     console.log('  await KGDebugger.inputKGOneCaption("Genre: Eurodance, 90s dance-pop, upbeat electronic...", 30)');
