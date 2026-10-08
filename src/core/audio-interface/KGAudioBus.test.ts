@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MockBufferSource, MockGain, MockSampler } from '../../test/mocks/tone';
+import { MockBufferSource, MockGain, MockSampler, MockPanner } from '../../test/mocks/tone';
 
 vi.mock('tone', async () => {
   const { ToneMock } = await import('../../test/mocks/tone');
@@ -41,6 +41,23 @@ describe('KGAudioBus live MIDI pitch bend', () => {
       has: (key: string) => key === 'C4',
       get: (key: string) => key === 'C4' ? { duration: 1 } : undefined,
     });
+  });
+
+  it('preserves updated base mix values under automation and restores them when automation clears', async () => {
+    const bus = await KGAudioBus.create('acoustic_grand_piano', -6, -0.25);
+    const panner = MockPanner.mock.results.at(-1)!.value;
+    bus.setAutomationPan(0.75);
+    bus.setPan(-0.5);
+    expect(bus.getPan()).toBe(-0.5);
+    expect(panner.pan.setValueAtTime).toHaveBeenLastCalledWith(0.75, expect.any(Number));
+    bus.setAutomationPan(null);
+    expect(panner.pan.setValueAtTime).toHaveBeenLastCalledWith(-0.5, expect.any(Number));
+    bus.setAutomationVolume(-12);
+    bus.setVolume(-3);
+    expect(bus.getVolume()).toBe(-3);
+    expect(bus.getSampler().volume.value).toBe(-12);
+    bus.setAutomationVolume(null);
+    expect(bus.getSampler().volume.value).toBe(-3);
   });
 
   it('retunes held live MIDI notes when pitch bend changes', async () => {

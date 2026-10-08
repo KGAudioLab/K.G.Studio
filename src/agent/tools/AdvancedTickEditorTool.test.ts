@@ -26,8 +26,8 @@ const cases = [
 ] as const;
 
 describe('advanced tick editor adapters', () => {
-  it('replaces exactly 16 tools and leaves the seven untimed implementations shared', () => {
-    const shared = new Set(['update_todo_list', 'list_all_tracks', 'list_all_available_instruments', 'create_new_track', 'update_track', 'update_track_status', 'delete_track']);
+  it('replaces exactly 16 tools and leaves the nine untimed implementations shared', () => {
+    const shared = new Set(['update_todo_list', 'list_all_tracks', 'list_all_available_instruments', 'create_new_track', 'update_track', 'update_track_status', 'update_track_volume', 'update_track_pan', 'delete_track']);
     let replacements = 0;
     for (const name of Object.keys(AVAILABLE_TOOLS)) {
       const regular = createToolInstance(name, 'regular')!;

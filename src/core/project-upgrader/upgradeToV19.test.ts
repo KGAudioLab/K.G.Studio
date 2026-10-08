@@ -8,7 +8,7 @@ describe('upgradeToV19', () => {
   it('defaults fresh projects to Music Assistant and no piano-roll snapping', () => {
     const project = new KGProject();
 
-    expect(project.getProjectStructureVersion()).toBe(20);
+    expect(project.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     expect(project.getRightPanel()).toBe('musicAssistant');
     expect(project.getPianoRollSnapping()).toBe('none');
   });
@@ -25,7 +25,7 @@ describe('upgradeToV19', () => {
 
       upgradeProjectToLatest(legacy);
 
-      expect(legacy.getProjectStructureVersion()).toBe(20);
+      expect(legacy.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
       expect(legacy.getRightPanel()).toBe('musicAssistant');
       expect(legacy.getPianoRollSnapping()).toBe('none');
     },

@@ -44,7 +44,7 @@ describe('upgradeToV20', () => {
 
     upgradeProjectToLatest(project);
 
-    expect(project.getProjectStructureVersion()).toBe(20);
+    expect(project.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     expect(project.getBpm()).toBe(expectedBpm);
     expect(project.getPlayheadTick()).toBe(signature.numerator * scale);
     expect(midiRegion.getStartTick()).toBe(signature.numerator * scale);
@@ -65,7 +65,7 @@ describe('upgradeToV20', () => {
 
     const restored = plainToInstance(KGProject, once);
     upgradeProjectToLatest(restored);
-    expect(restored.getProjectStructureVersion()).toBe(20);
+    expect(restored.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     expect(restored.getPlayheadTick()).toBe(signature.numerator * scale);
   });
 });

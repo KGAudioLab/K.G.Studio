@@ -20,6 +20,8 @@ export interface ToolParameter {
   description: string;
   required?: boolean;
   enum?: string[];
+  minimum?: number;
+  maximum?: number;
   items?: ToolParameter; // For array types
   properties?: Record<string, ToolParameter>; // For object types
 }
@@ -174,6 +176,8 @@ export abstract class BaseTool<T = string> {
     if (param.enum) {
       schema.enum = param.enum;
     }
+    if (param.minimum !== undefined) schema.minimum = param.minimum;
+    if (param.maximum !== undefined) schema.maximum = param.maximum;
 
     if (param.type === 'object' && param.properties) {
       const properties: Record<string, unknown> = {};

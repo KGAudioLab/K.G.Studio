@@ -610,6 +610,8 @@ export const zhHkMessages: TranslationMessages = {
   'toolbar.button.kgone': 'K.G.One 音樂生成器',
   'toolbar.button.chat': '聊天',
   'toolbar.button.eventList': '事件列表編輯器',
+  'track.controls.basePan': '基礎聲像',
+  'track.controls.basePanTooltip': '基礎聲像：{value}。向右或向上拖動偏右，向左或向下拖動偏左。雙擊重設為置中。',
   'track.controls.automationButton': '音軌自動化',
   'track.controls.automationDropdown': '自動化',
   'track.controls.automation.volume': '音量',

@@ -182,6 +182,7 @@ export class DuplicateTrackCommand extends KGCommand {
     duplicate.setTrackIndex(trackIndex);
     duplicate.setColor(source.getColor());
     duplicate.setMuted(source.getMuted());
+    duplicate.setPan(source.getPan());
     duplicate.setSolo(source.getSolo());
     if (this.options.includeAutomation) {
       duplicate.setVolumeAutomation(source.getVolumeAutomation().map(cloneAutomationPoint));

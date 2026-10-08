@@ -7,6 +7,8 @@ import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ReadMusicTool } from '../tools/ReadMusicTool';
 import { AdvancedReadMusicTool } from '../tools/AdvancedReadMusicTool';
 import { UpdateTrackStatusTool } from '../tools/UpdateTrackStatusTool';
+import { UpdateTrackVolumeTool } from '../tools/UpdateTrackVolumeTool';
+import { UpdateTrackPanTool } from '../tools/UpdateTrackPanTool';
 
 const configState = new Map<string, unknown>([
   ['general.agent_mode', 'regular'],
@@ -79,6 +81,12 @@ async function collectChunks(input: string): Promise<StreamChunk[]> {
   return chunks;
 }
 
+const mixTools = [
+  { name: 'update_track_status', Tool: UpdateTrackStatusTool, args: { track_id: '1', status_type: 'mute', value: true } },
+  { name: 'update_track_volume', Tool: UpdateTrackVolumeTool, args: { track_id: '1', value: -6 } },
+  { name: 'update_track_pan', Tool: UpdateTrackPanTool, args: { track_id: '1', value: -0.5 } },
+];
+
 describe('AgentCore todo integration', () => {
   beforeEach(() => {
     configState.set('general.agent_mode', 'regular');
@@ -90,14 +98,13 @@ describe('AgentCore todo integration', () => {
     ]));
   });
 
-  it.each(['regular', 'advanced', 'efficient'])('gates update_track_status exposure and execution in %s mode', async mode => {
+  it.each(['regular', 'advanced', 'efficient'].flatMap(mode => mixTools.map(tool => ({ mode, ...tool }))))('gates $name exposure and execution in $mode mode', async ({ mode, name, Tool, args }) => {
     configState.set('general.agent_mode', mode);
-    const args = { track_id: '1', status_type: 'mute', value: true };
-    const execute = vi.spyOn(UpdateTrackStatusTool.prototype, 'execute')
+    const execute = vi.spyOn(Tool.prototype, 'execute')
       .mockResolvedValue({ success: true, result: 'Track status updated' });
     const provider = new ScriptedProvider([
       [
-        { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_status', args, 'status_1') },
+        { type: 'tool_call', content: '', toolCall: makeToolCall(name, args, 'status_1') },
         { type: 'done', content: '', finishReason: 'tool_calls' },
       ],
       [{ type: 'done', content: '', finishReason: 'stop' }],
@@ -110,11 +117,11 @@ describe('AgentCore todo integration', () => {
       const names = provider.tools[0].map(tool => tool.function.name);
       const result = chunks.find(chunk => chunk.type === 'tool_result')?.toolResult;
       if (mode === 'efficient') {
-        expect(names).not.toContain('update_track_status');
+        expect(names).not.toContain(name);
         expect(execute).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ success: false, result: "Tool 'update_track_status' is not available in Efficient Mode." });
+        expect(result).toMatchObject({ success: false, result: `Tool '${name}' is not available in Efficient Mode.` });
       } else {
-        expect(names).toContain('update_track_status');
+        expect(names).toContain(name);
         expect(approval).toHaveBeenCalledWith(expect.objectContaining({ id: 'status_1' }), mode);
         expect(execute).toHaveBeenCalledWith(args);
         expect(result?.success).toBe(true);
@@ -124,11 +131,11 @@ describe('AgentCore todo integration', () => {
     }
   });
 
-  it.each(['regular', 'advanced'])('does not update track status after approval is denied in %s', async mode => {
+  it.each(['regular', 'advanced'].flatMap(mode => mixTools.map(tool => ({ mode, ...tool }))))('does not execute $name after approval is denied in $mode', async ({ mode, name, Tool, args }) => {
     configState.set('general.agent_mode', mode);
-    const execute = vi.spyOn(UpdateTrackStatusTool.prototype, 'execute');
+    const execute = vi.spyOn(Tool.prototype, 'execute');
     const provider = new ScriptedProvider([[
-      { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_status', { track_id: '1', status_type: 'solo', value: true }, 'status_1') },
+      { type: 'tool_call', content: '', toolCall: makeToolCall(name, args, 'status_1') },
       { type: 'done', content: '', finishReason: 'tool_calls' },
     ]]);
     AgentCore.instance().setLLMProvider(provider);
@@ -140,6 +147,20 @@ describe('AgentCore todo integration', () => {
     } finally {
       execute.mockRestore();
     }
+  });
+
+  it.each(['update_track_volume', 'update_track_pan'])('returns %s range errors to the LLM', async name => {
+    const provider = new ScriptedProvider([
+      [
+        { type: 'tool_call', content: '', toolCall: makeToolCall(name, { track_id: '1', value: 100 }, 'invalid_mix') },
+        { type: 'done', content: '', finishReason: 'tool_calls' },
+      ],
+      [{ type: 'done', content: '', finishReason: 'stop' }],
+    ]);
+    AgentCore.instance().setLLMProvider(provider);
+    await collectChunks('Change the track mix');
+    const message = provider.calls[1].find(message => message.role === 'tool');
+    expect(JSON.parse(message!.content as string)).toMatchObject({ success: false, result: expect.stringContaining('value must be a finite number in') });
   });
 
   it('updates todo state through the update_todo_list tool during the agent loop', async () => {

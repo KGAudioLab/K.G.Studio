@@ -612,6 +612,8 @@ export const enUsMessages: TranslationMessages = {
   'toolbar.button.kgone': 'K.G.One Music Generator',
   'toolbar.button.chat': 'Chat',
   'toolbar.button.eventList': 'Event List Editor',
+  'track.controls.basePan': 'Base pan',
+  'track.controls.basePanTooltip': 'Base pan: {value}. Drag right/up to pan right, left/down to pan left. Double-click to reset to center.',
   'track.controls.automationButton': 'Track automation',
   'track.controls.automationDropdown': 'Automation',
   'track.controls.automation.volume': 'Volume',

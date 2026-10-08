@@ -26,6 +26,7 @@ import { KGCore } from '../../core/KGCore';
 import TransposeSettingsPopup from '../TransposeSettingsPopup';
 import { UpdateMidiTrackTransposeCommand } from '../../core/commands';
 import DuplicateTrackDialog from './DuplicateTrackDialog';
+import TrackPanKnob from './TrackPanKnob';
 
 const UNITY_POS = 750;
 const SLIDER_MAX = 1000;
@@ -562,6 +563,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
               >
                 ↺
               </button>
+              <TrackPanKnob track={track} />
               {isEditingVolume ? (
                 <input
                   ref={volumeInputRef}

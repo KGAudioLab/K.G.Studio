@@ -496,6 +496,8 @@ export const frFrMessages: TranslationMessages = {
   'toolbar.button.kgone': 'Générateur musical K.G.One',
   'toolbar.button.chat': 'Chat',
   'toolbar.button.eventList': 'Éditeur de liste d\'événements',
+  'track.controls.basePan': 'Panoramique de base',
+  'track.controls.basePanTooltip': 'Panoramique de base : {value}. Faites glisser vers la droite ou le haut pour aller à droite, vers la gauche ou le bas pour aller à gauche. Double-cliquez pour recentrer.',
   'track.controls.automationButton': 'Automation de piste',
   'track.controls.automationDropdown': 'Automation',
   'track.controls.automation.volume': 'Volume',

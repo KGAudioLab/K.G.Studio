@@ -24,12 +24,52 @@ vi.mock('../config/ConfigManager', () => ({
 import { KGCore } from '../KGCore';
 import { ConfigManager } from '../config/ConfigManager';
 import { KGAudioInterface } from './KGAudioInterface';
+import { KGAudioBus } from './KGAudioBus';
+import { KGAudioPlayerBus } from './KGAudioPlayerBus';
+import { KGMidiTrack } from '../track/KGMidiTrack';
 import { MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 import { KGAudioTrack } from '../track/KGAudioTrack';
 import { KGAudioRegion } from '../region/KGAudioRegion';
 import { TICKS_PER_QUARTER } from '../timing';
 
 const q = (quarterNotes: number): number => quarterNotes * TICKS_PER_QUARTER;
+
+describe('KGAudioInterface saved base pan', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ;(KGAudioInterface as unknown as { _instance: KGAudioInterface | null })._instance = null;
+  });
+
+  it('initializes and recreates MIDI and player buses with saved pan', async () => {
+    const midi = new KGMidiTrack('Lead', 1);
+    const wave = new KGAudioTrack('Audio', 2);
+    midi.setPan(-0.4);
+    wave.setPan(0.6);
+    const project = createMockProject();
+    project.setTracks([midi, wave]);
+    vi.mocked(KGCore.instance).mockReturnValue({ getCurrentProject: () => project } as unknown as KGCore);
+    const midiBus = { toDestination: vi.fn(), dispose: vi.fn(), setInstrument: vi.fn() };
+    const playerBus = { dispose: vi.fn() };
+    const createMidi = vi.spyOn(KGAudioBus, 'create').mockResolvedValue(midiBus as unknown as KGAudioBus);
+    const createPlayer = vi.spyOn(KGAudioPlayerBus, 'create').mockResolvedValue(playerBus as unknown as KGAudioPlayerBus);
+    try {
+      const audio = KGAudioInterface.instance();
+      await audio.createTrackAudioBus('1', 'trumpet');
+      expect(createMidi).toHaveBeenLastCalledWith('trumpet', 0, -0.4, false, false);
+      await audio.setTrackInstrument('1', 'flute');
+      expect(midiBus.setInstrument).toHaveBeenCalledWith('flute');
+      await audio.createTrackAudioBus('1', 'flute');
+      expect(createMidi).toHaveBeenLastCalledWith('flute', 0, -0.4, false, false);
+      await audio.createTrackAudioPlayerBus('2');
+      expect(createPlayer).toHaveBeenLastCalledWith(0, 0.6, false, false);
+      await audio.createTrackAudioPlayerBus('2');
+      expect(createPlayer).toHaveBeenLastCalledWith(0, 0.6, false, false);
+    } finally {
+      createMidi.mockRestore();
+      createPlayer.mockRestore();
+    }
+  });
+});
 
 function createMockAudioBus() {
   return {

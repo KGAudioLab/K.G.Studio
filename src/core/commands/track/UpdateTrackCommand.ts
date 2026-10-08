@@ -13,6 +13,7 @@ export interface TrackUpdateProperties {
   instrument?: InstrumentType; // Only applies to MIDI tracks
   type?: TrackType;
   volume?: number;
+  pan?: number;
   muted?: boolean;
   solo?: boolean;
   color?: string | null;
@@ -52,6 +53,7 @@ export class UpdateTrackCommand extends KGCommand {
       name: this.targetTrack.getName(),
       type: this.targetTrack.getType(),
       volume: this.targetTrack.getVolume(),
+      pan: this.targetTrack.getPan(),
       muted: this.targetTrack.getMuted(),
       solo: this.targetTrack.getSolo(),
       color: this.targetTrack.getColor(),
@@ -126,6 +128,13 @@ export class UpdateTrackCommand extends KGCommand {
 
       this.changedProperties.add('volume');
       updatedProperties.push(`volume: ${originalVolume} → ${newVolume}`);
+    }
+
+    if (this.newProperties.pan !== undefined && this.newProperties.pan !== this.originalProperties.pan) {
+      this.targetTrack.setPan(this.newProperties.pan);
+      KGAudioInterface.instance().setTrackPan(this.trackId.toString(), this.targetTrack.getPan());
+      this.changedProperties.add('pan');
+      updatedProperties.push(`pan: ${this.originalProperties.pan} → ${this.targetTrack.getPan()}`);
     }
 
     if (this.newProperties.muted !== undefined && this.newProperties.muted !== this.originalProperties.muted) {
@@ -222,6 +231,12 @@ export class UpdateTrackCommand extends KGCommand {
       restoredProperties.push(`volume: ${this.originalProperties.volume}`);
     }
 
+    if (this.changedProperties.has('pan') && this.originalProperties.pan !== undefined) {
+      this.targetTrack.setPan(this.originalProperties.pan);
+      KGAudioInterface.instance().setTrackPan(this.trackId.toString(), this.originalProperties.pan);
+      restoredProperties.push(`pan: ${this.originalProperties.pan}`);
+    }
+
     if (this.changedProperties.has('muted') && this.originalProperties.muted !== undefined) {
       this.targetTrack.setMuted(this.originalProperties.muted);
 
@@ -263,6 +278,9 @@ export class UpdateTrackCommand extends KGCommand {
     }
     if (this.newProperties.volume !== undefined) {
       updatedProps.push('volume');
+    }
+    if (this.newProperties.pan !== undefined) {
+      updatedProps.push('pan');
     }
     if (this.newProperties.muted !== undefined) {
       updatedProps.push('muted');
