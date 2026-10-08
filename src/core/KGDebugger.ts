@@ -419,7 +419,9 @@ export class KGDebugger {
 
         const available = agentMode === 'efficient'
           ? toolInstance.isAvailableInEfficientMode()
-          : toolInstance.isAvailableInRegularMode();
+          : agentMode === 'advanced'
+            ? toolInstance.isAvailableInAdvancedMode()
+            : toolInstance.isAvailableInRegularMode();
         if (!available) {
           console.error(`   ❌ Tool "${toolName}" is not available in ${agentMode} mode.`);
           continue;
@@ -476,6 +478,10 @@ export class KGDebugger {
     console.log('  await KGDebugger.testToolCall(\'{"name":"read_music","arguments":{"start":0,"length":7680}}\')');
     console.log('  await KGDebugger.testToolCall({name:"add_notes",arguments:{notes:[{pitch:"C4",start:0,length:960}]}})');
     console.log('  await KGDebugger.testToolCall([{name:"remove_notes",arguments:{start:0,end:3840}},{name:"read_music",arguments:{}}])');
+    console.log("💡 CC1 automation example (Advanced Mode, 4/4): select the target MIDI region first. Set CC1 to 0 at bar 2, 127 at bar 3, and 0 at bar 4:");
+    console.log('  await KGDebugger.testToolCall([{name:"update_track_automation",arguments:{automation_type:"cc1",position:3840,value:0}},{name:"update_track_automation",arguments:{automation_type:"cc1",position:7680,value:127}},{name:"update_track_automation",arguments:{automation_type:"cc1",position:11520,value:0}}])');
+    console.log("💡 Volume automation example (Advanced Mode, 4/4): select a MIDI region on the current track first. Set track volume to 0 dB at bar 2, +3 dB at bar 3, and 0 dB at bar 4:");
+    console.log('  await KGDebugger.testToolCall([{name:"update_track_automation",arguments:{automation_type:"volume",position:3840,value:0}},{name:"update_track_automation",arguments:{automation_type:"volume",position:7680,value:3}},{name:"update_track_automation",arguments:{automation_type:"volume",position:11520,value:0}}])');
     console.log("");
     console.log("💡 KGOne input examples:");
     console.log('  await KGDebugger.inputKGOneCaption("Genre: Eurodance, 90s dance-pop, upbeat electronic...", 30)');

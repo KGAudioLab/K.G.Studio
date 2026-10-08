@@ -110,6 +110,11 @@ Replace the current task checklist for multi-step work. Use it to keep a concise
 ## remove_notes
 Remove notes from a given tick range. If `track_id` or `track_name` is provided, the operation applies to that track; otherwise, it applies to the currently selected track.
 
+## update_track_automation
+Advanced-only: upsert one automation point on a MIDI track. Supply `automation_type`, absolute nonnegative integer `position` in ticks (960 per quarter note), and numeric `value`. Ranges are inclusive: `volume` −60…12 dB and `pan` −1…1 (decimals allowed; pan −1 left, 0 center, 1 right); `pitch_bend` integer −8192…8191 (0 center); `cc1`, `cc2`, `cc7`, `cc11` integers 0…127; `cc64` exactly 0 (off) or 127 (on). Nonfinite, fractional integer-only, or out-of-range values fail without clamping or rounding.
+
+Optional `track_id` takes precedence over `track_name`, with no fallback for an invalid ID. Exact duplicate names use the first matching MIDI track. Without identifiers, use the active/selected MIDI region and its owning track, as with `add_notes`. Audio/global tracks are unsupported. Volume and pan use track-level absolute positions and preserve base mix settings. Pitch bend and CCs use region-level events: select a region containing position in [start, end), choosing the closest start then first in track order on ties, or create a one-bar region starting exactly at position using the project time signature. With selection fallback, expand the active/selected region as needed to include the point through position+1 while preserving existing absolute content positions. Update an existing point of the same type at that tick or create one; matching values succeed without an undo entry. Other points and lanes are preserved.
+
 ## add_notes
 Add notes to a target track. Pitches use scientific pitch notation with support for sharps and flats (e.g., `C4`, `F#3`, `Bb2`). **Important**: the `start` parameter is always the **absolute** tick position in the project timeline. If `track_id` or `track_name` is provided, the operation applies to that track; otherwise, it applies to the currently selected track.
 

@@ -785,22 +785,36 @@ describe('projectStore piano roll state', () => {
     }));
   });
 
-  it('bumps track automation redraw version on undo and redo', async () => {
+  it('invalidates region and track automation during external project refreshes', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    const initial = useProjectStore.getState();
+    const track = mockTracks[0];
+    act(() => { useProjectStore.getState().refreshProjectState(); });
+    const refreshed = useProjectStore.getState();
+    expect(refreshed.tracks[0]).toBe(track);
+    expect(refreshed.automationRedrawVersion).toBe(initial.automationRedrawVersion + 1);
+    expect(refreshed.trackAutomationRedrawVersion).toBe(initial.trackAutomationRedrawVersion + 1);
+  });
+
+  it('invalidates region and track automation on undo and redo', async () => {
     const { useProjectStore } = await import('./projectStore');
 
     const initialVersion = useProjectStore.getState().trackAutomationRedrawVersion;
+    const initialRegionVersion = useProjectStore.getState().automationRedrawVersion;
 
     act(() => {
       useProjectStore.getState().undo();
     });
 
     expect(useProjectStore.getState().trackAutomationRedrawVersion).toBe(initialVersion + 1);
+    expect(useProjectStore.getState().automationRedrawVersion).toBe(initialRegionVersion + 1);
 
     act(() => {
       useProjectStore.getState().redo();
     });
 
     expect(useProjectStore.getState().trackAutomationRedrawVersion).toBe(initialVersion + 2);
+    expect(useProjectStore.getState().automationRedrawVersion).toBe(initialRegionVersion + 2);
   });
 
   it('rehydrates missing audio buffers during refreshProjectState', async () => {

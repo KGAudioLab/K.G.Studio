@@ -86,6 +86,11 @@ export abstract class BaseTool<T = string> {
     return true;
   }
 
+  /** Advanced mode inherits Regular availability unless explicitly overridden. */
+  isAvailableInAdvancedMode(): boolean {
+    return this.isAvailableInRegularMode();
+  }
+
   /**
    * Whether the tool is available when the assistant runs in Efficient Mode.
    */

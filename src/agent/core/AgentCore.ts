@@ -97,7 +97,9 @@ export class AgentCore {
 
     return agentMode === 'efficient'
       ? toolInstance.isAvailableInEfficientMode()
-      : toolInstance.isAvailableInRegularMode();
+      : agentMode === 'advanced'
+        ? toolInstance.isAvailableInAdvancedMode()
+        : toolInstance.isAvailableInRegularMode();
   }
 
   /**

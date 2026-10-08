@@ -20,6 +20,7 @@ export class AdvancedTickEditorTool extends BaseTool {
 
   override isReadOnlyTool(): boolean { return this.legacy.isReadOnlyTool(); }
   override isAvailableInRegularMode(): boolean { return this.legacy.isAvailableInRegularMode(); }
+  override isAvailableInAdvancedMode(): boolean { return this.legacy.isAvailableInAdvancedMode(); }
   override isAvailableInEfficientMode(): boolean { return this.legacy.isAvailableInEfficientMode(); }
 
   private convertSchema(schema: Record<string, ToolParameter>): Record<string, ToolParameter> {
