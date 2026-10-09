@@ -104,10 +104,9 @@ OpenRouter 提供統一接口，可訪問多個語言模型提供方的模型，
   - **Detect Chords**：在音訊區域開啟 Piano Roll 後，點擊 **...** → **Detect Chords**，即可自動分析並把結果寫入全域 Chord Track。可設定靈敏度、穩定性和七和弦檢測。
   - **Detect Tempo**：在音訊區域開啟 Piano Roll 後，點擊 **...** → **Detect Tempo**，即可分析 BPM，並可選擇自動對齊專案中的 Tempo Track。
 
-- K.G.One 音樂生成器
+- AI 音樂工具
+  - **MIDI 人性化**：在時間線上選取 MIDI 區域，選擇 **… → 人性化…**，即可開啟 **AI 音樂工具 → 人性化**。所有設定直接顯示；已啟用的循環會限制處理範圍。離開分頁會取消處理。
   - 點擊工具列中的 **✦**（魔杖）按鈕開啟生成器面板。
-  - **Full Song Generation**：根據文本描述和可選歌詞生成整首歌曲（需要 K.G.One 伺服器）。
-  - **Clip Generation**：根據文本提示生成短音訊片段和 MIDI loop（需要 K.G.One 伺服器）。
   - **Stem Separation（瀏覽器）**：可完全在瀏覽器中把任意音訊區域分離成 stems，無需伺服器。支援兩種模型：**UVR-MDX-NET-Inst_HQ_3**（2 stem：Vocals / Instrumental，約 64 MB）和 **Demucs htdemucs_4s**（4 stem：Vocals / Drums / Bass / Others，約 172 MB）。在生成器面板中下載模型後，點擊 **Separate Stems** 即可。需要 WebGPU（Chrome 113+ / Edge 113+）。
 
 - 吸附與量化
@@ -130,3 +129,5 @@ OpenRouter 提供統一接口，可訪問多個語言模型提供方的模型，
 K.G.Studio 不提供也不託管上述任何模型，也不隸屬於任何模型提供方。所有資料預設都儲存在您的本地裝置中；您向第三方模型提供方發送的任何資料，都由您自行負責。
 
 祝您使用 K.G.Studio 音樂創作助手創作愉快！
+
+在波形或頻譜視圖中，選擇 **… → 音軌提取…** 可開啟此分頁。

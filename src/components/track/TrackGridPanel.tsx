@@ -18,7 +18,6 @@ import { showAlert } from '../../util/dialogUtil';
 import {
   MIDI_IMPORT_ACCEPTED_TYPES,
   isAcceptedMidiImportFile,
-  parseMidiFirstTrackNotes,
   parseMidiImportData,
   type ParsedMidiImportTrack,
 } from '../../util/midiUtil';
@@ -1041,16 +1040,16 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     }
   };
 
-  // Handle external K.G.One clip drop onto a track row
+  // Handle extracted stem drop onto a track row (legacy drag identifier)
   const handleExternalDrop = async (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => {
     const raw = e.dataTransfer.getData('application/kgone-clip');
     if (!raw) return;
 
-    let dropData: { midiUrl?: string; audioUrl: string; audioDurationSeconds: number; audioFileName: string };
+    let dropData: { audioUrl: string; audioDurationSeconds: number; audioFileName: string };
     try {
       dropData = JSON.parse(raw);
     } catch {
-      console.error('[KGOne] Invalid drop data');
+      console.error('[Stem Extraction] Invalid drop data');
       return;
     }
 
@@ -1060,56 +1059,13 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
     const track = tracks[trackIndex];
     if (!track) return;
 
-    const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
-
     try {
       if (track.getType() === TrackType.MIDI) {
-        if (!dropData.midiUrl) {
-          await showAlert(
-            'This audio clip can only be imported into an audio track.\n' +
-            'Please drag it onto an audio track instead.'
-          );
-          return;
-        }
-        // ── MIDI track: fetch MIDI file and create a KGMidiRegion ──────────
-        const midiResp = await fetch(dropData.midiUrl);
-        if (!midiResp.ok) throw new Error(`MIDI fetch failed (${midiResp.status})`);
-        const buf = await midiResp.arrayBuffer();
-        const { notes, totalTicks } = parseMidiFirstTrackNotes(new Uint8Array(buf));
-        const lengthInBars = Math.max(1, Math.ceil(totalTicks / ticksPerBar));
-
-        const cmd = ImportMidiClipCommand.fromBarCoordinates(
-          track.getId().toString(),
-          trackIndex,
-          barNumber,
-          lengthInBars,
-          ticksPerBar,
-          notes,
-          'KGOne Clip'
+        await showAlert(
+          'This audio stem can only be imported into an audio track.\n' +
+          'Please drag it onto an audio track instead.'
         );
-        KGCore.instance().executeCommand(cmd);
-
-        const created = cmd.getCreatedRegion();
-        if (created && onExternalDropComplete) {
-          const displayLengthInBars = Math.max(
-            1,
-            getAudioRegionDisplayLengthTicks(KGCore.instance().getCurrentProject(), created as unknown as KGAudioRegion) / ticksPerBar
-          );
-          const regionUI: RegionUI = {
-            id: created.getId(),
-            trackId: track.getId().toString(),
-            trackIndex,
-            barNumber,
-            length: displayLengthInBars,
-            name: created.getName(),
-          };
-          onExternalDropComplete(trackIndex, regionUI);
-        }
-
-        if (DEBUG_MODE.TRACK_GRID_PANEL) {
-          console.log(`[KGOne] Imported MIDI clip to track ${trackIndex}, bar ${barNumber}, ${notes.length} notes`);
-        }
-
+        return;
       } else if (track.getType() === TrackType.Wave) {
         // ── Audio track: save blob to OPFS and create a KGAudioRegion ──────
         const blob = await fetch(dropData.audioUrl).then(r => r.blob());
@@ -1117,11 +1073,11 @@ const TrackGridPanel: React.FC<TrackGridPanelProps> = ({
         const { audioDurationSeconds } = await importAudioFileToTrackAtBar(audioFile, track, trackIndex, barNumber);
 
         if (DEBUG_MODE.TRACK_GRID_PANEL) {
-          console.log(`[KGOne] Imported audio clip to track ${trackIndex}, bar ${barNumber}, ${audioDurationSeconds.toFixed(2)}s`);
+          console.log(`[Stem Extraction] Imported audio clip to track ${trackIndex}, bar ${barNumber}, ${audioDurationSeconds.toFixed(2)}s`);
         }
       }
     } catch (err) {
-      console.error('[KGOne] Drop import failed:', err);
+      console.error('[Stem Extraction] Drop import failed:', err);
     }
   };
 

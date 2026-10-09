@@ -6,7 +6,7 @@ import { generateUniqueId } from '../../../util/miscUtil';
 import type { RawMidiNote } from '../../../util/midiUtil';
 
 /**
- * Command to insert a MIDI clip (from K.G.One generation) into a MIDI track.
+ * Command to insert a MIDI clip (from MIDI import or transcription) into a MIDI track.
  * All note data is stored so that redo recreates the full region with notes.
  */
 export class ImportMidiClipCommand extends KGCommand {
@@ -35,7 +35,7 @@ export class ImportMidiClipCommand extends KGCommand {
     this.lengthTicks = lengthTicks;
     this.rawNotes = rawNotes;
     this.regionId = regionId || generateUniqueId('KGMidiRegion');
-    this.regionName = regionName || 'KGOne Clip';
+    this.regionName = regionName || 'MIDI Clip';
   }
 
   execute(): void {

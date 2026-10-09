@@ -908,6 +908,53 @@ describe('TrackGridPanel lasso selection', () => {
     expect(executeCommandMock).not.toHaveBeenCalled();
   });
 
+  it.each(['audio', 'midi'])('handles extracted stem drops on %s tracks with the legacy drag identifier', async (kind) => {
+    const track = kind === 'audio' ? new KGAudioTrack('Audio Track', 2) : createMockMidiTrack({ id: 2, name: 'MIDI Track' });
+    track.setTrackIndex(0);
+    currentTracks = [track];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      blob: async () => new Blob(['stem'], { type: 'audio/wav' }),
+    } as Response);
+    const filePrototype = File.prototype;
+    const originalArrayBuffer = Object.getOwnPropertyDescriptor(filePrototype, 'arrayBuffer');
+    Object.defineProperty(filePrototype, 'arrayBuffer', { configurable: true, value: async () => new ArrayBuffer(8) });
+    try {
+      const view = render(
+        <TrackGridPanel
+          tracks={[track]} regions={[]} maxBars={8}
+          timeSignature={{ numerator: 4, denominator: 4 }}
+          draggedTrackIndex={null} dragOverTrackIndex={null} selectedRegionId={null}
+          projectName="Test" onRegionCreated={vi.fn()}
+        />,
+      );
+      configureGridContainer(view.container);
+      const target = view.container.querySelector('[data-test-id="track-grid-2"]')!;
+      const event = createEvent.drop(target);
+      Object.defineProperty(event, 'clientX', { configurable: true, value: 100 });
+      Object.defineProperty(event, 'dataTransfer', { value: {
+        types: ['application/kgone-clip'],
+        getData: () => JSON.stringify({ audioUrl: 'blob:stem', audioFileName: 'Stem_Vocals_local_123.wav', audioDurationSeconds: 2 }),
+      } });
+      fireEvent(target, event);
+      if (kind === 'audio') {
+        await vi.waitFor(() => expect(executeCommandMock).toHaveBeenCalledOnce());
+        expect(storeAudioFileMock).toHaveBeenCalledWith('Test', expect.any(String), expect.objectContaining({
+          name: 'Stem_Vocals_local_123.wav', type: 'audio/wav',
+        }));
+        expect(executeCommandMock.mock.calls[0][0].getCreatedRegion().getStartTick()).toBe(q(12));
+        expect(fetchSpy).toHaveBeenCalledExactlyOnceWith('blob:stem');
+      } else {
+        await vi.waitFor(() => expect(showAlertMock).toHaveBeenCalledWith(expect.stringContaining('audio stem can only be imported into an audio track')));
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(executeCommandMock).not.toHaveBeenCalled();
+      }
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalArrayBuffer) Object.defineProperty(filePrototype, 'arrayBuffer', originalArrayBuffer);
+      else Reflect.deleteProperty(filePrototype, 'arrayBuffer');
+    }
+  });
+
   it('uses the same snapped bar placement for dropped audio files as click import', async () => {
     const audioTrack = new KGAudioTrack('Audio Track', 2);
     audioTrack.setTrackIndex(0);

@@ -21,9 +21,6 @@ const GeneralSettings: React.FC = () => {
   const { t, setLanguageSetting } = useI18n();
   const [language, setLanguage] = useState<LanguageSetting>('auto');
   const [soundfontBaseUrl, setSoundfontBaseUrl] = useState<string>('');
-  const [kgoneEnabled, setKgoneEnabled] = useState<boolean>(false);
-  const [kgoneBaseUrl, setKgoneBaseUrl] = useState<string>('');
-  const [kgoneServerManaged, setKgoneServerManaged] = useState<boolean>(false);
   const [soundfontServerManaged, setSoundfontServerManaged] = useState<boolean>(false);
   const [soundfontCacheSummary, setSoundfontCacheSummary] = useState<SoundfontCacheSummary>({ instrumentCount: 0, instruments: [] });
   const [isCheckingSoundfontCache, setIsCheckingSoundfontCache] = useState<boolean>(false);
@@ -104,9 +101,6 @@ const GeneralSettings: React.FC = () => {
         || LOCAL_SEPARATOR_MODEL_CONFIGS[LOCAL_SEPARATOR_MODEL_IDS.htdemucs4s].download.defaultUrl,
       );
       setSoundfontBaseUrl((configManager.get('general.soundfont.base_url') as string) || '');
-      setKgoneEnabled((configManager.get('general.kgone.enabled') as boolean) ?? false);
-      setKgoneBaseUrl((configManager.get('general.kgone.base_url') as string) || '');
-      setKgoneServerManaged(configManager.isKGOneServerManaged());
       setSoundfontServerManaged(configManager.isSoundfontServerManaged());
     };
 
@@ -141,20 +135,6 @@ const GeneralSettings: React.FC = () => {
   const handleSoundfontBaseUrlChange = (value: string) => {
     setSoundfontBaseUrl(value);
     debouncedSave('general.soundfont.base_url', value);
-  };
-
-  const handleKgoneEnabledChange = async (value: boolean) => {
-    setKgoneEnabled(value);
-    try {
-      await configManager.set('general.kgone.enabled', value);
-    } catch (error) {
-      console.error('Failed to save K.G.One enabled:', error);
-    }
-  };
-
-  const handleKgoneBaseUrlChange = (value: string) => {
-    setKgoneBaseUrl(value);
-    debouncedSave('general.kgone.base_url', value);
   };
 
   const handleUvr5ModelUrlChange = (value: string) => {
@@ -441,47 +421,6 @@ const GeneralSettings: React.FC = () => {
           </div>
         </div>
 
-        <div className="settings-group">
-          <h4>{t('settings.general.kgone.section')}</h4>
-
-          {kgoneServerManaged && (
-            <div className="settings-help settings-help-note">
-              {t('settings.general.kgone.managed')}
-            </div>
-          )}
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.kgone.enabled')}
-            </label>
-            <select
-              className="settings-select"
-              value={kgoneEnabled ? 'true' : 'false'}
-              onChange={(e) => handleKgoneEnabledChange(e.target.value === 'true')}
-              disabled={kgoneServerManaged}
-            >
-              <option value="false">{t('settings.general.kgone.disabled')}</option>
-              <option value="true">{t('settings.general.kgone.enabledOption')}</option>
-            </select>
-          </div>
-
-          <div className="settings-item">
-            <label className="settings-label">
-              {t('settings.general.kgone.serverBaseUrl')}
-            </label>
-            <input
-              type="text"
-              className="settings-input"
-              placeholder="e.g. http://127.0.0.1:8000"
-              value={kgoneBaseUrl}
-              onChange={(e) => handleKgoneBaseUrlChange(e.target.value)}
-              disabled={kgoneServerManaged}
-            />
-            <div className="settings-help">
-              {t('settings.general.kgone.serverBaseUrlHelp')}
-            </div>
-          </div>
-        </div>
         <AireSettings />
       </div>
     </div>

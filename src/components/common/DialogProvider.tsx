@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import './DialogProvider.css';
 import { FaTimes } from 'react-icons/fa';
-import { ConfigManager } from '../../core/config/ConfigManager';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { useI18n } from '../../i18n/useI18n';
 import { registerDialogFns } from '../../util/dialogUtil';
@@ -290,7 +289,6 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const isIntelligentArpeggiator = dialog.type === 'intelligent-arpeggiator';
   const isChordToMidiImport = dialog.type === 'chord-to-midi-import';
   const promptOptions = isPrompt ? (dialog.options as PromptOptions | undefined) : undefined;
-  const isKGOneEnabled = (ConfigManager.instance().get('general.kgone.enabled') as boolean | undefined) ?? false;
 
   const title = isAlert
     ? t('dialog.title.notice')
@@ -717,7 +715,7 @@ const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =
                 <div className="dialog-hint-card">
                   <div className="dialog-hint-card-title">{t('dialog.recommendedSource')}</div>
                   <div className="dialog-hint-card-text">
-                    {isKGOneEnabled ? t('dialog.sourceHint.kgone') : t('dialog.sourceHint.local')}
+                    {t('dialog.sourceHint.local')}
                   </div>
                 </div>
                 <div className="dialog-slider-group">

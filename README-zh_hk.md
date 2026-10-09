@@ -16,12 +16,6 @@ K.G.Studio 是一款輕量、現代化的 DAW，完全執行於瀏覽器中，�
 
 **K.G.Studio 音樂創作助手** 是一款具備專案感知能力的 AI 協同創作助手。它並不直接生成音訊檔案（如 WAV 格式），而是直接在結構化的音軌和音符層級進行操作——幫助您編寫旋律、構建和聲進行以及編輯 MIDI 音符，同時將完整的控制權留給您，方便您後續輕鬆調整、微調和雕琢每一個音樂細節。
 
-<div align="center">
-  <img src="./docs/KGOne-Demo-GIF.gif" alt="K.G.One Logo" width="640" />
-</div>
-
-> 注意：整曲生成功能和音訊片段生成功能需要整合 [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One)。
-
 ## 最新更新
 
 - **2026.07.18**: 推出強大的 MIDI 編曲與編輯新工作流：
@@ -72,12 +66,6 @@ K.G.Studio 是一款輕量、現代化的 DAW，完全執行於瀏覽器中，�
 <div align="center">
   <table>
     <tr>
-      <td align="center">
-        <a href="https://youtu.be/F1JWjK84zwc" target="_blank">
-          <img src="./public/demo/demo-cover.png" alt="K.G.One Music Studio" width="400"/>
-        </a>
-        <br><b>K.G.One Music Studio</b>
-      </td>
       <td align="center">
         <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
           <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
@@ -149,11 +137,10 @@ K.G.Studio 可以藉助 WebGPU 加速，在瀏覽器中直接執行 **Gemma 4 E4
 ### 亮點功能
 - **K.G.Studio 音樂創作助手**：與由 LLM 驅動的 AI agent 進行對話；它會自動執行工具，對您所選區域內的音樂內容進行編輯。
 - **瀏覽器內嵌 LLM，無需 API Key**：透過 WebGPU（LiteRT-LM）在瀏覽器中直接執行 **Gemma 4 E4B**。無 API 呼叫、無費用、資料不離開您的裝置。模型只需下載一次，隨後會快取在本地。
-- **瀏覽器內嵌分軌，無需伺服器**：使用 **UVR-MDX-NET-Inst_HQ_3**（2-stem：Vocals / Instrumental）或 **Demucs htdemucs_4s**（4-stem：Vocals / Drums / Bass / Others）將任意音訊區域拆分為 stems。兩者都完全在瀏覽器中透過 ONNX Runtime WebGPU 執行，無需 K.G.One 伺服器。
+- **瀏覽器內嵌分軌，無需伺服器**：使用 **UVR-MDX-NET-Inst_HQ_3**（2-stem：Vocals / Instrumental）或 **Demucs htdemucs_4s**（4-stem：Vocals / Drums / Bass / Others）將任意音訊區域拆分為 stems。兩者都完全在瀏覽器中透過 ONNX Runtime WebGPU 執行。
 - **音訊和弦檢測**：為音訊區域開啟 Piano Roll 後執行 **Detect Chords**，即可透過零依賴 FFT 流水線自動分析錄音並填充全域 Chord Track，同時支援靈敏度、穩定性和七和弦檢測等設定。
 - **帶自動對齊拍點的速度檢測**：在 Piano Roll 工具列執行 **Detect Tempo**，即可分析音訊區域的 BPM，並可選擇自動重新對齊專案的 Tempo Track。
 - **全域軌系統**：四條持久存在的全域軌 **Marker**、**Tempo**、**Key Signature** 和 **Chord** 共同提供專案級結構，所有功能（播放時序、和弦檢測、五線譜顯示）都會參考它們。
-- **K.G.One Music Studio 整合**：連接本地 [K.G.One](https://github.com/KGAudioLab/K.G.One) 伺服器後，可解鎖 GPU 加速的 **Full Song Generation**（ACE-Step 1.5）、**Clip & MIDI Loop Generation**（Foundation-1）以及更多 **Stem Separation** 模型。
 - **多種 LLM 提供方**：支援 OpenAI、Claude / Gemini（透過 OpenRouter）、OpenAI 相容服務（Ollama、vLLM 等），或內建的本地瀏覽器 LLM，無需 Key。
 - **音軌與區域編輯**：支援新增/重排音軌、建立/移動/縮放區域、套索多選、批次移動/縮放、合併與拆分區域，以及完整復原/重做。
 - **Piano Roll**：支援音符、pitch bend 和 MIDI CC 自動化軌；支援基於 VexFlow 的五線譜視圖；支援音訊到 MIDI 參考用途的頻譜疊加層。
@@ -311,71 +298,37 @@ OpenRouter 是一個統一接入平台，可讓您存取來自多個提供方的
 
 K.G.Studio 不提供也不託管上述任何模型，也不隸屬於任何模型提供方。所有資料都儲存在您的本地裝置中；K.G.Studio 不會蒐集或傳輸您的資料。若您向第三方模型提供方傳送任何資料，相關責任由您自行承擔。
 
-## K.G.One Music Generator
+## AI 音樂工具
 
-> **需要 [K.G.One Music Studio](https://github.com/KGAudioLab/K.G.One) 整合。** 只有當 K.G.Studio 連線到正在執行的 K.G.One 伺服器時，K.G.One Music Generator 面板才會可用。設定說明請參閱 [K.G.One 儲存庫](https://github.com/KGAudioLab/K.G.One)。
-
-**K.G.One Music Generator** 面板提供三項經 GPU 加速的 AI 工具，用於音樂生成與音訊處理。點擊工具列中的 **✦（魔杖）** 按鈕即可開啟。該面板與 AI Assistant 聊天框互斥，開啟其中一個時，另一個會自動關閉。
-
-> **注意：** 您首次使用每個工具時，伺服器都需要載入對應 AI 模型，這可能需要 60 秒甚至更久，具體取決於您的硬體。切換分頁時，也可能觸發模型重新載入。
-
-### Full Song Generation
-
-根據文字描述和可選歌詞生成一首完整歌曲。由 [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) 驅動。
-
-- 在 **Full Song** 分頁中，於 **Caption** 中輸入自然語言描述，說明所需風格、情緒、速度、配器和結構。例如：`Genre: Eurodance, 90s dance-pop, upbeat electronic. Tempo: ~130 BPM. Instrumentation: driving kick drum, eurodance bassline...`
-- 您也可以填寫 **Lyrics**。可使用 `[Intro]`、`[Verse]`、`[Chorus]`、`[Bridge]` 等標籤標記段落。若勾選 **Instrumental**，則會完全跳過人聲。
-- 點擊 **Generate Song**。介面會即時顯示生成階段與百分比進度。
-- 生成完成後，會顯示預覽播放器。您可以將其拖曳到 **audio track**，作為區域匯入。
-- 目前不支援將整曲生成結果拖放到 MIDI track。
-- **Advanced Settings**（可展開）：Inference Steps、Guidance Scale、Seed，以及 Thinking（CoT metadata generation）。
-
-### Clip Generation
-
-根據文字描述生成短樂器片段和 MIDI loops。由 [Foundation-1](https://huggingface.co/RoyalCities/Foundation-1) 驅動。
-
-- 在 **Clip** 分頁中，於 **Prompt** 中輸入逗號分隔的標籤，描述樂器類別、子類型、音色、效果、長度、BPM 和調性。例如：`Gritty, Acid, Bassline, 303, Synth Lead, FM, Sub, High Reverb, 8 Bars, 140 BPM, E minor`
-- 您也可以填寫 **Negative Prompt**，以避免生成某些不希望出現的特徵（例如 `distortion, noise`）。
-- 選擇 **Bars**：4 或 8。BPM 與調號會根據專案設定預填，您也可以在 **Advanced Settings** 中調整。
-- 點擊 **Generate Clip**。生成完成後，會出現一個預覽播放器，左側帶拖曳手把，右側帶下載按鈕。
-- **匯入方式**：將播放器拖曳到時間線中的音軌上。
-  - 拖放到 **audio track** 時，會作為 WAV 音訊區域匯入（推薦）。
-  - 拖放到 **MIDI track** 時，會作為 MIDI 區域匯入。請注意，此 MIDI 是從音訊轉錄而來，可能並非完全準確。
-- **Advanced Settings**（可展開）：Note、Scale、BPM、Steps、CFG Scale、Seed（`-1` 表示隨機）、Sampler Type、Sigma Min/Max，以及 CFG Rescale。
+**AI 音樂工具** 面板直接在瀏覽器中提取音軌。點擊工具列中的 **✦（魔杖）** 按鈕即可開啟。面板包含 **音軌提取** 和 **人性化** 分頁。開啟此面板會關閉 AI Assistant 聊天框。
 
 ### Stem Separation
 
 將現有音訊區域拆分為獨立 stems（例如人聲、伴奏、鼓組等）。
-
-K.G.Studio 支援 **兩種模式** 的分軌：
-
-#### 本地瀏覽器模式 — 無需伺服器 ✦
 
 兩個 ONNX 模型可完全在瀏覽器中執行，無 API 呼叫、無費用，資料也不會離開您的裝置。模型只需下載一次，隨後會快取在本地。
 
 - **Vocal and Instrument (Medium Accuracy)**（`UVR-MDX-NET-Inst_HQ_3`，約 64 MB）— 雙 stem 分離（Vocals / Instrumental）。由 [UVR-MDX-NET](https://github.com/nomadkaraoke/python-audio-separator) 驅動。
 - **Vocal, Drums, Bass, and Others**（`htdemucs_4s`，約 172 MB）— 四 stem 分離（Vocals / Drums / Bass / Others）。由 [Demucs](https://github.com/facebookresearch/demucs) 驅動。
 
-開啟 **Music Generator** 面板（工具列中的 ✦ 按鈕），選擇模型，先點擊一次 **Download Selected Model**，然後點擊 **Separate Stems**，所有處理都會在您的瀏覽器中本機完成。
+開啟 **AI 音樂工具** 面板（工具列中的 ✦ 按鈕），選擇模型，先點擊一次 **Download Selected Model**，然後點擊 **Separate Stems**，所有處理都會在您的瀏覽器中本機完成。
 
 **要求：** 需要支援 WebGPU 的瀏覽器（Chrome 113+ 或 Edge 113+），並執行在安全上下文中（HTTPS 或 localhost）。若可用，會優先使用 WebGPU 加速；否則會回退到 CPU（處理期間可能降低頁面回應性）。推薦硬體為至少 8 GB 顯存的 GPU，或至少 16 GB 統一記憶體的系統。
 
-#### K.G.One 伺服器模式
+#### 使用方式
 
-當連線到 [K.G.One Music Studio](https://github.com/KGAudioLab/K.G.One) 伺服器後，可使用另外三種 GPU 加速模型。由 [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator) 驅動。
-
-- **Vocal and Instrument (Medium Accuracy)**（`UVR-MDX-NET-Inst_HQ_3`）— 快速雙 stem 分離（vocal / instrumental）。
-- **Vocal and Instrument (High Accuracy)**（`MDX23C-8KFFT-InstVoc_HQ`）— 更高品質的雙 stem 分離，但更慢。
-- **Vocal, Drums, Bass, Guitar, Piano, and Others**（`htdemucs_6s`）— 完整六 stem 分離。
-
-#### 使用方式（兩種模式通用）
-
-- 在開啟此分頁之前，請先在時間線上**選取一個音訊區域**。**Separator** 分頁頂部會顯示目前所選區域及其音軌名稱。僅支援音訊區域，不支援分離 MIDI 區域。
+- 在開啟此分頁之前，請先在時間線上**選取一個音訊區域**。**音軌提取** 分頁頂部會顯示目前所選區域及其音軌名稱。僅支援音訊區域，不支援分離 MIDI 區域。
 - 點擊 **Separate Stems**。如果目前所選區域帶有 clip start offset 或已被裁剪，系統會先自動按該區域範圍切出對應音訊，再進行處理。
 - 處理完成後，每個 stem 都會以帶標籤的預覽播放器顯示，並附帶拖曳手把。您可以在匯入前分別試聽每個 stem。
 - **匯入 stems：**
   - 可將每個 stem 播放器分別拖曳到 **audio track** 上，放到您希望的位置。
   - 或點擊 **Import All Stems to Timeline**，系統會自動為每個 stem 新建一條音訊軌，並將其放置在源音軌下方，與原始區域的起始拍點對齊。該操作可透過一次復原完整回退。
+
+### 人性化
+
+在波形或頻譜視圖中，選擇 **… → 音軌提取…** 可開啟此分頁。
+
+在時間線上選取 MIDI 區域，然後選擇 **… → 人性化…**，即可開啟 **AI 音樂工具 → 人性化**。所有設定均直接顯示在分頁中。AIRE 為 **CC1、CC2、CC7 或 CC11** 生成可編輯的表現曲線，同時保留音符的時序和力度。已啟用的循環將處理範圍限制在其與區域的交集內。設定在本次應用程式工作階段中保留；離開分頁會取消處理。完成後，鋼琴卷簾將顯示生成的控制器軌道。分頁跟隨時間線選取，顯示推理後端及模型快取狀態，並提供下載、重新下載及刪除所選模型的按鈕。
 
 ## 即將推出的功能
 
@@ -393,7 +346,6 @@ K.G.Studio 支援 **兩種模式** 的分軌：
 - [X] 事件列表
 - [X] 支援 OpenAI 的開源模型（`gpt-oss-20b` 和 `gpt-oss-120b`）
 - [X] 五線譜
-- [X] K.G.One Music Studio 整合
 - [X] 瀏覽器內嵌 AI 模型（基於 Gemma 4 E4B 的本機 LLM；基於 UVR-MDX-NET-Inst_HQ_3 與 htdemucs_4s 的本機分軌）
 - [X] 全域軌系統（Marker、Tempo、Key Signature、Chord）
 - [X] 音訊和弦檢測（零依賴 FFT，並將結果寫入 Chord Track）

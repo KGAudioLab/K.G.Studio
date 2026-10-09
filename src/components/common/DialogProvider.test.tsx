@@ -171,7 +171,7 @@ describe('DialogProvider chord detection dialog', () => {
     }));
   });
 
-  it('shows K.G.One separator guidance when server integration is enabled', async () => {
+  it('shows browser separator guidance even with legacy server integration enabled', async () => {
     mockKgoneEnabled.value = true;
 
     render(
@@ -194,8 +194,9 @@ describe('DialogProvider chord detection dialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
 
-    expect(screen.getByText(/Vocal, Drums, Bass, Guitar, Piano, and Others/)).toBeInTheDocument();
-    expect(screen.getByText(/Piano or Others stem/)).toBeInTheDocument();
+    expect(screen.getByText(/Vocal, Drums, Bass, and Others/)).toBeInTheDocument();
+    expect(screen.getByText(/use the Others stem/)).toBeInTheDocument();
+    expect(screen.queryByText(/K\.G\.One/)).not.toBeInTheDocument();
   });
 });
 

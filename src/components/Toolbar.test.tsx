@@ -310,7 +310,7 @@ describe('Toolbar settings side-panel behavior', () => {
   it('suppresses active styling for side-panel buttons while Settings is visible', () => {
     render(<Toolbar />);
 
-    expect(screen.getByTitle('K.G.One Music Generator')).not.toHaveClass('active');
+    expect(screen.getByTitle('AI Music Tools')).not.toHaveClass('active');
     expect(screen.getByTitle('Chat')).not.toHaveClass('active');
     expect(screen.getByTitle('Event List Editor')).not.toHaveClass('active');
   });

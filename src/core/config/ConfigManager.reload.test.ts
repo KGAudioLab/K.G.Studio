@@ -58,13 +58,22 @@ describe('ConfigManager reload after migration', () => {
     const { ConfigManager } = await import('./ConfigManager');
     const manager = ConfigManager.instance();
     await manager.initialize();
-    manager.setKGOneManagedByServer('https://managed.example');
     manager.setSoundfontManagedByServer('https://sounds.example');
     await manager.reloadFromStorage();
-    expect(manager.get('general.kgone')).toEqual({ enabled: true, base_url: 'https://managed.example' });
     expect(manager.get('general.soundfont.base_url')).toBe('https://sounds.example');
     expect(manager.get('hotkeys.main.play')).toBe(manager.getDefaults()!.hotkeys.main.play);
     expect(manager.get('general.language')).toBe('fr_fr');
+    expect(storage.save).not.toHaveBeenCalled();
+  });
+
+  it('leaves legacy saved KGOne values inert without migrating storage', async () => {
+    storage.load.mockResolvedValue({ general: { kgone: { enabled: true, base_url: 'https://old.example' } } });
+    const { ConfigManager } = await import('./ConfigManager');
+    const manager = ConfigManager.instance();
+    await manager.initialize();
+    expect(manager.getDefaults()!.general).not.toHaveProperty('kgone');
+    expect(manager).not.toHaveProperty('setKGOneManagedByServer');
+    expect(manager).not.toHaveProperty('isKGOneServerManaged');
     expect(storage.save).not.toHaveBeenCalled();
   });
 
