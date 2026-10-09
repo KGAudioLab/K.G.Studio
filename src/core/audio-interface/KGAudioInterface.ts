@@ -3,6 +3,7 @@ import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import { TIME_CONSTANTS, AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
+import { DEBUG_MODE } from '../../constants/playbackConstants';
 import { UserInstrumentRegistry } from '../instruments/UserInstrumentRegistry';
 import {
   clampMidiControllerValue,
@@ -777,9 +778,11 @@ export class KGAudioInterface {
               return;
             }
 
-            console.log(
-              `Scheduling note ${noteName} at tick ${Number(absoluteStartTick.toFixed ? absoluteStartTick.toFixed(3) : absoluteStartTick.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${formattedNoteStartTime}, duration: ${noteDurationTicks} ticks, delay: ${playbackDelay}s`
-            );
+            if (!isMetronomeTrack || DEBUG_MODE.SHOW_METRONOME_NOTES_SCHEDULING) {
+              console.log(
+                `Scheduling note ${noteName} at tick ${Number(absoluteStartTick.toFixed ? absoluteStartTick.toFixed(3) : absoluteStartTick.toLocaleString(undefined, {maximumFractionDigits: 3}))}, Tone time: ${formattedNoteStartTime}, duration: ${noteDurationTicks} ticks, delay: ${playbackDelay}s`
+              );
+            }
 
             const eventId = Tone.Transport.schedule((time) => {
               const hasSoloedTracks = isMetronomeTrack ? false : this.hasSoloedTracks();

@@ -1,0 +1,3 @@
+export const DEBUG_MODE = {
+  SHOW_METRONOME_NOTES_SCHEDULING: false
+};
