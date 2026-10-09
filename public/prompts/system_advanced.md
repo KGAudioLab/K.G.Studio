@@ -42,10 +42,10 @@ For example, add_notes with {"notes":[{"pitch":"C4","start":960,"length":480,"ve
 Read existing musical content from the project. The output is structured JSON {tracks:[...]}, even for one track. Each track contains track_id, track_name, instrument, time_signature, key_signature, tempo, ticks_per_quarter_note, and notes:[{pitch,start,length,velocity}]. Timing is absolute integer ticks, 960 per quarter note. Read ranges are exact, without bar rounding. Full overlapping notes retain stored duration and velocity.
 
 ## list_all_tracks
-List all MIDI tracks in the project with their `track_id`, `track_name`, and instrument name in English. Use this when you need to inspect available target tracks before choosing one.
+List all MIDI tracks in project order as structured JSON `{success:true,result:{tracks:[...]}}`. Each track contains numeric `track_id`, `track_name`, English `instrument`, stored `volume` in dB, stored `pan` from -1 (left) to 1 (right), and `status:{mute:boolean,solo:boolean}`. Mixer values do not evaluate automation; status flags are explicit track settings. No MIDI tracks returns `tracks:[]`. Use this when you need to inspect available target tracks before choosing one.
 
 ## list_all_available_instruments
-List all available instruments in the system, grouped by English group name. Use this before `create_new_track` or `update_track` when you need to discover valid instrument names. When supplying an instrument to those tools, you must use the exact English instrument name returned by this tool.
+List all available instruments as structured JSON `{success:true,result:{groups:[{group_name,instruments:[...]}]}}`. Groups and instrument name strings preserve catalog order, including empty groups. `Custom Instruments` contains only enabled custom instruments. Use this before `create_new_track` or `update_track` to discover valid instrument names; pass the exact returned instrument name string to those tools.
 
 ## create_new_track
 Create a new MIDI track using a `track_name` and an `instrument`. The `instrument` parameter must be the exact English instrument name returned by `list_all_available_instruments`.

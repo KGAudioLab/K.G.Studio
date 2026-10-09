@@ -1,6 +1,8 @@
 import type { AgentMode } from '../../util/agentMode';
 import type { ToolPayload } from './BaseTool';
 import { AdvancedReadMusicTool } from './AdvancedReadMusicTool';
+import { AdvancedListAllTracks } from './AdvancedListAllTracks';
+import { AdvancedListAllAvailableInstruments } from './AdvancedListAllAvailableInstruments';
 import { AdvancedReadChordProgressionTool } from './AdvancedReadChordProgressionTool';
 import { AdvancedReadBpmTool, AdvancedReadKeySignatureTool, AdvancedReadMarkersTool, AdvancedGetUserSelectedMusicRangeAndTrackTool } from './AdvancedTimelineReaders';
 import { AdvancedTickEditorTool } from './AdvancedTickEditorTool';
@@ -57,6 +59,8 @@ export {
   UpdateTodoListTool,
   GetUserSelectedMusicRangeAndTrackTool,
   ListAllTracksTool,
+  AdvancedListAllTracks,
+  AdvancedListAllAvailableInstruments,
   ListAllAvailableInstrumentsTool,
   CreateNewTrackTool,
   UpdateTrackTool,
@@ -102,6 +106,8 @@ export const AVAILABLE_TOOLS = {
 export type ToolName = keyof typeof AVAILABLE_TOOLS;
 
 const ADVANCED_READERS = {
+  list_all_available_instruments: AdvancedListAllAvailableInstruments,
+  list_all_tracks: AdvancedListAllTracks,
   read_music: AdvancedReadMusicTool,
   read_chord_progression: AdvancedReadChordProgressionTool,
   read_bpm: AdvancedReadBpmTool,
