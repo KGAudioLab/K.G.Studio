@@ -3,6 +3,7 @@ import { createMockMidiNote, createMockMidiRegion, createMockMidiTrack, createMo
 import { bakeMidiAutomationPointsInWindow } from '../../util/midiAutomationUtil';
 import { GlobalTrackType } from '../global-track';
 import { KGTempoRegion } from '../region/KGTempoRegion';
+import { KGMidiControllerEvent } from '../midi/KGMidiControllerEvent';
 
 const { offlineMock, configGetMock } = vi.hoisted(() => ({
   offlineMock: vi.fn(),
@@ -348,6 +349,24 @@ describe('renderToBuffer bounce range', () => {
     await KGOfflineRenderer.instance().renderToBuffer(project, { tailSeconds: 0 });
 
     expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), 2, 2, 44100);
+  });
+
+  it.each([false, true])('includes sustain after the last note in the bounce range (explicit release: %s)', async (explicitRelease) => {
+    const region = createMockMidiRegion({
+      startTick: 4,
+      length: 8,
+      notes: [createMockMidiNote({ startTick: 1, endTick: 2 })],
+    });
+    region.addControllerEvent(64, new KGMidiControllerEvent('pedal-down', 0, 127));
+    if (explicitRelease) {
+      region.addControllerEvent(64, new KGMidiControllerEvent('pedal-up', 6 * 960, 0));
+    }
+    const track = createMockMidiTrack({ id: 1, regions: [region] });
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+
+    await KGOfflineRenderer.instance().renderToBuffer(project, { tailSeconds: 0 });
+
+    expect(offlineMock).toHaveBeenCalledWith(expect.any(Function), explicitRelease ? 5 : 6, 2, 44100);
   });
 
   it('keeps looping bounce bounds regardless of the tick-1 setting', async () => {

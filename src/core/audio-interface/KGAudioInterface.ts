@@ -619,7 +619,8 @@ export class KGAudioInterface {
                   const sustainedEndTick = resolveSustainExtendedEndTick(
                     trackControllerEvents[64],
                     noteEndTick,
-                    0
+                    0,
+                    Math.min(regionStartTick + region.getLengthTicks(), scheduleEndTick)
                   );
 
                   const isPrerollNote = noteStartTick >= startPosition && (

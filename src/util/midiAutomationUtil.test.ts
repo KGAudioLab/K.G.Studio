@@ -189,7 +189,21 @@ describe('midiAutomationUtil', () => {
       { tick: q(4), value: 0 },
     ];
 
-    expect(resolveSustainExtendedEndTick(points, q(2), 0)).toBe(q(4));
-    expect(resolveSustainExtendedEndTick(points, q(5), 0)).toBe(q(5));
+    expect(resolveSustainExtendedEndTick(points, q(2), 0, q(8))).toBe(q(4));
+    expect(resolveSustainExtendedEndTick(points, q(5), 0, q(8))).toBe(q(5));
+  });
+
+  it('holds the final pedal-down value through the region end without a release point', () => {
+    const points = [
+      { tick: q(0), value: 127 },
+      { tick: q(2), value: 0 },
+      { tick: q(3), value: 127 },
+    ];
+
+    expect(resolveSustainExtendedEndTick(points, q(1), 0, q(8))).toBe(q(2));
+    expect(resolveSustainExtendedEndTick(points, q(4), 0, q(8))).toBe(q(8));
+    expect(resolveSustainExtendedEndTick([...points, { tick: q(8), value: 0 }], q(4), 0, q(8))).toBe(q(8));
+    expect(resolveSustainExtendedEndTick(points, q(9), 0, q(8))).toBe(q(9));
+    expect(resolveSustainExtendedEndTick([], q(4), 0, q(8))).toBe(q(4));
   });
 });
