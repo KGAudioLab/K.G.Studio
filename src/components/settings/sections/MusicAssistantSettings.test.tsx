@@ -323,7 +323,7 @@ describe('MusicAssistantSettings', () => {
     expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual([
       'General', 'Music Assistant', 'Audio I/O', 'Behavior', 'Templates', 'Chord Guide',
     ]);
-    const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'K.G.One Settings'];
+    const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'K.G.One Settings', 'AIRE Settings'];
     expect(screen.getByRole('heading', { level: 3, name: 'General' })).toBeTruthy();
     expect(screen.getByLabelText('Language')).toBeTruthy();
     const assistantGroups = [

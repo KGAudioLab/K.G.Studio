@@ -11,6 +11,7 @@ interface OpfsModelCacheOptions {
 
 interface ModelCacheValidationOptions {
   expectedSizeBytes?: number | null;
+  signal?: AbortSignal;
 }
 
 export class OpfsModelCache {
@@ -23,22 +24,24 @@ export class OpfsModelCache {
   }
 
   public async exists(filename: string, options: ModelCacheValidationOptions = {}): Promise<boolean> {
+    const originalPath = filename;
     try {
-      const dir = await this.getDir();
+      const dir = await this.getDir(filename);
+      filename = filename.split('/').pop()!;
       const fileHandle = await dir.getFileHandle(filename);
       const sizeHandle = await dir.getFileHandle(this.getSizeFilename(filename));
       const [file, sizeFile] = await Promise.all([fileHandle.getFile(), sizeHandle.getFile()]);
       const expectedSize = Number(await sizeFile.text());
       if (!Number.isFinite(expectedSize) || expectedSize <= 0) {
-        await this.delete(filename);
+        await this.delete(originalPath);
         return false;
       }
       if (options.expectedSizeBytes != null && expectedSize !== options.expectedSizeBytes) {
-        await this.delete(filename);
+        await this.delete(originalPath);
         return false;
       }
       if (file.size !== expectedSize) {
-        await this.delete(filename);
+        await this.delete(originalPath);
         return false;
       }
       return true;
@@ -48,7 +51,8 @@ export class OpfsModelCache {
   }
 
   public async getFile(filename: string): Promise<File> {
-    const dir = await this.getDir();
+    const dir = await this.getDir(filename);
+    filename = filename.split('/').pop()!;
     const handle = await dir.getFileHandle(filename);
     const file = await handle.getFile();
     console.log('[opfsModelCache] Opened cached file.', {
@@ -64,7 +68,8 @@ export class OpfsModelCache {
   }
 
   public async delete(filename: string): Promise<void> {
-    const dir = await this.getDir();
+    const dir = await this.getDir(filename);
+    filename = filename.split('/').pop()!;
     await this.removeIfExists(dir, filename);
     await this.removeIfExists(dir, this.getSizeFilename(filename));
   }
@@ -75,12 +80,14 @@ export class OpfsModelCache {
     options: ModelCacheValidationOptions = {},
     onProgress?: (progress: ModelDownloadProgress) => void,
   ): Promise<void> {
-    const response = await fetch(sourceUrl);
+    options.signal?.throwIfAborted();
+    const response = await fetch(sourceUrl, { signal: options.signal });
     if (!response.ok) {
       throw new Error(`Model download failed (${response.status})`);
     }
     const totalBytesHeader = response.headers.get('Content-Length');
-    const totalBytes = totalBytesHeader ? Number(totalBytesHeader) : null;
+    const parsedSize = Number(totalBytesHeader);
+    const totalBytes = Number.isFinite(parsedSize) && parsedSize > 0 ? parsedSize : null;
     if (!response.body) {
       throw new Error('Model download response did not include a readable body.');
     }
@@ -94,17 +101,24 @@ export class OpfsModelCache {
     options: ModelCacheValidationOptions = {},
     onProgress?: (progress: ModelDownloadProgress) => void,
   ): Promise<void> {
-    const dir = await this.getDir();
-    await this.delete(filename);
-
-    const finalHandle = await dir.getFileHandle(filename, { create: true });
-    const finalWritable = await finalHandle.createWritable();
+    const originalPath = filename;
     const reader = stream.getReader();
+    let finalWritable: FileSystemWritableFileStream | undefined;
+    const onAbort = () => { void reader.cancel(options.signal?.reason).catch(() => {}); };
+    options.signal?.addEventListener('abort', onAbort, { once: true });
     let receivedBytes = 0;
 
     try {
+      options.signal?.throwIfAborted();
+      const dir = await this.getDir(filename);
+      await this.delete(filename);
+      filename = filename.split('/').pop()!;
+      const finalHandle = await dir.getFileHandle(filename, { create: true });
+      finalWritable = await finalHandle.createWritable();
       while (true) {
+        options.signal?.throwIfAborted();
         const { done, value } = await reader.read();
+        options.signal?.throwIfAborted();
         if (done) break;
         if (!value) continue;
         await finalWritable.write(value);
@@ -116,6 +130,11 @@ export class OpfsModelCache {
         });
       }
       await finalWritable.close();
+      options.signal?.throwIfAborted();
+
+      if (totalBytes != null && receivedBytes !== totalBytes) {
+        throw new Error('Model download ended before the advertised size was received.');
+      }
 
       const sizeValue = totalBytes ?? receivedBytes;
       if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
@@ -130,8 +149,9 @@ export class OpfsModelCache {
       try {
         await sizeWritable.write(String(sizeValue));
         await sizeWritable.close();
+        options.signal?.throwIfAborted();
       } catch (error) {
-        await sizeWritable.abort();
+        try { await sizeWritable.abort(); } catch { /* The sidecar may already be closed. */ }
         throw error;
       }
 
@@ -146,13 +166,15 @@ export class OpfsModelCache {
       });
     } catch (error) {
       try {
-        await finalWritable.abort();
+        await finalWritable?.abort();
       } catch {
         // Ignore abort cleanup errors.
       }
-      await this.delete(filename);
+      await reader.cancel(error).catch(() => {});
+      await this.delete(originalPath);
       throw error;
     } finally {
+      options.signal?.removeEventListener('abort', onAbort);
       reader.releaseLock();
     }
   }
@@ -161,16 +183,24 @@ export class OpfsModelCache {
     return `${filename}${this.sizeSuffix}`;
   }
 
-  private async getDir(): Promise<FileSystemDirectoryHandle> {
+  private async getDir(filename: string): Promise<FileSystemDirectoryHandle> {
+    const parts = filename.split('/');
+    if (parts.some(part => !part || part === '.' || part === '..' || part.includes('\\'))) {
+      throw new Error('Invalid model cache path.');
+    }
     const root = await navigator.storage.getDirectory();
-    return root.getDirectoryHandle(this.directoryName, { create: true });
+    let dir = await root.getDirectoryHandle(this.directoryName, { create: true });
+    for (const part of parts.slice(0, -1)) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
+    }
+    return dir;
   }
 
   private async removeIfExists(dir: FileSystemDirectoryHandle, name: string): Promise<void> {
     try {
       await dir.removeEntry(name);
-    } catch {
-      // Ignore missing entry cleanup.
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
     }
   }
 }

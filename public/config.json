@@ -1,5 +1,8 @@
 {
     "general": {
+        "aire": {
+            "base_url": "https://huggingface.co/KGAudioLab/instrument-aire-models/resolve/main/models/"
+        },
         "language": "auto",
         "agent_mode": "advanced",
         "llm_provider": "local_browser",

@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:browser": "playwright test",
     "test:browser:install": "playwright install chromium",
+    "test:browser:aire": "AIRE_BROWSER_TEST=1 npm run build && playwright test --config playwright.aire.config.ts",
     "test:browser:tempo": "playwright test src/test/browser/audio-tempo-detection.spec.ts",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",

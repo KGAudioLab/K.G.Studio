@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './src/test/browser',
+  testIgnore: 'aire-production.spec.ts',
   timeout: 30_000,
   fullyParallel: false,
   retries: 0,

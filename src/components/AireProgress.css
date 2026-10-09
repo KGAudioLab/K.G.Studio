@@ -1,0 +1,6 @@
+.aire-progress-block { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.aire-progress-track { width: 100%; height: 8px; background-color: #1d1d1d; border: 1px solid #3a3a3a; border-radius: 999px; overflow: hidden; }
+.aire-progress-fill { height: 100%; background: linear-gradient(90deg, #5a9fd4 0%, #7cc2f1 100%); transition: width 0.15s linear; }
+.aire-progress-indeterminate { width: 35%; animation: aire-progress 1.5s ease-in-out infinite alternate; }
+@keyframes aire-progress { from { transform: translateX(-100%); } to { transform: translateX(285%); } }
+@media (prefers-reduced-motion: reduce) { .aire-progress-indeterminate { animation: none; width: 100%; opacity: 0.5; } }

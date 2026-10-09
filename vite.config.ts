@@ -19,8 +19,13 @@ export default defineConfig({
   esbuild: {
     keepNames: true,
   },
+  worker: { format: 'es' },
   build: {
     sourcemap: true,
+    ...(process.env.AIRE_BROWSER_TEST === '1' ? { rollupOptions: { input: {
+      app: resolve(__dirname, 'index.html'),
+      aire: resolve(__dirname, 'src/test/browser/aire-test.html'),
+    } } } : {}),
   },
   server: {
     host: true,

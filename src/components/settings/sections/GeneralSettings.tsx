@@ -1,3 +1,4 @@
+import AireSettings from './AireSettings';
 import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
@@ -246,7 +247,7 @@ const GeneralSettings: React.FC = () => {
               <option value="zh_cn">{LANGUAGE_OPTION_LABELS.zh_cn}</option>
               <option value="zh_hk">{LANGUAGE_OPTION_LABELS.zh_hk}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.language.help')}
             </div>
           </div>
@@ -266,7 +267,7 @@ const GeneralSettings: React.FC = () => {
               value={uvr5ModelUrl}
               onChange={(e) => handleUvr5ModelUrlChange(e.target.value)}
             />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.modelUrl.help')}{' '}
               <a
                 href="#"
@@ -305,7 +306,7 @@ const GeneralSettings: React.FC = () => {
               value={htdemucsModelUrl}
               onChange={(e) => handleHtdemucsModelUrlChange(e.target.value)}
             />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.modelUrl.help')}{' '}
               <a
                 href="#"
@@ -338,7 +339,7 @@ const GeneralSettings: React.FC = () => {
           <h4>{t('settings.general.soundfont.section')}</h4>
 
           {soundfontServerManaged && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+            <div className="settings-help settings-help-note">
               {t('settings.general.soundfont.managed')}
             </div>
           )}
@@ -355,7 +356,7 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleSoundfontBaseUrlChange(e.target.value)}
               disabled={soundfontServerManaged}
             />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.soundfont.baseUrlHelp')}{' '}
               <a
                 href="#"
@@ -374,14 +375,14 @@ const GeneralSettings: React.FC = () => {
             <label className="settings-label">
               {t('settings.general.soundfont.cachedStatus')}
             </label>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {isCheckingSoundfontCache
                 ? t('settings.general.soundfont.cacheChecking')
                 : soundfontCacheSummary.instrumentCount > 0
                   ? t('settings.general.soundfont.cacheReady', { count: soundfontCacheSummary.instrumentCount })
                   : t('settings.general.soundfont.cacheEmpty')}
             </div>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.soundfont.cacheHelp')}
             </div>
           </div>
@@ -407,7 +408,7 @@ const GeneralSettings: React.FC = () => {
                 ))
               )}
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.soundfont.cachedInstrumentHelp')}
             </div>
           </div>
@@ -444,7 +445,7 @@ const GeneralSettings: React.FC = () => {
           <h4>{t('settings.general.kgone.section')}</h4>
 
           {kgoneServerManaged && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+            <div className="settings-help settings-help-note">
               {t('settings.general.kgone.managed')}
             </div>
           )}
@@ -476,11 +477,12 @@ const GeneralSettings: React.FC = () => {
               onChange={(e) => handleKgoneBaseUrlChange(e.target.value)}
               disabled={kgoneServerManaged}
             />
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.kgone.serverBaseUrlHelp')}
             </div>
           </div>
         </div>
+        <AireSettings />
       </div>
     </div>
   );

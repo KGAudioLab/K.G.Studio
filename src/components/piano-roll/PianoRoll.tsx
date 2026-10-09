@@ -8,6 +8,7 @@ import type { KGRegion } from '../../core/region/KGRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS, type PianoRollMode } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
+import HumanizePopup from '../HumanizePopup';
 import TransposeSettingsPopup from '../TransposeSettingsPopup';
 import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
@@ -213,6 +214,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     return null;
   }, [regionId, tracks]);
   const activeRegion = activeEditorRegion instanceof KGMidiRegion ? activeEditorRegion : null;
+  const [showHumanizePopup, setShowHumanizePopup] = useState(false);
+  useEffect(() => { setShowHumanizePopup(false); }, [activeRegion, regionId, projectName, isLooping, loopingRange[0], loopingRange[1]]);
   const [showTransposePopup, setShowTransposePopup] = useState(false);
   const transposePopupRegionId = activeRegion?.getId() ?? null;
 
@@ -1881,6 +1884,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
             ? handleIntelligentArpeggiator
             : undefined
         }
+        onHumanize={!isAudioOnly && !sheetMusicViewEnabled ? () => setShowHumanizePopup(true) : undefined}
         onTransposeSettings={
           activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
             ? () => setShowTransposePopup(true)
@@ -1899,6 +1903,10 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           onConfirm={handleRegionTransposeConfirm}
         />
       )}
+
+      {showHumanizePopup && <HumanizePopup region={activeRegion} onCancel={() => setShowHumanizePopup(false)} onSuccess={() => {
+        setShowHumanizePopup(false); setAutomationType('cc-1'); setAutomationEnabled(true); refreshProjectState();
+      }} />}
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />
 
