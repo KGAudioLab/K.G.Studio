@@ -138,7 +138,8 @@ export class PasteRegionsCommand extends KGCommand {
           originalRegion.getAudioFileId(),
           originalRegion.getAudioFileName(),
           originalRegion.getAudioDurationSeconds(),
-          originalRegion.getClipStartOffsetSeconds()
+          originalRegion.getClipStartOffsetSeconds(),
+          originalRegion.getClipEndOffsetSeconds(),
         );
         newRegion.setColor(originalRegion.getColor());
 

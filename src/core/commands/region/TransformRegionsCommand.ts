@@ -5,7 +5,7 @@ import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { KGTrack } from '../../track/KGTrack';
 import { REGION_CONSTANTS } from '../../../constants';
-import { secondsToTick, tickToSeconds } from '../../../util/globalTrackUtil';
+import { secondsToTick, tickToSeconds, tickRangeToSeconds } from '../../../util/globalTrackUtil';
 
 interface RegionSnapshot {
   regionId: string;
@@ -14,6 +14,7 @@ interface RegionSnapshot {
   startTick: number;
   length: number;
   clipStartOffsetSeconds?: number;
+  clipEndOffsetSeconds?: number;
 }
 
 interface ProjectedRegionState extends RegionSnapshot {
@@ -276,6 +277,7 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
       startTick: region.getStartTick(),
       length: region.getLengthTicks(),
       clipStartOffsetSeconds: region instanceof KGAudioRegion ? region.getClipStartOffsetSeconds() : undefined,
+      clipEndOffsetSeconds: region instanceof KGAudioRegion ? region.getClipEndOffsetSeconds() : undefined,
     }));
     this.targetRegions = resolvedRegions.map(({ region }) => region);
     this.noteAdjustments.clear();
@@ -318,6 +320,8 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
 
       if (region instanceof KGAudioRegion && projectedState.clipStartOffsetSeconds !== undefined) {
         region.setClipStartOffsetSeconds(projectedState.clipStartOffsetSeconds);
+        region.setClipEndOffsetSeconds(projectedState.clipStartOffsetSeconds +
+          tickRangeToSeconds(project, projectedState.startTick, projectedState.startTick + projectedState.length));
       }
 
       region.setStartTick(projectedState.startTick);
@@ -366,6 +370,7 @@ export class ResizeMultipleRegionsCommand extends KGCommand {
 
       if (region instanceof KGAudioRegion && originalState.clipStartOffsetSeconds !== undefined) {
         region.setClipStartOffsetSeconds(originalState.clipStartOffsetSeconds);
+        region.setClipEndOffsetSeconds(originalState.clipEndOffsetSeconds);
       }
 
       region.setStartTick(originalState.startTick);

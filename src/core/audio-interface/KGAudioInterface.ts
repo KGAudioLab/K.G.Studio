@@ -810,7 +810,7 @@ export class KGAudioInterface {
 
               // Clip offset: where playback starts within the audio file
               const clipStartOffsetSeconds = audioRegion.getClipStartOffsetSeconds();
-              const audioDurationSeconds = audioRegion.getAudioDurationSeconds();
+              const audioDurationSeconds = clipStartOffsetSeconds + audioRegion.getPlayableDurationSeconds();
               const audioFileId = audioRegion.getAudioFileId();
 
               const scheduleRegionResume = (

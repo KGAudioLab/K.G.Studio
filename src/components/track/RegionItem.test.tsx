@@ -5,6 +5,9 @@ import RegionItem from './RegionItem';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
+import { KGCore } from '../../core/KGCore';
+import { KGProject } from '../../core/KGProject';
+import { quarterNotesToTicks } from '../../core/timing';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 
 vi.mock('../../stores/projectStore', () => ({
@@ -195,6 +198,52 @@ describe('RegionItem', () => {
       expect(noteWidth * contentWidth / canvas.width).toBeCloseTo(timelineWidth / 8, 8);
       expect(canvas.style.width).toBe(`${contentWidth}px`);
     } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('keeps waveform peaks at the same timeline pixels before and after an uneven split', () => {
+    const project = new KGProject('Waveform alignment', 16, 0, 120);
+    const coreSpy = vi.spyOn(KGCore, 'instance').mockReturnValue({ getCurrentProject: () => project } as KGCore);
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
+    const sampleRate = 44100;
+    const data = new Float32Array(sampleRate * 8);
+    data[sampleRate * 2] = 1;
+    data[sampleRate * 6] = 1;
+    const audioBuffer = { sampleRate, getChannelData: () => data } as unknown as AudioBuffer;
+
+    const draw = (id: string, startQuarter: number, lengthQuarter: number, clipOffset: number, timelineWidth: number, timelineLeft: number) => {
+      const contentWidth = timelineWidth - 4;
+      rectSpy.mockReturnValue({
+        x: timelineLeft + 2, y: 0, left: timelineLeft + 2, top: 0,
+        right: timelineLeft + 2 + contentWidth, bottom: 60,
+        width: contentWidth, height: 60, toJSON: () => ({}),
+      });
+      const audioRegion = new KGAudioRegion(
+        id, 'track-1', 0, 'Audio', quarterNotesToTicks(startQuarter),
+        quarterNotesToTicks(lengthQuarter), 'file', 'audio.wav', 8, clipOffset
+      );
+      const { unmount } = renderRegion({
+        id, midiRegion: undefined, audioRegion, audioBuffer,
+        style: { left: `${timelineLeft}px`, width: `${timelineWidth}px`, border: '2px solid white' },
+      });
+      const context = getContextSpy.mock.results.at(-1)?.value as { fillRect: ReturnType<typeof vi.fn> };
+      const peakPositions = context.fillRect.mock.calls
+        .filter(([, y]) => y === 0)
+        .map(([x]) => timelineLeft + 2 + x);
+      unmount();
+      return peakPositions;
+    };
+
+    try {
+      const originalPeaks = draw('original', 0, 16, 0, 320, 0);
+      const leftPeaks = draw('left', 0, 7, 0, 140, 0);
+      const rightPeaks = draw('right', 7, 9, 3.5, 180, 140);
+      expect(originalPeaks).toEqual([80, 240]);
+      expect([...leftPeaks, ...rightPeaks]).toEqual(originalPeaks);
+    } finally {
+      coreSpy.mockRestore();
       rectSpy.mockRestore();
     }
   });

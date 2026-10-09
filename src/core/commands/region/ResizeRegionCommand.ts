@@ -3,6 +3,7 @@ import { KGCore } from '../../KGCore';
 import { KGRegion } from '../../region/KGRegion';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
+import { tickRangeToSeconds } from '../../../util/globalTrackUtil';
 import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
@@ -38,6 +39,7 @@ export class ResizeRegionCommand extends KGCommand {
   // Audio region clip offset support
   private newClipStartOffsetSeconds?: number;
   private originalClipStartOffsetSeconds: number = 0;
+  private originalClipEndOffsetSeconds?: number;
 
   constructor(regionId: string, newStartTick: number, newLength: number, newClipStartOffsetSeconds?: number) {
     super();
@@ -116,6 +118,7 @@ export class ResizeRegionCommand extends KGCommand {
     // Handle clip offset for audio regions
     if (targetRegion instanceof KGAudioRegion) {
       this.originalClipStartOffsetSeconds = targetRegion.getClipStartOffsetSeconds();
+      this.originalClipEndOffsetSeconds = targetRegion.getClipEndOffsetSeconds();
       if (this.newClipStartOffsetSeconds !== undefined) {
         targetRegion.setClipStartOffsetSeconds(this.newClipStartOffsetSeconds);
         console.log(`Updated audio clip offset: ${this.originalClipStartOffsetSeconds} → ${this.newClipStartOffsetSeconds}`);
@@ -125,6 +128,12 @@ export class ResizeRegionCommand extends KGCommand {
     // Apply the resize
     targetRegion.setStartTick(this.newStartTick);
     targetRegion.setLengthTicks(this.newLength);
+    if (targetRegion instanceof KGAudioRegion && (
+      this.newLength !== this.originalLength || this.newClipStartOffsetSeconds !== undefined
+    )) {
+      targetRegion.setClipEndOffsetSeconds(targetRegion.getClipStartOffsetSeconds() +
+        tickRangeToSeconds(currentProject, this.newStartTick, this.newStartTick + this.newLength));
+    }
 
     const regionName = targetRegion.getName();
     console.log(`Resized region "${regionName}": start ${this.originalStartTick} → ${this.newStartTick}, length ${this.originalLength} → ${this.newLength}`);
@@ -174,6 +183,10 @@ export class ResizeRegionCommand extends KGCommand {
     if (this.targetRegion instanceof KGAudioRegion && this.newClipStartOffsetSeconds !== undefined) {
       this.targetRegion.setClipStartOffsetSeconds(this.originalClipStartOffsetSeconds);
       console.log(`Restored audio clip offset: ${this.newClipStartOffsetSeconds} → ${this.originalClipStartOffsetSeconds}`);
+    }
+
+    if (this.targetRegion instanceof KGAudioRegion) {
+      this.targetRegion.setClipEndOffsetSeconds(this.originalClipEndOffsetSeconds);
     }
 
     // Restore original region values

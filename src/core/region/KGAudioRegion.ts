@@ -26,6 +26,11 @@ export class KGAudioRegion extends KGRegion {
   @WithDefault(0)
   protected clipStartOffsetSeconds: number = 0;
 
+  // Optional source-file end boundary for split/trimmed clips. Older projects
+  // without this field continue to play through the end of the source file.
+  @Expose()
+  protected clipEndOffsetSeconds?: number;
+
   constructor(
     id: string,
     trackId: string,
@@ -36,7 +41,8 @@ export class KGAudioRegion extends KGRegion {
     audioFileId: string = '',
     audioFileName: string = '',
     audioDurationSeconds: number = 0,
-    clipStartOffsetSeconds: number = 0
+    clipStartOffsetSeconds: number = 0,
+    clipEndOffsetSeconds?: number
   ) {
     super(id, trackId, trackIndex, name, startTick, length);
     this.__type = 'KGAudioRegion';
@@ -44,6 +50,7 @@ export class KGAudioRegion extends KGRegion {
     this.audioFileName = audioFileName;
     this.audioDurationSeconds = audioDurationSeconds;
     this.clipStartOffsetSeconds = clipStartOffsetSeconds;
+    this.clipEndOffsetSeconds = clipEndOffsetSeconds;
   }
 
   // Getters
@@ -78,6 +85,19 @@ export class KGAudioRegion extends KGRegion {
 
   public setClipStartOffsetSeconds(clipStartOffsetSeconds: number): void {
     this.clipStartOffsetSeconds = clipStartOffsetSeconds;
+  }
+
+  public getClipEndOffsetSeconds(): number | undefined {
+    return this.clipEndOffsetSeconds;
+  }
+
+  public setClipEndOffsetSeconds(clipEndOffsetSeconds: number | undefined): void {
+    this.clipEndOffsetSeconds = clipEndOffsetSeconds;
+  }
+
+  public getPlayableDurationSeconds(): number {
+    const endSeconds = Math.min(this.audioDurationSeconds, this.clipEndOffsetSeconds ?? this.audioDurationSeconds);
+    return Math.max(0, endSeconds - this.clipStartOffsetSeconds);
   }
 
   // Override getCurrentType to return specific subclass type

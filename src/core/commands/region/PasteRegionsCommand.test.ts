@@ -88,6 +88,7 @@ describe('PasteRegionsCommand', () => {
       'vocal.wav',
       12.5,
       1.25,
+      5.25,
     );
     audioRegion.setColor('#654321');
     const command = PasteRegionsCommand.fromRegions('3', quarterNotesToTicks(10), [midiRegion, audioRegion]);
@@ -106,6 +107,7 @@ describe('PasteRegionsCommand', () => {
     expect(pastedAudio).toBeInstanceOf(KGAudioRegion);
     expect((pastedAudio as KGAudioRegion).getAudioFileId()).toBe('audio-file-id');
     expect((pastedAudio as KGAudioRegion).getClipStartOffsetSeconds()).toBe(1.25);
+    expect((pastedAudio as KGAudioRegion).getClipEndOffsetSeconds()).toBe(5.25);
     expect(pastedAudio.getColor()).toBe('#654321');
     expect(command.getTargetTracks()).toEqual([midiTrack, audioTrack]);
     expect(maxBars).toBe(6);

@@ -291,14 +291,13 @@ export function getAudioRegionDisplayLengthTicks(project: KGProject, region: KGA
   }
 
   const startTick = region.getStartTick();
-  const availableAudioSeconds = Math.max(0, region.getAudioDurationSeconds() - region.getClipStartOffsetSeconds());
   const endTick = getAudioRegionPlaybackEndTick(project, region);
   return Math.max(0, endTick - startTick);
 }
 
 export function getAudioRegionPlaybackEndTick(project: KGProject, region: KGAudioRegion): number {
   const startTick = region.getStartTick();
-  const availableAudioSeconds = Math.max(0, region.getAudioDurationSeconds() - region.getClipStartOffsetSeconds());
+  const availableAudioSeconds = region.getPlayableDurationSeconds();
   if (availableAudioSeconds <= 0) {
     return startTick;
   }
