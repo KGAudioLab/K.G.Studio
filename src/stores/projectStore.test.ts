@@ -1289,15 +1289,15 @@ describe('projectStore piano roll state', () => {
     } as typeof mockProject;
 
     mockCopiedItems = [
-      new TestMidiRegion('copied-region-a', 'source-track', 0, 'Region A', 2, 4),
-      new TestMidiRegion('copied-region-b', 'source-track', 0, 'Region B', 5, 6),
+      new TestMidiRegion('copied-region-a', 'source-track', 0, 'Region A', quarterNotesToTicks(2), quarterNotesToTicks(4)),
+      new TestMidiRegion('copied-region-b', 'source-track', 0, 'Region B', quarterNotesToTicks(5), quarterNotesToTicks(6)),
     ];
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
 
     const { useProjectStore } = await import('./projectStore');
 
     act(() => {
-      useProjectStore.getState().pasteRegionsAtTrack(track.getId().toString(), 10);
+      useProjectStore.getState().pasteRegionsAtTrack(track.getId().toString(), quarterNotesToTicks(10));
     });
 
     const pastedRegions = track.getRegions();
@@ -1305,9 +1305,9 @@ describe('projectStore piano roll state', () => {
 
     expect(mockCore.executeCommand).toHaveBeenCalledTimes(1);
     expect(pastedRegions).toHaveLength(2);
-    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(19);
-    expect(mockCore.setPlayheadTick).toHaveBeenCalledWith(19);
-    expect(state.playheadTick).toBe(19);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(quarterNotesToTicks(19));
+    expect(mockCore.setPlayheadTick).toHaveBeenCalledWith(quarterNotesToTicks(19));
+    expect(state.playheadTick).toBe(quarterNotesToTicks(19));
   });
 
   it('pastes multi-track regions to their original tracks and advances to the latest end', async () => {
@@ -1326,22 +1326,22 @@ describe('projectStore piano roll state', () => {
       setMaxBars: (value: number) => { maxBars = value; },
     } as typeof mockProject;
     mockCopiedItems = [
-      new TestMidiRegion('copied-region-a', '1', 0, 'Region A', 2, 4),
-      new TestMidiRegion('copied-region-b', '2', 1, 'Region B', 5, 6),
+      new TestMidiRegion('copied-region-a', '1', 0, 'Region A', quarterNotesToTicks(2), quarterNotesToTicks(4)),
+      new TestMidiRegion('copied-region-b', '2', 1, 'Region B', quarterNotesToTicks(5), quarterNotesToTicks(6)),
     ];
     mockCore.executeCommand.mockImplementation((command: { execute: () => void }) => command.execute());
     const { useProjectStore } = await import('./projectStore');
 
     let result = { success: false };
     act(() => {
-      result = useProjectStore.getState().pasteRegionsAtTrack(null, 10);
+      result = useProjectStore.getState().pasteRegionsAtTrack(null, quarterNotesToTicks(10));
     });
 
     expect(result).toEqual({ success: true });
-    expect(firstTrack.getRegions().map(region => region.getStartTick())).toEqual([10]);
-    expect(secondTrack.getRegions().map(region => region.getStartTick())).toEqual([13]);
-    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(19);
-    expect(useProjectStore.getState().playheadTick).toBe(19);
+    expect(firstTrack.getRegions().map(region => region.getStartTick())).toEqual([quarterNotesToTicks(10)]);
+    expect(secondTrack.getRegions().map(region => region.getStartTick())).toEqual([quarterNotesToTicks(13)]);
+    expect(mockProject.setPlayheadTick).toHaveBeenCalledWith(quarterNotesToTicks(19));
+    expect(useProjectStore.getState().playheadTick).toBe(quarterNotesToTicks(19));
     expect(maxBars).toBe(5);
     expect(useProjectStore.getState().maxBars).toBe(5);
     expect(document.documentElement.style.getPropertyValue('--max-number-of-bars')).toBe('5');

@@ -20,7 +20,10 @@ const storeState = {
   recordingAudioPreviewPeaks: [{ min: -0.5, max: 0.5 }],
   recordingAudioPreviewFileName: 'Recording' as string | null,
   timeSignature: { numerator: 4, denominator: 4 },
+  barWidthMultiplier: 2.5,
 };
+
+const resizeCallbacks: ResizeObserverCallback[] = [];
 
 const regionItemProps = new Map<string, Record<string, unknown>>();
 
@@ -82,6 +85,7 @@ describe('TrackGridItem preview behavior', () => {
     });
 
     class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) { resizeCallbacks.push(callback); }
       observe() {}
       unobserve() {}
       disconnect() {}
@@ -91,6 +95,9 @@ describe('TrackGridItem preview behavior', () => {
   });
 
   beforeEach(() => {
+    document.documentElement.style.setProperty('--track-grid-bar-width', '100px');
+    resizeCallbacks.length = 0;
+    storeState.barWidthMultiplier = 2.5;
     regionItemProps.clear();
     storeState.selectedRegionIds = [];
     storeState.activeTrackAutomationTrackId = null;
@@ -114,6 +121,58 @@ describe('TrackGridItem preview behavior', () => {
     Object.defineProperty(gridElement, 'clientHeight', { configurable: true, value: 240 });
     return { current: gridElement };
   };
+
+  it('uses the saved zoom on mount before the parent grid ref is attached', () => {
+    const track = createMockMidiTrack({ id: 1 });
+    const StartupHarness = () => {
+      const gridContainerRef = React.useRef<HTMLDivElement>(null);
+      return (
+        <div ref={gridContainerRef}>
+          <TrackGridItem
+            track={track} index={0} isDragging={false} isDragOver={false}
+            regions={[{ id: 'region-a', trackId: '1', trackIndex: 0, barNumber: 5, length: 4, name: 'Melody' }]}
+            maxBars={8} selectedRegionId={null} gridContainerRef={gridContainerRef} onDoubleClick={vi.fn()}
+          />
+        </div>
+      );
+    };
+    document.documentElement.style.setProperty('--track-grid-bar-width', '40px');
+    render(<StartupHarness />);
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({ left: '400px', width: '400px' }));
+  });
+
+  it('keeps region geometry stable while resize observations lag behind timeline changes', () => {
+    const track = createMockMidiTrack({ id: 1 });
+    const gridContainerRef = createGridContainerRef();
+    const props = {
+      track, index: 0, isDragging: false, isDragOver: false,
+      regions: [{ id: 'region-a', trackId: '1', trackIndex: 0, barNumber: 5, length: 4, name: 'Melody' }],
+      maxBars: 8, selectedRegionId: null, gridContainerRef, onDoubleClick: vi.fn(),
+    };
+    const { rerender } = render(<TrackGridItem {...props} />);
+    const expectStableGeometry = () => {
+      expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({ left: '400px', width: '400px' }));
+      expect(getRegionItem('audio-recording-preview').style).toEqual(expect.objectContaining({ left: '100px', width: '25px' }));
+    };
+    expectStableGeometry();
+
+    // Grow the timeline without delivering the matching ResizeObserver callback.
+    Object.defineProperty(gridContainerRef.current, 'clientWidth', { configurable: true, value: 768000 });
+    rerender(<TrackGridItem {...props} maxBars={7680} />);
+    expectStableGeometry();
+    // Undo before the observer catches up; neither region may become oversized.
+    rerender(<TrackGridItem {...props} />);
+    expectStableGeometry();
+    act(() => {
+      resizeCallbacks.forEach(callback => callback([{ contentRect: { width: 768000 } } as ResizeObserverEntry], {} as ResizeObserver));
+    });
+    expectStableGeometry();
+
+    document.documentElement.style.setProperty('--track-grid-bar-width', '50px');
+    storeState.barWidthMultiplier = 1.25;
+    rerender(<TrackGridItem {...props} />);
+    expect(getRegionItem('region-a').style).toEqual(expect.objectContaining({ left: '200px', width: '200px' }));
+  });
 
   const renderSharedPreviewHarness = (
     selectedRegionIds: string[] = [],
