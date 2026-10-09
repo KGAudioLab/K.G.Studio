@@ -182,8 +182,9 @@ vi.mock('./PianoRollHeader', () => ({
 }));
 
 vi.mock('./NoteAttributeBar', () => ({ default: () => <div data-testid="note-attribute-bar" /> }));
-vi.mock('./PianoRollContent', () => ({ default: () => <div data-testid="content" /> }));
-vi.mock('./PianoRollToolbar', () => ({ default: () => <div data-testid="toolbar" /> }));
+vi.mock('./PianoRollContent', () => ({ default: (props: { automationType: string; automationEnabled: boolean }) => <div data-testid="content" data-automation-type={props.automationType} data-automation-enabled={props.automationEnabled} /> }));
+vi.mock('./PianoRollToolbar', () => ({ default: (props: { onHumanize?: () => void }) => <div data-testid="toolbar"><button onClick={props.onHumanize}>Open Humanize</button></div> }));
+vi.mock('../HumanizePopup', () => ({ default: (props: { onSuccess: (controller: number) => void }) => <div>{[1, 2, 7, 11].map(cc => <button key={cc} onClick={() => props.onSuccess(cc)}>Finish CC{cc}</button>)}</div> }));
 
 vi.mock('./chordGuideUtil', async () => {
   const actual = await vi.importActual<typeof import('./chordGuideUtil')>('./chordGuideUtil');
@@ -343,5 +344,17 @@ describe('PianoRoll region renaming', () => {
     expect(executeCommandMock).not.toHaveBeenCalled();
     expect(midiRegion.getName()).toBe('MIDI Region');
     expect(secondMidiRegion.getName()).toBe('Second MIDI Region');
+  });
+});
+
+
+describe('PianoRoll AIRE automation lane', () => {
+  it.each([1, 2, 7, 11])('shows CC%i after humanization', controller => {
+    render(<PianoRoll onClose={vi.fn()} regionId={midiRegion.getId()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Humanize' }));
+    fireEvent.click(screen.getByRole('button', { name: `Finish CC${controller}` }));
+    expect(screen.getByTestId('content')).toHaveAttribute('data-automation-type', `cc-${controller}`);
+    expect(screen.getByTestId('content')).toHaveAttribute('data-automation-enabled', 'true');
+    expect(screen.queryByRole('button', { name: `Finish CC${controller}` })).toBeNull();
   });
 });

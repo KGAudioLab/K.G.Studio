@@ -4,15 +4,15 @@ import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { resolveMidiAutomationValueAtTick } from '../../../util/midiAutomationUtil';
-import type { AirePoint } from '../../../util/aire/types';
+import type { AireController, AirePoint } from '../../../util/aire/types';
 
 export class HumanizeMidiRegionCommand extends KGCommand {
   private readonly before: KGMidiControllerEvent[];
   private readonly after: KGMidiControllerEvent[];
-  constructor(private readonly region: KGMidiRegion, start: number, end: number, points: AirePoint[]) {
+  constructor(private readonly region: KGMidiRegion, start: number, end: number, points: AirePoint[], private readonly controller: AireController = 1) {
     super();
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > region.getLengthTicks() || !points.length) throw new Error('Invalid humanization range.');
-    this.before = [...region.getControllerEvents(1)];
+    this.before = [...region.getControllerEvents(controller)];
     const generated = new Map<number, number>();
     for (const p of points) {
       if (!Number.isInteger(p.tick) || p.tick < start || p.tick >= end || !Number.isInteger(p.value) || p.value < 0 || p.value > 127) throw new Error('Invalid humanization point.');
@@ -34,12 +34,12 @@ export class HumanizeMidiRegionCommand extends KGCommand {
   execute(): void {
     const project = KGCore.instance().getCurrentProject();
     if (!project.getTracks().some(t => t.getRegions().includes(this.region))) throw new Error('The MIDI region no longer exists.');
-    this.region.setControllerEvents(1, [...this.after]);
+    this.region.setControllerEvents(this.controller, [...this.after]);
     const removed = new Set(this.before.filter(e => !this.after.includes(e)));
     for (const item of KGCore.instance().getSelectedItems()) {
       if (item instanceof KGMidiControllerEvent && removed.has(item)) KGCore.instance().removeSelectedItem(item);
     }
   }
-  undo(): void { this.region.setControllerEvents(1, [...this.before]); }
+  undo(): void { this.region.setControllerEvents(this.controller, [...this.before]); }
   getDescription(): string { return 'Humanize MIDI expression (AIRE)'; }
 }

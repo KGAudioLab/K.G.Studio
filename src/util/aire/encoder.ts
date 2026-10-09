@@ -32,7 +32,7 @@ export function encodeAireWindow(section: AireSection, options: AireOptions, sta
     if (!Number.isInteger(n.pitch) || n.pitch < 0 || n.pitch > 127 || !Number.isFinite(n.start) || !Number.isFinite(n.end) || n.end <= n.start ||
         !Number.isInteger(n.velocity) || n.velocity < 1 || n.velocity > 127) throw new Error('Invalid sounding MIDI note.');
   }
-  const enabled = new Set(notes.map(n => n.velocity)).size > 1;
+  const enabled = (options.useVelocity ?? true) && new Set(notes.map(n => n.velocity)).size > 1;
   const noteEnd = notes.reduce((v, n) => Math.max(v, n.end), 0);
   const features = new Float32Array(length * 25);
   const rolls = Array.from({ length: 3 }, () => new Float32Array(length * 128));

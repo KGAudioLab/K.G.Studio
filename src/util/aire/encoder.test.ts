@@ -42,6 +42,18 @@ describe('AIRE encoding and windows', () => {
     const varied = encodeAireWindow({ ...section, notes: section.notes.map((n, i) => ({ ...n, velocity: 64 + i })) }, options, 0, 272);
     expect(varied.ctrl_numeric.data[5]).toBe(1);
   });
+  it('can disable velocity conditioning for varied velocities without changing other note features', () => {
+    const varied = { ...section, notes: section.notes.map((n, i) => ({ ...n, velocity: 40 + i })) };
+    const enabled = encodeAireWindow(varied, { ...options, useVelocity: true }, 0, 272);
+    const disabled = encodeAireWindow(varied, { ...options, useVelocity: false }, 0, 272);
+    const uniform = encodeAireWindow(section, options, 0, 272);
+    expect(enabled.ctrl_numeric.data[5]).toBe(1);
+    expect(disabled.ctrl_numeric.data[5]).toBe(0);
+    expect(enabled.frame_numeric.data[3]).toBeGreaterThan(0);
+    expect(enabled.frame_numeric.data[24]).toBeGreaterThan(0);
+    for (const [name, tensor] of Object.entries(disabled)) expect(tensor.data, name).toEqual(uniform[name].data);
+    expect(varied.notes.map(n => n.velocity)).toEqual(section.notes.map((_, i) => 40 + i));
+  });
   it('uses complementary cosine weights and full exposed edges', () => {
     const windows = aireWindows(4097);
     expect(aireWindowWeight(0, 0, windows)).toBe(1);

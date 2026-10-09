@@ -1,4 +1,5 @@
 import React from 'react';
+import '../common/ProcessingWave.css';
 import { FaMousePointer, FaPencilAlt } from 'react-icons/fa';
 import { TbArrowBarToUp } from 'react-icons/tb';
 import { ColorPalettePopup, KGDropdown } from '../common';
@@ -433,7 +434,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                 )}
                 {onHumanize && (
                   <div className="quant-option" onClick={() => { setShowRegionColorPalette(false); setShowMoreMenu(false); onHumanize(); }}>
-                    {t('aire.menuItem')}
+                    <span className="processing-wave">{t('aire.menuItem')}</span>
                   </div>
                 )}
                 {onTransposeSettings && (

@@ -1904,8 +1904,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         />
       )}
 
-      {showHumanizePopup && <HumanizePopup region={activeRegion} onCancel={() => setShowHumanizePopup(false)} onSuccess={() => {
-        setShowHumanizePopup(false); setAutomationType('cc-1'); setAutomationEnabled(true); refreshProjectState();
+      {showHumanizePopup && <HumanizePopup region={activeRegion} onCancel={() => setShowHumanizePopup(false)} onSuccess={controller => {
+        setShowHumanizePopup(false); setAutomationType(`cc-${controller}`); setAutomationEnabled(true); refreshProjectState();
       }} />}
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />

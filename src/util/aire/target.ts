@@ -3,7 +3,7 @@ import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGTempoRegion } from '../../core/region/KGTempoRegion';
 import { getEffectiveBpmAtTick } from '../globalTrackUtil';
 import { TICKS_PER_QUARTER, ticksPerBar } from '../../core/timing';
-import type { AireSection } from './types';
+import type { AireController, AireSection } from './types';
 export interface AireTarget { startTick: number; endTick: number; sections: AireSection[] }
 export function buildAireTarget(project: KGProject, region: KGMidiRegion): AireTarget | null {
   let start: number = region.getStartTick(), end = start + region.getLengthTicks();
@@ -42,9 +42,9 @@ export function buildAireTarget(project: KGProject, region: KGMidiRegion): AireT
   });
   return { startTick: start - region.getStartTick(), endTick: end - region.getStartTick(), sections };
 }
-export function aireInputSnapshot(project: KGProject, region: KGMidiRegion): string {
+export function aireInputSnapshot(project: KGProject, region: KGMidiRegion, controller: AireController = 1): string {
   return JSON.stringify({ id: region.getId(), start: region.getStartTick(), length: region.getLengthTicks(),
     target: buildAireTarget(project, region),
-    cc1: region.getControllerEvents(1).map(e => [e.getId(), e.getTick(), e.getValue()]),
+    controller, events: region.getControllerEvents(controller).map(e => [e.getId(), e.getTick(), e.getValue()]),
   });
 }

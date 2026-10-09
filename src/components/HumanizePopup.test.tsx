@@ -9,6 +9,7 @@ import { KGMidiControllerEvent } from '../core/midi/KGMidiControllerEvent';
 import { KGCore } from '../core/KGCore';
 import { aireCache } from '../util/aire/config';
 import { runAireWorker } from '../util/aire/client';
+import { AIRE_CONTROLLERS } from '../util/aire/types';
 vi.mock('../util/aire/client', () => ({ runAireWorker: vi.fn(), serializeAireCacheTask: (task: () => Promise<unknown>) => task() }));
 vi.mock('../core/config/ConfigManager', () => ({ ConfigManager: { instance: () => ({ get: () => undefined }) } }));
 let project: KGProject, region: KGMidiRegion;
@@ -24,10 +25,20 @@ beforeEach(() => {
 describe('Humanize dialog', () => {
   it('has approved defaults, family moods, and resets invalid mood on family change', () => {
     render(<HumanizePopup region={region} onCancel={vi.fn()} onSuccess={vi.fn()} />);
-    const [family, role, mood] = screen.getAllByRole('combobox');
+    const [family, role, mood, controller] = screen.getAllByRole('combobox');
+    expect(screen.getByRole('checkbox', { name: 'Use note velocity' })).toBeChecked();
+    expect(controller).toHaveValue('1');
+    expect(Array.from((controller as HTMLSelectElement).options).map(option => option.text)).toEqual(['CC1 — Modulation', 'CC2 — Breath', 'CC7 — Volume', 'CC11 — Expression']);
     expect(family).toHaveValue('S03'); expect(role).toHaveValue('pad'); expect(mood).toHaveValue('peaceful');
     fireEvent.change(family, { target: { value: 'W01' } }); fireEvent.change(mood, { target: { value: 'tragicomic' } });
     fireEvent.change(family, { target: { value: 'S03' } }); expect(mood).toHaveValue('peaceful'); expect(screen.queryByRole('option', { name: 'Tragicomic' })).toBeNull();
+  });
+  it('passes the velocity checkbox preference to the worker', async () => {
+    render(<HumanizePopup region={region} onCancel={vi.fn()} onSuccess={vi.fn()} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Use note velocity' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
+    await waitFor(() => expect(runAireWorker).toHaveBeenCalled());
+    expect(vi.mocked(runAireWorker).mock.calls[0][0].options.useVelocity).toBe(false);
   });
   it('disables Humanize for empty or nonoverlapping loop targets', () => {
     project.setIsLooping(true); project.setLoopingRange([2, 2]);
@@ -52,8 +63,10 @@ describe('Humanize dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
     await waitFor(() => expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeCloseTo(100 / 3));
     expect(screen.getByRole('button', { name: 'Humanize' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(screen.getByRole('checkbox', { name: 'Use note velocity' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Target Controller' })).toBeDisabled();
     await act(async () => finish([{ tick: 0, value: 64 }]));
-    expect(KGCore.instance().executeCommand).toHaveBeenCalledTimes(1); expect(success).toHaveBeenCalledTimes(1);
+    expect(KGCore.instance().executeCommand).toHaveBeenCalledTimes(1); expect(success).toHaveBeenCalledExactlyOnceWith(1);
   });
   it('rejects stale input and allows retry after failure', async () => {
     vi.mocked(runAireWorker).mockImplementation(async () => { region.getNotes()[0].setVelocity(90); return [{ tick: 0, value: 80 }]; });
@@ -61,6 +74,43 @@ describe('Humanize dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('changed'); expect(KGCore.instance().executeCommand).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Humanize' })).toBeEnabled();
+  });
+  it.each(AIRE_CONTROLLERS)('confirms and applies only CC%i, passing the controller on success', async controller => {
+    for (const cc of AIRE_CONTROLLERS) region.setControllerEvents(cc, [new KGMidiControllerEvent(`c-${cc}`, 0, 80)]);
+    vi.mocked(KGCore.instance().executeCommand).mockImplementation(command => { command.execute(); });
+    const success = vi.fn();
+    render(<HumanizePopup region={region} onCancel={vi.fn()} onSuccess={success} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Target Controller' }), { target: { value: String(controller) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(`Replace the existing CC${controller}`);
+    expect(runAireWorker).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: `Replace CC${controller} and Humanize` }));
+    await waitFor(() => expect(success).toHaveBeenCalledExactlyOnceWith(controller));
+    expect(region.getControllerEvents(controller)[0].getValue()).toBe(64);
+    for (const cc of AIRE_CONTROLLERS.filter(cc => cc !== controller)) expect(region.getControllerEvents(cc)[0].getValue()).toBe(80);
+  });
+  it('clears confirmation on controller changes and resets the controller on reopening', async () => {
+    region.setControllerEvents(1, [new KGMidiControllerEvent('c', 0, 80)]);
+    const props = { region, onCancel: vi.fn(), onSuccess: vi.fn() };
+    const view = render(<HumanizePopup {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Target Controller' }), { target: { value: '11' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
+    await waitFor(() => expect(props.onSuccess).toHaveBeenCalledWith(11));
+    view.unmount(); render(<HumanizePopup {...props} />);
+    expect(screen.getByRole('combobox', { name: 'Target Controller' })).toHaveValue('1');
+  });
+  it.each(AIRE_CONTROLLERS)('rejects intervening CC%i edits', async controller => {
+    vi.mocked(runAireWorker).mockImplementation(async () => {
+      region.setControllerEvents(controller, [new KGMidiControllerEvent('edit', 100, 80)]);
+      return [{ tick: 0, value: 64 }];
+    });
+    render(<HumanizePopup region={region} onCancel={vi.fn()} onSuccess={vi.fn()} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Target Controller' }), { target: { value: String(controller) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('changed');
+    expect(KGCore.instance().executeCommand).not.toHaveBeenCalled();
   });
   it('aborts the download when cancelled and discards its eventual result', async () => {
     vi.spyOn(aireCache, 'exists').mockResolvedValue(false);

@@ -9,6 +9,7 @@ import { KGCore } from '../../core/KGCore';
 import { HumanizeMidiRegionCommand } from '../../core/commands/region/HumanizeMidiRegionCommand';
 import { resolveMidiAutomationValueAtTick } from '../midiAutomationUtil';
 import { aireInputSnapshot, buildAireTarget } from './target';
+import { AIRE_CONTROLLERS } from './types';
 import { instanceToPlain, plainToInstance } from 'class-transformer';
 function fixture() {
   const project = new KGProject();
@@ -38,19 +39,20 @@ describe('AIRE region targeting and undo', () => {
     const old = aireInputSnapshot(project, region); region.getNotes()[0].setVelocity(80);
     expect(aireInputSnapshot(project, region)).not.toBe(old);
   });
-  it('replaces only CC1 and preserves surrounding interpolation through undo/redo and serialization', () => {
+  it.each(AIRE_CONTROLLERS)('replaces only CC%i and preserves surrounding interpolation through undo/redo and serialization', controller => {
     const { project, region } = fixture();
     vi.mocked(KGCore.instance().getCurrentProject).mockReturnValue(project);
-    region.setControllerEvents(1, [new KGMidiControllerEvent('before', 0, 0), new KGMidiControllerEvent('inside', 5000, 100), new KGMidiControllerEvent('after', 10000, 50)]);
-    region.setControllerEvents(11, [new KGMidiControllerEvent('other', 5000, 70)]);
+    region.setControllerEvents(controller, [new KGMidiControllerEvent('before', 0, 0), new KGMidiControllerEvent('inside', 5000, 100), new KGMidiControllerEvent('after', 10000, 50)]);
+    const otherController = controller === 11 ? 1 : 11;
+    region.setControllerEvents(otherController, [new KGMidiControllerEvent('other', 5000, 70)]);
     const original = instanceToPlain(region);
-    const old = region.getControllerEvents(1).map(e => ({ tick: e.getTick(), value: e.getValue() }));
-    const cmd = new HumanizeMidiRegionCommand(region, 3840, 7680, [{ tick: 3840, value: 20 }, { tick: 7620, value: 90 }]);
+    const old = region.getControllerEvents(controller).map(e => ({ tick: e.getTick(), value: e.getValue() }));
+    const cmd = new HumanizeMidiRegionCommand(region, 3840, 7680, [{ tick: 3840, value: 20 }, { tick: 7620, value: 90 }], controller);
     cmd.execute();
     const changed = instanceToPlain(region);
-    expect(region.getNotes()[0].getVelocity()).toBe(64); expect(region.getControllerEvents(11)[0].getValue()).toBe(70);
-    expect(region.getControllerEvents(1).some(e => e.getId() === 'inside')).toBe(false);
-    const next = region.getControllerEvents(1).map(e => ({ tick: e.getTick(), value: e.getValue() }));
+    expect(region.getNotes()[0].getVelocity()).toBe(64); expect(region.getControllerEvents(otherController)[0].getValue()).toBe(70);
+    expect(region.getControllerEvents(controller).some(e => e.getId() === 'inside')).toBe(false);
+    const next = region.getControllerEvents(controller).map(e => ({ tick: e.getTick(), value: e.getValue() }));
     for (const tick of [0, 1000, 3839, 7680, 8000, 10000, 14000]) expect(resolveMidiAutomationValueAtTick(next, tick, 0)).toBeCloseTo(resolveMidiAutomationValueAtTick(old, tick, 0), 10);
     const restored = plainToInstance(KGMidiRegion, changed);
     expect(instanceToPlain(restored)).toEqual(changed);

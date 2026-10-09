@@ -52,7 +52,7 @@ export default function AireSettings() {
   return <div className="settings-group">
     <div className="settings-group-heading">
       <h4>{t('aire.settingsTitle')}</h4>
-      <div className="settings-help">{t('aire.subtitle')}</div>
+      <div className="settings-help">{t('aire.subtitle')} <a href="https://huggingface.co/KGAudioLab/instrument-aire-models" target="_blank" rel="noopener noreferrer">{t('aire.modelPage')}</a></div>
     </div>
     <div className="settings-item">
       <label className="settings-label" htmlFor="aire-base-url">{t('aire.baseUrl')}</label>
