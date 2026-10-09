@@ -111,6 +111,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   const fineRawDeltaRef = useRef(0);
 
   // Canvas ref for note visualization
+  const regionRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewContentRef = useRef<HTMLDivElement | null>(null);
 
@@ -130,7 +131,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
     // Set canvas size to match the region content
     canvas.width = width;
     canvas.height = height;
-    canvas.style.width = `${width}px`;
+    canvas.style.width = `${contentRect.width}px`;
     canvas.style.height = `${height}px`;
 
     // Clear the canvas
@@ -148,8 +149,14 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
     const regionLengthInBars = regionLengthTicks / ticksPerBar;
 
-    // Calculate beats per pixel
-    const beatsPerPixel = regionLengthTicks / width;
+    // Timeline positions use the region's border box, while the canvas lives
+    // inside its borders. Preserve that scale, including during resize previews.
+    const regionStyle = regionRef.current ? getComputedStyle(regionRef.current) : null;
+    const borderLeft = parseFloat(regionStyle?.borderLeftWidth || '0') || 0;
+    const borderRight = parseFloat(regionStyle?.borderRightWidth || '0') || 0;
+    const contentWidth = Math.max(1, contentRect.width);
+    const timelineWidth = contentWidth + borderLeft + borderRight;
+    const canvasScaleX = width / contentWidth;
 
     // Analyze the pitch range of notes in the region
     const notePitches = notes.map(note => note.getPitch());
@@ -239,8 +246,8 @@ const RegionItem: React.FC<RegionItemProps> = ({
       if (pitch < displayMinPitch || pitch > displayMaxPitch) return;
 
       // Calculate note position and size
-      const noteStartX = startTick / beatsPerPixel;
-      const noteWidth = (endTick - startTick) / beatsPerPixel;
+      const noteStartX = ((startTick / regionLengthTicks) * timelineWidth - borderLeft) * canvasScaleX;
+      const noteWidth = ((endTick - startTick) / regionLengthTicks) * timelineWidth * canvasScaleX;
 
       // Calculate Y position based on pitch using dynamic spacing
       // Higher pitches should be at the top (lower Y values)
@@ -682,6 +689,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   return (
     <div
       key={id}
+      ref={regionRef}
       className={`track-region ${isDragging ? 'dragging' : ''} ${isSelected ? (isPrimarySelected ? 'selected' : 'selected-secondary') : ''} ${(audioRegion || isAudioRegion) ? 'audio-region' : ''}`}
       style={{ ...style, cursor: isPreview ? 'default' : cursor, ...(isFineDragging ? { transform: `translateX(${fineTranslateX}px)`, zIndex: 100 } : {}) }}
       onMouseMove={isPreview ? undefined : handleMouseMove}
