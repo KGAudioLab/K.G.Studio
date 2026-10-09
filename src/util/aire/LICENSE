@@ -1,0 +1,47 @@
+MIT + Attribution Requirement
+
+Copyright (c) 2026 xiaohan-tian / KGAudioLab
+
+The model weights, ONNX models, and accompanying documentation are
+licensed under the following MIT terms WITH the additional attribution
+condition below. This combined license is not the unmodified MIT license.
+
+MIT terms
+---------
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+Additional attribution condition
+--------------------------------
+If you use these models in a project, or fine-tune, further train, or retrain
+a model using these weights or adapting these models' architecture or
+implementation, you must credit xiaohan-tian and KGAudioLab in that project's
+README, documentation, or credits. When the project or resulting model is
+published or distributed, that credit must accompany it and be reasonably
+accessible to its users. Retain this license and attribution requirement
+when redistributing these models or derivative model weights. Independently
+developed models that do not use these weights, architecture, or
+implementation are outside the scope of this condition.
+
+The credit must identify the original author and organization and include
+https://huggingface.co/KGAudioLab. Suggested wording:
+
+"Uses or is derived from instrument-aire models by xiaohan-tian / KGAudioLab
+(https://huggingface.co/KGAudioLab)."
+
+Attribution does not imply endorsement by the author or organization.

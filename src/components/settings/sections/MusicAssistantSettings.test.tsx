@@ -237,22 +237,42 @@ describe('MusicAssistantSettings', () => {
     expect((select as HTMLSelectElement).value).toBe('efficient');
   });
 
-  it('persists agent mode changes for non-local providers', async () => {
+  it('defaults to Advanced Mode when no agent mode is saved', async () => {
+    configState.set('general.llm_provider', 'openai_compatible');
+    configState.delete('general.agent_mode');
+    renderSettings();
+    expect(await screen.findByLabelText('Agent Mode')).toHaveValue('advanced');
+  });
+
+  it('initializes Advanced Mode and lists it first', async () => {
+    configState.set('general.llm_provider', 'openai_compatible');
+    configState.set('general.agent_mode', 'advanced');
+
+    renderSettings();
+
+    const select = await screen.findByLabelText('Agent Mode');
+    expect(select).toHaveValue('advanced');
+    expect(within(select).getAllByRole('option').map(option => option.textContent)).toEqual([
+      'Advanced Mode', 'Regular Mode', 'Efficient Mode',
+    ]);
+  });
+
+  it.each(['efficient', 'advanced'])('persists %s mode for non-local providers', async (mode) => {
     configState.set('general.llm_provider', 'openai_compatible');
 
     renderSettings();
 
     const select = await screen.findByLabelText('Agent Mode');
-    fireEvent.change(select, { target: { value: 'efficient' } });
+    fireEvent.change(select, { target: { value: mode } });
 
     await waitFor(() => {
-      expect(configManagerMock.set).toHaveBeenCalledWith('general.agent_mode', 'efficient');
+      expect(configManagerMock.set).toHaveBeenCalledWith('general.agent_mode', mode);
     });
   });
 
-  it('disables the agent mode selector for the local browser provider and shows override help', async () => {
+  it.each(['regular', 'advanced'])('disables the agent mode selector for the local browser provider with %s configured', async (mode) => {
     configState.set('general.llm_provider', 'local_browser');
-    configState.set('general.agent_mode', 'regular');
+    configState.set('general.agent_mode', mode);
 
     renderSettings();
 
@@ -303,7 +323,7 @@ describe('MusicAssistantSettings', () => {
     expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual([
       'General', 'Music Assistant', 'Audio I/O', 'Behavior', 'Templates', 'Chord Guide',
     ]);
-    const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'K.G.One Settings'];
+    const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'K.G.One Settings', 'AIRE Settings'];
     expect(screen.getByRole('heading', { level: 3, name: 'General' })).toBeTruthy();
     expect(screen.getByLabelText('Language')).toBeTruthy();
     const assistantGroups = [

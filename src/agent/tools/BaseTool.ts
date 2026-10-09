@@ -4,9 +4,12 @@ import { KGCore } from '../../core/KGCore';
 /**
  * Result of tool execution
  */
-export interface ToolResult {
+export type StructuredToolPayload = Record<string, unknown>;
+export type ToolPayload = string | StructuredToolPayload;
+
+export interface ToolResult<T = string> {
   success: boolean;
-  result: string;
+  result: T | string;
 }
 
 /**
@@ -17,6 +20,8 @@ export interface ToolParameter {
   description: string;
   required?: boolean;
   enum?: string[];
+  minimum?: number;
+  maximum?: number;
   items?: ToolParameter; // For array types
   properties?: Record<string, ToolParameter>; // For object types
 }
@@ -55,7 +60,7 @@ export interface ToolDefinition {
  * Abstract base class for all agent tools
  * Provides integration with the existing command system and core architecture
  */
-export abstract class BaseTool {
+export abstract class BaseTool<T = string> {
   abstract readonly name: string;
   abstract readonly description: string;
   abstract readonly parameters: Record<string, ToolParameter>;
@@ -65,7 +70,7 @@ export abstract class BaseTool {
    * @param params Tool parameters
    * @returns Promise resolving to tool execution result
    */
-  abstract execute(params: Record<string, unknown>): Promise<ToolResult>;
+  abstract execute(params: Record<string, unknown>): Promise<ToolResult<T>>;
 
   /**
    * Whether the tool only reads state and can execute without user approval.
@@ -81,6 +86,11 @@ export abstract class BaseTool {
     return true;
   }
 
+  /** Advanced mode inherits Regular availability unless explicitly overridden. */
+  isAvailableInAdvancedMode(): boolean {
+    return this.isAvailableInRegularMode();
+  }
+
   /**
    * Whether the tool is available when the assistant runs in Efficient Mode.
    */
@@ -94,7 +104,7 @@ export abstract class BaseTool {
    */
   buildToolResultDisplayContent(
     _args: Record<string, unknown> | null,
-    _toolResult: ToolResult,
+    _toolResult: ToolResult<T>,
   ): string | undefined {
     return undefined;
   }
@@ -105,7 +115,7 @@ export abstract class BaseTool {
    */
   buildToolHistoryContent(
     _args: Record<string, unknown> | null,
-    _toolResult: ToolResult,
+    _toolResult: ToolResult<T>,
   ): string | undefined {
     return undefined;
   }
@@ -171,6 +181,8 @@ export abstract class BaseTool {
     if (param.enum) {
       schema.enum = param.enum;
     }
+    if (param.minimum !== undefined) schema.minimum = param.minimum;
+    if (param.maximum !== undefined) schema.maximum = param.maximum;
 
     if (param.type === 'object' && param.properties) {
       const properties: Record<string, unknown> = {};
@@ -279,7 +291,7 @@ export abstract class BaseTool {
   /**
    * Create a successful tool result
    */
-  protected createSuccessResult(result: string): ToolResult {
+  protected createSuccessResult(result: T): ToolResult<T> {
     return {
       success: true,
       result
@@ -289,7 +301,7 @@ export abstract class BaseTool {
   /**
    * Create a failed tool result
    */
-  protected createErrorResult(result: string): ToolResult {
+  protected createErrorResult(result: string): ToolResult<T> {
     return {
       success: false,
       result

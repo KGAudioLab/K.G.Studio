@@ -1,3 +1,9 @@
+import type { AgentMode } from '../../util/agentMode';
+import type { ToolPayload } from './BaseTool';
+import { AdvancedReadMusicTool } from './AdvancedReadMusicTool';
+import { AdvancedReadChordProgressionTool } from './AdvancedReadChordProgressionTool';
+import { AdvancedReadBpmTool, AdvancedReadKeySignatureTool, AdvancedReadMarkersTool, AdvancedGetUserSelectedMusicRangeAndTrackTool } from './AdvancedTimelineReaders';
+import { AdvancedTickEditorTool } from './AdvancedTickEditorTool';
 // Base tool system
 import { BaseTool } from './BaseTool';
 export { BaseTool } from './BaseTool';
@@ -25,6 +31,11 @@ import { ListAllTracksTool } from './ListAllTracksTool';
 import { ListAllAvailableInstrumentsTool } from './ListAllAvailableInstrumentsTool';
 import { CreateNewTrackTool } from './CreateNewTrackTool';
 import { UpdateTrackTool } from './UpdateTrackTool';
+import { UpdateTrackStatusTool } from './UpdateTrackStatusTool';
+import { UpdateTrackVolumeTool } from './UpdateTrackVolumeTool';
+import { RemoveTrackAutomationTool } from './RemoveTrackAutomationTool';
+import { UpdateTrackAutomationTool } from './UpdateTrackAutomationTool';
+import { UpdateTrackPanTool } from './UpdateTrackPanTool';
 import { DeleteTrackTool } from './DeleteTrackTool';
 
 export {
@@ -49,6 +60,11 @@ export {
   ListAllAvailableInstrumentsTool,
   CreateNewTrackTool,
   UpdateTrackTool,
+  UpdateTrackStatusTool,
+  UpdateTrackVolumeTool,
+  UpdateTrackPanTool,
+  UpdateTrackAutomationTool,
+  RemoveTrackAutomationTool,
   DeleteTrackTool,
 };
 
@@ -75,12 +91,39 @@ export const AVAILABLE_TOOLS = {
   list_all_available_instruments: ListAllAvailableInstrumentsTool,
   create_new_track: CreateNewTrackTool,
   update_track: UpdateTrackTool,
+  update_track_status: UpdateTrackStatusTool,
+  update_track_volume: UpdateTrackVolumeTool,
+  update_track_pan: UpdateTrackPanTool,
+  update_track_automation: UpdateTrackAutomationTool,
+  remove_track_automation: RemoveTrackAutomationTool,
   delete_track: DeleteTrackTool,
 } as const;
 
 export type ToolName = keyof typeof AVAILABLE_TOOLS;
 
-export const createToolInstance = (toolName: string): BaseTool | null => {
+const ADVANCED_READERS = {
+  read_music: AdvancedReadMusicTool,
+  read_chord_progression: AdvancedReadChordProgressionTool,
+  read_bpm: AdvancedReadBpmTool,
+  read_key_signature: AdvancedReadKeySignatureTool,
+  read_markers: AdvancedReadMarkersTool,
+  get_user_selected_music_range_and_track: AdvancedGetUserSelectedMusicRangeAndTrackTool,
+} as const;
+
+const TICK_EDITOR_NAMES = new Set<string>([
+  'add_notes', 'remove_notes', 'write_chord_progression', 'remove_chord_progression',
+  'write_markers', 'remove_markers', 'write_bpm', 'remove_bpm',
+  'write_key_signature', 'remove_key_signature',
+]);
+
+export const createToolInstance = (toolName: string, mode: AgentMode = 'regular'): BaseTool<ToolPayload> | null => {
+  // Own-key checks prevent arbitrary model-supplied names from resolving Object.prototype members.
+  if (!Object.prototype.hasOwnProperty.call(AVAILABLE_TOOLS, toolName)) return null;
+  if (mode === 'advanced' && Object.prototype.hasOwnProperty.call(ADVANCED_READERS, toolName)) {
+    const Reader = ADVANCED_READERS[toolName as keyof typeof ADVANCED_READERS];
+    return new Reader();
+  }
   const ToolClass = AVAILABLE_TOOLS[toolName as ToolName];
-  return ToolClass ? new ToolClass() : null;
+  const tool = new ToolClass();
+  return mode === 'advanced' && TICK_EDITOR_NAMES.has(toolName) ? new AdvancedTickEditorTool(tool) : tool;
 };

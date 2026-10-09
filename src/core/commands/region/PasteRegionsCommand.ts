@@ -10,6 +10,7 @@ import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
 import { KGAudioRegion } from '../../region/KGAudioRegion';
 import { translate } from '../../../i18n/translate';
+import { ticksPerBar } from '../../timing';
 
 /**
  * Command to paste regions with their notes to a target track at a specific position
@@ -171,7 +172,7 @@ export class PasteRegionsCommand extends KGCommand {
     const latestRegionEnd = this.createdRegions.reduce((maxEnd, region) => (
       Math.max(maxEnd, region.getStartTick() + region.getLengthTicks())
     ), this.pastePosition);
-    const requiredMaxBars = Math.ceil(latestRegionEnd / currentProject.getTimeSignature().numerator);
+    const requiredMaxBars = Math.ceil(latestRegionEnd / ticksPerBar(currentProject.getTimeSignature()));
     if (requiredMaxBars > this.maxBarsBeforeExecution) {
       currentProject.setMaxBars(requiredMaxBars);
       this.expandedMaxBars = true;

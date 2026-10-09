@@ -6,7 +6,7 @@ import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import RegionItem from './RegionItem';
 import TrackAutomationLane from './TrackAutomationLane';
 import type { RegionClickOptions, RegionPreviewContentStyle, RegionUI, ResizeAction } from '../interfaces';
-import { REGION_CONSTANTS, DEBUG_MODE } from '../../constants';
+import { REGION_CONSTANTS, DEBUG_MODE, TOOLBAR_CONSTANTS } from '../../constants';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 import { useProjectStore } from '../../stores/projectStore';
 import { isModifierKeyPressed } from '../../util/osUtil';
@@ -114,7 +114,10 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const recordingAudioPreviewPeaks = useProjectStore(state => state.recordingAudioPreviewPeaks);
   const recordingAudioPreviewFileName = useProjectStore(state => state.recordingAudioPreviewFileName);
   const storeTimeSignature = useProjectStore(state => state.timeSignature);
-  const [containerWidth, setContainerWidth] = useState(0);
+  const barWidthMultiplier = useProjectStore(state => state.barWidthMultiplier);
+  // Use the same project zoom as the grid CSS, independent of parent ref
+  // attachment on mount and delayed total-width measurements during undo.
+  const barWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
   const [resizingRegion, setResizingRegion] = useState<string | null>(null);
   const [draggingRegion, setDraggingRegion] = useState<string | null>(null);
   const [localTempRegionStyles, setLocalTempRegionStyles] = useState<Record<string, React.CSSProperties>>({});
@@ -194,27 +197,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     return measuredWidth;
   };
 
-  // Update container width when the grid container changes size
-  useEffect(() => {
-    if (!gridContainerRef.current) return;
-    
-    setContainerWidth(gridContainerRef.current.clientWidth);
-    
-    const resizeObserver = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-    
-    resizeObserver.observe(gridContainerRef.current);
-    
-    return () => {
-      if (gridContainerRef.current) {
-        resizeObserver.unobserve(gridContainerRef.current);
-      }
-    };
-  }, [gridContainerRef]);
-
   // Track tool state for cursor feedback.
   useEffect(() => {
     const syncCursorState = (event?: KeyboardEvent | MouseEvent) => {
@@ -246,9 +228,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     if (tempRegionStyles[region.id]) {
       return tempRegionStyles[region.id];
     }
-    
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
     
     // Calculate left position (0-indexed bar number)
     const left = (region.barNumber - 1) * barWidth;
@@ -287,9 +266,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     currentResizeRegion.current = region;
     initialBarNumberRef.current = region.barNumber;
     initialLengthRef.current = region.length;
-    
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
     
     // Store the initial width and left position
     currentResizeWidth.current = region.length * barWidth;
@@ -341,9 +317,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Find the region being resized
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
-    
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
     
     // Get initial values
     const originalWidth = initialLengthRef.current! * barWidth;
@@ -435,9 +408,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       return;
     }
     
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
-    
     let newBarNumber = region.barNumber; // Default to current bar number
     let newLength = region.length; // Default to current length
     
@@ -520,9 +490,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Store the region for reference
     currentDragRegion.current = region;
     
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
-    
     // Calculate the left position
     const left = (region.barNumber - 1) * barWidth;
     const width = region.length * barWidth;
@@ -567,9 +534,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
     // Find the region being dragged
     const region = regions.find(r => r.id === regionId);
     if (!region) return;
-    
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
     
     // Get the initial left position
     const initialLeft = (region.barNumber - 1) * barWidth;
@@ -634,9 +598,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       console.error(`Region not found: ${regionId}`);
       return;
     }
-    
-    // Calculate the width of each bar
-    const barWidth = containerWidth / maxBars;
     
     // Default to current position
     let finalBarNumber = region.barNumber;
@@ -710,7 +671,6 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
 
   // Handle fine-move end — convert raw pixel delta to delta in bars and pass up
   const handleRegionFineMoveEnd = (regionId: string, rawPixelDelta: number) => {
-    const barWidth = containerWidth / maxBars;
     if (barWidth <= 0) return;
     const deltaInBars = (rawPixelDelta * REGION_CONSTANTS.FINE_MOVE_SPEED_RATIO) / barWidth;
     onRegionFineMoveEnd?.(regionId, deltaInBars);
@@ -754,8 +714,8 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
   const recordingPreviewTicksPerBar = ticksPerBar(storeTimeSignature);
   const previewRegionStyle = shouldRenderRecordingPreview
     ? {
-        left: `${(recordingCommitStartTickAbsolute / recordingPreviewTicksPerBar) * (containerWidth / maxBars)}px`,
-        width: `${Math.max(0, ((recordingAudioPreviewCurrentTick - recordingCommitStartTickAbsolute) / recordingPreviewTicksPerBar) * (containerWidth / maxBars))}px`,
+        left: `${(recordingCommitStartTickAbsolute / recordingPreviewTicksPerBar) * barWidth}px`,
+        width: `${Math.max(0, ((recordingAudioPreviewCurrentTick - recordingCommitStartTickAbsolute) / recordingPreviewTicksPerBar) * barWidth)}px`,
         position: 'absolute' as const,
       }
     : null;

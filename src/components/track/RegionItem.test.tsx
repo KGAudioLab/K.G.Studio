@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 import RegionItem from './RegionItem';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGMainContentState } from '../../core/state/KGMainContentState';
 
@@ -160,6 +161,42 @@ describe('RegionItem', () => {
     expect(context.lineTo).toHaveBeenCalled();
     expect(context.stroke).toHaveBeenCalled();
     rectSpy.mockRestore();
+  });
+
+  it.each([
+    { timelineWidth: 320, resizeOffset: 0 },
+    { timelineWidth: 320.5, resizeOffset: 0 },
+    { timelineWidth: 320.5, resizeOffset: -40 },
+  ])('aligns MIDI notes to the timeline with borders ($timelineWidth px, offset $resizeOffset)', ({ timelineWidth, resizeOffset }) => {
+    const contentWidth = timelineWidth - 4;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 2 + resizeOffset, y: 0, left: 2 + resizeOffset, top: 0,
+      right: 2 + resizeOffset + contentWidth, bottom: 60,
+      width: contentWidth, height: 60, toJSON: () => ({}),
+    });
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext');
+    const midiRegion = new KGMidiRegion('midi-1', 'track-1', 0, 'Test Region', 0, 15360);
+    midiRegion.setNotes([new KGMidiNote('bar-4', 11520, 13440, 60)]);
+
+    try {
+      const { container } = renderRegion({
+        midiRegion,
+        style: { width: `${timelineWidth + resizeOffset}px`, border: '2px solid white' },
+        previewContentStyle: resizeOffset ? { left: `${resizeOffset}px`, width: `${contentWidth}px` } : undefined,
+      });
+      const context = getContextSpy.mock.results.at(-1)?.value as { fillRect: ReturnType<typeof vi.fn> };
+      const [noteX, , noteWidth] = context.fillRect.mock.calls[0];
+      const canvas = container.querySelector('canvas')!;
+
+      // Convert backing pixels to screen coordinates, including the border and
+      // resize clipping offset. Bar 4 must remain at 3/4 of the timeline width.
+      expect(2 + resizeOffset + noteX * contentWidth / canvas.width)
+        .toBeCloseTo(resizeOffset + timelineWidth * 0.75, 8);
+      expect(noteWidth * contentWidth / canvas.width).toBeCloseTo(timelineWidth / 8, 8);
+      expect(canvas.style.width).toBe(`${contentWidth}px`);
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 
   it('applies preview content clipping styles when provided', () => {

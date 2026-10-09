@@ -25,6 +25,7 @@ describe('UpdateTrackCommand', () => {
   };
   const mockAudioInterface = {
     setTrackVolume: vi.fn(),
+    setTrackPan: vi.fn(),
     setTrackInstrument: vi.fn(),
     setTrackMute: vi.fn(),
     setTrackSolo: vi.fn(),
@@ -37,6 +38,20 @@ describe('UpdateTrackCommand', () => {
     mockCore.getCurrentProject.mockReturnValue(project);
     vi.mocked(KGCore.instance).mockReturnValue(mockCore as unknown as KGCore);
     vi.mocked(KGAudioInterface.instance).mockReturnValue(mockAudioInterface as unknown as KGAudioInterface);
+  });
+
+  it('updates base pan, preserves automation, and restores audio on undo/redo', () => {
+    const command = new UpdateTrackCommand(1, { pan: -0.25 });
+    command.execute();
+    expect(track.getPan()).toBe(-0.25);
+    expect(mockAudioInterface.setTrackPan).toHaveBeenLastCalledWith('1', -0.25);
+    expect(command.getChangedProperties()).toEqual(new Set(['pan']));
+    expect(command.getDescription()).toContain('pan');
+    command.undo();
+    expect(track.getPan()).toBe(0);
+    expect(mockAudioInterface.setTrackPan).toHaveBeenLastCalledWith('1', 0);
+    command.execute();
+    expect(track.getPan()).toBe(-0.25);
   });
 
   it('updates muted state and propagates to the audio interface', () => {

@@ -316,6 +316,34 @@
   transition: width 0.15s linear;
 }
 
+/* Shared help text; button links retain their own typography and colors. */
+.settings-help:not(button) {
+  color: #888;
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.settings-help-warning:not(button) { color: #d0a56b; margin-top: 6px; }
+.settings-help-success:not(button) { color: #9bc17c; margin-top: 8px; }
+.settings-help-error:not(button) { color: #d45a5a; }
+.settings-help-note:not(button) { margin-bottom: 8px; }
+.settings-help-progress:not(button) { margin-top: 6px; }
+.settings-help-spaced:not(button) { margin-top: 8px; }
+.settings-help-intro:not(button) { margin: 0 0 12px; }
+.settings-help-intro-large:not(button) { margin-bottom: 16px; }
+
+.settings-group-heading {
+  margin-bottom: 12px;
+}
+
+.settings-group-heading h4 {
+  margin-bottom: 4px;
+}
+
+.settings-group-heading .settings-help {
+  margin: 0;
+}
+
 /* Settings Help Links */
 .settings-help-links {
   display: flex;

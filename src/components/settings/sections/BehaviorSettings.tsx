@@ -191,7 +191,7 @@ const BehaviorSettings: React.FC = () => {
               <option value="30">30</option>
               <option value="60">60</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.playheadUpdateFrequencyHelp')}
             </div>
           </div>
@@ -209,7 +209,7 @@ const BehaviorSettings: React.FC = () => {
               <option value="3">3x</option>
               <option value="5">5x</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.spectrogramHeightResolutionHelp')}
             </div>
           </div>
@@ -258,7 +258,7 @@ const BehaviorSettings: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.lookaheadTimeHelp')}
             </div>
           </div>
@@ -285,7 +285,7 @@ const BehaviorSettings: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.playbackDelayHelp')}
             </div>
           </div>
@@ -303,7 +303,7 @@ const BehaviorSettings: React.FC = () => {
               <option value="10">{t('settings.behavior.midiAutomationInterpolation.balanced')}</option>
               <option value="5">{t('settings.behavior.midiAutomationInterpolation.high')}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.midiAutomationInterpolationHelp')}
             </div>
           </div>
@@ -330,7 +330,7 @@ const BehaviorSettings: React.FC = () => {
                 ))}
               </div>
             )}
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.midiInputLatencyHelp')}
             </div>
           </div>
@@ -347,7 +347,7 @@ const BehaviorSettings: React.FC = () => {
               <option value="no">{t('settings.no')}</option>
               <option value="yes">{t('settings.yes')}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.bounceStartsFromBeat1Help')}
             </div>
           </div>
@@ -364,7 +364,7 @@ const BehaviorSettings: React.FC = () => {
               <option value="no">{t('settings.no')}</option>
               <option value="yes">{t('settings.yes')}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.behavior.captureAudioForScreenSharingHelp')}
               <br />
               <b>{t('settings.behavior.captureAudioForScreenSharingWarning')}</b>

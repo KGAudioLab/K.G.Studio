@@ -90,7 +90,7 @@ export class KGProject {
   @WithDefault(0)
   private projectStructureVersion: number = 0;
 
-  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 20;
+  public static readonly CURRENT_PROJECT_STRUCTURE_VERSION: number = 21;
   
   @Expose()
   @Type(() => KGTrack, {

@@ -125,6 +125,9 @@ describe('TrackInfoItem audio import', () => {
     );
 
     expect(fileImportModalProps?.acceptedTypes).toEqual(['.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a']);
+    const pan = screen.getByRole('slider', { name: '基础声像' });
+    expect(pan.previousElementSibling).toBe(screen.getByRole('button', { name: 'Reset volume to 0 dB' }));
+    expect(pan.nextElementSibling).toHaveClass('volume-label');
   });
 
   it('offers MIDI export for MIDI tracks and downloads the track filename', async () => {

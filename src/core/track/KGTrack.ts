@@ -42,6 +42,10 @@ export class KGTrack {
   protected volume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME;
 
   @Expose()
+  @WithDefault(0)
+  protected pan: number = 0;
+
+  @Expose()
   @WithDefault(false)
   protected muted: boolean = false;
 
@@ -102,6 +106,10 @@ export class KGTrack {
     return this.volume;
   }
 
+  public getPan(): number {
+    return this.pan;
+  }
+
   public getColor(): string | undefined {
     return this.color;
   }
@@ -145,6 +153,10 @@ export class KGTrack {
 
   public setColor(color: string | undefined): void {
     this.color = color;
+  }
+
+  public setPan(pan: number): void {
+    this.pan = Math.max(-1, Math.min(1, pan));
   }
 
   public setMuted(muted: boolean): void {

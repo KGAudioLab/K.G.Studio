@@ -39,6 +39,15 @@ Create a new MIDI track using a `track_name` and an `instrument`. The `instrumen
 ## update_track
 Update an existing MIDI track by `track_id` or `track_name`. Prefer `track_id` because `track_name` may be duplicated. You can rename the track with `new_track_name` and/or change the instrument with `instrument`. The `instrument` parameter must be the exact English instrument name returned by `list_all_available_instruments`.
 
+## update_track_status
+Set mute or solo on an existing MIDI track using `track_id` (preferred) or `track_name`; at least one nonempty identifier is required, with no selected-track fallback. `track_id` takes precedence over `track_name`; an invalid ID fails without falling back to the name. Names match exactly, and duplicate names use the first matching MIDI track, as with `add_notes`. Audio and global tracks are unsupported. Set `status_type` to `"solo"` or `"mute"` and `value` to a boolean: `true` enables that status and `false` disables it. Only the specified status changes; setting an already-matching value succeeds without creating an undo entry. Available in Regular and Advanced modes only.
+
+## update_track_volume
+Set a MIDI track's saved base volume using numeric `value` in [-60, 12], inclusive, in dB units without a unit suffix. Decimals are allowed; -60 is the silence floor. Preserve volume automation, which overrides the base setting during playback. Require a nonempty `track_id` (preferred) or `track_name`; IDs take precedence without name fallback for an invalid ID. Names match exactly and duplicate names use the first MIDI match, as with `add_notes`. No selection fallback; audio/global tracks are unsupported. Invalid or out-of-range values return an error. Unchanged values succeed without an undo entry. Available in Regular and Advanced modes only.
+
+## update_track_pan
+Set a MIDI track's saved base pan using numeric `value` in [-1, 1], inclusive: -1 is fully left, 0 is center, and 1 is fully right. Decimals are allowed. Preserve pan automation, which overrides the base setting during playback. Require a nonempty `track_id` (preferred) or `track_name`, using the same targeting and mode rules as `update_track_volume`. Invalid or out-of-range values return an error. Unchanged values succeed without an undo entry. These tools change base settings only; they do not edit automation.
+
 ## delete_track
 Delete an existing MIDI track by `track_id` or `track_name`. Prefer `track_id` because `track_name` may be duplicated. If multiple MIDI tracks share the same `track_name`, do not guess which one to delete; use `track_id`.
 

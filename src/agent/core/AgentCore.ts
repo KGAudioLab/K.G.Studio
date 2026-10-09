@@ -5,7 +5,7 @@ import { AVAILABLE_TOOLS, createToolInstance } from '../tools';
 import { useProjectStore } from '../../stores/projectStore';
 import type { StreamChunk, ToolApprovalDecision } from '../llm/StreamingTypes';
 import type { ToolCall } from './AgentState';
-import type { BaseTool, OpenAIToolDefinition } from '../tools/BaseTool';
+import type { BaseTool, ToolPayload, ToolResult, OpenAIToolDefinition } from '../tools/BaseTool';
 import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { buildTodoContext } from './todo';
@@ -25,7 +25,7 @@ export interface CompactConversationResult {
 }
 
 export interface ProcessUserInputOptions {
-  requestToolApproval?: (toolCall: ToolCall) => Promise<ToolApprovalDecision>;
+  requestToolApproval?: (toolCall: ToolCall, agentMode: AgentMode) => Promise<ToolApprovalDecision>;
 }
 
 /**
@@ -72,8 +72,8 @@ export class AgentCore {
    * Get OpenAI tool definitions for all available tools
    */
   private getToolDefinitions(agentMode: AgentMode): OpenAIToolDefinition[] {
-    return Object.values(AVAILABLE_TOOLS).map(ToolClass => {
-      const tool = new ToolClass();
+    return Object.keys(AVAILABLE_TOOLS).map(name => {
+      const tool = createToolInstance(name, agentMode)!;
       return this.isToolAvailableInMode(tool, agentMode) ? tool.getDefinition() : null;
     }).filter((tool): tool is OpenAIToolDefinition => tool !== null);
   }
@@ -90,14 +90,16 @@ export class AgentCore {
     return getSystemPromptPathForAgentMode(agentMode);
   }
 
-  private isToolAvailableInMode(toolInstance: BaseTool | null, agentMode: AgentMode): boolean {
+  private isToolAvailableInMode(toolInstance: BaseTool<ToolPayload> | null, agentMode: AgentMode): boolean {
     if (!toolInstance) {
       return false;
     }
 
     return agentMode === 'efficient'
       ? toolInstance.isAvailableInEfficientMode()
-      : toolInstance.isAvailableInRegularMode();
+      : agentMode === 'advanced'
+        ? toolInstance.isAvailableInAdvancedMode()
+        : toolInstance.isAvailableInRegularMode();
   }
 
   /**
@@ -106,8 +108,8 @@ export class AgentCore {
   private async executeTool(
     toolCall: ToolCall,
     agentMode: AgentMode,
-  ): Promise<{ success: boolean; result: string }> {
-    const toolInstance = createToolInstance(toolCall.function.name);
+  ): Promise<ToolResult<ToolPayload>> {
+    const toolInstance = createToolInstance(toolCall.function.name, agentMode);
     if (!toolInstance) {
       return { success: false, result: `Unknown tool: ${toolCall.function.name}` };
     }
@@ -115,7 +117,7 @@ export class AgentCore {
     if (!this.isToolAvailableInMode(toolInstance, agentMode)) {
       return {
         success: false,
-        result: `Tool '${toolCall.function.name}' is not available in ${agentMode === 'efficient' ? 'Efficient Mode' : 'Regular Mode'}.`,
+        result: `Tool '${toolCall.function.name}' is not available in ${agentMode === 'efficient' ? 'Efficient Mode' : agentMode === 'advanced' ? 'Advanced Mode' : 'Regular Mode'}.`,
       };
     }
 
@@ -199,12 +201,12 @@ export class AgentCore {
           // Execute each tool call and add results to conversation
           for (const toolCall of accumulatedToolCalls) {
             // Notify UI about the tool call
-            yield { type: 'tool_call', content: '', toolCall };
+            yield { type: 'tool_call', content: '', toolCall, agentMode };
 
             let denied = false;
-            const toolInstance = createToolInstance(toolCall.function.name);
+            const toolInstance = createToolInstance(toolCall.function.name, agentMode);
             if (toolInstance && !toolInstance.isReadOnlyTool() && options?.requestToolApproval) {
-              const approvalDecision = await options.requestToolApproval(toolCall);
+              const approvalDecision = await options.requestToolApproval(toolCall, agentMode);
               denied = approvalDecision === 'deny';
             }
 
@@ -220,6 +222,7 @@ export class AgentCore {
             // Notify UI about the tool result
             yield {
               type: 'tool_result',
+              agentMode,
               content: '',
               toolResult: {
                 toolCallId: toolCall.id,

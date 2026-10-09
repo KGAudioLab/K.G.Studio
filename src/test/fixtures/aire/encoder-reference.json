@@ -1,0 +1,87 @@
+{
+  "length": 272,
+  "effectiveVelocity": false,
+  "tensors": {
+    "lead_pitch": {
+      "type": "int64",
+      "dims": [
+        1,
+        272
+      ],
+      "sha256": "7b3cf90f2a35c1fe482d0779f9d106de3d77efc16176a4afe5b7a3f685a853f4"
+    },
+    "pitch_roll": {
+      "type": "float32",
+      "dims": [
+        1,
+        272,
+        128
+      ],
+      "sha256": "4e325a5718ad3b54188599540ead66e1448582a54e5cd18e73839d9fb9afa1b1"
+    },
+    "onset_roll": {
+      "type": "float32",
+      "dims": [
+        1,
+        272,
+        128
+      ],
+      "sha256": "57649664dc289441ffd1ef26d2646a04aedb0c22169179531da1161b8e5c3d59"
+    },
+    "offset_roll": {
+      "type": "float32",
+      "dims": [
+        1,
+        272,
+        128
+      ],
+      "sha256": "f5a8426f7f1a969e23bf3f0e785b182df46a3667bf101ba69c39398e183ce0b6"
+    },
+    "frame_numeric": {
+      "type": "float32",
+      "dims": [
+        1,
+        272,
+        25
+      ],
+      "sha256": "4b4cd4abd6f6fcf0e4a0852e5de68ded0a9b3d61ccde79bb385ae9ccb7f1c26d"
+    },
+    "mood_id": {
+      "type": "int64",
+      "dims": [
+        1
+      ],
+      "sha256": "f13ee6ed54ea2aae9fc49a9faeb5da6e8ddef0e12ed5d30d35a624ae813e0485"
+    },
+    "role_id": {
+      "type": "int64",
+      "dims": [
+        1
+      ],
+      "sha256": "7c9fa136d4413fa6173637e883b6998d32e1d675f88cddff9dcbcf331820f4b8"
+    },
+    "instrument_id": {
+      "type": "int64",
+      "dims": [
+        1
+      ],
+      "sha256": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc"
+    },
+    "ctrl_numeric": {
+      "type": "float32",
+      "dims": [
+        1,
+        6
+      ],
+      "sha256": "c0a0089c1e8b6aab1c282bb885c2846a8eac8834d5259d425ea2452fed0c908f"
+    },
+    "mask": {
+      "type": "bool",
+      "dims": [
+        1,
+        272
+      ],
+      "sha256": "c2d9d4216ecd18ebf8501832b2b1bda7f10e45796bc8d5c4a1d441be71251888"
+    }
+  }
+}

@@ -227,7 +227,8 @@ export function bakeMidiAutomationPointsInWindow(
 export function resolveSustainExtendedEndTick(
   points: MidiAutomationPoint[],
   noteEndTick: number,
-  defaultValue: number
+  defaultValue: number,
+  fallbackEndTick: number
 ): number {
   const normalizedPoints = normalizeMidiAutomationPoints(points);
   if (normalizedPoints.length === 0) {
@@ -240,5 +241,7 @@ export function resolveSustainExtendedEndTick(
   }
 
   const releasePoint = normalizedPoints.find(point => point.tick > noteEndTick && point.value < 64);
-  return releasePoint?.tick ?? noteEndTick;
+  // A final pedal-down point still sustains notes. Without an authored release,
+  // callers supply a finite region/playback boundary to avoid hanging notes.
+  return releasePoint?.tick ?? Math.max(noteEndTick, fallbackEndTick);
 }

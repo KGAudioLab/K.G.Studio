@@ -1,12 +1,11 @@
+import { resolveMidiRegionTarget, type NoteSpan, type ResolvedRegionContext } from './midiRegionTargeting';
 import { BaseTool } from './BaseTool';
 import type { ToolResult, ToolParameter } from './BaseTool';
 import {
   NO_MIDI_TARGET_HISTORY_MESSAGE,
   NO_MIDI_TARGET_RAW_MESSAGE,
   NO_MIDI_TARGET_UI_MESSAGE,
-  getTrackDisplayName,
   resolveMidiTrackByIdOrName,
-  resolveActiveOrSelectedMidiRegionContext,
 } from './toolTargeting';
 import { CreateNotesCommand } from '../../core/commands/note/CreateNotesCommand';
 import type { NoteCreationData } from '../../core/commands/note/CreateNotesCommand';
@@ -15,7 +14,6 @@ import { CreateRegionCommand } from '../../core/commands/region/CreateRegionComm
 import { ResizeRegionCommand } from '../../core/commands/region/ResizeRegionCommand';
 import { KGCore } from '../../core/KGCore';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
-import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 import { quarterNotesToTicks, ticksToQuarterNotes } from '../../core/timing';
 
@@ -32,21 +30,6 @@ interface AddNotesSummaryData {
   trackName: string;
   earliestNoteStartBar: number;
   latestNoteEndBar: number;
-  createdRegion: boolean;
-}
-
-interface NoteSpan {
-  startTick: number;
-  endTick: number;
-}
-
-interface ResolvedRegionContext {
-  track: KGMidiTrack;
-  trackName: string;
-  regionName: string;
-  regionId?: string;
-  finalRegionStartTick: number;
-  finalRegionLength: number;
   createdRegion: boolean;
 }
 
@@ -277,7 +260,7 @@ export class AddNotesTool extends BaseTool {
         }
       }
 
-      const resolvedRegion = this.resolveTargetRegion(trackId, trackName, this.getNoteSpan(validatedNotes));
+      const resolvedRegion = resolveMidiRegionTarget(trackId, trackName, this.getNoteSpan(validatedNotes));
       if (!resolvedRegion) {
         return this.createErrorResult(NO_MIDI_TARGET_RAW_MESSAGE);
       }
@@ -315,7 +298,7 @@ export class AddNotesTool extends BaseTool {
       start: quarterNotesToTicks(note.start),
       length: quarterNotesToTicks(note.length),
     })));
-    const resolvedRegion = this.resolveTargetRegion(typedArgs.track_id, typedArgs.track_name, span);
+    const resolvedRegion = resolveMidiRegionTarget(typedArgs.track_id, typedArgs.track_name, span);
     if (!resolvedRegion) {
       return null;
     }
@@ -331,99 +314,6 @@ export class AddNotesTool extends BaseTool {
       latestNoteEndBar: Math.max(1, Math.ceil(span.endTick / ticksPerBar)),
       createdRegion: resolvedRegion.createdRegion,
     };
-  }
-
-  private resolveTargetRegion(
-    trackId: string | undefined,
-    trackName: string | undefined,
-    span: NoteSpan,
-  ): ResolvedRegionContext | null {
-    if (trackId || trackName) {
-      return this.resolveTrackTarget(trackId, trackName, span);
-    }
-
-    const activeRegion = resolveActiveOrSelectedMidiRegionContext();
-    if (!activeRegion) {
-      return null;
-    }
-
-    const region = activeRegion.region;
-    const regionStartTick = region.getStartTick();
-    const regionEndTick = regionStartTick + region.getLengthTicks();
-    return {
-      track: activeRegion.track,
-      trackName: activeRegion.trackName,
-      regionId: region.getId(),
-      regionName: region.getName(),
-      finalRegionStartTick: Math.min(regionStartTick, span.startTick),
-      finalRegionLength: Math.max(regionEndTick, span.endTick) - Math.min(regionStartTick, span.startTick),
-      createdRegion: false,
-    };
-  }
-
-  private resolveTrackTarget(
-    trackId: string | undefined,
-    trackName: string | undefined,
-    span: NoteSpan,
-  ): ResolvedRegionContext | null {
-    const track = resolveMidiTrackByIdOrName(trackId, trackName);
-    if (!track) {
-      return null;
-    }
-
-    const resolvedTrackName = getTrackDisplayName(track);
-    const midiRegions = track.getRegions().filter(region => region instanceof KGMidiRegion) as KGMidiRegion[];
-    const selectedRegion = this.pickBestOverlappingRegion(midiRegions, span);
-
-    if (!selectedRegion) {
-      return {
-        track,
-        trackName: resolvedTrackName,
-        regionName: `${resolvedTrackName} Region`,
-        finalRegionStartTick: span.startTick,
-        finalRegionLength: span.endTick - span.startTick,
-        createdRegion: true,
-      };
-    }
-
-    const regionStartTick = selectedRegion.getStartTick();
-    const regionEndTick = regionStartTick + selectedRegion.getLengthTicks();
-    const finalRegionStartTick = Math.min(regionStartTick, span.startTick);
-    const finalRegionEndTick = Math.max(regionEndTick, span.endTick);
-
-    return {
-      track,
-      trackName: resolvedTrackName,
-      regionId: selectedRegion.getId(),
-      regionName: selectedRegion.getName(),
-      finalRegionStartTick,
-      finalRegionLength: finalRegionEndTick - finalRegionStartTick,
-      createdRegion: false,
-    };
-  }
-
-  private pickBestOverlappingRegion(regions: KGMidiRegion[], span: NoteSpan): KGMidiRegion | null {
-    let bestRegion: KGMidiRegion | null = null;
-    let bestOverlap = -1;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const region of regions) {
-      const regionStart = region.getStartTick();
-      const regionEnd = regionStart + region.getLengthTicks();
-      const overlap = Math.min(regionEnd, span.endTick) - Math.max(regionStart, span.startTick);
-      if (overlap <= 0) {
-        continue;
-      }
-
-      const distance = Math.abs(regionStart - span.startTick);
-      if (overlap > bestOverlap || (overlap === bestOverlap && distance < bestDistance)) {
-        bestRegion = region;
-        bestOverlap = overlap;
-        bestDistance = distance;
-      }
-    }
-
-    return bestRegion;
   }
 
   private getNoteSpan(notes: Array<{ start: number; length: number }>): NoteSpan {

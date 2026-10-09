@@ -17,6 +17,7 @@ interface AppConfig {
       context_length: 32768 | 65536 | 131072;
       model_url: string;
     };
+    aire: { base_url: string };
     uvr5_web_runtime: {
       mdx_net_model_url: string;
       htdemucs_4s_model_url: string;
@@ -229,7 +230,7 @@ export class ConfigManager {
       this.defaultConfig = {
         general: {
           language: 'auto',
-          agent_mode: 'regular',
+          agent_mode: 'advanced',
           llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           auto_compact_threshold_percent: 90,
@@ -261,6 +262,7 @@ export class ConfigManager {
             context_length: 32768,
             model_url: 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'
           },
+          aire: { base_url: 'https://huggingface.co/KGAudioLab/instrument-aire-models/resolve/main/models/' },
           uvr5_web_runtime: {
             mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx',
             htdemucs_4s_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx',

@@ -287,7 +287,7 @@ const MusicAssistantSettings: React.FC = () => {
               <option value="no">{t('settings.no')}</option>
               <option value="yes">{t('settings.yes')}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.persistKeys.help')}
             </div>
           </div>
@@ -306,7 +306,7 @@ const MusicAssistantSettings: React.FC = () => {
               <option value="90">{t('settings.general.autoCompactThreshold.standard')}</option>
               <option value="80">{t('settings.general.autoCompactThreshold.early')}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.general.autoCompactThreshold.help')}
             </div>
           </div>
@@ -322,16 +322,17 @@ const MusicAssistantSettings: React.FC = () => {
               onChange={(e) => void handleAgentModeChange(e.target.value as AgentMode)}
               disabled={isAgentModeOverriddenByLocalProvider}
             >
+              <option value="advanced">{t('settings.general.musicAssistant.agentMode.advanced')}</option>
               <option value="regular">{t('settings.general.musicAssistant.agentMode.regular')}</option>
               <option value="efficient">{t('settings.general.musicAssistant.agentMode.efficient')}</option>
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {isAgentModeOverriddenByLocalProvider
                 ? t('settings.general.musicAssistant.agentMode.localOverride')
                 : t('settings.general.musicAssistant.agentMode.help')}
             </div>
             {effectiveAgentMode !== agentMode && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {t('settings.general.musicAssistant.agentMode.effectiveValue', {
                   mode: t('settings.general.musicAssistant.agentMode.efficient'),
                 })}
@@ -345,7 +346,7 @@ const MusicAssistantSettings: React.FC = () => {
             <h4>{LOCAL_LLM_DISPLAY_NAME} Local Runtime</h4>
 
             {hasLocalRuntimeHardFailure && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a', marginTop: '4px', marginBottom: '8px' }}>
+              <div className="settings-help settings-help-error settings-help-note">
                 {localRuntimeMessage}
               </div>
             )}
@@ -354,7 +355,7 @@ const MusicAssistantSettings: React.FC = () => {
               <label className="settings-label">
                 {t('settings.general.localRuntime.cachedStatus')}
               </label>
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {localModelState.isChecking
                   ? t('settings.general.localRuntime.cacheChecking')
                   : localModelState.isCached
@@ -379,7 +380,7 @@ const MusicAssistantSettings: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {t('settings.general.localRuntime.contextHelp')}
               </div>
             </div>
@@ -395,7 +396,7 @@ const MusicAssistantSettings: React.FC = () => {
                 value={localModelUrl}
                 onChange={(e) => handleLocalModelUrlChange(e.target.value)}
               />
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {t('settings.general.localRuntime.downloadHelp')}{' '}
                 <a
                   href="#"
@@ -411,7 +412,7 @@ const MusicAssistantSettings: React.FC = () => {
             </div>
 
             {!localModelState.isCached && !localModelState.isDownloading && localModelState.runtimeSupport.supported && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px', marginBottom: '8px' }}>
+              <div className="settings-help settings-help-note">
                 {t('settings.general.localRuntime.autoDownload')}
               </div>
             )}
@@ -427,14 +428,14 @@ const MusicAssistantSettings: React.FC = () => {
                 >
                   <div className="settings-progress-fill" style={{ width: `${Math.max(0, Math.min(100, localModelState.progressPercent))}%` }} />
                 </div>
-                <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
+                <div className="settings-help settings-help-progress">
                   {localModelState.progressText}
                 </div>
               </div>
             )}
 
             {localModelState.error && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#d45a5a', marginTop: '8px' }}>
+              <div className="settings-help settings-help-error settings-help-spaced">
                 {localModelState.error}
               </div>
             )}
@@ -515,13 +516,13 @@ const MusicAssistantSettings: React.FC = () => {
         {llmProvider === 'openai_compatible' && (
           <div className="settings-group">
             <h4>{t('settings.general.openaiCompatible.section')}</h4>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginBottom: '12px' }}>
+            <div className="settings-help settings-help-intro">
               {t('settings.general.openaiCompatible.helpIntro')}{' '}
               {t('settings.general.openaiCompatible.helpSubscriptionBefore')}{' '}
               <a href="https://github.com/router-for-me/CLIProxyAPI" target="_blank" rel="noopener noreferrer" style={{ color: '#5a9fd4', textDecoration: 'underline' }}>CLIProxyAPI</a>{' '}
               {t('settings.general.openaiCompatible.helpSubscriptionAfter')}
             </div>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>
+            <div className="settings-help settings-help-intro settings-help-intro-large">
               {t('settings.general.openaiCompatible.presets')}{' '}
               {LLM_CONNECTION_PRESETS.map((preset, index) => (
                 <React.Fragment key={preset.name}>
@@ -548,7 +549,7 @@ const MusicAssistantSettings: React.FC = () => {
                 value={compatibleKey}
                 onChange={(e) => handleCompatibleKeyChange(e.target.value)}
               />
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {isLocalEnvironment
                   ? t('settings.general.keys.persisted')
                   : persistApiKeysNonLocalhost
@@ -599,10 +600,10 @@ const MusicAssistantSettings: React.FC = () => {
                   debouncedSave('general.openai_compatible.reasoning_effort', e.target.value);
                 }}
               />
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {t('settings.general.openaiCompatible.thinkingLevelHelp')}
               </div>
-              <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+              <div className="settings-help">
                 {t('settings.general.openaiCompatible.thinkingLevelPresets')}{' '}
                 {['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map((level, index) => (
                   <React.Fragment key={level}>

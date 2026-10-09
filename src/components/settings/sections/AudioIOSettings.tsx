@@ -192,7 +192,7 @@ const AudioIOSettings: React.FC = () => {
                 </option>
               ))}
             </select>
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.audioIo.inputHelp')}
             </div>
           </div>
@@ -221,18 +221,18 @@ const AudioIOSettings: React.FC = () => {
                 </button>
               </div>
             )}
-            <div className="settings-help" style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            <div className="settings-help">
               {t('settings.audioIo.outputHelp')}
             </div>
             {!supportsOutputSink && (
-              <div className="settings-help" style={{ fontSize: '12px', color: '#d0a56b', marginTop: '6px' }}>
+              <div className="settings-help settings-help-warning">
                 {t('settings.audioIo.outputSinkUnsupported')}
               </div>
             )}
           </div>
 
           {deviceStatus && (
-            <div className="settings-help" style={{ fontSize: '12px', color: '#9bc17c', marginTop: '8px' }}>
+            <div className="settings-help settings-help-success">
               {deviceStatus}
             </div>
           )}

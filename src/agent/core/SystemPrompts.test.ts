@@ -84,7 +84,7 @@ describe('SystemPrompts', () => {
 
     vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
-      if (url.endsWith('prompts/system.md')) {
+      if (url.endsWith('prompts/system.md') || url.endsWith('prompts/system_advanced.md')) {
         return {
           ok: true,
           status: 200,
@@ -106,6 +106,17 @@ describe('SystemPrompts', () => {
         text: async () => '',
       };
     }));
+  });
+
+  it('injects tick selection context for Advanced while preserving regular quarter-note context', async () => {
+    storeState.selectedRegionIds = ['midi-a', 'midi-b'];
+    const advanced = await SystemPrompts.getSystemPromptWithContext('prompts/system_advanced.md');
+    expect(advanced).toContain('- Start Tick: 3840');
+    expect(advanced).toContain('- End Tick: 23040');
+    expect(advanced).not.toContain('Quarter-note');
+    const regular = await SystemPrompts.getSystemPromptWithContext();
+    expect(regular).toContain('- Start Quarter-note: 4');
+    expect(regular).toContain('- End Quarter-note: 24');
   });
 
   it('uses loop bounds when loop mode is enabled', async () => {

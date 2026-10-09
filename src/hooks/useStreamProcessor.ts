@@ -1,3 +1,4 @@
+import type { AgentMode } from '../util/agentMode';
 import { useState, useCallback } from 'react';
 import { AgentCore } from '../agent/core/AgentCore';
 import { createToolInstance } from '../agent/tools';
@@ -58,13 +59,13 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       console.log(input);
       console.log('------------------------------');
 
-      const requestToolApproval = async (toolCall: PendingToolCall): Promise<ToolApprovalDecision> => {
+      const requestToolApproval = async (toolCall: PendingToolCall, agentMode?: AgentMode): Promise<ToolApprovalDecision> => {
         const { toolFastForwardEnabled, setToolFastForwardEnabled } = useProjectStore.getState();
         if (toolFastForwardEnabled) {
           return 'allow';
         }
 
-        const toolInstance = createToolInstance(toolCall.name);
+        const toolInstance = createToolInstance(toolCall.name, agentMode);
         const confirmationContent = toolInstance?.buildConfirmationContent(toolCall.arguments) ?? undefined;
         if (!confirmationContent) {
           return 'allow';
@@ -92,7 +93,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
       };
 
       for await (const chunk of agentCore.processUserInput(input, {
-        requestToolApproval: async (toolCall) => {
+        requestToolApproval: async (toolCall, agentMode) => {
           let parsedArguments: Record<string, unknown> | null;
           try {
             parsedArguments = JSON.parse(toolCall.function.arguments);
@@ -104,7 +105,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
             id: toolCall.id,
             name: toolCall.function.name,
             arguments: parsedArguments,
-          });
+          }, agentMode);
         },
       })) {
         if (controller.signal.aborted) {
@@ -174,25 +175,26 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
           const pendingToolCall = pendingToolCallIndex >= 0
             ? pendingToolCalls.splice(pendingToolCallIndex, 1)[0]
             : undefined;
-          let toolHistoryContent = result;
-          let toolResultDisplayContent = result;
+          const renderedResult = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+          let toolHistoryContent = renderedResult;
+          let toolResultDisplayContent = renderedResult;
           try {
-            const toolInstance = createToolInstance(name);
+            const toolInstance = createToolInstance(name, chunk.agentMode);
             toolHistoryContent = toolInstance?.buildToolHistoryContent(
               pendingToolCall?.arguments ?? null,
               { success, result },
-            ) ?? result;
+            ) ?? renderedResult;
             toolResultDisplayContent = toolInstance?.buildToolResultDisplayContent(
               pendingToolCall?.arguments ?? null,
               { success, result },
-            ) ?? result;
+            ) ?? renderedResult;
           } catch {
-            toolHistoryContent = result;
-            toolResultDisplayContent = result;
+            toolHistoryContent = renderedResult;
+            toolResultDisplayContent = renderedResult;
           }
           const toolResultMsg = name === TODO_TOOL_NAME
             ? {
-              ...createMessage('assistant', result),
+              ...createMessage('assistant', renderedResult),
               toolName: name,
               toolSuccess: success,
               todoSnapshot: AgentCore.instance().getAgentState().getTodos().map(todo => ({ ...todo })),
@@ -201,7 +203,7 @@ export const useStreamProcessor = (options: StreamProcessorOptions): StreamProce
               ...createMessage('assistant', `${success ? '✅' : '❌'} **${name}**\n\n └── ${toolHistoryContent}`),
               toolName: name,
               toolSuccess: success,
-              toolRawResult: result,
+              toolRawResult: renderedResult,
               toolResultDisplayContent,
               toolDenied: denied,
             };

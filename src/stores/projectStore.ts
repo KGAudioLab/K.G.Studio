@@ -772,7 +772,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         const command = new DuplicateTrackCommand(sourceTrackId, options, trackId => get().setSelectedTrack(trackId));
         KGCore.instance().executeCommand(command, { rethrow: true });
         get().refreshProjectState();
-        get().bumpTrackAutomationRedrawVersion();
         get().bumpAudioWaveformRedrawVersion();
 
         const duplicate = command.getDuplicateTrack();
@@ -2246,7 +2245,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       if (core.undo()) {
         // Use centralized refresh method
         get().refreshProjectState();
-        get().bumpTrackAutomationRedrawVersion();
         get().bumpAudioWaveformRedrawVersion();
         console.log('Undo completed');
       }
@@ -2257,7 +2255,6 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       if (core.redo()) {
         // Use centralized refresh method
         get().refreshProjectState();
-        get().bumpTrackAutomationRedrawVersion();
         get().bumpAudioWaveformRedrawVersion();
         console.log('Redo completed');
       }
@@ -2280,8 +2277,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       const project = core.getCurrentProject();
       const restoredSidePanel = projectRightPanelToSidePanel(project.getRightPanel());
 
-      // Force new array reference to trigger React re-renders
-      set({
+      // Model objects mutate in place; invalidate memoized automation as well as track arrays.
+      set(state => ({
+        automationRedrawVersion: state.automationRedrawVersion + 1,
+        trackAutomationRedrawVersion: state.trackAutomationRedrawVersion + 1,
         projectName: project.getName(),
         tracks: [...project.getTracks()] as KGTrack[], // Force new array reference - key for re-rendering!
         globalTracks: [...getProjectGlobalTracks(project)],
@@ -2299,7 +2298,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         lastActiveSidePanel: restoredSidePanel,
         playheadTick: core.getPlayheadTick(),
         currentTime: formatCurrentTime(project, core.getPlayheadTick()),
-      });
+      }));
 
       // Sync CSS variables that affect layout
       updateTimeSignatureCSS(project.getTimeSignature());

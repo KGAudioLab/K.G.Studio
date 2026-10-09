@@ -5,6 +5,12 @@ const debuggerMocks = vi.hoisted(() => ({
   convertRegionToABCNotation: vi.fn(() => 'X:1\nC |'),
   playheadTick: 0,
   ticksPerBar: 4,
+  mode: 'advanced',
+  provider: 'openai_compatible',
+  initialized: true,
+  initialize: vi.fn(),
+  createToolInstance: vi.fn(),
+  refreshProjectState: vi.fn(),
 }));
 
 vi.mock('./KGCore', () => ({
@@ -37,7 +43,16 @@ vi.mock('../agent/core/AgentCore', () => ({
 }));
 
 vi.mock('../agent/tools', () => ({
-  AVAILABLE_TOOLS: {},
+  AVAILABLE_TOOLS: { read_music: class {} },
+  createToolInstance: debuggerMocks.createToolInstance,
+}));
+
+vi.mock('./config/ConfigManager', () => ({
+  ConfigManager: { instance: () => ({
+    getIsInitialized: () => debuggerMocks.initialized,
+    initialize: debuggerMocks.initialize,
+    get: (key: string) => key === 'general.agent_mode' ? debuggerMocks.mode : debuggerMocks.provider,
+  }) },
 }));
 
 vi.mock('../stores/projectStore', () => ({
@@ -45,6 +60,7 @@ vi.mock('../stores/projectStore', () => ({
     getState: () => ({
       activeRegionId: null,
       tracks: [],
+      refreshProjectState: debuggerMocks.refreshProjectState,
     }),
   },
 }));
@@ -299,5 +315,61 @@ describe('KGDebugger OPFS du', () => {
     await debuggerInstance.opfs('du missing');
 
     expect(errorSpy).toHaveBeenCalledWith('opfs: du: no such file or directory: missing');
+  });
+});
+
+
+describe('KGDebugger mode-aware tool calls', () => {
+  beforeEach(() => {
+    debuggerMocks.mode = 'advanced';
+    debuggerMocks.provider = 'openai_compatible';
+    debuggerMocks.initialized = true;
+    debuggerMocks.initialize.mockClear();
+    debuggerMocks.createToolInstance.mockReset();
+    debuggerMocks.refreshProjectState.mockClear();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  it.each([
+    ['advanced', 'openai_compatible', 'advanced'],
+    ['regular', 'openai_compatible', 'regular'],
+    ['efficient', 'openai_compatible', 'efficient'],
+    ['advanced', 'local_browser', 'efficient'],
+  ])('resolves %s with provider %s to %s', async (mode, provider, effective) => {
+    debuggerMocks.mode = mode;
+    debuggerMocks.provider = provider;
+    const payload = { tracks: [] };
+    const execute = vi.fn().mockResolvedValue({ success: true, result: payload });
+    debuggerMocks.createToolInstance.mockReturnValue({ execute,
+      isAvailableInRegularMode: () => true, isAvailableInEfficientMode: () => true,
+    });
+    await KGDebugger.instance().testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}');
+    expect(debuggerMocks.createToolInstance).toHaveBeenCalledWith('read_music', effective);
+    expect(execute).toHaveBeenCalledWith({ start: 0, length: 8 });
+    expect(console.log).toHaveBeenCalledWith('   Result:', payload);
+    expect(debuggerMocks.refreshProjectState).toHaveBeenCalledOnce();
+  });
+
+  it('initializes configuration before resolving mode', async () => {
+    debuggerMocks.initialized = false;
+    debuggerMocks.createToolInstance.mockReturnValue(null);
+    await KGDebugger.instance().testToolCall({ name: 'unknown', arguments: {} });
+    expect(debuggerMocks.initialize).toHaveBeenCalledOnce();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Unknown tool'));
+  });
+
+  it('skips unavailable tools and continues a batch', async () => {
+    debuggerMocks.provider = 'local_browser';
+    const execute = vi.fn();
+    debuggerMocks.createToolInstance.mockReturnValueOnce({ execute,
+      isAvailableInEfficientMode: () => false,
+    }).mockReturnValueOnce({ execute: vi.fn().mockResolvedValue({ success: true, result: 'ABC' }),
+      isAvailableInEfficientMode: () => true,
+    });
+    await KGDebugger.instance().testToolCall([{ name: 'read_markers' }, { name: 'read_music' }]);
+    expect(execute).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('not available in efficient mode'));
+    expect(debuggerMocks.refreshProjectState).toHaveBeenCalledOnce();
   });
 });

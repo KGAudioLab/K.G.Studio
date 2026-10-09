@@ -134,6 +134,7 @@ export class KGOfflineRenderer {
       panAutomation: MidiAutomationPoint[];
       regions: Array<{
         startTick: number;
+        endTick: number;
         notes: Array<{ startTick: number; endTick: number; durationTicks: number; pitch: number; velocity: number }>;
       }>;
       pitchBends: MidiAutomationPoint[];
@@ -185,7 +186,7 @@ export class KGOfflineRenderer {
                 pitch: note.getPitch(),
                 velocity: note.getVelocity(),
               }));
-              regions.push({ startTick: region.getStartTick(), notes });
+              regions.push({ startTick: region.getStartTick(), endTick: region.getStartTick() + region.getLengthTicks(), notes });
             }
           }
         }
@@ -263,7 +264,8 @@ export class KGOfflineRenderer {
         for (const r of t.regions) {
           for (const n of r.notes) {
             if (n.startTick < contentStart) contentStart = n.startTick;
-            if (n.endTick > contentEnd) contentEnd = n.endTick;
+            const sustainedEndTick = resolveSustainExtendedEndTick(t.controllerEventsByType[64], n.endTick, 0, r.endTick);
+            if (sustainedEndTick > contentEnd) contentEnd = sustainedEndTick;
           }
         }
       }
@@ -379,14 +381,14 @@ export class KGOfflineRenderer {
             // Schedule all notes for this track
             for (const regionInfo of trackInfo.regions) {
               for (const note of regionInfo.notes) {
-                // Skip notes outside render range
-                if (note.startTick >= renderEndTick || note.endTick <= renderStartTick) continue;
-
                 const sustainedEndTick = resolveSustainExtendedEndTick(
                   trackInfo.controllerEventsByType[64],
                   note.endTick,
-                  0
+                  0,
+                  regionInfo.endTick
                 );
+                // Include notes still sounding under sustain at the render start.
+                if (note.startTick >= renderEndTick || sustainedEndTick <= renderStartTick) continue;
                 const effectiveStartTick = Math.max(note.startTick, renderStartTick);
                 const effectiveEndTick = Math.min(sustainedEndTick, renderEndTick);
                 const noteDuration = tickRangeToSeconds(project, effectiveStartTick, effectiveEndTick);

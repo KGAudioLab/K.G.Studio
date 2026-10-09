@@ -128,6 +128,13 @@ export class SystemPrompts {
   /**
    * Build the selected music range section for prompt templates.
    */
+  private static buildAdvancedSelectedMusicRangeSection(): string {
+    const range = resolveSelectedMusicRangeContext();
+    return range.hasRange
+      ? `- Start Tick: ${range.startTick}\n- End Tick: ${range.endTick}\n- Ticks Per Quarter Note: 960`
+      : '- No selected music range.';
+  }
+
   private static buildSelectedMusicRangeSection(): string {
     return resolveSelectedMusicRangeContext().section;
   }
@@ -135,7 +142,7 @@ export class SystemPrompts {
   /**
    * Get full context by combining project and region data
    */
-  private static getFullContext(): SystemPromptContext {
+  private static getFullContext(advanced = false): SystemPromptContext {
     const projectContext = this.extractProjectContext();
     
     return {
@@ -143,7 +150,7 @@ export class SystemPrompts {
       time_signature: projectContext.time_signature ?? '4/4',
       key_signature: projectContext.key_signature ?? 'C major',
       track_instrument: projectContext.track_instrument ?? 'Piano',
-      selected_music_range_section: this.buildSelectedMusicRangeSection(),
+      selected_music_range_section: advanced ? this.buildAdvancedSelectedMusicRangeSection() : this.buildSelectedMusicRangeSection(),
     };
   }
   
@@ -181,7 +188,7 @@ export class SystemPrompts {
    */
   static async getSystemPromptWithContext(templatePath?: string): Promise<string> {
     try {
-      const context = this.getFullContext();
+      const context = this.getFullContext(templatePath === 'prompts/system_advanced.md');
       const [template, appendixTemplate] = await Promise.all([
         this.loadTemplate(templatePath),
         this.loadTemplate('prompts/user_msg_appendix.md', ''),

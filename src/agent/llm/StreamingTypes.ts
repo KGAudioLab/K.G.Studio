@@ -1,3 +1,5 @@
+import type { ToolPayload } from '../tools/BaseTool';
+import type { AgentMode } from '../../util/agentMode';
 /**
  * Types for streaming LLM responses
  */
@@ -15,11 +17,12 @@ export interface StreamChunk {
   type: 'text' | 'tool_call' | 'tool_result' | 'done';
   content: string;
   toolCall?: ToolCall;
+  agentMode?: AgentMode;
   toolResult?: {
     toolCallId?: string;
     name: string;
     success: boolean;
-    result: string;
+    result: ToolPayload;
     denied?: boolean;
   };
   performanceInfo?: PerformanceInfo;

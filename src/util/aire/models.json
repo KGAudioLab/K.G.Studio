@@ -1,0 +1,93 @@
+{
+  "S03": {
+    "instruments": [
+      "string"
+    ],
+    "moods": [
+      "dreamy",
+      "groovy",
+      "hopeful",
+      "inspiring",
+      "magical",
+      "peaceful",
+      "relaxing",
+      "romantic",
+      "sad",
+      "tense",
+      "uplifting",
+      "happy",
+      "scary"
+    ],
+    "roles": [
+      "main_melody",
+      "pad",
+      "riff",
+      "sub_melody",
+      "accompaniment",
+      "bass"
+    ],
+    "path": "aire-strings-a02b-s03/model.onnx"
+  },
+  "B01": {
+    "instruments": [
+      "brass"
+    ],
+    "moods": [
+      "dreamy",
+      "groovy",
+      "hopeful",
+      "inspiring",
+      "magical",
+      "peaceful",
+      "relaxing",
+      "romantic",
+      "sad",
+      "tense",
+      "uplifting",
+      "bouncy",
+      "happy",
+      "mysterious",
+      "scary"
+    ],
+    "roles": [
+      "main_melody",
+      "pad",
+      "riff",
+      "sub_melody",
+      "accompaniment",
+      "bass"
+    ],
+    "path": "aire-brass-a02b-b01/model.onnx"
+  },
+  "W01": {
+    "instruments": [
+      "woodwind"
+    ],
+    "moods": [
+      "dreamy",
+      "groovy",
+      "hopeful",
+      "inspiring",
+      "magical",
+      "peaceful",
+      "relaxing",
+      "romantic",
+      "sad",
+      "tense",
+      "uplifting",
+      "funny",
+      "mysterious",
+      "scary",
+      "tragicomic"
+    ],
+    "roles": [
+      "main_melody",
+      "pad",
+      "riff",
+      "sub_melody",
+      "accompaniment",
+      "bass"
+    ],
+    "path": "aire-woodwind-a02b-w01/model.onnx"
+  }
+}

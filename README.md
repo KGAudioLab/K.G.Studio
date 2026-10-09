@@ -458,3 +458,30 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
 Third‑party notices (FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, and demucs-web) are included in `LICENSE`.
+
+### AIRE MIDI expression
+
+Humanize MIDI regions from the piano-roll menu with AIRE. The model generates
+editable CC1 automation locally, preserving note timing and velocity. Enable a
+loop to process only its intersection with the region. Model downloads and cache
+management are available in **Settings → General → AIRE Settings**.
+
+Uses instrument-aire models by **xiaohan-tian / KGAudioLab**
+(https://huggingface.co/KGAudioLab). The encoder and models use MIT + Attribution
+Requirement; see [the retained license](src/util/aire/LICENSE). AIRE is inspired by
+[MID-FiLD](https://ojs.aaai.org/index.php/AAAI/article/view/27774), and its models
+were trained on filtered subsets of the
+[original MID-FiLD dataset](https://github.com/pozalabs/MID-FiLD).
+
+Inference uses one dedicated worker, trying WebGPU and falling back to
+single-thread WASM. Runtime assets are bundled for static hosting, including
+GitHub Pages; shared-memory threading and cross-origin isolation are not required.
+Custom model hosts must allow CORS. Cached models are local to the browser and
+site origin; clearing site data removes them. CC1's audible effect depends on the
+receiving instrument's controller mapping.
+
+To run the production AIRE browser check, use `npm run test:browser:aire` with
+the reference model repository alongside KGStudio, or set `AIRE_MODEL_DIR` to
+the directory containing the three model folders. The test serves the production
+build without isolation headers and covers reference parity, all three models,
+long overlapping windows, cancellation, and cache reuse.

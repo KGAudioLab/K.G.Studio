@@ -44,6 +44,7 @@ describe('DuplicateTrackCommand', () => {
     source.setColor('#123456');
     source.setMuted(true);
     source.setSolo(true);
+    source.setPan(-0.4);
     source.setTransposeSettings({ followKeySignature: true, transpose: 5 });
     source.setNoTranspose(true);
     source.setVolumeAutomation([new KGTrackAutomationPoint('volume-source', 2, -4)]);
@@ -75,6 +76,7 @@ describe('DuplicateTrackCommand', () => {
     expect(duplicate.getColor()).toBe('#123456');
     expect(duplicate.getMuted()).toBe(true);
     expect(duplicate.getSolo()).toBe(true);
+    expect(duplicate.getPan()).toBe(-0.4);
     expect(duplicate.getTransposeSettings()).toEqual({ followKeySignature: true, transpose: 5 });
     expect(duplicate.getNoTranspose()).toBe(true);
     expect(duplicate.getVolumeAutomation()[0].getId()).not.toBe('volume-source');

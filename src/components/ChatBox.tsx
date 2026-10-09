@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import './ChatBox.css';
+import './common/ProcessingWave.css';
 import { FaPlus, FaDownload, FaForward, FaHistory, FaTrash } from 'react-icons/fa';
 import { UserMessage, AssistantMessage } from './chat';
 import { AgentCore } from '../agent/core/AgentCore';
