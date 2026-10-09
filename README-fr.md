@@ -16,12 +16,6 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
 
 **K.G.Studio Musician Assistant** est un co-créateur IA conscient du projet, conçu pour enrichir votre flux créatif. Plutôt que de générer directement des fichiers audio bruts, il opère au niveau structuré des pistes et des notes — vous aidant à composer des mélodies, construire des progressions harmoniques et éditer des notes MIDI, tout en vous laissant le contrôle total pour ajuster, affiner et perfectionner chaque détail.
 
-<div align="center">
-  <img src="./docs/KGOne-Demo-GIF.gif" alt="K.G.One Logo" width="640" />
-</div>
-
-> Remarque : les fonctions de génération de morceau complet et de génération de clip audio nécessitent l'intégration de [**K.G.One Music Studio**](https://github.com/KGAudioLab/K.G.One).
-
 ## Dernières mises à jour
 
 - **2026.07.18** : introduction de nouveaux workflows puissants pour l'arrangement et l'édition MIDI :
@@ -72,12 +66,6 @@ Ce projet étudie comment la collaboration entre l'IA et l'humain peut enrichir 
 <div align="center">
   <table>
     <tr>
-      <td align="center">
-        <a href="https://youtu.be/F1JWjK84zwc" target="_blank">
-          <img src="./public/demo/demo-cover.png" alt="K.G.One Music Studio" width="400"/>
-        </a>
-        <br><b>K.G.One Music Studio</b>
-      </td>
       <td align="center">
         <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
           <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
@@ -149,11 +137,10 @@ Vous trouverez le guide utilisateur détaillé [ici](./docs/USER_GUIDE.md).
 ### Points forts
 - **K.G.Studio Musician Assistant** : discutez avec l'agent IA alimenté par un LLM ; il exécute automatiquement des outils pour effectuer des modifications musicales dans la région sélectionnée.
 - **LLM intégré au navigateur — aucune clé API requise** : exécutez **Gemma 4 E4B** entièrement dans votre navigateur via WebGPU (LiteRT-LM). Aucun appel API, aucun coût, aucune donnée quittant votre appareil. Le modèle est téléchargé une fois et mis en cache localement.
-- **Séparation de stems intégrée au navigateur — aucun serveur requis** : séparez n'importe quelle région audio en stems avec **UVR-MDX-NET-Inst_HQ_3** (2 stems : Vocals / Instrumental) ou **Demucs htdemucs_4s** (4 stems : Vocals / Drums / Bass / Others), tous deux entièrement exécutés dans le navigateur via ONNX Runtime WebGPU, sans serveur K.G.One.
+- **Séparation de stems intégrée au navigateur — aucun serveur requis** : séparez n'importe quelle région audio en stems avec **UVR-MDX-NET-Inst_HQ_3** (2 stems : Vocals / Instrumental) ou **Demucs htdemucs_4s** (4 stems : Vocals / Drums / Bass / Others), tous deux entièrement exécutés dans le navigateur via ONNX Runtime WebGPU.
 - **Détection d'accords audio** : ouvrez le piano roll sur une région audio et lancez **Detect Chords** pour analyser automatiquement l'enregistrement et remplir la Chord Track globale avec un pipeline FFT sans dépendance, avec sensibilité, stabilité et détection des accords de septième configurables.
 - **Détection de tempo avec alignement automatique des temps** : lancez **Detect Tempo** depuis la barre d'outils du piano roll pour analyser le BPM d'une région audio et, si vous le souhaitez, réaligner la Tempo Track du projet.
 - **Système de pistes globales** : quatre pistes globales persistantes — **Marker**, **Tempo**, **Key Signature** et **Chord** — fournissent une structure à l'échelle du projet à laquelle toutes les fonctions (timing de lecture, détection d'accords, notation musicale) se réfèrent.
-- **Intégration K.G.One Music Studio** : lorsqu'il est connecté à un serveur local [K.G.One](https://github.com/KGAudioLab/K.G.One), vous débloquez la **Full Song Generation** accélérée par GPU (ACE-Step 1.5), la **Clip & MIDI Loop Generation** (Foundation-1) et des modèles supplémentaires de **Stem Separation**.
 - **Plusieurs fournisseurs LLM** : OpenAI, Claude / Gemini (via OpenRouter), services compatibles OpenAI (Ollama, vLLM, etc.), ou Local Browser LLM intégré — sans clé requise.
 - **Édition de pistes et de régions** : ajouter/réordonner des pistes, créer/déplacer/redimensionner des régions, multi-sélection avec lasso, déplacement/redimensionnement de groupe, fusion et scission de régions, avec annulation/rétablissement complet.
 - **Piano roll** : notes, pitch bend et lanes d'automation MIDI CC ; vue de notation musicale (sheet music) via VexFlow ; superposition de spectrogramme pour la référence audio-vers-MIDI.
@@ -311,71 +298,37 @@ Pour des raisons de sécurité, lorsque vous utilisez K.G.Studio depuis un hôte
 
 K.G.Studio ne fournit ni n'héberge aucun des modèles listés ci-dessus et n'est affilié à aucun fournisseur de modèles. Toutes les données sont stockées localement sur votre appareil ; K.G.Studio ne collecte ni ne transmet vos données. Vous êtes seul responsable de toute donnée que vous fournissez à des fournisseurs de modèles tiers.
 
-## K.G.One Music Generator
+## Outils musicaux IA
 
-> **Nécessite l'intégration de [K.G.One Music Studio](https://github.com/KGAudioLab/K.G.One).** Le panneau K.G.One Music Generator n'est disponible que lorsque K.G.Studio est connecté à un serveur K.G.One en fonctionnement. Consultez le [dépôt K.G.One](https://github.com/KGAudioLab/K.G.One) pour les instructions d'installation.
-
-Le panneau **K.G.One Music Generator** fournit trois outils IA accélérés par GPU pour la génération musicale et le traitement audio. Cliquez sur le bouton **✦ (baguette magique)** dans la barre d'outils pour l'ouvrir. Le panneau est mutuellement exclusif avec la zone de chat AI Assistant : l'ouverture de l'un ferme l'autre.
-
-> **Remarque :** la première fois que vous utilisez chaque outil, le serveur doit charger le modèle IA correspondant, ce qui peut prendre 60 secondes ou plus selon votre matériel. Changer d'onglet peut également déclencher un rechargement du modèle.
-
-### Full Song Generation
-
-Générez une chanson complète de longue durée à partir d'une description textuelle et de paroles facultatives. Alimenté par [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5).
-
-- Dans l'onglet **Full Song**, saisissez un **Caption** décrivant le style, l'ambiance, le tempo, l'instrumentation et la structure souhaités en langage naturel. Exemple : `Genre: Eurodance, 90s dance-pop, upbeat electronic. Tempo: ~130 BPM. Instrumentation: driving kick drum, eurodance bassline...`
-- Vous pouvez éventuellement saisir des **Lyrics**. Utilisez les balises `[Intro]`, `[Verse]`, `[Chorus]`, `[Bridge]` pour marquer les sections. Cochez **Instrumental** pour ne pas générer de voix.
-- Cliquez sur **Generate Song**. Un indicateur de progression affiche en temps réel l'étape de génération et le pourcentage.
-- Une fois la génération terminée, un lecteur de prévisualisation apparaît. Faites-le glisser sur une **audio track** pour importer le morceau comme région.
-- Le glisser-déposer sur une piste MIDI n'est pas pris en charge pour la génération de morceau complet.
-- **Advanced Settings** (dépliable) : Inference Steps, Guidance Scale, Seed, et Thinking (CoT metadata generation).
-
-### Clip Generation
-
-Générez de courts clips instrumentaux et des boucles MIDI à partir de descriptions textuelles. Alimenté par [Foundation-1](https://huggingface.co/RoyalCities/Foundation-1).
-
-- Dans l'onglet **Clip**, saisissez un **Prompt** décrivant le clip à l'aide de tags séparés par des virgules couvrant la famille d'instruments, le sous-type, le timbre, les effets, la longueur, le BPM et la tonalité. Exemple : `Gritty, Acid, Bassline, 303, Synth Lead, FM, Sub, High Reverb, 8 Bars, 140 BPM, E minor`
-- Vous pouvez éventuellement saisir un **Negative Prompt** pour éloigner la génération de caractéristiques non désirées (par ex. `distortion, noise`).
-- Sélectionnez **Bars** : 4 ou 8. Le BPM et la tonalité sont préremplis à partir des paramètres de votre projet et peuvent être ajustés dans **Advanced Settings**.
-- Cliquez sur **Generate Clip**. Une fois terminé, un lecteur de prévisualisation apparaît avec une poignée de glisser à gauche et un bouton de téléchargement à droite.
-- **Pour importer** : faites glisser le lecteur sur une piste de la timeline.
-  - Déposez-le sur une **audio track** pour l'importer comme région audio WAV (recommandé).
-  - Déposez-le sur une **MIDI track** pour l'importer comme région MIDI. Notez que le MIDI est transcrit depuis l'audio et peut ne pas être parfaitement exact.
-- **Advanced Settings** (dépliable) : Note, Scale, BPM, Steps, CFG Scale, Seed (`-1` pour aléatoire), Sampler Type, Sigma Min/Max, et CFG Rescale.
+Le panneau **Outils musicaux IA** extrait des stems directement dans votre navigateur. Cliquez sur le bouton **✦ (baguette magique)** de la barre d’outils pour l’ouvrir. Le panneau propose les onglets **Extraction de stems** et **Humaniser**. L’ouverture de ce panneau ferme le chat AI Assistant.
 
 ### Stem Separation
 
 Séparez une région audio existante en stems individuels (par exemple voix, instruments, batterie).
-
-K.G.Studio prend en charge **deux modes** de séparation de stems :
-
-#### Mode navigateur local — Aucun serveur requis ✦
 
 Deux modèles ONNX s'exécutent entièrement dans votre navigateur, sans appels API, sans coût, et sans que vos données quittent votre appareil. Les modèles sont téléchargés une fois puis mis en cache localement.
 
 - **Vocal and Instrument (Medium Accuracy)** (`UVR-MDX-NET-Inst_HQ_3`, ~64 MB) — séparation en deux stems (Vocals / Instrumental). Alimenté par [UVR-MDX-NET](https://github.com/nomadkaraoke/python-audio-separator).
 - **Vocal, Drums, Bass, and Others** (`htdemucs_4s`, ~172 MB) — séparation en quatre stems (Vocals / Drums / Bass / Others). Alimenté par [Demucs](https://github.com/facebookresearch/demucs).
 
-Ouvrez le panneau **Music Generator** (bouton ✦ dans la barre d'outils), sélectionnez un modèle, cliquez une fois sur **Download Selected Model**, puis sur **Separate Stems** : tout s'exécute localement dans votre navigateur.
+Ouvrez le panneau **Outils musicaux IA** (bouton ✦ dans la barre d'outils), sélectionnez un modèle, cliquez une fois sur **Download Selected Model**, puis sur **Separate Stems** : tout s'exécute localement dans votre navigateur.
 
 **Conditions requises :** un navigateur compatible WebGPU (Chrome 113+ ou Edge 113+) dans un contexte sécurisé (HTTPS ou localhost). L'accélération WebGPU est utilisée lorsque disponible ; sinon, le système revient au CPU (ce qui peut réduire la réactivité de la page pendant le traitement). Matériel recommandé : un GPU avec au moins 8 GB de VRAM, ou un système avec au moins 16 GB de mémoire unifiée.
 
-#### Mode serveur K.G.One
+#### Utilisation
 
-Lorsqu'il est connecté à un serveur [K.G.One Music Studio](https://github.com/KGAudioLab/K.G.One), trois modèles supplémentaires accélérés par GPU sont disponibles. Alimenté par [python-audio-separator (UVR5)](https://github.com/nomadkaraoke/python-audio-separator).
-
-- **Vocal and Instrument (Medium Accuracy)** (`UVR-MDX-NET-Inst_HQ_3`) — séparation rapide en deux stems (vocal / instrumental).
-- **Vocal and Instrument (High Accuracy)** (`MDX23C-8KFFT-InstVoc_HQ`) — séparation en deux stems de meilleure qualité, plus lente.
-- **Vocal, Drums, Bass, Guitar, Piano, and Others** (`htdemucs_6s`) — séparation complète en six stems.
-
-#### Utilisation (dans les deux modes)
-
-- **Sélectionnez une région audio** sur la timeline avant d'ouvrir cet onglet. La région sélectionnée et le nom de sa piste sont affichés en haut de l'onglet **Separator**. Seules les régions audio sont prises en charge ; les régions MIDI ne peuvent pas être séparées.
+- **Sélectionnez une région audio** sur la timeline avant d'ouvrir cet onglet. La région sélectionnée et le nom de sa piste sont affichés en haut de l'onglet **Extraction de stems**. Seules les régions audio sont prises en charge ; les régions MIDI ne peuvent pas être séparées.
 - Cliquez sur **Separate Stems**. Si la région sélectionnée a un clip start offset ou a été découpée, l'audio est automatiquement tronqué pour correspondre à la plage de la région avant traitement.
 - Une fois terminé, chaque stem apparaît comme lecteur de prévisualisation étiqueté avec une poignée de glisser. Vous pouvez prévisualiser chaque stem individuellement avant l'import.
 - **Pour importer les stems :**
   - Faites glisser chaque lecteur de stem individuellement sur une **audio track** pour le placer où vous le souhaitez.
   - Ou cliquez sur **Import All Stems to Timeline** pour créer automatiquement une nouvelle piste audio par stem, positionnée juste sous la piste source et alignée sur le même point de départ que la région d'origine. Il s'agit d'une seule opération annulable.
+
+### Humaniser
+
+En vue forme d’onde ou spectrogramme, **… → Extraction de stems…** ouvre cet onglet.
+
+Sélectionnez une région MIDI sur la timeline, puis choisissez **… → Humaniser…** pour ouvrir **Outils musicaux IA → Humaniser**. Tous les réglages sont visibles dans l’onglet. AIRE génère une expression modifiable pour **CC1, CC2, CC7 ou CC11**, sans changer le timing ni la vélocité des notes. Une boucle active limite le traitement à son intersection avec la région. Les réglages sont conservés pendant la session ; quitter l’onglet annule le traitement. À la fin, la courbe du contrôleur généré s’affiche dans le piano roll. L’onglet suit la sélection sur la timeline et affiche le fournisseur et l’état du cache du modèle, avec des boutons pour télécharger, retélécharger ou supprimer le modèle sélectionné.
 
 ## Fonctionnalités à venir
 
@@ -393,7 +346,6 @@ Les priorités peuvent évoluer.
 - [X] Event List
 - [X] Ajout de la prise en charge des modèles open source d'OpenAI (`gpt-oss-20b` et `gpt-oss-120b`)
 - [X] Notation musicale
-- [X] Intégration K.G.One Music Studio
 - [X] Modèles IA intégrés au navigateur (LLM sur l'appareil via Gemma 4 E4B ; séparation de stems sur l'appareil via UVR-MDX-NET-Inst_HQ_3 et htdemucs_4s)
 - [X] Système de pistes globales (Marker, Tempo, Key Signature, Chord)
 - [X] Détection d'accords audio (FFT sans dépendance, remplit la Chord Track)

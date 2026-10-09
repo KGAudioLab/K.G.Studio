@@ -8,7 +8,6 @@ import type { KGRegion } from '../../core/region/KGRegion';
 import { DEBUG_MODE, PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS, type PianoRollMode } from '../../constants';
 import PianoRollHeader from './PianoRollHeader';
 import PianoRollToolbar from './PianoRollToolbar';
-import HumanizePopup from '../HumanizePopup';
 import TransposeSettingsPopup from '../TransposeSettingsPopup';
 import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
@@ -151,6 +150,9 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     selectedRegionIds,
     automationRedrawVersion,
     refreshProjectState,
+    openHumanizeTab,
+    openStemExtractionTab,
+    humanizeResult,
     setBpm,
     isLooping,
     loopingRange,
@@ -176,6 +178,14 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   const [pianoRollZoom, setPianoRollZoom] = useState<number>(() => KGPianoRollState.instance().getPianoRollZoom());
   const [automationEnabled, setAutomationEnabled] = useState(false);
   const [automationType, setAutomationType] = useState<PianoRollAutomationType>('pitch-bend');
+  const previousHumanizeResult = useRef(humanizeResult);
+  useEffect(() => {
+    if (humanizeResult && humanizeResult !== previousHumanizeResult.current && humanizeResult.regionId === regionId) {
+      setAutomationType(`cc-${humanizeResult.controller}`);
+      setAutomationEnabled(true);
+    }
+    previousHumanizeResult.current = humanizeResult;
+  }, [humanizeResult, regionId]);
   const [sheetMusicViewEnabled, setSheetMusicViewEnabled] = useState(false);
   const [sheetMusicTrackScopeEnabled, setSheetMusicTrackScopeEnabled] = useState(false);
   const [sheetQuantization, setSheetQuantization] = useState('16,48');
@@ -214,8 +224,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     return null;
   }, [regionId, tracks]);
   const activeRegion = activeEditorRegion instanceof KGMidiRegion ? activeEditorRegion : null;
-  const [showHumanizePopup, setShowHumanizePopup] = useState(false);
-  useEffect(() => { setShowHumanizePopup(false); }, [activeRegion, regionId, projectName, isLooping, loopingRange[0], loopingRange[1]]);
   const [showTransposePopup, setShowTransposePopup] = useState(false);
   const transposePopupRegionId = activeRegion?.getId() ?? null;
 
@@ -1884,7 +1892,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
             ? handleIntelligentArpeggiator
             : undefined
         }
-        onHumanize={!isAudioOnly && !sheetMusicViewEnabled ? () => setShowHumanizePopup(true) : undefined}
+        onStemExtraction={isAudioOnly && audioRegion && !sheetMusicViewEnabled ? openStemExtractionTab : undefined}
+        onHumanize={!isAudioOnly && !sheetMusicViewEnabled ? openHumanizeTab : undefined}
         onTransposeSettings={
           activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
             ? () => setShowTransposePopup(true)
@@ -1903,10 +1912,6 @@ const PianoRoll: React.FC<PianoRollProps> = ({
           onConfirm={handleRegionTransposeConfirm}
         />
       )}
-
-      {showHumanizePopup && <HumanizePopup region={activeRegion} onCancel={() => setShowHumanizePopup(false)} onSuccess={controller => {
-        setShowHumanizePopup(false); setAutomationType(`cc-${controller}`); setAutomationEnabled(true); refreshProjectState();
-      }} />}
 
       <NoteAttributeBar selectedNotes={selectedNotes} isSpectrogram={isAudioOnly} activeRegion={activeRegion} />
 

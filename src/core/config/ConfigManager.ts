@@ -49,10 +49,6 @@ interface AppConfig {
     soundfont: {
       base_url: string;
     };
-    kgone: {
-      enabled: boolean;
-      base_url: string;
-    };
   };
   hotkeys: {
     main: {
@@ -137,7 +133,6 @@ export class ConfigManager {
   private config: AppConfig;
   private storage: KGConfigStorage;
   private isInitialized: boolean = false;
-  private kgoneServerManaged: boolean = false;
   private soundfontServerManaged: boolean = false;
   private defaultConfig: AppConfig | null = null;
   private changeListeners: Set<(changedKeys: string[]) => void> = new Set();
@@ -198,14 +193,12 @@ export class ConfigManager {
       await this.initialize();
       return;
     }
-    const managedKGOne = this.kgoneServerManaged ? { ...this.config.general.kgone } : null;
     const managedSoundfont = this.soundfontServerManaged ? { ...this.config.general.soundfont } : null;
     const savedConfig = await this.storage.load(ConfigManager.CONFIG_KEY, Object);
     this.config = enforceDefaultHotkeysForAppConfig(
       this.mergeConfigs(this.defaultConfig, savedConfig as Partial<AppConfig> | null),
       this.defaultConfig,
     );
-    if (managedKGOne) this.config.general.kgone = managedKGOne;
     if (managedSoundfont) this.config.general.soundfont = managedSoundfont;
     this.notifyChangeListeners(['__all__']);
   }
@@ -269,10 +262,6 @@ export class ConfigManager {
           },
           soundfont: {
             base_url: 'https://cdn.jsdelivr.net/npm/soundfont-for-samplers/FluidR3_GM/'
-          },
-          kgone: {
-            enabled: false,
-            base_url: 'http://127.0.0.1:8000'
           }
         },
         hotkeys: {
@@ -637,21 +626,6 @@ export class ConfigManager {
       if (copied.general.openai_compatible) copied.general.openai_compatible.api_key = '';
     }
     return copied;
-  }
-
-  /**
-   * Called at startup when kgone-server.json contains a base_url field.
-   * Forces enabled=true and overrides base_url in-memory only (not persisted).
-   */
-  public setKGOneManagedByServer(url: string): void {
-    this.kgoneServerManaged = true;
-    this.setInObject(this.config as Record<string, unknown>, 'general.kgone.enabled', true);
-    this.setInObject(this.config as Record<string, unknown>, 'general.kgone.base_url', url);
-    this.notifyChangeListeners(['general.kgone.enabled', 'general.kgone.base_url']);
-  }
-
-  public isKGOneServerManaged(): boolean {
-    return this.kgoneServerManaged;
   }
 
   /**

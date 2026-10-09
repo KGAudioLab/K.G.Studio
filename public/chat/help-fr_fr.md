@@ -91,7 +91,8 @@ Commandes du chat : `/clear`, `/welcome`, `/help`, `/hotkeys`
   - **Détecter les accords** : ouvre l’analyse harmonique d’une région audio et alimente la piste globale des accords.
   - **Détecter le tempo** : analyse une région audio pour en extraire le BPM et peut réaligner le tempo du projet.
 
-- Générateur musical K.G.One
+- Outils musicaux IA
+  - **Humaniser l’expression MIDI** : ouvrez une région MIDI dans le piano roll et choisissez **… → Humaniser…** pour ouvrir **Outils musicaux IA → Humaniser**. Tous les réglages sont visibles ; une boucle active limite la plage traitée. Quitter l’onglet annule le traitement.
   - Cliquez sur le bouton **✦** dans la barre d’outils.
   - **Morceau complet** : génération d’un titre complet à partir d’une description et, si besoin, de paroles.
   - **Clip** : génération de clips instrumentaux courts et de boucles MIDI.
@@ -115,3 +116,5 @@ Par sécurité, lorsque K.G.Studio tourne hors d’un hôte local, les clés API
 ### Avertissement
 
 K.G.Studio n’héberge aucun des modèles mentionnés et n’est affilié à aucun fournisseur de modèles. Toutes les données restent sur votre appareil ; vous êtes responsable des informations envoyées à des services tiers.
+
+En vue forme d’onde ou spectrogramme, **… → Extraction de stems…** ouvre cet onglet.

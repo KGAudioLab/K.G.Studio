@@ -104,10 +104,9 @@ OpenRouter 提供统一接口，可访问多个语言模型提供方的模型，
   - **Detect Chords**：在音频区域打开钢琴卷帘窗口后，点击 **...** → **Detect Chords**，即可自动分析并把结果写入全局 Chord Track。可配置灵敏度、稳定性和七和弦检测。
   - **Detect Tempo**：在音频区域打开钢琴卷帘窗口后，点击 **...** → **Detect Tempo**，即可分析 BPM，并可选择自动对齐项目中的 Tempo Track。
 
-- K.G.One 音乐生成器
+- AI 音乐工具
+  - **MIDI 人性化**：在时间线上选择 MIDI 区域，选择 **… → 人性化…**，即可打开 **AI 音乐工具 → 人性化**。所有设置直接显示；已启用的循环会限制处理范围。离开标签页会取消处理。
   - 点击工具栏中的 **✦**（魔杖）按钮打开生成器面板。
-  - **Full Song Generation**：根据文本描述和可选歌词生成整首歌曲（需要 K.G.One 服务器）。
-  - **Clip Generation**：根据文本提示生成短音频片段和 MIDI loop（需要 K.G.One 服务器）。
   - **Stem Separation（浏览器）**：可完全在浏览器中把任意音频区域分离成 stems，无需服务器。支持两种模型：**UVR-MDX-NET-Inst_HQ_3**（2 stem：Vocals / Instrumental，约 64 MB）和 **Demucs htdemucs_4s**（4 stem：Vocals / Drums / Bass / Others，约 172 MB）。在生成器面板中下载模型后，点击 **Separate Stems** 即可。需要 WebGPU（Chrome 113+ / Edge 113+）。
 
 - 吸附与量化
@@ -130,3 +129,5 @@ OpenRouter 提供统一接口，可访问多个语言模型提供方的模型，
 K.G.Studio 不提供也不托管上述任何模型，也不隶属于任何模型提供方。所有数据默认都保存在您的本地设备中；您向第三方模型提供方发送的任何数据，都由您自行负责。
 
 祝您使用 K.G.Studio 音乐创作助手创作愉快！
+
+在波形或频谱视图中，选择 **… → 音轨提取…** 可打开此标签页。

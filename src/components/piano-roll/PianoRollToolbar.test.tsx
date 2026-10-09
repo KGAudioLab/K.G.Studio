@@ -561,4 +561,16 @@ describe('PianoRollToolbar', () => {
     fireEvent.click(screen.getByText('Select Note by Rank…'));
     expect(onSelectNoteByRank).toHaveBeenCalledTimes(1);
   });
+  it.each(['audio-waveform', 'spectrogram'] as const)('places Stem Extraction after color in %s mode', mode => {
+    const open = vi.fn();
+    renderWithLocale(<PianoRollToolbar {...baseProps} mode={mode} onRegionColorSelect={vi.fn()} onStemExtraction={open} />);
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    const action = screen.getByText('Stem Extraction...');
+    expect(action).toHaveClass('processing-wave');
+    expect(action.parentElement?.previousElementSibling).toHaveTextContent('Region Color...');
+    fireEvent.click(action);
+    expect(open).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Stem Extraction...')).toBeNull();
+  });
+
 });

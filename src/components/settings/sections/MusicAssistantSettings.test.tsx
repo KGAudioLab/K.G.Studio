@@ -82,7 +82,6 @@ const configManagerMock = {
     configState.set('general.llm_provider', updates.general.llm_provider);
     for (const [key, value] of Object.entries(updates.general.openai_compatible)) configState.set(`general.openai_compatible.${key}`, value);
   }),
-  isKGOneServerManaged: vi.fn(() => false),
   isSoundfontServerManaged: vi.fn(() => false),
 };
 
@@ -323,7 +322,7 @@ describe('MusicAssistantSettings', () => {
     expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual([
       'General', 'Music Assistant', 'Audio I/O', 'Behavior', 'Templates', 'Chord Guide',
     ]);
-    const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'K.G.One Settings', 'AIRE Settings'];
+    const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'AIRE Settings'];
     expect(screen.getByRole('heading', { level: 3, name: 'General' })).toBeTruthy();
     expect(screen.getByLabelText('Language')).toBeTruthy();
     const assistantGroups = [

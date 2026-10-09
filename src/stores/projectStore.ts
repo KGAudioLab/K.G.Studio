@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import type { AireController } from '../util/aire/types';
+
 import { KGCore } from '../core/KGCore';
 import { KGTrack } from '../core/track/KGTrack';
 import { KGProject, type KeySignature, type MainContentSnappingMode, type ProjectRightPanel } from '../core/KGProject';
@@ -40,6 +42,8 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { showAlert } from '../util/dialogUtil';
 import { translate } from '../i18n/translate';
 import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
+
+export type MusicGeneratorTab = 'separator' | 'humanize';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -197,8 +201,12 @@ interface ProjectState {
   showChatBox: boolean;
   toolFastForwardEnabled: boolean;
 
-  // K.G.One panel state
+  // AI Music Tools panel state
   showKGOnePanel: boolean;
+  musicGeneratorTab: MusicGeneratorTab;
+  humanizeFlashVersion: number;
+  stemExtractionFlashVersion: number;
+  humanizeResult: { regionId: string; controller: AireController; version: number } | null;
 
   // Event list panel state
   showEventListPanel: boolean;
@@ -311,8 +319,12 @@ interface ProjectState {
   setToolFastForwardEnabled: (enabled: boolean) => void;
   toggleToolFastForwardEnabled: () => void;
 
-  // K.G.One panel actions
+  // AI Music Tools panel actions
   toggleKGOnePanel: () => void;
+  setMusicGeneratorTab: (tab: MusicGeneratorTab) => void;
+  openHumanizeTab: () => void;
+  openStemExtractionTab: () => void;
+  completeHumanize: (regionId: string, controller: AireController) => void;
 
   // Event List panel actions
   toggleEventListPanel: () => void;
@@ -645,8 +657,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     showChatBox: initialSidePanel === 'chat',
     toolFastForwardEnabled: false,
 
-    // Initial K.G.One panel state
+    // Initial AI Music Tools panel state
     showKGOnePanel: initialSidePanel === 'kgone',
+    musicGeneratorTab: 'separator',
+    humanizeFlashVersion: 0,
+    stemExtractionFlashVersion: 0,
+    humanizeResult: null,
 
     // Initial Event List panel state
     showEventListPanel: initialSidePanel === 'eventList',
@@ -1155,6 +1171,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         set({
           projectName: projectToLoad.getName(),
           savedProjectName: savedName ?? projectToLoad.getName(),
+          humanizeResult: null,
           tracks: [...tracks],
           globalTracks: [...getProjectGlobalTracks(projectToLoad)],
           maxBars,
@@ -2027,6 +2044,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       // Clear active region and hybrid state
       set({
         activeRegionId: null,
+        humanizeResult: null,
         hybridAudioRegionId: null,
         midiReferenceRegionId: null,
         pianoRollMode: 'midi-edit',
@@ -2085,6 +2103,27 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     toggleToolFastForwardEnabled: () => {
       set((state) => ({ toolFastForwardEnabled: !state.toolFastForwardEnabled }));
+    },
+
+    setMusicGeneratorTab: (tab) => set({ musicGeneratorTab: tab }),
+
+    openHumanizeTab: () => {
+      const state = get();
+      const alreadyVisible = state.showKGOnePanel && !state.showSettings && state.musicGeneratorTab === 'humanize';
+      get().activateSidePanel('kgone');
+      set({ musicGeneratorTab: 'humanize', humanizeFlashVersion: state.humanizeFlashVersion + (alreadyVisible ? 1 : 0) });
+    },
+
+    openStemExtractionTab: () => {
+      const state = get();
+      const alreadyVisible = state.showKGOnePanel && !state.showSettings && state.musicGeneratorTab === 'separator';
+      get().activateSidePanel('kgone');
+      set({ musicGeneratorTab: 'separator', stemExtractionFlashVersion: state.stemExtractionFlashVersion + (alreadyVisible ? 1 : 0) });
+    },
+
+    completeHumanize: (regionId, controller) => {
+      get().refreshProjectState();
+      set(state => ({ humanizeResult: { regionId, controller, version: (state.humanizeResult?.version ?? 0) + 1 } }));
     },
 
     toggleKGOnePanel: () => {

@@ -26,6 +26,25 @@ import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 import type { ChordGuideCustomConfig } from './core/ChordGuideTypes';
 import { UserInstrumentRegistry } from './core/instruments/UserInstrumentRegistry';
 
+// The legacy filename remains supported for soundfont deployment compatibility.
+export async function loadDeploymentSoundfontOverride(
+  configManager: Pick<ConfigManager, 'setSoundfontManagedByServer'>,
+): Promise<void> {
+  try {
+    const kgoneServerResponse = await fetch(`${import.meta.env.BASE_URL}kgone-server.json?ts=${Date.now()}`);
+    const contentType = kgoneServerResponse.headers.get('Content-Type') ?? '';
+    if (kgoneServerResponse.ok && contentType.includes('application/json')) {
+      const data = await kgoneServerResponse.json();
+      if (data.soundfont) {
+        configManager.setSoundfontManagedByServer(data.soundfont);
+        console.log('Soundfont: server-managed config loaded from kgone-server.json, base URL:', data.soundfont);
+      }
+    }
+  } catch {
+    // File not present — user configures manually
+  }
+}
+
 function App() {
   // Enable global keyboard handler for copy/paste and undo/redo
   useGlobalKeyboardHandler();
@@ -68,24 +87,7 @@ function App() {
       const configManager = ConfigManager.instance();
       await configManager.initialize();
 
-      // Check for kgone-server.json (managed deployment override)
-      try {
-        const kgoneServerResponse = await fetch(`${import.meta.env.BASE_URL}kgone-server.json?ts=${Date.now()}`);
-        const contentType = kgoneServerResponse.headers.get('Content-Type') ?? '';
-        if (kgoneServerResponse.ok && contentType.includes('application/json')) {
-          const data = await kgoneServerResponse.json();
-          if (data.base_url) {
-            ConfigManager.instance().setKGOneManagedByServer(data.base_url);
-            console.log('K.G.One: server-managed config loaded from kgone-server.json, base URL:', data.base_url);
-          }
-          if (data.soundfont) {
-            ConfigManager.instance().setSoundfontManagedByServer(data.soundfont);
-            console.log('Soundfont: server-managed config loaded from kgone-server.json, base URL:', data.soundfont);
-          }
-        }
-      } catch {
-        // File not present — user configures manually
-      }
+      await loadDeploymentSoundfontOverride(configManager);
 
       // Initialize store from config after ConfigManager is ready
       await initializeFromConfig();

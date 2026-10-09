@@ -36,7 +36,6 @@ const configManagerMock = {
   set: vi.fn(async (key: string, value: unknown) => {
     configState.set(key, value);
   }),
-  isKGOneServerManaged: vi.fn(() => false),
   isSoundfontServerManaged: vi.fn(() => false),
 };
 
@@ -81,6 +80,16 @@ describe('GeneralSettings', () => {
     soundfontInstrumentCacheMock.deleteInstrument.mockClear();
     soundfontInstrumentCacheMock.getCacheSummary.mockClear();
     soundfontInstrumentCacheMock.getCacheSummary.mockResolvedValue({ instrumentCount: 2, instruments: ['acoustic_grand_piano', 'violin'] });
+  });
+
+  it('does not expose legacy KGOne settings', async () => {
+    configState.set('general.kgone.enabled', true);
+    renderSettings();
+    await screen.findByLabelText('Language');
+    expect(screen.queryByText(/K\.G\.One/)).not.toBeInTheDocument();
+    expect(configManagerMock.get).not.toHaveBeenCalledWith('general.kgone.enabled');
+    expect(configManagerMock.get).not.toHaveBeenCalledWith('general.kgone.base_url');
+    configState.set('general.kgone.enabled', false);
   });
 
   it('uses native language names in the language dropdown', async () => {

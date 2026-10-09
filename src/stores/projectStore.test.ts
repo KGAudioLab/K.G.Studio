@@ -981,6 +981,53 @@ describe('projectStore piano roll state', () => {
     expect(state.lastActiveSidePanel).toBe('eventList');
   });
 
+
+  it.each(['hidden', 'chat', 'settings', 'separator', 'humanize'])('opens Humanize from %s and flashes only when already visible', async entry => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({
+      showKGOnePanel: entry === 'separator' || entry === 'humanize',
+      showChatBox: entry === 'chat', showEventListPanel: false,
+      showSettings: entry === 'settings',
+      musicGeneratorTab: entry === 'humanize' ? 'humanize' : 'separator', humanizeFlashVersion: 0,
+    });
+    act(() => useProjectStore.getState().openHumanizeTab());
+    expect(useProjectStore.getState()).toEqual(expect.objectContaining({
+      showKGOnePanel: true, showChatBox: false, showEventListPanel: false, showSettings: false,
+      musicGeneratorTab: 'humanize', humanizeFlashVersion: entry === 'humanize' ? 1 : 0,
+    }));
+    expect(mockProject.setRightPanel).toHaveBeenLastCalledWith('musicGenerator');
+    act(() => useProjectStore.getState().openHumanizeTab());
+    expect(useProjectStore.getState().humanizeFlashVersion).toBe(entry === 'humanize' ? 2 : 1);
+  });
+
+
+  it.each(['hidden', 'chat', 'settings', 'separator', 'humanize'])('opens Stem Extraction from %s and flashes only when already visible', async entry => {
+    const { useProjectStore } = await import('./projectStore');
+    useProjectStore.setState({
+      showKGOnePanel: entry === 'separator' || entry === 'humanize', showChatBox: entry === 'chat',
+      showSettings: entry === 'settings', musicGeneratorTab: entry === 'humanize' ? 'humanize' : 'separator',
+      stemExtractionFlashVersion: 0,
+    });
+    act(() => useProjectStore.getState().openStemExtractionTab());
+    expect(useProjectStore.getState()).toEqual(expect.objectContaining({ showKGOnePanel: true, showSettings: false,
+      musicGeneratorTab: 'separator', stemExtractionFlashVersion: entry === 'separator' ? 1 : 0 }));
+    act(() => useProjectStore.getState().openStemExtractionTab());
+    expect(useProjectStore.getState().stemExtractionFlashVersion).toBe(entry === 'separator' ? 2 : 1);
+  });
+
+  it('refreshes the project and sends a controller-lane request after each successful Humanize', async () => {
+    const { useProjectStore } = await import('./projectStore');
+    const refresh = vi.fn();
+    const originalRefresh = useProjectStore.getState().refreshProjectState;
+    useProjectStore.setState({ refreshProjectState: refresh, humanizeResult: null });
+    act(() => useProjectStore.getState().completeHumanize('midi-region', 11));
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(useProjectStore.getState().humanizeResult).toEqual({ regionId: 'midi-region', controller: 11, version: 1 });
+    act(() => useProjectStore.getState().completeHumanize('midi-region', 7));
+    expect(useProjectStore.getState().humanizeResult).toEqual({ regionId: 'midi-region', controller: 7, version: 2 });
+    useProjectStore.setState({ refreshProjectState: originalRefresh });
+  });
+
   it('persists panel activation and hiding to the current project', async () => {
     const { useProjectStore } = await import('./projectStore');
 

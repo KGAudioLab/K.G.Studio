@@ -61,6 +61,7 @@ interface PianoRollToolbarProps {
   onIntelligentArpeggiator?: () => void | Promise<void>;
   onTransposeSettings?: () => void;
   onHumanize?: () => void;
+  onStemExtraction?: () => void;
 }
 
 const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
@@ -112,6 +113,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onIntelligentArpeggiator,
   onTransposeSettings,
   onHumanize,
+  onStemExtraction,
 }) => {
   const { t } = useI18n();
   const showMidiControls = mode !== 'spectrogram' && mode !== 'audio-waveform' && !sheetMusicViewEnabled;
@@ -119,7 +121,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo || !!onConvertToMidi);
-  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings || !!onHumanize));
+  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings || !!onHumanize || !!onStemExtraction));
   const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
   const snapOptions = React.useMemo(
     () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
@@ -430,6 +432,11 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                         />
                       </div>
                     )}
+                  </div>
+                )}
+                {onStemExtraction && (
+                  <div className="quant-option" onClick={() => { setShowRegionColorPalette(false); setShowMoreMenu(false); onStemExtraction(); }}>
+                    <span className="processing-wave">{t('kgone.separator.menuItem')}</span>
                   </div>
                 )}
                 {onHumanize && (

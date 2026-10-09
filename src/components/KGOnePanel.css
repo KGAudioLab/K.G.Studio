@@ -62,15 +62,6 @@
   border-bottom-color: #5a9fd4;
 }
 
-.kgone-tab.is-disabled {
-  color: #666;
-  cursor: not-allowed;
-}
-
-.kgone-tab.is-disabled:hover {
-  color: #666;
-}
-
 /* Scrollable body */
 .kgone-panel-body {
   flex: 1;
@@ -136,26 +127,6 @@
 .kgone-hint strong {
   color: #999;
   font-weight: 600;
-}
-
-.kgone-powered-by {
-  color: #666;
-  font-size: 10px;
-  text-align: center;
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid #333;
-}
-
-.kgone-powered-by a {
-  color: #888;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.kgone-powered-by a:hover {
-  color: #aaa;
-  text-decoration: underline;
 }
 
 /* Two-column row (e.g. note + scale) */
@@ -493,3 +464,10 @@
   cursor: pointer;
   user-select: none;
 }
+
+.kgone-tab-content { display: flex; flex-direction: column; gap: 10px; }
+.kgone-tab-content[hidden], .humanize-tab-content[hidden] { display: none; }
+.humanize-tab-content, .stem-extraction-tab-content { position: relative; }
+.music-generator-flash { position: absolute; inset: 0; border-radius: 6px; pointer-events: none; z-index: 1; animation: humanize-flash 350ms ease-in-out 2; }
+@keyframes humanize-flash { 0%, 100% { background-color: transparent; } 50% { background-color: rgba(124, 194, 241, 0.07); } }
+@media (prefers-reduced-motion: reduce) { .music-generator-flash { animation-timing-function: steps(1, end); } }

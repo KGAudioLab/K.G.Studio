@@ -997,10 +997,10 @@ const Toolbar: React.FC = () => {
     setStatus(t('toolbar.status.settingsToggled'));
   };
 
-  // K.G.One panel toggle
+  // AI Music Tools panel toggle
   const handleKGOneClick = () => {
     if (DEBUG_MODE.TOOLBAR) {
-      console.log("K.G.One button clicked");
+      console.log("AI Music Tools button clicked");
     }
 
     if (showSettings) {

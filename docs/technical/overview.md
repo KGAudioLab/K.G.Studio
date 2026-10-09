@@ -318,7 +318,7 @@ The UI follows a hierarchical component-based architecture:
 
 - Dedicated settings UI with sections: `General`, `Music Assistant`, `Audio I/O`, `Behavior`, `Templates`, `Chord Guide`.
 - Uses `ConfigManager` and `useConfig` hook for auto-load and debounced save.
-- General: language, UVR5 Web Runtime, soundfont settings, and K.G.One settings.
+- General: language, UVR5 Web Runtime, soundfont settings, and AIRE settings.
 - Music Assistant: local-browser or OpenAI-compatible mode, agent mode, local runtime, and shared connection presets (Key/Base URL/Model).
 - Behavior: chatbox default open at startup.
 - Templates: custom instructions for the agent.

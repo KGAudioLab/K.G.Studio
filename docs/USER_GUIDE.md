@@ -125,7 +125,7 @@ A lightweight, browser‑based DAW with an AI Agent "K.G.Studio Musician Assista
 - If loading stalls, the overlay will time out; refresh to retry downloading.
 
 ## 13. Settings
-- General: language, UVR5 Web Runtime, soundfont settings, and K.G.One settings.
+- General: language, UVR5 Web Runtime, soundfont settings, and AIRE settings.
 - Music Assistant: local-browser or OpenAI-compatible mode, agent mode, local LLM runtime, and a shared Key/Base URL/Model connection with presets.
 - Behavior: chatbox default open at startup.
 - Templates: custom instructions for the AI.

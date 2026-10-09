@@ -58,7 +58,7 @@ vi.mock('./core/KGCore', () => ({
   },
 }));
 
-import { GlobalLoadingOverlayContainer, PlaybackPreparationOverlayContainer, ProjectTitleSync } from './App';
+import { GlobalLoadingOverlayContainer, PlaybackPreparationOverlayContainer, ProjectTitleSync, loadDeploymentSoundfontOverride } from './App';
 
 describe('ProjectTitleSync', () => {
   beforeEach(() => {
@@ -171,5 +171,44 @@ describe('GlobalLoadingOverlayContainer', () => {
     });
 
     expect(screen.queryByText(/Loading \.\.\./)).not.toBeInTheDocument();
+  });
+});
+
+
+describe('deployment soundfont override', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reads only soundfont from the legacy deployment file', async () => {
+    const config = { setSoundfontManagedByServer: vi.fn(), setKGOneManagedByServer: vi.fn() };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      base_url: 'https://obsolete-kgone.example', soundfont: 'https://soundfonts.example',
+    }), { headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await loadDeploymentSoundfontOverride(config);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/kgone-server\.json\?ts=/));
+    expect(config.setSoundfontManagedByServer).toHaveBeenCalledExactlyOnceWith('https://soundfonts.example');
+    expect(config.setKGOneManagedByServer).not.toHaveBeenCalled();
+  });
+
+  it('ignores a deployment file containing only a KGOne base_url', async () => {
+    const config = { setSoundfontManagedByServer: vi.fn() };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ base_url: 'https://obsolete-kgone.example' }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )));
+    await loadDeploymentSoundfontOverride(config);
+    expect(config.setSoundfontManagedByServer).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'html', 'network'])('tolerates %s deployment config', async (kind) => {
+    const config = { setSoundfontManagedByServer: vi.fn() };
+    vi.stubGlobal('fetch', kind === 'network'
+      ? vi.fn().mockRejectedValue(new Error('Network failure'))
+      : vi.fn().mockResolvedValue(new Response(kind === 'html' ? '<html></html>' : '', {
+          status: kind === 'missing' ? 404 : 200,
+          headers: { 'Content-Type': 'text/html' },
+        })));
+    await expect(loadDeploymentSoundfontOverride(config)).resolves.toBeUndefined();
+    expect(config.setSoundfontManagedByServer).not.toHaveBeenCalled();
   });
 });

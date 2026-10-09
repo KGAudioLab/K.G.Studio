@@ -751,7 +751,7 @@ function getKeySignatureBytes(keySignature: KeySignature): Uint8Array {
   return new Uint8Array([0, 0]);
 }
 
-// ─── K.G.One clip MIDI import helpers ────────────────────────────────────────
+// ─── MIDI import helpers ────────────────────────────────────────
 
 export interface RawMidiNote {
   startTick: number;
@@ -825,30 +825,6 @@ export function parseMidiImportData(data: Uint8Array): ParsedMidiImportData {
     fileStartTick,
     tracks,
   };
-}
-
-/**
- * Parses a MIDI binary and returns all notes from the first track that has
- * notes, with beat offsets normalised so the earliest note starts at beat 0.
- * Used by the K.G.One Clip drag-to-MIDI-track feature.
- */
-export function parseMidiFirstTrackNotes(data: Uint8Array): {
-  notes: RawMidiNote[];
-  totalTicks: number;
-} {
-  const parsedImportData = parseMidiImportData(data);
-  const firstTrack = parsedImportData.tracks[0];
-  if (!firstTrack) {
-    return { notes: [], totalTicks: 0 };
-  }
-  const notes: RawMidiNote[] = firstTrack.notes.map(n => ({
-    startTick: n.startTick - firstTrack.startTick,
-    endTick: n.endTick - firstTrack.startTick,
-    pitch: n.pitch,
-    velocity: n.velocity,
-  }));
-  const totalTicks = Math.max(...notes.map(n => n.endTick));
-  return { notes, totalTicks };
 }
 
 /**

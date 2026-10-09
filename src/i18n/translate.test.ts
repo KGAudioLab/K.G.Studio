@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { translate } from './translate';
+import { runtimeProviderLabel } from './runtimeProvider';
 
 describe('translate', () => {
   it('returns translated strings for supported locales', () => {
@@ -25,4 +26,13 @@ describe('translate', () => {
     expect(translate('dialog.chordToMidi.addToRegion', undefined, 'zh_cn')).toBe('将音符添加到现有片段');
     expect(translate('dialog.chordToMidi.replaceInRegion', undefined, 'zh_hk')).toBe('取代現有片段中的音符');
   });
+  it.each(['zh_cn', 'zh_hk', 'fr_fr'] as const)('localizes runtime availability and fallback messages in %s', locale => {
+    const t = (key: string) => translate(key, undefined, locale);
+    for (const status of ['webgpu available', 'cpu/wasm only', 'cpu/wasm fallback']) {
+      expect(runtimeProviderLabel(status, t)).not.toBe(status);
+    }
+    expect(runtimeProviderLabel('webgpu', t)).toBe('webgpu');
+    expect(runtimeProviderLabel('wasm', t)).toBe('wasm');
+  });
+
 });

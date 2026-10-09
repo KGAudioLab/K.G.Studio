@@ -104,10 +104,9 @@ Chat commands: `/clear`, `/welcome`, `/help`, `/hotkeys`
   - **Detect Chords**: open the piano roll on an audio region and click **...** → **Detect Chords** to automatically analyse the recording and populate the global Chord Track. Configurable sensitivity, stability, and seventh-chord detection.
   - **Detect Tempo**: open the piano roll on an audio region and click **...** → **Detect Tempo** to analyse the audio for BPM; optionally auto-aligns the project's Tempo Track regions to match detected beats.
 
-- K.G.One Music Generator
-  - Click the **✦** (magic wand) button in the toolbar to open the Music Generator panel.
-  - **Full Song Generation**: generate a complete song from a text caption and optional lyrics (requires K.G.One server).
-  - **Clip Generation**: generate short instrument clips and MIDI loops from text prompts (requires K.G.One server).
+- AI Music Tools
+  - **Humanize MIDI expression**: select a MIDI region on the timeline and choose **… → Humanize…** to open **AI Music Tools → Humanize**. All settings are visible; an enabled loop limits the target range. Leaving the tab cancels processing.
+  - Click the **✦** (magic wand) button in the toolbar to open the AI Music Tools panel.
   - **Stem Separation (browser)**: split any audio region into stems entirely in-browser — no server needed. Two models available: **UVR-MDX-NET-Inst_HQ_3** (2-stem: Vocals / Instrumental, ~64 MB) and **Demucs htdemucs_4s** (4-stem: Vocals / Drums / Bass / Others, ~172 MB). Download the model once from the Generator panel, then click **Separate Stems**. Requires WebGPU (Chrome 113+ / Edge 113+).
 
 - Snapping and Quantize
@@ -130,3 +129,5 @@ For security, when running from a non-local host we do not persist your API key 
 K.G.Studio does not provide or host any of the models listed above, nor is it affiliated with any model provider. All data is stored locally on your device; K.G.Studio does not collect or transmit your data. You are solely responsible for any data you provide to third-party model providers.
 
 We hope you enjoy using K.G.Studio Musician Assistant!
+
+In waveform or spectrogram view, **… → Stem Extraction…** opens **AI Music Tools → Stem Extraction**. The Humanize tab follows the selected MIDI region and shows provider and model-cache controls.
