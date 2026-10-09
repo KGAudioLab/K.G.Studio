@@ -2,6 +2,8 @@ export interface AireNote { pitch: number; start: number; end: number; velocity:
 export type AireModelId = 'S03' | 'B01' | 'W01';
 export type AireController = 1 | 2 | 7 | 11;
 export const AIRE_CONTROLLERS: readonly AireController[] = [1, 2, 7, 11];
+export type AireSimplification = 'none' | 'mild' | 'medium' | 'aggressive';
+export const AIRE_SIMPLIFICATION_LEVELS: readonly AireSimplification[] = ['none', 'mild', 'medium', 'aggressive'];
 export interface AireOptions {
   modelId: AireModelId;
   mood: string;
@@ -21,7 +23,13 @@ export interface AireSection {
 }
 export interface AirePoint { tick: number; value: number }
 export type AireProgress = { completed: number; total: number; provider: 'webgpu' | 'wasm' };
-export interface AireWorkerRequest { model: ArrayBuffer; options: AireOptions; sections: AireSection[] }
+export interface AireWorkerRequest {
+  model: ArrayBuffer;
+  options: AireOptions;
+  sections: AireSection[];
+  /** Defaults to none for callers that need the original dense output. */
+  simplification?: AireSimplification;
+}
 export type AireWorkerMessage =
   | { type: 'progress'; progress: AireProgress }
   | { type: 'result'; points: AirePoint[] }

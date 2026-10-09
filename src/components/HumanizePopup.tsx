@@ -8,11 +8,12 @@ import { HumanizeMidiRegionCommand } from '../core/commands/region/HumanizeMidiR
 import { AIRE_BASE_URL, AIRE_MODEL_IDS, AIRE_MODELS, aireCache, aireModelUrl } from '../util/aire/config';
 import { aireInputSnapshot, buildAireTarget } from '../util/aire/target';
 import { runAireWorker, serializeAireCacheTask } from '../util/aire/client';
-import { AIRE_CONTROLLERS, type AireController, type AireModelId, type AireProgress as AireProgressState } from '../util/aire/types';
+import { AIRE_CONTROLLERS, AIRE_SIMPLIFICATION_LEVELS, type AireSimplification, type AireController, type AireModelId, type AireProgress as AireProgressState } from '../util/aire/types';
 import type { ModelDownloadProgress } from '../util/opfsModelCache';
 import { useI18n } from '../i18n/useI18n';
 import AireProgress from './AireProgress';
 import './common/DialogProvider.css';
+import './HumanizePopup.css';
 interface Props { region: KGMidiRegion | null; onCancel: () => void; onSuccess: (controller: AireController) => void }
 export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
   const { t } = useI18n();
@@ -21,6 +22,7 @@ export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
   const [role, setRole] = useState('pad');
   const [mood, setMood] = useState('peaceful');
   const [targetController, setTargetController] = useState<AireController>(1);
+  const [simplification, setSimplification] = useState<AireSimplification>('medium');
   const [useVelocity, setUseVelocity] = useState(true);
   const [confirmReplacement, setConfirmReplacement] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -30,6 +32,15 @@ export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
   const [error, setError] = useState('');
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+  const humanizeButton = useRef<HTMLButtonElement>(null);
+  const noButton = useRef<HTMLButtonElement>(null);
+  const confirmationWasOpen = useRef(false);
+  const controlsDisabled = busy || confirmReplacement;
+  useEffect(() => {
+    if (confirmReplacement) noButton.current?.focus();
+    else if (confirmationWasOpen.current) humanizeButton.current?.focus();
+    confirmationWasOpen.current = confirmReplacement;
+  }, [confirmReplacement]);
   const close = useCallback(() => { controller.current?.abort(); onCancel(); }, [onCancel]);
   useEffect(() => {
     mounted.current = true;
@@ -38,16 +49,18 @@ export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      e.preventDefault(); e.stopImmediatePropagation(); close();
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (confirmReplacement) setConfirmReplacement(false);
+      else close();
     };
     document.addEventListener('keydown', handler, true);
     return () => document.removeEventListener('keydown', handler, true);
-  }, [close]);
+  }, [close, confirmReplacement]);
   const project = KGCore.instance().getCurrentProject();
   const target = region ? buildAireTarget(project, region) : null;
-  const humanize = async () => {
+  const humanize = async (replacementApproved = false) => {
     if (!region || !target || busy || controller.current) return;
-    if (!confirmReplacement && region.getControllerEvents(targetController).some(e => e.getTick() >= target.startTick && e.getTick() < target.endTick)) {
+    if (!replacementApproved && region.getControllerEvents(targetController).some(e => e.getTick() >= target.startTick && e.getTick() < target.endTick)) {
       setConfirmReplacement(true);
       return;
     }
@@ -69,7 +82,7 @@ export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
         return aireCache.getArrayBuffer(path);
       });
       signal.throwIfAborted(); setStage('aire.processing'); setDownload(null);
-      const points = await runAireWorker({ model, options: { modelId, mood, role, useVelocity }, sections: target.sections }, signal,
+      const points = await runAireWorker({ model, options: { modelId, mood, role, useVelocity }, sections: target.sections, simplification }, signal,
         value => { if (mounted.current && !signal.aborted) setProcessing(value); });
       signal.throwIfAborted();
       const currentProject = KGCore.instance().getCurrentProject();
@@ -93,7 +106,7 @@ export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
     percent = processing.completed / processing.total * 100;
     progressText = t('aire.processingProgress', { completed: processing.completed, total: processing.total });
   }
-  return createPortal(<div className="dialog-overlay transpose-popup-backdrop" onMouseDown={close}>
+  return createPortal(<><div className="dialog-overlay transpose-popup-backdrop" onMouseDown={close} inert={confirmReplacement} aria-hidden={confirmReplacement || undefined}>
     <div className="dialog-modal transpose-popup" role="dialog" aria-modal="true" aria-label={t('aire.dialogTitle')}
       onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       <div className="dialog-header"><h3 className="dialog-title">{t('aire.dialogTitle')}</h3>
@@ -104,37 +117,63 @@ export default function HumanizePopup({ region, onCancel, onSuccess }: Props) {
         </div></div>
         <div className="dialog-slider-group">
           <label className="dialog-slider-label" htmlFor="aire-family">{t('aire.family')}</label>
-          <select id="aire-family" className="dialog-input dialog-compact-input settings-select" value={modelId} disabled={busy} onChange={e => {
+          <select id="aire-family" className="dialog-input dialog-compact-input settings-select" value={modelId} disabled={controlsDisabled} onChange={e => {
             const id = e.target.value as AireModelId; setModelId(id);
             if (!AIRE_MODELS[id].moods.includes(mood)) setMood('peaceful');
           }}>{AIRE_MODEL_IDS.map(id => <option key={id} value={id}>{t(`aire.family.${id}`)}</option>)}</select>
         </div>
         <div className="dialog-slider-group">
           <label className="dialog-slider-label" htmlFor="aire-role">{t('aire.role')}</label>
-          <select id="aire-role" className="dialog-input dialog-compact-input settings-select" value={role} disabled={busy} onChange={e => setRole(e.target.value)}>{AIRE_MODELS[modelId].roles.map(value => <option key={value} value={value}>{t(`aire.role.${value}`)}</option>)}</select>
+          <select id="aire-role" className="dialog-input dialog-compact-input settings-select" value={role} disabled={controlsDisabled} onChange={e => setRole(e.target.value)}>{AIRE_MODELS[modelId].roles.map(value => <option key={value} value={value}>{t(`aire.role.${value}`)}</option>)}</select>
         </div>
         <div className="dialog-slider-group">
           <label className="dialog-slider-label" htmlFor="aire-mood">{t('aire.mood')}</label>
-          <select id="aire-mood" className="dialog-input dialog-compact-input settings-select" value={mood} disabled={busy} onChange={e => setMood(e.target.value)}>{AIRE_MODELS[modelId].moods.map(value => <option key={value} value={value}>{t(`aire.mood.${value}`)}</option>)}</select>
+          <select id="aire-mood" className="dialog-input dialog-compact-input settings-select" value={mood} disabled={controlsDisabled} onChange={e => setMood(e.target.value)}>{AIRE_MODELS[modelId].moods.map(value => <option key={value} value={value}>{t(`aire.mood.${value}`)}</option>)}</select>
         </div>
         <div className="dialog-slider-group">
           <label className="dialog-slider-label" htmlFor="aire-controller">{t('aire.targetController')}</label>
-          <select id="aire-controller" className="dialog-input dialog-compact-input settings-select" value={targetController} disabled={busy} onChange={e => {
+          <select id="aire-controller" className="dialog-input dialog-compact-input settings-select" value={targetController} disabled={controlsDisabled} onChange={e => {
             setTargetController(Number(e.target.value) as AireController); setConfirmReplacement(false);
           }}>{AIRE_CONTROLLERS.map(controller => <option key={controller} value={controller}>{t(`aire.controller.${controller}`)}</option>)}</select>
         </div>
+        <div className="dialog-slider-group">
+          <label className="dialog-slider-label" htmlFor="aire-simplification">{t('aire.simplification')}</label>
+          <select id="aire-simplification" className="dialog-input dialog-compact-input settings-select" value={simplification} disabled={controlsDisabled} onChange={e => setSimplification(e.target.value as AireSimplification)}>
+            {AIRE_SIMPLIFICATION_LEVELS.map(level => <option key={level} value={level}>{t(`aire.simplification.${level}`)}</option>)}
+          </select>
+        </div>
+        <div className="dialog-hint-card-text">{t('aire.simplificationHelp')}</div>
         <label className="dialog-checkbox-row">
-          <input type="checkbox" checked={useVelocity} disabled={busy} onChange={e => setUseVelocity(e.target.checked)} />
+          <input type="checkbox" checked={useVelocity} disabled={controlsDisabled} onChange={e => setUseVelocity(e.target.checked)} />
           <span>{t('aire.useVelocity')}</span>
         </label>
         <div className="dialog-hint-card-text">{t('aire.useVelocityHelp')}</div>
-        {confirmReplacement && <p role="alert">{t('aire.replaceConfirm', { controller: targetController })}</p>}
         {!target && <p>{t('aire.noTarget')}</p>}
         {busy && <AireProgress percent={percent} text={progressText} />}
         {error && <p role="alert">{error}</p>}
       </div></div>
       <div className="dialog-footer"><button className="dialog-btn dialog-btn-cancel" type="button" onClick={close}>{t('dialog.cancel')}</button>
-        <button className="dialog-btn dialog-btn-primary" type="button" disabled={!target || busy} onClick={() => void humanize()}>{t(confirmReplacement ? 'aire.replaceAndHumanize' : 'aire.humanize', { controller: targetController })}</button></div>
+        <button ref={humanizeButton} className="dialog-btn dialog-btn-primary" type="button" disabled={!target || controlsDisabled} onClick={() => void humanize()}>{t('aire.humanize')}</button></div>
     </div>
-  </div>, document.body);
+  </div>
+    {confirmReplacement && <div className="dialog-overlay aire-replacement-overlay" onMouseDown={() => setConfirmReplacement(false)}>
+      <div className="dialog-modal" role="alertdialog" aria-modal="true" aria-labelledby="aire-replacement-title" aria-describedby="aire-replacement-message"
+        onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+        onKeyDown={e => {
+          if (e.key !== 'Tab') return;
+          const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>('button');
+          const first = buttons[0], last = buttons[buttons.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }}>
+        <div className="dialog-header"><h3 id="aire-replacement-title" className="dialog-title">{t('dialog.title.confirm')}</h3>
+          <button className="dialog-close-btn" type="button" aria-label={t('dialog.close')} onClick={() => setConfirmReplacement(false)}><FaTimes /></button></div>
+        <div className="dialog-body"><p id="aire-replacement-message" className="dialog-message">{t('aire.replaceConfirm', { controller: targetController })}</p></div>
+        <div className="dialog-footer">
+          <button ref={noButton} className="dialog-btn dialog-btn-cancel" type="button" onClick={() => setConfirmReplacement(false)}>{t('settings.no')}</button>
+          <button className="dialog-btn dialog-btn-primary" type="button" onClick={() => void humanize(true)}>{t('settings.yes')}</button>
+        </div>
+      </div>
+    </div>}
+  </>, document.body);
 }
