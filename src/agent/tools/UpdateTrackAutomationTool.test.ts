@@ -3,7 +3,10 @@ import { UpdateTrackAutomationTool } from './UpdateTrackAutomationTool';
 import { createToolInstance } from './index';
 import { KGCore } from '../../core/KGCore';
 import { KGProject } from '../../core/KGProject';
+import { CreateRegionCommand } from '../../core/commands/region/CreateRegionCommand';
+import { ResizeRegionCommand } from '../../core/commands/region/ResizeRegionCommand';
 import { CreateMidiEventsCommand } from '../../core/commands/note/CreateMidiEventsCommand';
+import { CreateTrackAutomationPointsCommand } from '../../core/commands/track/CreateTrackAutomationPointsCommand';
 import { KGCommand } from '../../core/commands/KGCommand';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../../core/track/KGAudioTrack';
@@ -25,7 +28,7 @@ function region(id: string, start: number, length: number) {
   return result;
 }
 function call(type: string, value: unknown, position: unknown = 100, target: Record<string, unknown> = { track_id: '1' }) {
-  return tool.execute({ ...target, automation_type: type, position, value });
+  return tool.execute({ ...target, automation_type: type, keypoints: [{ position, value }] });
 }
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -59,7 +62,7 @@ describe('UpdateTrackAutomationTool', () => {
     expect((await call(type, max)).success).toBe(true);
   });
   it.each([-1, 0.5, NaN, Infinity, -Infinity, '100', null, undefined])('rejects invalid position %s without mutation', async position => {
-    expect((await tool.execute({ track_id: '1', automation_type: 'cc1', value: 1, position })).success).toBe(false);
+    expect((await tool.execute({ track_id: '1', automation_type: 'cc1', keypoints: [{ value: 1, position }] })).success).toBe(false);
     expect(commands).toHaveLength(0);
     expect(track.getRegions()).toHaveLength(0);
   });
@@ -91,7 +94,7 @@ describe('UpdateTrackAutomationTool', () => {
   it.each([[-8192, 0], [0, 8192], [8191, 16383]])('converts public pitch bend %s to storage %s', async (value, stored) => {
     const result = await call('pitch_bend', value);
     expect(result.success).toBe(true);
-    expect(result.result).toContain(`value=${value}`);
+    expect(result.result).toContain(`"value":${value}`);
     expect((track.getRegions()[0] as KGMidiRegion).getPitchBends()[0].getValue()).toBe(stored);
   });
   it.each([{ numerator: 4, denominator: 4, length: 3840 }, { numerator: 3, denominator: 4, length: 2880 }, { numerator: 6, denominator: 8, length: 2880 }])('creates a bar using meter $numerator/$denominator with atomic undo/redo', async ({ numerator, denominator, length }) => {
@@ -216,15 +219,222 @@ describe('UpdateTrackAutomationTool', () => {
       expect(target.getControllerEvents(1)).toHaveLength(0);
     } else expect(track.getRegions()).toHaveLength(0);
   });
+  function bulk(type: string, keypoints: unknown, target: Record<string, unknown> = { track_id: '1' }) {
+    return tool.execute({ ...target, automation_type: type, keypoints });
+  }
+
+  function snapshot(type: string) {
+    return type === 'volume' || type === 'pan'
+      ? track.getAutomationPoints(type).map(point => [point.getId(), point.getTick(), point.getValue()])
+      : track.getRegions().flatMap(candidate => {
+        const target = candidate as KGMidiRegion;
+        const events = type === 'pitch_bend' ? target.getPitchBends() : target.getControllerEvents(Number(type.slice(2)));
+        return events.map(point => [target.getId(), point.getId(), target.getStartTick() + point.getTick(), point.getValue()]);
+      });
+  }
+
+  it.each(ranges)('bulk upserts %s with one undo, stable redo IDs, and unchanged no-op', async (type, min, max) => {
+    await bulk(type, [{ position: 100, value: min }, { position: 110, value: min }]);
+    const before = snapshot(type);
+    expect(commands).toHaveLength(1);
+    await bulk(type, [{ position: 120, value: max }, { position: 110, value: max }, { position: 100, value: min }]);
+    const after = snapshot(type);
+    expect(after).toHaveLength(3);
+    expect(commands).toHaveLength(2);
+    commands[1].undo();
+    expect(snapshot(type)).toEqual(before);
+    commands[1].execute();
+    expect(snapshot(type)).toEqual(after);
+    await bulk(type, [{ position: 100, value: min }, { position: 110, value: max }, { position: 120, value: max }]);
+    expect(commands).toHaveLength(2);
+    commands[1].undo(); commands[0].undo();
+    expect(snapshot(type)).toEqual([]);
+    expect(track.getRegions()).toHaveLength(0);
+  });
+
+  it.each([undefined, null, {}, [], [null], [1], [[]], [{}], [{ position: 0 }], [{ value: 0 }], [{ position: 0, value: '0' }]])('rejects malformed/empty keypoints %j before editing', async input => {
+    expect((await bulk('cc1', input)).success).toBe(false);
+    expect(commands).toHaveLength(0);
+    expect(track.getRegions()).toHaveLength(0);
+  });
+
+  it('rejects legacy calls and validates invalid overwritten entries before any edit', async () => {
+    expect((await tool.execute({ track_id: '1', automation_type: 'cc1', position: 0, value: 0 })).success).toBe(false);
+    expect((await bulk('cc1', [{ position: 10, value: 0 }, { position: 20, value: 128 }, { position: 20, value: 10 }])).success).toBe(false);
+    expect((await bulk('cc1', [{ position: 10, value: 0 }, { position: -1, value: 10 }])).success).toBe(false);
+    expect(commands).toHaveLength(0);
+    expect(track.getRegions()).toHaveLength(0);
+  });
+
+  it('uses last values at duplicate positions and resolves regions in ascending order', async () => {
+    await bulk('cc1', [{ position: 1000, value: 1 }, { position: 100, value: 2 }, { position: 1000, value: 3 }]);
+    const target = track.getRegions()[0] as KGMidiRegion;
+    expect(track.getRegions()).toHaveLength(1);
+    expect(target.getStartTick()).toBe(100);
+    expect(target.getControllerEvents(1).map(point => [point.getTick(), point.getValue()])).toEqual([[0, 2], [900, 3]]);
+    const after = snapshot('cc1');
+    commands[0].undo(); commands[0].execute();
+    expect(snapshot('cc1')).toEqual(after);
+  });
+
+  it('resolves multiple existing/new regions per position and undoes all edits together', async () => {
+    const first = region('first', 100, 100);
+    const second = region('second', 500, 100);
+    await bulk('pitch_bend', [{ position: 10000, value: -100 }, { position: 550, value: 100 }, { position: 150, value: 0 }]);
+    expect(first.getPitchBends()[0].getTick()).toBe(50);
+    expect(second.getPitchBends()[0].getTick()).toBe(50);
+    expect(track.getRegions()).toHaveLength(3);
+    const after = snapshot('pitch_bend');
+    commands[0].undo();
+    expect(track.getRegions()).toEqual([first, second]);
+    expect(snapshot('pitch_bend')).toEqual([]);
+    commands[0].execute();
+    expect(snapshot('pitch_bend')).toEqual(after);
+  });
+
+  it('expands the selected region on both ends and preserves absolute unrelated content', async () => {
+    const target = region('selected', 100, 100);
+    target.addNote(new KGMidiNote('note', 20, 40, 60, 100));
+    target.addPitchBend(new KGMidiPitchBend('bend', 30, 8192));
+    target.addControllerEvent(2, new KGMidiControllerEvent('cc', 40, 70));
+    selected.push(target);
+    await bulk('cc1', [{ position: 250, value: 2 }, { position: 10, value: 1 }], {});
+    expect([target.getStartTick(), target.getLengthTicks()]).toEqual([10, 241]);
+    expect(target.getNotes()[0].getStartTick() + target.getStartTick()).toBe(120);
+    expect(target.getPitchBends()[0].getTick() + target.getStartTick()).toBe(130);
+    expect(target.getControllerEvents(2)[0].getTick() + target.getStartTick()).toBe(140);
+    const after = snapshot('cc1');
+    commands[0].undo();
+    expect([target.getStartTick(), target.getLengthTicks()]).toEqual([100, 100]);
+    expect(target.getNotes()[0].getStartTick()).toBe(20);
+    commands[0].execute();
+    expect(snapshot('cc1')).toEqual(after);
+  });
+
+  it.each([false, true])('rolls back earlier edits and partially executed later region edits (existing=%s)', async existing => {
+    const target = existing ? region('active', 100, 100) : null;
+    if (target) {
+      state.activeRegionId = target.getId();
+      target.addControllerEvent(2, new KGMidiControllerEvent('other', 20, 55));
+    }
+    const original = CreateMidiEventsCommand.prototype.execute;
+    let executions = 0;
+    vi.spyOn(CreateMidiEventsCommand.prototype, 'execute').mockImplementation(function (this: CreateMidiEventsCommand) {
+      original.call(this);
+      if (++executions === 2) throw new Error('later creation failed');
+    });
+    const result = await bulk('cc1', [{ position: 10, value: 1 }, { position: 10000, value: 2 }], existing ? {} : { track_id: '1' });
+    expect(result.success).toBe(false);
+    expect(result.result).toContain('later creation failed');
+    expect(commands).toHaveLength(0);
+    expect(snapshot('cc1')).toEqual([]);
+    if (target) {
+      expect([target.getStartTick(), target.getLengthTicks()]).toEqual([100, 100]);
+      expect(target.getControllerEvents(2).map(point => [point.getTick(), point.getValue()])).toEqual([[20, 55]]);
+    } else expect(track.getRegions()).toHaveLength(0);
+  });
+
+  it('rolls back a region creation that mutates then throws', async () => {
+    const original = CreateRegionCommand.prototype.execute;
+    vi.spyOn(CreateRegionCommand.prototype, 'execute').mockImplementation(function (this: CreateRegionCommand) {
+      original.call(this);
+      throw new Error('region creation failed');
+    });
+    expect((await bulk('cc1', [{ position: 10, value: 1 }])).success).toBe(false);
+    expect(track.getRegions()).toHaveLength(0);
+    expect(commands).toHaveLength(0);
+  });
+
+  it('rolls back earlier edits and a later region resize that mutates then throws', async () => {
+    const target = region('active', 100, 100);
+    target.addNote(new KGMidiNote('note', 20, 40, 60, 100));
+    state.activeRegionId = target.getId();
+    const original = ResizeRegionCommand.prototype.execute;
+    let executions = 0;
+    vi.spyOn(ResizeRegionCommand.prototype, 'execute').mockImplementation(function (this: ResizeRegionCommand) {
+      original.call(this);
+      if (++executions === 2) throw new Error('region resize failed');
+    });
+    expect((await bulk('cc1', [{ position: 10, value: 1 }, { position: 250, value: 2 }], {})).success).toBe(false);
+    expect([target.getStartTick(), target.getLengthTicks()]).toEqual([100, 100]);
+    expect(target.getNotes()[0].getStartTick()).toBe(20);
+    expect(snapshot('cc1')).toEqual([]);
+    expect(commands).toHaveLength(0);
+  });
+
+  it('restores the entire track lane after a later command mutates then throws', async () => {
+    await call('pan', 0.25, 0);
+    const before = snapshot('pan');
+    const original = CreateTrackAutomationPointsCommand.prototype.execute;
+    let executions = 0;
+    vi.spyOn(CreateTrackAutomationPointsCommand.prototype, 'execute').mockImplementation(function (this: CreateTrackAutomationPointsCommand) {
+      original.call(this);
+      if (++executions === 2) throw new Error('later track creation failed');
+    });
+    expect((await bulk('pan', [{ position: 0, value: 0.5 }, { position: 10, value: 0.5 }, { position: 20, value: 0.5 }])).success).toBe(false);
+    expect(snapshot('pan')).toEqual(before);
+    expect(commands).toHaveLength(1);
+  });
+
+  it('passes error propagation to real command history and preserves history on failure/no-op', async () => {
+    const { KGCommandHistory } = await import('../../core/commands/KGCommandHistory');
+    const history = KGCommandHistory.instance();
+    history.clear();
+    const core = KGCore.instance();
+    const execute = vi.spyOn(core, 'executeCommand').mockImplementation((command, options) => history.executeCommand(command, options));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await bulk('pan', [{ position: 0, value: 0.5 }, { position: 10, value: -0.5 }]);
+      expect(execute).toHaveBeenLastCalledWith(expect.any(KGCommand), { rethrow: true });
+      expect(history.undo()).toBe(true);
+      expect(history.canUndo()).toBe(false);
+      expect(history.redo()).toBe(true);
+      await bulk('pan', [{ position: 0, value: 0.5 }, { position: 10, value: -0.5 }]);
+      expect(execute).toHaveBeenCalledTimes(1);
+      vi.spyOn(CreateTrackAutomationPointsCommand.prototype, 'execute').mockImplementation(() => { throw new Error('history failure'); });
+      expect((await bulk('pan', [{ position: 20, value: 0 }])).success).toBe(false);
+      expect(history.undo()).toBe(true);
+      expect(history.canUndo()).toBe(false);
+    } finally {
+      history.clear();
+      log.mockRestore();
+    }
+  });
+
+  it('exports the nested required keypoint schema and summarizes batch confirmation/results', async () => {
+    const schema = tool.getDefinition().function.parameters;
+    expect(schema.properties).not.toHaveProperty('position');
+    expect(schema.properties).not.toHaveProperty('value');
+    expect(schema.properties.keypoints).toMatchObject({ type: 'array', items: { type: 'object', required: ['position', 'value'], properties: { position: { type: 'number', minimum: 0 }, value: { type: 'number' } } } });
+    const args = { track_id: '1', automation_type: 'pan', keypoints: [{ position: 20, value: 0 }, { position: 10, value: 1 }] };
+    expect(tool.buildConfirmationContent(args)).toContain('**2 pan automation keypoints**');
+    expect(tool.buildConfirmationContent(args)).toContain('**[10, 20]**');
+    expect(tool.buildConfirmationContent(args)).toContain('**Lead**');
+    expect((await tool.execute(args)).result).toContain('keypoint_count=2, tick_range=[10, 20]');
+    expect(tool.buildConfirmationContent({ ...args, keypoints: [] })).toBeUndefined();
+  });
+
+  it('shows a compact UI summary with unique keypoint counts, readable lane names, and no-op status', async () => {
+    const args = { track_id: '1', automation_type: 'cc64', keypoints: [{ position: 10, value: 0 }, { position: 20, value: 127 }, { position: 10, value: 127 }] };
+    const result = await tool.execute(args);
+    expect(tool.buildToolResultDisplayContent(args, result)).toBe('Updated 2 sustain keypoints on track **Lead**.');
+    expect(result.result).toContain('keypoints=');
+    expect(tool.buildToolResultDisplayContent(args, await tool.execute(args))).toBe('The automation already matches on track **Lead**; no changes applied.');
+    const single = { track_id: '1', automation_type: 'pitch_bend', keypoints: [{ position: 10, value: 1 }] };
+    expect(tool.buildToolResultDisplayContent(single, await tool.execute(single))).toBe('Updated 1 pitch bend keypoint on track **Lead**.');
+    expect(tool.buildToolResultDisplayContent(args, { success: false, result: 'failure' })).toBeUndefined();
+    expect(tool.buildToolResultDisplayContent(null, result)).toBeUndefined();
+  });
+
   it('registers the native tick tool and describes signed bend and binary sustain', () => {
     expect(createToolInstance(tool.name, 'advanced')).toBeInstanceOf(UpdateTrackAutomationTool);
     expect(tool.isReadOnlyTool()).toBe(false);
     expect(tool.isAvailableInAdvancedMode()).toBe(true);
     expect(tool.isAvailableInRegularMode()).toBe(false);
     expect(tool.isAvailableInEfficientMode()).toBe(false);
-    expect(tool.getDefinition().function.parameters.required).toEqual(['automation_type', 'position', 'value']);
-    expect(tool.parameters.value.description).toContain('[-8192, 8191]');
-    expect(tool.parameters.value.description).toContain('cc64 exactly 0 (off) or 127 (on)');
-    expect(tool.buildConfirmationContent({ track_id: '1', automation_type: 'pitch_bend', position: 123, value: -20 })).toContain('**-20** at tick **123**');
+    expect(tool.getDefinition().function.parameters.required).toEqual(['automation_type', 'keypoints']);
+    expect(tool.parameters.keypoints.items!.properties!.value.description).toContain('[-8192, 8191]');
+    expect(tool.parameters.keypoints.items!.properties!.value.description).toContain('cc64 exactly 0 (off) or 127 (on)');
+    expect(tool.buildConfirmationContent({ track_id: '1', automation_type: 'pitch_bend', keypoints: [{ position: 123, value: -20 }] })).toContain('**1 pitch_bend automation keypoints**');
   });
 });

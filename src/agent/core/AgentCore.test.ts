@@ -372,7 +372,7 @@ describe('AgentCore todo integration', () => {
     const execute = vi.spyOn(UpdateTrackAutomationTool.prototype, 'execute').mockResolvedValue({ success: true, result: 'updated' });
     const provider = new ScriptedProvider([
       [
-        { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_automation', { track_id: '1', automation_type: 'pan', position: 123, value: 0.5 }, 'automation_1') },
+        { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_automation', { track_id: '1', automation_type: 'pan', keypoints: [{ position: 123, value: 0.5 }] }, 'automation_1') },
         { type: 'done', content: '', finishReason: 'tool_calls' },
       ],
       [{ type: 'done', content: '', finishReason: 'stop' }],
@@ -384,7 +384,7 @@ describe('AgentCore todo integration', () => {
       expect(names.includes('update_track_automation')).toBe(mode === 'advanced');
       expect(execute).toHaveBeenCalledTimes(mode === 'advanced' ? 1 : 0);
       expect(chunks.find(chunk => chunk.type === 'tool_result')?.toolResult?.success).toBe(mode === 'advanced');
-      if (mode === 'advanced') expect(execute).toHaveBeenCalledWith(expect.objectContaining({ position: 123 }));
+      if (mode === 'advanced') expect(execute).toHaveBeenCalledWith(expect.objectContaining({ keypoints: [{ position: 123, value: 0.5 }] }));
     } finally { execute.mockRestore(); }
   });
 

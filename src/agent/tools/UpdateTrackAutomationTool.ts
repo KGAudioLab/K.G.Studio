@@ -2,6 +2,7 @@ import { BaseTool, type ToolParameter, type ToolResult } from './BaseTool';
 import { normalizeOptionalTrackIdParam } from './trackIdNormalization';
 import { resolveMidiRegionTarget, type ResolvedRegionContext } from './midiRegionTargeting';
 import { NO_MIDI_TARGET_RAW_MESSAGE, getTrackDisplayName, resolveActiveOrSelectedMidiRegionContext, resolveMidiTrackByIdOrName } from './toolTargeting';
+import { KGCore } from '../../core/KGCore';
 import { KGCommand } from '../../core/commands/KGCommand';
 import { CreateRegionCommand } from '../../core/commands/region/CreateRegionCommand';
 import { ResizeRegionCommand } from '../../core/commands/region/ResizeRegionCommand';
@@ -36,8 +37,8 @@ class AutomateResolvedRegionCommand extends KGCommand {
     const completed: KGCommand[] = [];
     try {
       if (this.createRegion) {
-        this.createRegion.execute();
         completed.push(this.createRegion);
+        this.createRegion.execute();
       }
       const regionId = this.createRegion?.getRegionId() ?? this.context.regionId;
       const region = this.context.track.getRegions().find(candidate => candidate.getId() === regionId);
@@ -46,8 +47,8 @@ class AutomateResolvedRegionCommand extends KGCommand {
       this.resizeRegion = null;
       if (region.getStartTick() !== this.context.finalRegionStartTick || region.getLengthTicks() !== this.context.finalRegionLength) {
         this.resizeRegion = new ResizeRegionCommand(region.getId(), this.context.finalRegionStartTick, this.context.finalRegionLength);
-        this.resizeRegion.execute();
         completed.push(this.resizeRegion);
+        this.resizeRegion.execute();
       }
       const tick = this.position - region.getStartTick();
       if (!this.eventCommand) {
@@ -64,6 +65,7 @@ class AutomateResolvedRegionCommand extends KGCommand {
             : new CreateMidiEventsCommand([], [], [{ regionId: region.getId(), controller, tick, value: this.value }]);
         }
       }
+      completed.push(this.eventCommand);
       this.eventCommand.execute();
     } catch (error) {
       completed.reverse().forEach(command => command.undo());
@@ -80,15 +82,70 @@ class AutomateResolvedRegionCommand extends KGCommand {
   getDescription(): string { return `Update ${this.type} automation`; }
 }
 
+interface AutomationKeypoint {
+  position: number;
+  value: number;
+}
+
+/** Resolve each point after earlier edits, but retain commands and IDs for redo. */
+class BulkAutomationCommand extends KGCommand {
+  private commands: KGCommand[] | null = null;
+
+  constructor(private readonly type: AutomationType, private readonly keypoints: AutomationKeypoint[], private readonly createCommand: (point: AutomationKeypoint) => KGCommand | null, private readonly restoreFailedEdit: () => void) {
+    super();
+  }
+
+  execute(): void {
+    const completed: KGCommand[] = [];
+    const commands = this.commands ?? [];
+    try {
+      if (this.commands) {
+        for (const command of commands) {
+          command.execute();
+          completed.push(command);
+        }
+      } else {
+        for (const point of this.keypoints) {
+          const command = this.createCommand(point);
+          if (!command) continue;
+          command.execute();
+          completed.push(command);
+          commands.push(command);
+        }
+        this.commands = commands;
+      }
+    } catch (error) {
+      completed.reverse().forEach(command => command.undo());
+      this.restoreFailedEdit();
+      throw error;
+    }
+  }
+
+  undo(): void {
+    [...(this.commands ?? [])].reverse().forEach(command => command.undo());
+  }
+
+  getDescription(): string { return `Update ${this.keypoints.length} ${this.type} automation keypoints`; }
+}
+
 export class UpdateTrackAutomationTool extends BaseTool {
   readonly name = 'update_track_automation';
-  readonly description = `Upsert a single MIDI track automation point at an absolute integer tick (960 ticks per quarter note). Advanced Mode only. Volume and pan belong to the track; pitch_bend and CCs belong to a MIDI region. ID takes precedence over name; exact duplicate names use the first MIDI match. Omitted identifiers use the active/selected MIDI region's track. Region automation selects an overlapping region or creates a one-bar region starting at position; an active/selected region is expanded as needed. Existing points of the same type at position are updated; unchanged values create no undo entry. ${VALUE_DESCRIPTION}`;
+  readonly description = `Upsert a nonempty array of MIDI track automation keypoints at absolute integer ticks (960 ticks per quarter note). Advanced Mode only. Validate every input before editing; repeated positions use the last value, then points are applied in ascending tick order. The whole batch is atomic and forms one undo entry; unchanged batches create no undo entry. Volume and pan belong to the track; pitch_bend and CCs belong to MIDI regions. ID takes precedence over name; exact duplicate names use the first MIDI match. Omitted identifiers use the active/selected MIDI region's track. Resolve a region separately for each position, reusing regions created earlier in the batch: select an overlapping region or create a one-bar region starting at position; an active/selected region is expanded as needed. Existing points of the same type at each position are updated. ${VALUE_DESCRIPTION}`;
   readonly parameters: Record<string, ToolParameter> = {
     track_id: { type: 'string', description: 'Optional MIDI track ID, preferred over track_name. An invalid ID fails without name fallback.', required: false },
     track_name: { type: 'string', description: 'Optional exact MIDI track name, used only when track_id is omitted. Duplicate names use the first MIDI match. Without either identifier, use the active/selected MIDI region.', required: false },
     automation_type: { type: 'string', description: 'Automation lane to update. Volume/pan are track-level; pitch_bend and CC lanes are region-level.', enum: [...AUTOMATION_TYPES], required: true },
-    position: { type: 'number', description: 'Absolute nonnegative integer tick on the project timeline (960 ticks per quarter note), not relative to the region.', minimum: 0, required: true },
-    value: { type: 'number', description: VALUE_DESCRIPTION, required: true },
+    keypoints: {
+      type: 'array', required: true,
+      description: 'Nonempty array of automation keypoints. Every entry must be valid; the last value wins at repeated positions. Applied in ascending tick order as one atomic undoable operation.',
+      items: {
+        type: 'object', description: 'An automation keypoint.',
+        properties: {
+          position: { type: 'number', description: 'Absolute nonnegative integer tick on the project timeline (960 ticks per quarter note), not relative to the region.', minimum: 0, required: true },
+          value: { type: 'number', description: VALUE_DESCRIPTION, required: true },
+        },
+      },
+    },
   };
 
   override isReadOnlyTool(): boolean { return false; }
@@ -100,55 +157,84 @@ export class UpdateTrackAutomationTool extends BaseTool {
     const normalized = normalizeOptionalTrackIdParam(params);
     this.validateParameters(normalized);
     const type = normalized.automation_type as AutomationType;
-    const position = normalized.position as number;
-    const value = normalized.value as number;
     if (!AUTOMATION_TYPES.includes(type)) throw new Error('Unsupported automation_type.');
-    if (!Number.isInteger(position) || position < 0 || !Number.isFinite(position)) throw new Error('position must be a finite nonnegative integer tick.');
+    const input = normalized.keypoints as AutomationKeypoint[];
+    if (!input.length) throw new Error('keypoints must contain at least one point.');
     const minimum = type === 'volume' ? AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB : type === 'pan' ? -1 : type === 'pitch_bend' ? -8192 : 0;
     const maximum = type === 'volume' ? AUDIO_INTERFACE_CONSTANTS.MAX_TRACK_VOLUME_DB : type === 'pan' ? 1 : type === 'pitch_bend' ? 8191 : 127;
-    if (!Number.isFinite(value) || value < minimum || value > maximum
-      || (type !== 'volume' && type !== 'pan' && !Number.isInteger(value))
-      || (type === 'cc64' && value !== 0 && value !== 127)) throw new Error(VALUE_DESCRIPTION);
+    const byPosition = new Map<number, AutomationKeypoint>();
+    for (const [index, { position, value }] of input.entries()) {
+      if (!Number.isInteger(position) || position < 0 || !Number.isFinite(position)) throw new Error(`keypoints[${index}].position must be a finite nonnegative integer tick.`);
+      if (!Number.isFinite(value) || value < minimum || value > maximum
+        || (type !== 'volume' && type !== 'pan' && !Number.isInteger(value))
+        || (type === 'cc64' && value !== 0 && value !== 127)) throw new Error(`keypoints[${index}]: ${VALUE_DESCRIPTION}`);
+      byPosition.set(position, { position, value });
+    }
+    const keypoints = [...byPosition.values()].sort((a, b) => a.position - b.position);
     const trackId = normalized.track_id as string | undefined;
     const trackName = normalized.track_name as string | undefined;
     const track = trackId || trackName
       ? resolveMidiTrackByIdOrName(trackId, trackName)
       : resolveActiveOrSelectedMidiRegionContext()?.track;
     if (!track) throw new Error(trackId || trackName ? 'Target track not found or is not a MIDI track.' : NO_MIDI_TARGET_RAW_MESSAGE);
-    const context = type === 'volume' || type === 'pan' ? null : resolveMidiRegionTarget(trackId, trackName, { startTick: position, endTick: position + 1 }, ticksPerBar(this.getCurrentProject().getTimeSignature()));
-    if (type !== 'volume' && type !== 'pan' && !context) throw new Error(NO_MIDI_TARGET_RAW_MESSAGE);
-    return { type, position, value, track, context };
+    const createCommand = ({ position, value }: AutomationKeypoint): KGCommand | null => {
+      const storedValue = type === 'pitch_bend' ? signedPitchBendToMidiValue(value) : value;
+      if (type === 'volume' || type === 'pan') {
+        const points = track.getAutomationPoints(type).filter(point => point.getTick() === position);
+        if (points.length && points.every(point => point.getValue() === storedValue)) return null;
+        return points.length
+          ? new UpdateTrackAutomationPointsCommand(track.getId(), type, points.map(point => ({ pointId: point.getId(), tick: position, value: point.getValue() })), points.map(point => ({ pointId: point.getId(), value: storedValue })))
+          : new CreateTrackAutomationPointsCommand(track.getId(), type, [{ tick: position, value: storedValue }]);
+      }
+      const target = resolveMidiRegionTarget(trackId, trackName, { startTick: position, endTick: position + 1 }, ticksPerBar(this.getCurrentProject().getTimeSignature()));
+      if (!target) throw new Error(NO_MIDI_TARGET_RAW_MESSAGE);
+      const region = track.getRegions().find(candidate => candidate.getId() === target.regionId) as KGMidiRegion | undefined;
+      const points = region ? (type === 'pitch_bend' ? region.getPitchBends() : region.getControllerEvents(Number(type.slice(2))))
+        .filter(point => point.getTick() + region.getStartTick() === position) : [];
+      if (points.length && points.every(point => point.getValue() === storedValue) && region
+        && region.getStartTick() === target.finalRegionStartTick && region.getLengthTicks() === target.finalRegionLength) return null;
+      return new AutomateResolvedRegionCommand(target, type, position, storedValue);
+    };
+    return { type, keypoints, track, createCommand };
+  }
+
+  override buildToolResultDisplayContent(args: Record<string, unknown> | null, toolResult: ToolResult): string | undefined {
+    if (!args || !toolResult.success) return undefined;
+    try {
+      const { type, keypoints, track } = this.resolve(args);
+      if (toolResult.result.startsWith('Automation already matches; no changes applied')) {
+        return `The automation already matches on track **${getTrackDisplayName(track)}**; no changes applied.`;
+      }
+      const labels: Record<AutomationType, string> = {
+        volume: 'volume', pan: 'pan', pitch_bend: 'pitch bend',
+        cc1: 'modulation', cc2: 'breath', cc7: 'MIDI volume', cc11: 'expression', cc64: 'sustain',
+      };
+      return `Updated ${keypoints.length} ${labels[type]} ${keypoints.length === 1 ? 'keypoint' : 'keypoints'} on track **${getTrackDisplayName(track)}**.`;
+    } catch { return undefined; }
   }
 
   override buildConfirmationContent(args: Record<string, unknown> | null): string | undefined {
     if (!args) return undefined;
     try {
-      const { type, position, value, track, context } = this.resolve(args);
-      return `Allow setting **${type}** automation to **${value}** at tick **${position}** on track **${getTrackDisplayName(track)}**${context ? ` in ${context.createdRegion ? 'new ' : ''}region **${context.regionName}**` : ''}?`;
+      const { type, keypoints, track } = this.resolve(args);
+      return `Allow updating **${keypoints.length} ${type} automation keypoints** on track **${getTrackDisplayName(track)}** in ticks **[${keypoints[0].position}, ${keypoints[keypoints.length - 1].position}]**?`;
     } catch { return undefined; }
   }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      const { type, position, value, track, context } = this.resolve(params);
-      const storedValue = type === 'pitch_bend' ? signedPitchBendToMidiValue(value) : value;
-      let changed: boolean;
-      if (type === 'volume' || type === 'pan') {
-        const points = track.getAutomationPoints(type).filter(point => point.getTick() === position);
-        changed = !points.length || points.some(point => point.getValue() !== storedValue);
-        if (changed) await this.executeCommand(points.length
-          ? new UpdateTrackAutomationPointsCommand(track.getId(), type, points.map(point => ({ pointId: point.getId(), tick: position, value: point.getValue() })), points.map(point => ({ pointId: point.getId(), value: storedValue })))
-          : new CreateTrackAutomationPointsCommand(track.getId(), type, [{ tick: position, value: storedValue }]));
-      } else {
-        const target = context!;
-        const region = track.getRegions().find(candidate => candidate.getId() === target.regionId) as KGMidiRegion | undefined;
-        const points = region ? (type === 'pitch_bend' ? region.getPitchBends() : region.getControllerEvents(Number(type.slice(2))))
-          .filter(point => point.getTick() + region.getStartTick() === position) : [];
-        changed = !points.length || points.some(point => point.getValue() !== storedValue) || !region
-          || region.getStartTick() !== target.finalRegionStartTick || region.getLengthTicks() !== target.finalRegionLength;
-        if (changed) await this.executeCommand(new AutomateResolvedRegionCommand(target, type, position, storedValue));
+      const { type, keypoints, track, createCommand } = this.resolve(params);
+      // Inspect all points without mutation so a matching batch preserves undo/redo history.
+      const changed = keypoints.map(createCommand).some(command => command !== null);
+      if (changed) {
+        // Track commands can throw after changing the lane; restore its original points too.
+        const originalPoints = type === 'volume' || type === 'pan' ? [...track.getAutomationPoints(type)] : null;
+        const restoreFailedEdit = () => {
+          if (originalPoints && (type === 'volume' || type === 'pan')) track.setAutomationPoints(type, originalPoints);
+        };
+        KGCore.instance().executeCommand(new BulkAutomationCommand(type, keypoints, createCommand, restoreFailedEdit), { rethrow: true });
       }
-      return this.createSuccessResult(`${changed ? 'Updated automation' : 'Automation already matches; no changes applied'}: track_id=${track.getId()}, track_name=${getTrackDisplayName(track)}${context ? `, region_name=${context.regionName}` : ''}, automation_type=${type}, position=${position}, value=${value}`);
+      return this.createSuccessResult(`${changed ? 'Updated automation' : 'Automation already matches; no changes applied'}: track_id=${track.getId()}, track_name=${getTrackDisplayName(track)}, automation_type=${type}, keypoint_count=${keypoints.length}, tick_range=[${keypoints[0].position}, ${keypoints[keypoints.length - 1].position}], keypoints=${JSON.stringify(keypoints)}`);
     } catch (error) {
       return this.createErrorResult(`Failed to update track automation: ${error}`);
     }
