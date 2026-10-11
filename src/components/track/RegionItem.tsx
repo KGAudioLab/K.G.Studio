@@ -11,7 +11,7 @@ import { KGMainContentState } from '../../core/state/KGMainContentState';
 import type { AudioRecordingPeak } from '../../core/audio-interface/KGAudioRecorder';
 import type { RegionPreviewContentStyle } from '../interfaces';
 import { KGCore } from '../../core/KGCore';
-import { tickRangeToSeconds } from '../../util/globalTrackUtil';
+import { tickRangeToSeconds, tickToSeconds } from '../../util/globalTrackUtil';
 
 const DRAG_START_THRESHOLD_PX = 4;
 const getRegionClickOptions = (event: Pick<React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
@@ -271,58 +271,81 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     const contentRect = previewContentRef.current.getBoundingClientRect();
-    const width = Math.max(1, Math.round(contentRect.width));
     const height = Math.max(1, Math.round(contentRect.height));
-
-    canvas.width = width;
-    canvas.height = height;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-
-    ctx.clearRect(0, 0, width, height);
 
     // Get channel data (use first channel)
     const channelData = audioBuffer.getChannelData(0);
     const totalSamples = channelData.length;
     const sampleRate = audioBuffer.sampleRate;
 
-    // Calculate visible portion based on clip offset
     const clipStartOffsetSeconds = audioRegion ? audioRegion.getClipStartOffsetSeconds() : 0;
-    const clipStartSample = Math.floor(clipStartOffsetSeconds * sampleRate);
-
     const currentProject = KGCore.instance().getCurrentProject();
-    const regionLengthTicks = audioRegion ? audioRegion.getLengthTicks() : 0;
-    const visibleDurationSeconds = audioRegion
-      ? Math.min(
-          tickRangeToSeconds(
-            currentProject,
-            audioRegion.getStartTick(),
-            audioRegion.getStartTick() + regionLengthTicks
-          ),
-          Math.max(0, audioRegion.getAudioDurationSeconds() - clipStartOffsetSeconds)
+    const regionDurationSeconds = audioRegion
+      ? tickRangeToSeconds(
+          currentProject,
+          audioRegion.getStartTick(),
+          audioRegion.getStartTick() + audioRegion.getLengthTicks()
         )
       : 0;
-    const visibleSamples = Math.floor(visibleDurationSeconds * sampleRate);
+    const visibleDurationSeconds = audioRegion
+      ? Math.min(regionDurationSeconds, audioRegion.getPlayableDurationSeconds())
+      : 0;
+    const renderStartSample = Math.max(0, clipStartOffsetSeconds * sampleRate);
+    const renderEndSample = Math.min(
+      Math.floor((clipStartOffsetSeconds + visibleDurationSeconds) * sampleRate),
+      totalSamples
+    );
+    if (renderEndSample <= renderStartSample || regionDurationSeconds <= 0) return;
 
-    // Clamp to buffer boundaries
-    const renderStartSample = Math.max(0, Math.min(clipStartSample, totalSamples));
-    const renderEndSample = Math.min(renderStartSample + visibleSamples, totalSamples);
-    const renderSampleCount = renderEndSample - renderStartSample;
+    const regionStyle = regionRef.current ? getComputedStyle(regionRef.current) : null;
+    const borderLeft = parseFloat(regionStyle?.borderLeftWidth || '0') || 0;
+    const borderRight = parseFloat(regionStyle?.borderRightWidth || '0') || 0;
+    const contentWidth = Math.max(1, contentRect.width);
+    // Use the declared width before browser layout rounds it to subpixels.
+    const declaredWidth = previewContentStyle?.width ?? style.width;
+    const declaredPixels = typeof declaredWidth === 'number'
+      ? declaredWidth
+      : typeof declaredWidth === 'string' && declaredWidth.endsWith('px') ? parseFloat(declaredWidth) : 0;
+    const timelineWidth = declaredPixels > 0
+      ? declaredPixels + (previewContentStyle ? borderLeft + borderRight : 0)
+      : contentWidth + borderLeft + borderRight;
+    const regionStartTick = audioRegion?.getStartTick() ?? 0;
+    const pixelsPerTick = timelineWidth / (audioRegion?.getLengthTicks() || 1);
+    const timelineStartPixel = regionStartTick * pixelsPerTick;
+    const contentStartPixel = timelineStartPixel + borderLeft;
+    const pixelRatio = window.devicePixelRatio || 1;
+    // Every region samples the same device-pixel grid on the timeline. Keep
+    // backing pixels at a fixed CSS size instead of stretching a rounded canvas.
+    const firstPixel = Math.floor(contentStartPixel * pixelRatio);
+    const canvasOffset = firstPixel / pixelRatio - contentStartPixel;
+    const width = Math.max(1, Math.ceil((contentWidth - canvasOffset) * pixelRatio));
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = `${width / pixelRatio}px`;
+    canvas.style.height = `${height}px`;
+    canvas.style.marginLeft = `${canvasOffset}px`;
+    ctx.clearRect(0, 0, width, height);
 
-    if (renderSampleCount <= 0) return;
+    const regionStartSeconds = tickToSeconds(currentProject, regionStartTick);
+    const sampleAtPixel = (pixel: number) => {
+      const tick = pixel / pixelsPerTick;
+      const seconds = clipStartOffsetSeconds + tickToSeconds(currentProject, tick) - regionStartSeconds;
+      return Math.max(0, Math.floor(seconds * sampleRate));
+    };
 
-    // Downsample visible portion to canvas width
-    const samplesPerPixel = Math.max(1, Math.floor(renderSampleCount / width));
     const centerY = height / 2;
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
 
     for (let x = 0; x < width; x++) {
-      const startSample = renderStartSample + Math.floor(x * samplesPerPixel);
-      const endSample = Math.min(startSample + samplesPerPixel, renderEndSample);
+      const startSample = sampleAtPixel((firstPixel + x) / pixelRatio);
+      const endSample = Math.min(
+        Math.max(startSample + 1, sampleAtPixel((firstPixel + x + 1) / pixelRatio)),
+        renderEndSample
+      );
 
       let min = 0;
       let max = 0;
@@ -332,15 +355,14 @@ const RegionItem: React.FC<RegionItemProps> = ({
         if (val > max) max = val;
       }
 
-      // Draw vertical line from min to max amplitude
+      // Fill disjoint backing-pixel columns. Strokes straddle columns and
+      // blend their opacity differently as neighboring amplitudes change.
       const yMin = centerY - max * centerY;
       const yMax = centerY - min * centerY;
 
-      ctx.moveTo(x, yMin);
-      ctx.lineTo(x, yMax);
+      ctx.fillRect(x, yMin, 1, yMax - yMin);
     }
 
-    ctx.stroke();
   };
 
   const renderPreviewWaveformOnCanvas = () => {

@@ -79,6 +79,7 @@ function cloneAudioRegion(region: KGAudioRegion, trackId: number, trackIndex: nu
     region.getAudioFileName(),
     region.getAudioDurationSeconds(),
     region.getClipStartOffsetSeconds(),
+    region.getClipEndOffsetSeconds(),
   );
   duplicate.setColor(region.getColor());
   return duplicate;

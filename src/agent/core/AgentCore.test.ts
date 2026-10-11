@@ -6,6 +6,10 @@ import type { StreamChunk } from '../llm/StreamingTypes';
 import type { OpenAIToolDefinition } from '../tools/BaseTool';
 import { ReadMusicTool } from '../tools/ReadMusicTool';
 import { AdvancedReadMusicTool } from '../tools/AdvancedReadMusicTool';
+import { AdvancedListAllTracks } from '../tools/AdvancedListAllTracks';
+import { AdvancedListAllAvailableInstruments } from '../tools/AdvancedListAllAvailableInstruments';
+import { ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_EXAMPLE } from '../tools/advancedReaderResponses';
+import { ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE } from '../tools/advancedReaderResponses';
 import { UpdateTrackStatusTool } from '../tools/UpdateTrackStatusTool';
 import { UpdateTrackVolumeTool } from '../tools/UpdateTrackVolumeTool';
 import { RemoveTrackAutomationTool } from '../tools/RemoveTrackAutomationTool';
@@ -368,7 +372,7 @@ describe('AgentCore todo integration', () => {
     const execute = vi.spyOn(UpdateTrackAutomationTool.prototype, 'execute').mockResolvedValue({ success: true, result: 'updated' });
     const provider = new ScriptedProvider([
       [
-        { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_automation', { track_id: '1', automation_type: 'pan', position: 123, value: 0.5 }, 'automation_1') },
+        { type: 'tool_call', content: '', toolCall: makeToolCall('update_track_automation', { track_id: '1', automation_type: 'pan', keypoints: [{ position: 123, value: 0.5 }] }, 'automation_1') },
         { type: 'done', content: '', finishReason: 'tool_calls' },
       ],
       [{ type: 'done', content: '', finishReason: 'stop' }],
@@ -380,7 +384,7 @@ describe('AgentCore todo integration', () => {
       expect(names.includes('update_track_automation')).toBe(mode === 'advanced');
       expect(execute).toHaveBeenCalledTimes(mode === 'advanced' ? 1 : 0);
       expect(chunks.find(chunk => chunk.type === 'tool_result')?.toolResult?.success).toBe(mode === 'advanced');
-      if (mode === 'advanced') expect(execute).toHaveBeenCalledWith(expect.objectContaining({ position: 123 }));
+      if (mode === 'advanced') expect(execute).toHaveBeenCalledWith(expect.objectContaining({ keypoints: [{ position: 123, value: 0.5 }] }));
     } finally { execute.mockRestore(); }
   });
 
@@ -405,13 +409,19 @@ describe('AgentCore todo integration', () => {
     } finally { execute.mockRestore(); }
   });
 
-  it('streams structured JSON and serializes the result envelope once for the LLM', async () => {
+  it.each(['read_music', 'list_all_tracks', 'list_all_available_instruments'] as const)('streams %s structured JSON and serializes the result envelope once for the LLM', async name => {
     configState.set('general.agent_mode', 'advanced');
-    const payload = { tracks: [{ track_id: 1, notes: [] }] };
-    const execute = vi.spyOn(AdvancedReadMusicTool.prototype, 'execute').mockResolvedValue({ success: true, result: payload });
+    const payload = name === 'read_music' ? { tracks: [{ track_id: 1, notes: [] }] }
+      : name === 'list_all_tracks' ? ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE.result
+        : ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_EXAMPLE.result;
+    const execute = name === 'read_music'
+      ? vi.spyOn(AdvancedReadMusicTool.prototype, 'execute').mockResolvedValue({ success: true, result: payload })
+      : name === 'list_all_tracks'
+        ? vi.spyOn(AdvancedListAllTracks.prototype, 'execute').mockResolvedValue(ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE)
+        : vi.spyOn(AdvancedListAllAvailableInstruments.prototype, 'execute').mockResolvedValue(ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_EXAMPLE);
     const provider = new ScriptedProvider([
       [
-        { type: 'tool_call', content: '', toolCall: makeToolCall('read_music', {}, 'json_1') },
+        { type: 'tool_call', content: '', toolCall: makeToolCall(name, {}, 'json_1') },
         { type: 'done', content: '', finishReason: 'tool_calls' },
       ],
       [{ type: 'done', content: '', finishReason: 'stop' }],
@@ -419,6 +429,7 @@ describe('AgentCore todo integration', () => {
     AgentCore.instance().setLLMProvider(provider);
     try {
       const chunks = await collectChunks('Read music.');
+      expect(provider.tools[0].find(tool => tool.function.name === name)?.function.description).toContain('Response schema (JSON Schema Draft 7');
       expect(chunks.find(chunk => chunk.type === 'tool_call')?.agentMode).toBe('advanced');
       const result = chunks.find(chunk => chunk.type === 'tool_result');
       expect(result?.agentMode).toBe('advanced');

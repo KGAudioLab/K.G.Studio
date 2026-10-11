@@ -14,9 +14,24 @@
 
 K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le navigateur, avec **K.G.Studio Musician Assistant** en son cœur. Il propose une lecture réaliste des instruments via les samplers Tone.js, un éditeur piano roll, une gestion des pistes et des régions avec annulation/rétablissement complets, la persistance des projets dans OPFS (Origin Private File System), un panneau de configuration personnalisable, et un assistant IA intégré avec exécution d'outils.
 
-**K.G.Studio Musician Assistant** est un co-créateur IA conscient du projet, conçu pour enrichir votre flux créatif. Plutôt que de générer directement des fichiers audio bruts, il opère au niveau structuré des pistes et des notes — vous aidant à composer des mélodies, construire des progressions harmoniques et éditer des notes MIDI, tout en vous laissant le contrôle total pour ajuster, affiner et perfectionner chaque détail.
+<div align="center">
+  <img src="./docs/KGStudio-Demo-20261010.gif" alt="Animation de démonstration de K.G.Studio" width="640" />
+</div>
+
+**K.G.Studio Musician Assistant** vous aide à composer des mélodies, construire des progressions d’accords et éditer des pistes et des notes MIDI en langage naturel. Connectez des API LLM externes, ou utilisez **Gemma 4 E4B** comme solution de repli intégrée, entièrement exécutée dans votre navigateur avec l’accélération WebGPU, sans clé API.
+
+### Outils musicaux IA
+
+Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accélération WebGPU** sur le matériel compatible, en traitant les données MIDI et audio localement.
+
+- **Humanisation** — Générez des courbes de contrôleurs MIDI expressives avec [AIRE](https://huggingface.co/KGAudioLab/instrument-aire-models) pour les cordes, les cuivres et les bois, selon le rôle musical et l’ambiance. Façonnez la modulation, le souffle, le volume ou l’expression tout en préservant le placement temporel et la vélocité des notes.
+- **Extraction de stems** — Séparez l’audio en voix et instruments, ou en voix, batterie, basse et autres instruments. Écoutez les stems extraits et importez-les directement dans votre arrangement pour poursuivre l’édition.
 
 ## Dernières mises à jour
+
+- **2026.10.10** : ajout de l’humanisation expressive MIDI et de nouvelles capacités d’édition pour l’agent IA :
+  - **Humanisation AIRE** — générez des courbes d’expression MIDI éditables pour les cordes, les cuivres et les bois, entièrement dans votre navigateur avec l’accélération WebGPU. Choisissez le rôle musical, l’ambiance et le contrôleur cible (CC1, CC2, CC7 ou CC11), avec un conditionnement optionnel par la vélocité et une simplification des courbes. Le placement temporel et la vélocité des notes sont préservés.
+  - **Mode avancé de l’agent** — utilisez des outils musicaux JSON structurés et un placement temporel précis en ticks pour éditer vos arrangements en détail. L’assistant peut modifier ou supprimer l’automation du volume, du panoramique, du pitch bend et des CC MIDI, avec des mises à jour groupées de points en une seule opération annulable. Les listes structurées de pistes et d’instruments enrichissent le contexte du projet.
 
 - **2026.07.18** : introduction de nouveaux workflows puissants pour l'arrangement et l'édition MIDI :
   - **Transposition flexible et adaptée à la tonalité** — appliquez des réglages de transposition indépendants au niveau de la piste ou de la région, transposez le contenu sur une plage allant jusqu'à trois octaves et, si vous le souhaitez, suivez les changements d'armure. Le contenu de la piste d'accords peut désormais être transposé automatiquement lorsque la tonalité du projet ou une région d'armure change, afin de préserver l'intention harmonique de l'arrangement.
@@ -47,12 +62,6 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
   - Ajout de la fonction **Tempo Detection with Auto-Align Beats** : ouvrez la fenêtre piano roll pour une région audio, puis cliquez sur « ... » -> **Detect Tempo** dans la barre d'outils pour analyser le BPM de l'audio et, si vous le souhaitez, réaligner les régions de la Tempo Track du projet.
   - Ajout de **Demucs 4S** comme second modèle local de séparation de stems intégré au navigateur. En plus du modèle UVR-MDX-NET à deux stems existant, le modèle `htdemucs_4s` à quatre stems (~172 MB, vocals / drums / bass / others) est désormais disponible, les deux s'exécutant entièrement dans le navigateur via ONNX Runtime WebGPU.
 
-- **2026.05.15** : ajout de **modèles IA intégrés au navigateur**. Deux modèles IA peuvent désormais fonctionner entièrement dans le navigateur, sans service externe, sans clé API, et sans serveur K.G.One. **K.G.Studio Musician Assistant** gagne un nouveau fournisseur **Local LLM (Browser)** basé sur **Gemma 4 E4B** via LiteRT-LM avec accélération WebGPU ; le modèle est téléchargé une fois puis mis en cache dans OPFS pour des lancements ultérieurs quasi instantanés, avec longueur de contexte configurable (32 k / 64 k / 128 k tokens) et statistiques de performance d'inférence en direct. La **séparation de stems** fonctionne désormais aussi localement grâce à un modèle ONNX **UVR-MDX-NET-Inst_HQ_3** intégré au navigateur avec accélération WebGPU. Ouvrez le panneau **Music Generator** (bouton ✦), téléchargez le modèle une fois, puis séparez voix et accompagnement entièrement sur votre appareil. Les deux fonctions nécessitent un navigateur compatible WebGPU (Chrome 113+ ou Edge 113+) et un contexte sécurisé (HTTPS ou localhost). Matériel recommandé : un GPU avec au moins 8 GB de VRAM ou un système avec au moins 16 GB de mémoire unifiée.
-
-- **2026.05.10** : ajout de la **vue en notation musicale (sheet music)**. Le piano roll propose désormais un mode complet de notation standard. Basculez entre les vues Piano Roll et Sheet Music à l'aide du bouton dans la barre d'outils du piano roll. En mode partition, les notes sont gravées via VexFlow avec sélection automatique de la clé (sol ou fa) selon l'instrument actif, affichage de l'armure, groupement automatique des crochets, liaisons entre mesures et quantification configurable pour la résolution des valeurs de notes. Activez **Track Scope** pour afficher toutes les régions MIDI de la piste comme une partition continue plutôt qu'une seule région isolée.
-
-- **2026.05.09** : ajout de **l'enregistrement audio**. Vous pouvez désormais enregistrer directement depuis votre microphone dans une piste audio. Un aperçu de forme d'onde en direct se développe en temps réel pendant l'enregistrement, et la région est ajoutée à la timeline comme région audio standard à l'arrêt. Ajout également de la **sélection des périphériques audio I/O** dans les paramètres afin de choisir votre entrée micro et votre sortie audio préférées.
-
 Pour consulter l'historique complet des versions, voir les [**Notes de version**](./docs/RELEASE_NOTES.md).
 
 ## État du projet
@@ -73,7 +82,7 @@ Ce projet étudie comment la collaboration entre l'IA et l'humain peut enrichir 
         <br><b>Démo courte (DAW uniquement)</b>
       </td>
       <td align="center">
-        <a href="https://youtu.be/vKbWAQRt0r0" target="_blank">
+        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
           <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
         </a>
         <br><b>Démo complète (DAW uniquement)</b>
@@ -112,7 +121,7 @@ K.G.Studio peut exécuter **Gemma 4 E4B** directement dans votre navigateur grâ
   - Dans **Fournisseur LLM (compatible OpenAI) → Base URL**, saisissez `https://openrouter.ai/api/v1`.
 
 **Conseils :**
-- Vous pouvez également utiliser l'API officielle d'OpenAI, d'autres services compatibles OpenAI, ou un serveur LLM auto-hébergé (par exemple Ollama, vLLM). Notez que la qualité des modèles varie : tous les modèles ne sont pas aussi performants pour les tâches d'édition musicale. Pour l'auto-déploiement (nécessite ~24 Go de VRAM ou 24-32 Go de mémoire unifiée), nous recommandons : `qwen/qwen3.6-35b-a3b`, `google/gemma-4-26b-a4b-it` ou `google/gemma-4-31b-it`.
+- Vous pouvez également utiliser l'API officielle d'OpenAI, d'autres services compatibles OpenAI, ou un serveur LLM auto-hébergé (par exemple Ollama, vLLM). Notez que la qualité des modèles varie : tous les modèles ne sont pas aussi performants pour les tâches d'édition musicale. Pour l'auto-déploiement (nécessite ~24 Go de VRAM ou 24-32 Go de mémoire unifiée), nous recommandons GPT 6.1 Sol (au 10 octobre 2026).
 - Si vous disposez d'un abonnement actif chez OpenAI ou chez un autre fournisseur LLM, vous pouvez utiliser [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) pour exécuter un serveur proxy local qui achemine les requêtes via votre abonnement existant, sans nécessiter de clé API séparée.
 
 ### Opérations DAW de base
@@ -282,12 +291,7 @@ OpenRouter est une plateforme qui fournit un accès unifié à un large éventai
 3. Saisissez votre clé API dans **Fournisseur LLM (compatible OpenAI) → Key**.
 4. Parcourez les modèles disponibles sur la [**page des modèles OpenRouter**](https://openrouter.ai/models) et comparez leurs tarifs et leurs capacités.
    **Remarque :** chaque fournisseur de modèle peut avoir des politiques différentes en matière de conservation des données et de confidentialité. Veuillez les consulter avant utilisation.
-5. Saisissez le nom du modèle choisi dans **Fournisseur LLM (compatible OpenAI) → Model**. Les séries recommandées comprennent :
-    - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — meilleur équilibre qualité/coût pour la série Claude
-    - Pour l'auto-déploiement (nécessite ~24 Go de VRAM ou 24-32 Go de mémoire unifiée), nous recommandons :
-        - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
-        - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
-        - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
+5. Saisissez le nom du modèle choisi dans **Fournisseur LLM (compatible OpenAI) → Model**.
 6. Saisissez l'URL de base `https://openrouter.ai/api/v1` dans **Fournisseur LLM (compatible OpenAI) → Base URL**.
 
 Vous pouvez également consulter la [page des modèles OpenRouter](https://openrouter.ai/models) pour découvrir les modèles gratuits actuellement disponibles. Leur disponibilité évolue ; K.G.Studio ne recommande pas de modèles gratuits spécifiques pour l’édition musicale.
@@ -409,4 +413,4 @@ Ce projet est distribué sous Apache License, Version 2.0, avec des conditions s
 - Aucune demande de brevet à partir de ce logiciel ou de ses ressources
 - Attribution requise en cas d'utilisation dans des produits publics/commerciaux (« Powered by K.G.Studio »)
 
-Les notices tierces (FluidR3_GM SoundFont, midi-js-soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web et demucs-web) sont incluses dans `LICENSE`.
+Les notices tierces (FluidR3_GM SoundFont, midi-js-soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE et demucs-web) sont incluses dans `LICENSE`.

@@ -21,7 +21,8 @@ import { tickRangeToSeconds } from '../../../util/globalTrackUtil';
  *
  * Audio regions: both halves share the same audioFileId / audioFileName /
  * audioDurationSeconds (no file copy). Region 2 gets a new
- * clipStartOffsetSeconds = original + splitOffsetSeconds.
+ * clipStartOffsetSeconds = original + splitOffsetSeconds. Each half retains
+ * its own source end boundary so display and tempo changes respect the split.
  */
 export class SplitRegionCommand extends KGCommand {
   private regionId: string;
@@ -158,6 +159,15 @@ export class SplitRegionCommand extends KGCommand {
       const project = KGCore.instance().getCurrentProject();
       const splitOffsetSeconds = tickRangeToSeconds(project, regionStart, this.splitAtTick);
 
+      const originalClipEndSeconds = originalRegion.getClipStartOffsetSeconds() + Math.min(
+        tickRangeToSeconds(project, regionStart, regionStart + regionLength),
+        originalRegion.getPlayableDurationSeconds()
+      );
+      const splitClipEndSeconds = Math.min(
+        originalClipEndSeconds,
+        originalRegion.getClipStartOffsetSeconds() + splitOffsetSeconds
+      );
+
       this.region1 = new KGAudioRegion(
         generateUniqueId('KGAudioRegion'),
         trackId,
@@ -168,7 +178,8 @@ export class SplitRegionCommand extends KGCommand {
         originalRegion.getAudioFileId(),
         originalRegion.getAudioFileName(),
         originalRegion.getAudioDurationSeconds(),
-        originalRegion.getClipStartOffsetSeconds()
+        originalRegion.getClipStartOffsetSeconds(),
+        splitClipEndSeconds
       );
       this.region1.setColor(originalRegion.getColor());
 
@@ -182,7 +193,8 @@ export class SplitRegionCommand extends KGCommand {
         originalRegion.getAudioFileId(),
         originalRegion.getAudioFileName(),
         originalRegion.getAudioDurationSeconds(),
-        originalRegion.getClipStartOffsetSeconds() + splitOffsetSeconds
+        originalRegion.getClipStartOffsetSeconds() + splitOffsetSeconds,
+        originalClipEndSeconds
       );
       this.region2.setColor(originalRegion.getColor());
 

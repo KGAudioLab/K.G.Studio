@@ -650,7 +650,8 @@ export class KGCore {
             region.getAudioFileId(),
             region.getAudioFileName(),
             region.getAudioDurationSeconds(),
-            region.getClipStartOffsetSeconds()
+            region.getClipStartOffsetSeconds(),
+            region.getClipEndOffsetSeconds(),
           );
           clonedRegion.setColor(region.getColor());
           clonedItems.push(clonedRegion);

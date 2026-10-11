@@ -1,3 +1,5 @@
+import { FLUIDR3_INSTRUMENT_MAP, INSTRUMENT_GROUPS } from '../../constants/generalMidiConstants';
+
 /** Documentation contracts only. Validation lives in tests, never in tool execution. */
 type ResponseSchema = Record<string, unknown>;
 
@@ -28,6 +30,53 @@ function responseSchema(result: ResponseSchema) {
     ],
   };
 }
+
+export const ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_SCHEMA = responseSchema(object({
+  groups: { type: 'array', description: 'Instrument families in catalog order, including empty groups and enabled custom instruments.', items: object({
+    group_name: { type: 'string', description: 'English instrument family name.' },
+    instruments: { type: 'array', items: { type: 'string' }, description: 'Exact instrument names accepted by create_new_track and update_track, in catalog order.' },
+  }) },
+}));
+
+// Complete built-in catalog example; runtime custom instruments are read by the tool.
+export const ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_EXAMPLE = {
+  success: true,
+  result: {
+    groups: [
+      ...Object.entries(INSTRUMENT_GROUPS).map(([key, group_name]) => ({
+        group_name,
+        instruments: Object.values(FLUIDR3_INSTRUMENT_MAP)
+          .filter(instrument => instrument.group === key)
+          .map(instrument => instrument.displayName),
+      })),
+      { group_name: 'Custom Instruments', instruments: [] as string[] },
+    ],
+  },
+};
+
+export const ADVANCED_LIST_ALL_TRACKS_RESPONSE_SCHEMA = responseSchema(object({
+  tracks: { type: 'array', description: 'MIDI tracks in project order. Empty when no MIDI tracks exist.', items: object({
+    track_id: { type: 'integer' },
+    track_name: { type: 'string' },
+    instrument: { type: 'string', description: 'English instrument display name, or the stored key if unknown.' },
+    volume: { type: 'number', description: 'Stored mixer volume in dB, without evaluating automation.' },
+    pan: { type: 'number', minimum: -1, maximum: 1, description: 'Stored mixer pan: -1 left, 0 center, 1 right. Automation is not evaluated.' },
+    status: object({
+      mute: { type: 'boolean', description: 'Explicit track mute flag.' },
+      solo: { type: 'boolean', description: 'Explicit track solo flag.' },
+    }),
+  }) },
+}));
+
+export const ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE = {
+  success: true,
+  result: {
+    tracks: [
+      { track_id: 1, track_name: 'Melody', instrument: 'Acoustic Grand Piano', volume: 0, pan: 0, status: { mute: false, solo: false } },
+      { track_id: 2, track_name: 'Accompaniment', instrument: 'Acoustic Grand Piano', volume: -3, pan: 0.2, status: { mute: false, solo: false } },
+    ],
+  },
+};
 
 export const ADVANCED_READ_MUSIC_RESPONSE_SCHEMA = responseSchema(object({
   tracks: { type: 'array', description: 'One entry per MIDI track, even for a single-track read. Empty when no MIDI tracks exist.', items: object({

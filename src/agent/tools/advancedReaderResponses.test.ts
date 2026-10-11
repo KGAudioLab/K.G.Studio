@@ -1,6 +1,10 @@
 import Ajv from 'ajv';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_SCHEMA,
+  ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_EXAMPLE,
+  ADVANCED_LIST_ALL_TRACKS_RESPONSE_SCHEMA,
+  ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE,
   ADVANCED_READ_MUSIC_RESPONSE_SCHEMA,
   ADVANCED_READ_MUSIC_RESPONSE_EXAMPLE,
   ADVANCED_READ_CHORD_PROGRESSION_RESPONSE_SCHEMA,
@@ -14,6 +18,8 @@ vi.mock('../../stores/projectStore', () => ({
 
 const ajv = new Ajv({ allErrors: true });
 const contracts = [
+  ['list_all_available_instruments', ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_SCHEMA, ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_EXAMPLE],
+  ['list_all_tracks', ADVANCED_LIST_ALL_TRACKS_RESPONSE_SCHEMA, ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE],
   ['read_music', ADVANCED_READ_MUSIC_RESPONSE_SCHEMA, ADVANCED_READ_MUSIC_RESPONSE_EXAMPLE],
   ['read_chord_progression', ADVANCED_READ_CHORD_PROGRESSION_RESPONSE_SCHEMA, ADVANCED_READ_CHORD_PROGRESSION_RESPONSE_EXAMPLE],
 ] as const;
@@ -64,7 +70,7 @@ describe('advanced reader response documentation', () => {
     expect(validate({ success: true, result: { ...empty.result, chords: [{ pitch: 'C4', start: 0, length: 960 }] } })).toBe(false);
   });
 
-  it.each(['read_music', 'read_chord_progression'])('leaves %s inputs and regular/efficient definitions unchanged', name => {
+  it.each(['read_music', 'read_chord_progression', 'list_all_tracks', 'list_all_available_instruments'])('leaves %s inputs and regular/efficient definitions unchanged', name => {
     const regular = createToolInstance(name, 'regular')!.getDefinition();
     const efficient = createToolInstance(name, 'efficient')!.getDefinition();
     expect(efficient).toEqual(regular);
@@ -80,5 +86,42 @@ describe('advanced reader response documentation', () => {
         length: { type: 'number', description: 'Positive integer duration in ticks. Omitted reads to each track end.' },
       });
     } else expect(advanced.function.parameters.properties).toEqual({});
+  });
+
+  it('permits custom names and empty instrument groups while rejecting malformed fields', () => {
+    const validate = ajv.compile(ADVANCED_LIST_ALL_AVAILABLE_INSTRUMENTS_RESPONSE_SCHEMA);
+    for (const groups of [[], [{ group_name: 'Custom Instruments', instruments: [] }], [{ group_name: 'Custom Instruments', instruments: ['My Custom Piano'] }]]) {
+      expect(validate({ success: true, result: { groups } })).toBe(true);
+    }
+    for (const group of [
+      {}, { instruments: [] }, { group_name: 'Piano' },
+      { group_name: 1, instruments: [] }, { group_name: 'Piano', instruments: 'Piano' },
+      { group_name: 'Piano', instruments: [1] }, { group_name: 'Piano', instruments: [{ instrument: 'Piano' }] },
+      { group_name: 'Piano', instruments: [], extra: true },
+    ]) expect(validate({ success: true, result: { groups: [group] } })).toBe(false);
+    expect(validate({ success: true, result: { groups: [], extra: true } })).toBe(false);
+    expect(validate({ success: true, result: { groups: [] }, extra: true })).toBe(false);
+  });
+
+  it('rejects malformed track listing fields and permits empty track listings', () => {
+    const validate = ajv.compile(ADVANCED_LIST_ALL_TRACKS_RESPONSE_SCHEMA);
+    expect(validate({ success: true, result: { tracks: [] } })).toBe(true);
+    const track = ADVANCED_LIST_ALL_TRACKS_RESPONSE_EXAMPLE.result.tracks[0];
+    for (const field of Object.keys(track)) {
+      const incomplete: Record<string, unknown> = { ...track };
+      delete incomplete[field];
+      expect(validate({ success: true, result: { tracks: [incomplete] } })).toBe(false);
+    }
+    for (const patch of [
+      { track_id: '1' }, { track_id: 1.5 }, { track_name: 1 }, { instrument: null },
+      { volume: '-3' }, { pan: '0.2' }, { pan: 1.1 }, { pan: -1.1 },
+      { status: { mute: 'false', solo: false } }, { status: { mute: false } },
+      { status: { mute: false, solo: 0 } },
+      { status: { mute: false, solo: false, extra: true } }, { extra: true },
+    ]) {
+      expect(validate({ success: true, result: { tracks: [{ ...track, ...patch }] } })).toBe(false);
+    }
+    expect(validate({ success: true, result: { tracks: [], extra: true } })).toBe(false);
+    expect(validate({ success: true, result: { tracks: [] }, extra: true })).toBe(false);
   });
 });

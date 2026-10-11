@@ -14,9 +14,24 @@ English | [Français](./README-fr.md) | [简体中文](./README-zh_cn.md) | [繁
 
 K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with **K.G.Studio Musician Assistant** at its core. It features realistic instrument playback via Tone.js samplers, a piano‑roll editor, track and region management with full undo/redo, project persistence to OPFS (Origin Private File System), a configurable settings panel, and an integrated AI assistant with tool execution.
 
-**K.G.Studio Musician Assistant** is a project-aware AI co-creator designed to elevate your creative workflow. Rather than generating raw audio files, it operates directly at the structured track and note level—helping you draft melodies, build harmonic progressions, and edit MIDI notes, while leaving you in complete control to adjust, fine-tune, and perfect every single detail.
+<div align="center">
+  <img src="./docs/KGStudio-Demo-20261010.gif" alt="K.G.Studio demo animation" width="640" />
+</div>
+
+**K.G.Studio Musician Assistant** helps you compose melodies, build chord progressions, and edit tracks and MIDI notes through natural language. Connect external LLM APIs, or use the built-in **Gemma 4 E4B** fallback, which runs entirely in your browser with WebGPU acceleration—no API key required.
+
+### AI Music Tools
+
+Both tools run entirely inside your browser with **WebGPU acceleration** on supported hardware, keeping MIDI and audio processing local.
+
+- **Humanization** — Generate expressive MIDI controller curves with [AIRE](https://huggingface.co/KGAudioLab/instrument-aire-models) for strings, brass, and woodwinds, guided by musical role and mood. Shape modulation, breath, volume, or expression while preserving note timing and velocities.
+- **Stem Extraction** — Separate audio into vocals and instruments, or vocals, drums, bass, and other instruments. Preview the extracted stems and import them directly into your arrangement for further editing.
 
 ## Latest Updates
+
+- **2026.10.10**: Added expressive MIDI humanization and expanded AI agent editing:
+  - **AIRE Humanization** — generate editable MIDI expression for strings, brass, and woodwinds entirely in your browser with WebGPU acceleration. Choose musical role, mood, and target controller (CC1, CC2, CC7, or CC11), with optional velocity conditioning and curve simplification. Note timing and velocities are preserved.
+  - **Advanced Agent Mode** — use structured JSON music tools and precise tick-based timing for detailed arrangement editing. The assistant can update or remove volume, pan, pitch-bend, and MIDI CC automation, including bulk keypoint updates as a single undoable operation. Structured track and instrument listings provide richer project context.
 
 - **2026.07.18**: Introduced powerful new MIDI arrangement and editing workflows:
   - **Flexible, key-aware transposition** — apply independent transpose settings at the track or region level, shift material by up to three octaves, and optionally follow key-signature changes. Chord-track content can now be transposed automatically when the project key or a key-signature region changes, preserving harmonic intent across the arrangement.
@@ -47,12 +62,6 @@ K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with *
   - Added **Tempo Detection with Auto-Align Beats** feature — open piano roll window for an audio region and click "..." -> **Detect Tempo** in the toolbar to analyse the audio for BPM and optionally realign the project's Tempo Track regions to match. 
   - Added **Demucs 4S** as a second local browser-embedded stem-separation model — the existing two-stem UVR-MDX-NET model is now joined by the four-stem `htdemucs_4s` model (~172 MB, vocals / drums / bass / others), both running entirely in-browser via ONNX Runtime WebGPU.
 
-- **2026.05.15**: Added **browser-embedded AI models** — two AI models now run entirely in the browser with no external service, no API key, and no K.G.One server required. The **K.G.Studio Musician Assistant** gains a new **Local LLM (Browser)** provider powered by **Gemma 4 E4B** via LiteRT-LM with WebGPU acceleration; the model is downloaded once and cached in OPFS for instant subsequent launches, with configurable context length (32 k / 64 k / 128 k tokens) and live inference performance statistics. **Stem separation** now also runs locally through a browser-embedded **UVR-MDX-NET-Inst_HQ_3** ONNX model with WebGPU acceleration — open the **Music Generator** panel (✦ button), download the model once, and separate vocals from instruments entirely on-device. Both features require a WebGPU-capable browser (Chrome 113+ or Edge 113+) and a secure context (HTTPS or localhost). Recommended hardware: a GPU with at least 8 GB VRAM or a system with at least 16 GB unified RAM.
-
-- **2026.05.10**: Added **staff notation (sheet music) view** — the piano roll now offers a full standard notation mode. Switch between Piano Roll and Sheet Music views using the toggle in the piano roll toolbar. In sheet music mode, notes are engraved via VexFlow with automatic clef selection (treble or bass) based on the active instrument, key signature rendering, automatic beam grouping, ties across bar lines, and configurable quantization for note-value resolution. Enable **Track Scope** to render all MIDI regions on the track as a continuous score rather than a single isolated region.
-
-- **2026.05.09**: Added **audio recording** — record directly from your microphone into an audio track. A live waveform preview grows in real time as you record, and the region is committed to the timeline as a standard audio region when you stop. Added **audio I/O device selection** in Settings so you can choose your preferred microphone input and audio output device.
-
 For the full release history, see [**Release Notes**](./docs/RELEASE_NOTES.md).
 
 ## Project Status
@@ -73,7 +82,7 @@ This project investigates how AI-human collaboration can enhance creative music-
         <br><b>Short Demo (DAW Only)</b>
       </td>
       <td align="center">
-        <a href="https://youtu.be/vKbWAQRt0r0" target="_blank">
+        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
           <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
         </a>
         <br><b>Full Demo (DAW Only)</b>
@@ -112,7 +121,7 @@ K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acc
   - In **LLM Provider (OpenAI Compatible) → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 **Tips:**
-- You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend: `qwen/qwen3.6-35b-a3b`, `google/gemma-4-26b-a4b-it`, or `google/gemma-4-31b-it`.
+- You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend GPT 6.1 Sol (as of 10/10/2026). 
 - If you have an active subscription with OpenAI or another LLM provider, you can use [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) to run a local proxy server that routes requests through your existing subscription, without needing a separate API key.
 
 ### Basic DAW operations
@@ -282,12 +291,7 @@ OpenRouter is a platform that provides unified access to a wide range of languag
 3. Enter your API Key in **LLM Provider (OpenAI Compatible) → Key**.
 4. Browse available models on the [**OpenRouter Models Page**](https://openrouter.ai/models) and compare their pricing and capabilities.
    **Note:** Each model provider may have different data retention and privacy policies. Please review these policies before use.
-5. Enter your chosen model name in **LLM Provider (OpenAI Compatible) → Model**. Recommended model series include:
-    - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — best balance of quality and cost for the Claude series
-    - For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend:
-        - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
-        - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
-        - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
+5. Enter your chosen model name in **LLM Provider (OpenAI Compatible) → Model**. 
 6. Input the base URL `https://openrouter.ai/api/v1` **LLM Provider (OpenAI Compatible) → Base URL**.
 
 You can also browse the [OpenRouter Models Page](https://openrouter.ai/models) for currently available free models. Availability changes over time; K.G.Studio does not recommend specific free models for music editing.
@@ -407,32 +411,4 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - No patent applications using this software or assets
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
-Third‑party notices (FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, and demucs-web) are included in `LICENSE`.
-
-### AIRE MIDI expression
-
-Humanize MIDI regions in **AI Music Tools → Humanize**, opened from the
-piano-roll menu. AIRE generates editable CC1, CC2, CC7, or CC11 automation
-locally, preserving note timing and velocity. Enable a
-loop to process only its intersection with the region. Model downloads and cache
-management are available in **Settings → General → AIRE Settings**.
-
-Uses instrument-aire models by **xiaohan-tian / KGAudioLab**
-(https://huggingface.co/KGAudioLab). The encoder and models use MIT + Attribution
-Requirement; see [the retained license](src/util/aire/LICENSE). AIRE is inspired by
-[MID-FiLD](https://ojs.aaai.org/index.php/AAAI/article/view/27774), and its models
-were trained on filtered subsets of the
-[original MID-FiLD dataset](https://github.com/pozalabs/MID-FiLD).
-
-Inference uses one dedicated worker, trying WebGPU and falling back to
-single-thread WASM. Runtime assets are bundled for static hosting, including
-GitHub Pages; shared-memory threading and cross-origin isolation are not required.
-Custom model hosts must allow CORS. Cached models are local to the browser and
-site origin; clearing site data removes them. CC1's audible effect depends on the
-receiving instrument's controller mapping.
-
-To run the production AIRE browser check, use `npm run test:browser:aire` with
-the reference model repository alongside KGStudio, or set `AIRE_MODEL_DIR` to
-the directory containing the three model folders. The test serves the production
-build without isolation headers and covers reference parity, all three models,
-long overlapping windows, cancellation, and cache reuse.
+Third‑party notices (FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE, and demucs-web) are included in `LICENSE`.

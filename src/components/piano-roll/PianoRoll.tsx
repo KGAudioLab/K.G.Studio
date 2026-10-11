@@ -224,6 +224,26 @@ const PianoRoll: React.FC<PianoRollProps> = ({
     return null;
   }, [regionId, tracks]);
   const activeRegion = activeEditorRegion instanceof KGMidiRegion ? activeEditorRegion : null;
+  const selectRegionForTool = useCallback((region: KGRegion | null | undefined) => {
+    if (!region) return;
+
+    const core = KGCore.instance();
+    const selectedItems = core.getSelectedItems();
+    if (selectedItems.some(item => item.getId() === region.getId())) return;
+
+    selectedItems.forEach(item => item.deselect());
+    core.clearSelectedItems();
+    region.select();
+    core.addSelectedItem(region);
+  }, []);
+  const handleOpenHumanize = useCallback(() => {
+    selectRegionForTool(activeRegion);
+    openHumanizeTab();
+  }, [activeRegion, openHumanizeTab, selectRegionForTool]);
+  const handleOpenStemExtraction = useCallback(() => {
+    selectRegionForTool(audioRegion);
+    openStemExtractionTab();
+  }, [audioRegion, openStemExtractionTab, selectRegionForTool]);
   const [showTransposePopup, setShowTransposePopup] = useState(false);
   const transposePopupRegionId = activeRegion?.getId() ?? null;
 
@@ -1892,8 +1912,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
             ? handleIntelligentArpeggiator
             : undefined
         }
-        onStemExtraction={isAudioOnly && audioRegion && !sheetMusicViewEnabled ? openStemExtractionTab : undefined}
-        onHumanize={!isAudioOnly && !sheetMusicViewEnabled ? openHumanizeTab : undefined}
+        onStemExtraction={isAudioOnly && audioRegion && !sheetMusicViewEnabled ? handleOpenStemExtraction : undefined}
+        onHumanize={!isAudioOnly && !sheetMusicViewEnabled ? handleOpenHumanize : undefined}
         onTransposeSettings={
           activeRegion && parentMidiTrack instanceof KGMidiTrack && !sheetMusicViewEnabled
             ? () => setShowTransposePopup(true)

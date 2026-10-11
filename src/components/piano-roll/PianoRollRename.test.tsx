@@ -6,6 +6,11 @@ import { UpdateRegionCommand } from '../../core/commands';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { TrackType } from '../../core/track/KGTrack';
 import { createMockMidiRegion, createMockMidiTrack } from '../../test/utils/mock-data';
+import type { Selectable } from '../interfaces';
+
+let selectedItems: Selectable[] = [];
+const clearSelectedItemsMock = vi.fn(() => { selectedItems = []; });
+const addSelectedItemMock = vi.fn((item: Selectable) => { selectedItems.push(item); });
 
 const executeCommandMock = vi.fn((command: { execute?: () => void }) => {
   command.execute?.();
@@ -92,6 +97,7 @@ const storeState = {
   automationRedrawVersion: 0,
   refreshProjectState: vi.fn(),
   openHumanizeTab: vi.fn(),
+  openStemExtractionTab: vi.fn(),
   humanizeResult: null as { regionId: string; controller: number; version: number } | null,
   setBpm: vi.fn(),
   isLooping: false,
@@ -126,7 +132,9 @@ vi.mock('../../core/KGCore', () => ({
         setPianoRollZoom: vi.fn(),
         getTracks: () => storeState.tracks,
       }),
-      getSelectedItems: () => [],
+      getSelectedItems: () => selectedItems,
+      clearSelectedItems: clearSelectedItemsMock,
+      addSelectedItem: addSelectedItemMock,
       executeCommand: executeCommandMock,
     }),
   },
@@ -185,7 +193,7 @@ vi.mock('./PianoRollHeader', () => ({
 
 vi.mock('./NoteAttributeBar', () => ({ default: () => <div data-testid="note-attribute-bar" /> }));
 vi.mock('./PianoRollContent', () => ({ default: (props: { automationType: string; automationEnabled: boolean }) => <div data-testid="content" data-automation-type={props.automationType} data-automation-enabled={props.automationEnabled} /> }));
-vi.mock('./PianoRollToolbar', () => ({ default: (props: { onHumanize?: () => void }) => <div data-testid="toolbar"><button onClick={props.onHumanize}>Open Humanize</button></div> }));
+vi.mock('./PianoRollToolbar', () => ({ default: (props: { onHumanize?: () => void; onStemExtraction?: () => void }) => <div data-testid="toolbar"><button onClick={props.onHumanize}>Open Humanize</button><button onClick={props.onStemExtraction}>Open Stem Extraction</button></div> }));
 
 vi.mock('./chordGuideUtil', async () => {
   const actual = await vi.importActual<typeof import('./chordGuideUtil')>('./chordGuideUtil');
@@ -196,6 +204,49 @@ vi.mock('./chordGuideUtil', async () => {
       mode: 'ionian',
     })),
   };
+});
+
+beforeEach(() => {
+  selectedItems = [];
+  [midiRegion, secondMidiRegion, audioRegion].forEach(region => region.deselect());
+});
+
+describe('PianoRoll tool region selection', () => {
+  const tools = [
+    { label: 'Humanize', mode: 'midi-edit' as const, region: midiRegion, open: storeState.openHumanizeTab },
+    { label: 'Stem Extraction', mode: 'audio-waveform' as const, region: audioRegion, open: storeState.openStemExtractionTab },
+    { label: 'Stem Extraction', mode: 'spectrogram' as const, region: audioRegion, open: storeState.openStemExtractionTab },
+  ];
+
+  describe.each(tools)('$label in $mode', ({ label, mode, region, open }) => {
+    it.each(['empty', 'another region', 'target already selected'] as const)('opens with %s selection', selection => {
+      selectedItems = selection === 'empty' ? [] : selection === 'another region'
+        ? [secondMidiRegion] : [region, secondMidiRegion];
+      selectedItems.forEach(item => item.select());
+      const initialSelection = [...selectedItems];
+      open.mockImplementationOnce(() => {
+        expect(selectedItems).toEqual(selection === 'target already selected' ? initialSelection : [region]);
+        expect(region.isSelected()).toBe(true);
+      });
+
+      render(<PianoRoll onClose={vi.fn()} regionId={mode === 'midi-edit' ? region.getId() : null}
+        audioRegion={mode === 'midi-edit' ? undefined : audioRegion} mode={mode} />);
+      fireEvent.click(screen.getByRole('button', { name: `Open ${label}` }));
+
+      expect(open).toHaveBeenCalledOnce();
+      if (selection === 'target already selected') {
+        expect(clearSelectedItemsMock).not.toHaveBeenCalled();
+        expect(addSelectedItemMock).not.toHaveBeenCalled();
+        expect(secondMidiRegion.isSelected()).toBe(true);
+      } else {
+        expect(clearSelectedItemsMock).toHaveBeenCalledOnce();
+        expect(addSelectedItemMock).toHaveBeenCalledWith(region);
+        expect(clearSelectedItemsMock.mock.invocationCallOrder[0]).toBeLessThan(addSelectedItemMock.mock.invocationCallOrder[0]);
+        expect(addSelectedItemMock.mock.invocationCallOrder[0]).toBeLessThan(open.mock.invocationCallOrder[0]);
+        expect(secondMidiRegion.isSelected()).toBe(false);
+      }
+    });
+  });
 });
 
 describe('PianoRoll region renaming', () => {

@@ -110,7 +110,7 @@ describe('DuplicateTrackCommand', () => {
     source.setTrackIndex(0);
     source.setVolumeAutomation([new KGTrackAutomationPoint('volume-source', 1, -8)]);
     source.setRegions([
-      new KGAudioRegion('audio-source', '2', 0, 'Take 1', 4, 8, 'shared-file', 'take.wav', 12, 1.5),
+      new KGAudioRegion('audio-source', '2', 0, 'Take 1', 4, 8, 'shared-file', 'take.wav', 12, 1.5, 5.5),
     ]);
     const project = new KGProject('audio-duplicate');
     project.setTracks([source]);
@@ -129,6 +129,8 @@ describe('DuplicateTrackCommand', () => {
     expect(copiedRegion.getName()).toBe('Take 1');
     expect(copiedRegion.getAudioFileId()).toBe('shared-file');
     expect(copiedRegion.getClipStartOffsetSeconds()).toBe(1.5);
+    expect(copiedRegion.getClipEndOffsetSeconds()).toBe(5.5);
+    expect(copiedRegion.getPlayableDurationSeconds()).toBe(4);
     expect(audioInterface.createTrackAudioPlayerBus).not.toHaveBeenCalled();
   });
 });

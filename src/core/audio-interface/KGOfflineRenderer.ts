@@ -242,7 +242,7 @@ export class KGOfflineRenderer {
                 lengthTicks: region.getLengthTicks(),
                 audioFileId,
                 clipStartOffsetSeconds: audioRegion.getClipStartOffsetSeconds(),
-                audioDurationSeconds: audioRegion.getAudioDurationSeconds(),
+                audioDurationSeconds: audioRegion.getClipStartOffsetSeconds() + audioRegion.getPlayableDurationSeconds(),
                 rawBuffer,
               });
             }

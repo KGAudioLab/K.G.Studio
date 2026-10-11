@@ -14,9 +14,24 @@
 
 K.G.Studio 是一款轻量、现代化的 DAW，完全运行于浏览器中，并以 **K.G.Studio 音乐创作助手** 为核心。它提供基于 Tone.js sampler 的真实乐器回放、钢琴卷帘编辑器、支持完整撤销/重做的音轨与区域管理、基于 OPFS（Origin Private File System）的项目持久化、可配置的设置面板，以及可执行工具的内置 AI 助手。
 
-**K.G.Studio 音乐创作助手** 是一款具备项目感知能力的 AI 协同创作助手。它并不直接生成音频文件（如 WAV 格式），而是直接在结构化的音轨和音符层级进行操作——帮助您编写旋律、构建和弦进行以及编辑 MIDI 音符，同时将完整的控制权留给您，方便您后续轻松调整、微调和雕琢每一个音乐细节。
+<div align="center">
+  <img src="./docs/KGStudio-Demo-20261010.gif" alt="K.G.Studio 演示动画" width="640" />
+</div>
+
+**K.G.Studio 音乐创作助手** 帮助您通过自然语言创作旋律、构建和弦进行，以及编辑音轨和 MIDI 音符。您可以接入外部 LLM API，或使用内置的 **Gemma 4 E4B** 作为后备方案，借助 WebGPU 加速完全在浏览器中运行，无需 API Key。
+
+### AI 音乐工具
+
+这两项工具均可在支持的硬件上借助 **WebGPU 加速**，完全在浏览器内运行，MIDI 和音频处理均在本地完成。
+
+- **人性化** — 使用 [AIRE](https://huggingface.co/KGAudioLab/instrument-aire-models)，根据音乐角色和情绪为弦乐、铜管和木管生成富有表现力的 MIDI 控制器曲线。塑造调制、气息、音量或表情，同时保留音符的时序和力度。
+- **音轨分离** — 将音频分离为人声与伴奏，或人声、鼓、贝斯及其他乐器。试听分离结果，并直接导入编曲继续编辑。
 
 ## 最新更新
+
+- **2026.10.10**: 新增富有表现力的 MIDI 人性化功能，并扩展 AI Agent 编辑能力：
+  - **AIRE 人性化** — 借助 WebGPU 加速，完全在浏览器中为弦乐、铜管和木管生成可编辑的 MIDI 表现曲线。可选择音乐角色、情绪及目标控制器（CC1、CC2、CC7 或 CC11），并支持可选的力度条件输入和曲线简化。音符的时序和力度保持不变。
+  - **高级 Agent 模式** — 使用结构化 JSON 音乐工具和精确的 tick 时序进行细致的编曲编辑。助手可更新或删除音量、声像、弯音及 MIDI CC 自动化，并支持将批量控制点更新作为一次可撤销操作。结构化的音轨和乐器列表提供更丰富的项目上下文。
 
 - **2026.07.18**: 推出强大的 MIDI 编曲与编辑新工作流：
   - **灵活且感知调性的移调能力** — 可在音轨或区域层级独立设置移调，支持最高三个八度的升降，并可选择跟随调号变化。当项目调性或调号区域发生变化时，系统还可自动移调和弦轨内容，在整个编曲中保持一致的和声意图。
@@ -47,12 +62,6 @@ K.G.Studio 是一款轻量、现代化的 DAW，完全运行于浏览器中，�
   - 新增 **带自动对齐拍点的速度检测** 功能。您可以为音频区域打开钢琴卷帘窗口，然后在工具栏点击“...” -> **Detect Tempo**，分析音频 BPM，并可选择将项目中的 Tempo Track 区段自动重新对齐。
   - 新增 **Demucs 4S** 作为第二个本地浏览器内嵌分轨模型。现有的双 stem UVR-MDX-NET 模型之外，又加入了四 stem 的 `htdemucs_4s` 模型（约 172 MB，vocals / drums / bass / others），两者都可通过 ONNX Runtime WebGPU 完全在浏览器中运行。
 
-- **2026.05.15**: 新增 **浏览器内嵌 AI 模型**。现在有两个 AI 模型可完全在浏览器中运行，无需外部服务、无需 API Key，也无需 K.G.One 服务器。**K.G.Studio 音乐创作助手** 新增 **Local LLM (Browser)** 提供方，由 **Gemma 4 E4B** 驱动，并通过 LiteRT-LM 与 WebGPU 加速运行；模型只需下载一次，随后会缓存在 OPFS 中，后续启动几乎可即时使用，同时支持可配置的上下文长度（32 k / 64 k / 128 k tokens）与实时推理性能统计。**Stem separation** 也支持本地运行，基于浏览器内嵌的 **UVR-MDX-NET-Inst_HQ_3** ONNX 模型并使用 WebGPU 加速。您可以打开 **Music Generator** 面板（✦ 按钮），下载模型一次后，即可完全在本机将人声与伴奏分离。以上两项功能都要求浏览器支持 WebGPU（Chrome 113+ 或 Edge 113+）并运行在安全上下文中（HTTPS 或 localhost）。推荐硬件：至少 8 GB 显存的 GPU，或至少 16 GB 统一内存的系统。
-
-- **2026.05.10**: 新增 **五线谱视图**。钢琴卷帘现已支持完整的标准乐谱显示模式。您可以通过钢琴卷帘工具栏中的切换按钮在 Piano Roll 和 Sheet Music 视图之间切换。在五线谱模式下，音符会通过 VexFlow 排版，并支持基于当前乐器自动选择谱号（高音或低音）、显示调号、自动符杠分组、跨小节连音线，以及可配置的音值量化。启用 **Track Scope** 后，整条音轨上的所有 MIDI 区域会以连续谱面的形式显示，而不再局限于单个区域。
-
-- **2026.05.09**: 新增 **音频录音**。您现在可以直接从麦克风录制到音频轨。录音时会实时增长显示波形预览，停止后该录音会作为标准音频区域写入时间线。另新增 **音频 I/O 设备选择**，您可以在设置中选择偏好的麦克风输入设备和音频输出设备。
-
 查看完整版本历史，请参阅 [**发布说明**](./docs/RELEASE_NOTES.md)。
 
 ## 项目状态
@@ -73,7 +82,7 @@ K.G.Studio 是一款轻量、现代化的 DAW，完全运行于浏览器中，�
         <br><b>短演示（仅 DAW）</b>
       </td>
       <td align="center">
-        <a href="https://youtu.be/vKbWAQRt0r0" target="_blank">
+        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
           <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
         </a>
         <br><b>完整演示（仅 DAW）</b>
@@ -112,7 +121,7 @@ K.G.Studio 可以借助 WebGPU 加速，在浏览器中直接运行 **Gemma 4 E4
   - 在 **LLM 提供方（OpenAI 兼容） → 基础 URL** 中输入 `https://openrouter.ai/api/v1`。
 
 **提示：**
-- 您也可以使用官方 OpenAI API、其他 LLM 提供方（OpenAI 兼容），或自托管 LLM 服务器（如 Ollama、vLLM）。请注意，不同模型的质量差异较大，并非所有模型都同样适合音乐编辑任务。对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐：`qwen/qwen3.6-35b-a3b`、`google/gemma-4-26b-a4b-it` 或 `google/gemma-4-31b-it`。
+- 您也可以使用官方 OpenAI API、其他 LLM 提供方（OpenAI 兼容），或自托管 LLM 服务器（如 Ollama、vLLM）。请注意，不同模型的质量差异较大，并非所有模型都同样适合音乐编辑任务。对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐 GPT 6.1 Sol（截至 2026 年 10 月 10 日）。
 - 如果您已订阅 OpenAI 或其他 LLM 提供方，可以使用 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 运行一个本地代理服务器，通过现有订阅转发请求，而无需单独准备 API Key。
 
 ### 基本 DAW 操作
@@ -284,12 +293,7 @@ OpenRouter 是一个统一接入平台，可让您访问来自多个提供方的
 3. 在 **LLM 提供方（OpenAI 兼容） → 密钥** 中输入您的 API Key。
 4. 在 [**OpenRouter 模型页面**](https://openrouter.ai/models) 浏览可用模型，并比较其价格和功能。
    **注意：** 不同模型提供方的数据保留与隐私政策可能不同，请在使用前自行查看。
-5. 在 **LLM 提供方（OpenAI 兼容） → 模型** 中输入您所选的模型名。推荐系列包括：
-    - `Anthropic: Claude Sonnet 4.6` (`anthropic/claude-sonnet-4.6`: [Link](https://openrouter.ai/anthropic/claude-sonnet-4.6)) — Claude 系列中质量与成本平衡较好的选择
-    - 对于自托管/本地部署（需要约 24G 显存或 24-32GB 统一内存），我们推荐：
-        - `Qwen: Qwen3.6 35B A3B` (`qwen/qwen3.6-35b-a3b`: [Link](https://openrouter.ai/qwen/qwen3.6-35b-a3b))
-        - `Google: Gemma 4 26B A4B IT` (`google/gemma-4-26b-a4b-it`: [Link](https://openrouter.ai/google/gemma-4-26b-a4b-it))
-        - `Google: Gemma 4 31B IT` (`google/gemma-4-31b-it`: [Link](https://openrouter.ai/google/gemma-4-31b-it))
+5. 在 **LLM 提供方（OpenAI 兼容） → 模型** 中输入您所选的模型名。
 6. 在 **LLM 提供方（OpenAI 兼容） → 基础 URL** 中填写 `https://openrouter.ai/api/v1`。
 
 您也可以在 [OpenRouter 模型页面](https://openrouter.ai/models) 浏览当前可用的免费模型。可用性会随时间变化；K.G.Studio 不再推荐用于音乐编辑的特定免费模型。
@@ -411,4 +415,4 @@ K.G.Studio 不提供也不托管任何 LLM 模型，也不隶属于任何模型�
 - 不得使用本软件或相关素材申请专利
 - 当用于公开或商业产品时需要署名（“Powered by K.G.Studio”）
 
-第三方声明（FluidR3_GM SoundFont、midi-js-soundfonts、VexFlow、prompt structure notes、Gemma 4 E4B、UVR-MDX-NET-Inst_HQ_3、MediaPipe、Meyda、web-audio-beat-detector、tonal、htdemucs_4s、onnxruntime-web 和 demucs-web）已包含在 `LICENSE` 中。
+第三方声明（FluidR3_GM SoundFont、midi-js-soundfonts、VexFlow、prompt structure notes、Gemma 4 E4B、UVR-MDX-NET-Inst_HQ_3、MediaPipe、Meyda、web-audio-beat-detector、tonal、htdemucs_4s、onnxruntime-web、AIRE 和 demucs-web）已包含在 `LICENSE` 中。
