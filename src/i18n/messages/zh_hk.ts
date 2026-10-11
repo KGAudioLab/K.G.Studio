@@ -688,6 +688,7 @@ export const zhHkMessages: TranslationMessages = {
   'track.duplicate.title': '複製音軌',
   'track.duplicate.message': '請選擇要包含在複製音軌中的內容。',
   'track.duplicate.trackSettings': '音軌設定',
+  'track.duplicate.fxChain': '效果器鏈',
   'track.duplicate.automation': '自動化',
   'track.duplicate.regions': '區域',
   'track.duplicate.noRegions': '此音軌沒有區域。',

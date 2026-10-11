@@ -688,6 +688,7 @@ export const zhCnMessages: TranslationMessages = {
   'track.duplicate.title': '复制轨道',
   'track.duplicate.message': '请选择要包含在复制轨道中的内容。',
   'track.duplicate.trackSettings': '轨道设置',
+  'track.duplicate.fxChain': '效果器链',
   'track.duplicate.automation': '自动化',
   'track.duplicate.regions': '区域',
   'track.duplicate.noRegions': '此轨道没有区域。',

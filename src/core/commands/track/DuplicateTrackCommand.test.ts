@@ -66,7 +66,7 @@ describe('DuplicateTrackCommand', () => {
     project.setTracks([source, tail]);
     vi.spyOn(KGCore, 'instance').mockReturnValue({ getCurrentProject: () => project } as unknown as KGCore);
 
-    const command = new DuplicateTrackCommand(4, { includeAutomation: true, includeRegions: true }, setSelectedTrack);
+    const command = new DuplicateTrackCommand(4, { includeFX: true, includeAutomation: true, includeRegions: true }, setSelectedTrack);
     command.execute();
 
     expect(project.getTracks().map(track => track.getName())).toEqual(['Lead', 'Lead (1)', 'Tail']);
@@ -124,13 +124,13 @@ describe('DuplicateTrackCommand', () => {
     project.setTracks([source]);
     vi.spyOn(KGCore, 'instance').mockReturnValue({ getCurrentProject: () => project } as unknown as KGCore);
 
-    const withoutContent = new DuplicateTrackCommand(2, { includeAutomation: false, includeRegions: false }, setSelectedTrack);
+    const withoutContent = new DuplicateTrackCommand(2, { includeFX: true, includeAutomation: false, includeRegions: false }, setSelectedTrack);
     withoutContent.execute();
     expect(withoutContent.getDuplicateTrack()?.getRegions()).toEqual([]);
     expect(withoutContent.getDuplicateTrack()?.getVolumeAutomation()).toEqual([]);
     withoutContent.undo();
 
-    const withRegions = new DuplicateTrackCommand(2, { includeAutomation: false, includeRegions: true }, setSelectedTrack);
+    const withRegions = new DuplicateTrackCommand(2, { includeFX: true, includeAutomation: false, includeRegions: true }, setSelectedTrack);
     withRegions.execute();
     const copiedRegion = (withRegions.getDuplicateTrack() as KGAudioTrack).getRegions()[0];
     expect(copiedRegion.getId()).not.toBe('audio-source');
@@ -140,5 +140,34 @@ describe('DuplicateTrackCommand', () => {
     expect(copiedRegion.getClipEndOffsetSeconds()).toBe(5.5);
     expect(copiedRegion.getPlayableDurationSeconds()).toBe(4);
     expect(audioInterface.createTrackAudioPlayerBus).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('optional FX chain duplication', () => {
+  it.each([['MIDI', true], ['MIDI', false], ['audio', true], ['audio', false]] as const)('%s track with FX included: %s', (type, includeFX) => {
+    const source = type === 'MIDI' ? new KGMidiTrack('Source', 1) : new KGAudioTrack('Source', 1);
+    const reverb = new KGReverbFX('spring', .63); reverb.setEnabled(false);
+    source.setFX([new KGEQFX(), reverb, new KGEQFX()]);
+    const project = new KGProject('Optional FX'); project.setTracks([source]);
+    vi.spyOn(KGCore, 'instance').mockReturnValue({ getCurrentProject: () => project } as unknown as KGCore);
+    vi.spyOn(KGAudioInterface, 'instance').mockReturnValue({ createTrackSynth: vi.fn(), createTrackAudioPlayerBus: vi.fn(), removeTrackSynth: vi.fn(), removeTrackAudioPlayerBus: vi.fn() } as unknown as KGAudioInterface);
+    try {
+      const command = new DuplicateTrackCommand(1, { includeFX, includeAutomation: false, includeRegions: false });
+      command.execute();
+      const duplicate = command.getDuplicateTrack()!;
+      expect(duplicate.getFX().map(effect => effect.getType())).toEqual(includeFX ? ['eq', 'reverb', 'eq'] : []);
+      if (includeFX) {
+        duplicate.getFX().forEach((effect, index) => expect(effect.getId()).not.toBe(source.getFX()[index].getId()));
+        expect(duplicate.getFX()[1].getEnabled()).toBe(false);
+        expect((duplicate.getFX()[1] as KGReverbFX).getWet()).toBe(.63);
+        (duplicate.getFX()[1] as KGReverbFX).setWet(.2);
+        expect((source.getFX()[1] as KGReverbFX).getWet()).toBe(.63);
+      }
+      command.undo(); expect(project.getTracks()).toEqual([source]);
+      command.execute(); expect(command.getDuplicateTrack()).toBe(duplicate);
+      expect(duplicate.getFX()).toHaveLength(includeFX ? 3 : 0);
+      expect(source.getFX()).toHaveLength(3);
+    } finally { vi.restoreAllMocks(); }
   });
 });

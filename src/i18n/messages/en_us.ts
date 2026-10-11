@@ -690,6 +690,7 @@ export const enUsMessages: TranslationMessages = {
   'track.duplicate.title': 'Duplicate Track',
   'track.duplicate.message': 'Choose what you\u2019d like to include in the duplicated track.',
   'track.duplicate.trackSettings': 'Track Settings',
+  'track.duplicate.fxChain': 'FX Chain',
   'track.duplicate.automation': 'Automation',
   'track.duplicate.regions': 'Regions',
   'track.duplicate.noRegions': 'This track has no regions.',

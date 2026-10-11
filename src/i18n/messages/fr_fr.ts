@@ -574,6 +574,7 @@ export const frFrMessages: TranslationMessages = {
   'track.duplicate.title': 'Dupliquer la piste',
   'track.duplicate.message': 'Choisissez les éléments à inclure dans la piste dupliquée.',
   'track.duplicate.trackSettings': 'Réglages de la piste',
+  'track.duplicate.fxChain': 'Chaîne d’effets',
   'track.duplicate.automation': 'Automatisation',
   'track.duplicate.regions': 'Régions',
   'track.duplicate.noRegions': 'Cette piste ne contient aucune région.',

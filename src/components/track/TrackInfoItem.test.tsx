@@ -237,6 +237,7 @@ describe('TrackInfoItem audio import', () => {
     fireEvent.click(screen.getByRole('button', { name: '复制' }));
 
     expect(storeState.duplicateTrack).toHaveBeenCalledWith(1, {
+      includeFX: true,
       includeAutomation: true,
       includeRegions: true,
     });
