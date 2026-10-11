@@ -1,3 +1,5 @@
+import type { LimiterLevel } from './limiterPeakMonitor';
+import type { KGFX } from '../fx';
 import type { KGProject } from '../KGProject';
 import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
@@ -262,6 +264,11 @@ export class KGAudioInterface {
       const initialSolo = track ? track.getSolo() : false;
       const audioBus = await KGAudioBus.create(instrumentType, initialVolume, track ? track.getPan() : 0, initialMuted, initialSolo);
       
+      audioBus.setFX(track?.getFX() ?? [], false);
+      // Finish initial IR loading before making a restored track playable.
+      // An unavailable IR keeps the bus dry; exports report the failure instead.
+      await audioBus.whenFXReady().catch(error => console.error('MIDI track FX not ready:', error));
+
       // Connect to master gain if available, otherwise to destination
       if (this.masterGain) {
         audioBus.connect(this.masterGain);
@@ -318,6 +325,9 @@ export class KGAudioInterface {
       const initialMuted = track ? track.getMuted() : false;
       const initialSolo = track ? track.getSolo() : false;
       const playerBus = await KGAudioPlayerBus.create(volume, track ? track.getPan() : 0, initialMuted, initialSolo);
+
+      playerBus.setFX(track?.getFX() ?? [], false);
+      await playerBus.whenFXReady().catch(error => console.error('Audio track FX not ready:', error));
 
       if (this.masterGain) {
         playerBus.connect(this.masterGain);
@@ -1314,6 +1324,26 @@ export class KGAudioInterface {
     } catch (error) {
       console.error(`Error setting track ${trackId} volume:`, error);
     }
+  }
+
+  public async openCompressorMonitor(trackId: string, effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) {
+    const bus = this.trackAudioPlayerBuses.get(trackId) ?? this.trackAudioBuses.get(trackId);
+    return bus?.openCompressorMonitor(effectId, fps, onLevel) ?? null;
+  }
+
+  public async openLimiterMonitor(trackId: string, effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) {
+    const bus = this.trackAudioPlayerBuses.get(trackId) ?? this.trackAudioBuses.get(trackId);
+    return bus?.openLimiterMonitor(effectId, fps, onLevel) ?? null;
+  }
+
+  public openEQSpectrum(trackId: string, effectId: number, fftSize: number) {
+    const bus = this.trackAudioPlayerBuses.get(trackId) ?? this.trackAudioBuses.get(trackId);
+    return bus?.openEQSpectrum(effectId, fftSize) ?? null;
+  }
+
+  public setTrackFX(trackId: string, effects: readonly KGFX[]): void {
+    this.trackAudioBuses.get(trackId)?.setFX(effects);
+    this.trackAudioPlayerBuses.get(trackId)?.setFX(effects);
   }
 
   public setTrackPan(trackId: string, pan: number): void {

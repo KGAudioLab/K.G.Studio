@@ -1,3 +1,6 @@
+import type { LimiterLevel } from './limiterPeakMonitor';
+import { KGTrackFXChain } from './KGTrackFXChain';
+import type { KGFX } from '../fx';
 import * as Tone from 'tone';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { createStereoTrackPanner } from './createStereoTrackPanner';
@@ -27,9 +30,15 @@ export class KGAudioPlayerBus {
   private muted: boolean;
   private solo: boolean;
 
-  /**
-   * Private constructor - use KGAudioPlayerBus.create() instead
-   */
+  private readonly fxChain = new KGTrackFXChain();
+
+  public setFX(effects: readonly KGFX[], smooth = true): void { this.fxChain.sync(effects, smooth); }
+  public openCompressorMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) { return this.fxChain.openCompressorMonitor(effectId, fps, onLevel); }
+  public openLimiterMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) { return this.fxChain.openLimiterMonitor(effectId, fps, onLevel); }
+  public openEQSpectrum(effectId: number, fftSize: number) { return this.fxChain.openEQSpectrum(effectId, fftSize); }
+  public whenFXReady(): Promise<void> { return this.fxChain.whenReady(); }
+
+  /** Private constructor — use create() instead. */
   private constructor(
     gainNode: Tone.Gain,
     pannerNode: Tone.Panner,
@@ -40,6 +49,7 @@ export class KGAudioPlayerBus {
   ) {
     this.gainNode = gainNode;
     this.pannerNode = pannerNode;
+    this.pannerNode.connect(this.fxChain.input);
     this.volume = volume;
     this.pan = pan;
     this.muted = muted;
@@ -265,7 +275,7 @@ export class KGAudioPlayerBus {
 
   public connect(destination: Tone.InputNode): void {
     try {
-      this.pannerNode.connect(destination);
+      this.fxChain.output.connect(destination);
       console.log('Connected audio player bus to destination');
     } catch (error) {
       console.error('Error connecting audio player bus:', error);
@@ -274,7 +284,7 @@ export class KGAudioPlayerBus {
 
   public disconnect(): void {
     try {
-      this.pannerNode.disconnect();
+      this.fxChain.output.disconnect();
       console.log('Disconnected audio player bus');
     } catch (error) {
       console.error('Error disconnecting audio player bus:', error);
@@ -292,6 +302,7 @@ export class KGAudioPlayerBus {
       this.audioBuffers.clear();
       this.gainNode.dispose();
       this.pannerNode.dispose();
+      this.fxChain.dispose();
       console.log('Disposed KGAudioPlayerBus');
     } catch (error) {
       console.error('Error disposing KGAudioPlayerBus:', error);

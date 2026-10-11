@@ -4,6 +4,15 @@ This file contains the complete release history of K.G.Studio. For a summary of 
 
 ---
 
+- **2026.10.11**: Introduced track FX for sound shaping and mixing:
+  - **Flexible effect chains** — add EQ, Reverb, Compressor, and Limiter to MIDI and audio tracks, with adjustable parameters, effect bypass, drag-and-drop reordering, and full undo/redo support.
+  - **Real-time visual feedback** — shape EQ with an interactive response curve and live spectrum, and monitor compressor and limiter levels and gain reduction during playback.
+  - **Reusable FX settings** — save and load effect-chain presets, copy individual effects between tracks, and include FX when duplicating tracks. Effect settings are saved with your project.
+
+<div align="center">
+  <img src="./KGStudio-FX-Demo-20261011.gif" alt="K.G.Studio track FX demo animation" width="640" />
+</div>
+
 - **2026.10.10**: Added expressive MIDI humanization and expanded AI agent editing:
   - **AIRE Humanization** — generate editable MIDI expression for strings, brass, and woodwinds entirely in your browser with WebGPU acceleration. Choose musical role, mood, and target controller (CC1, CC2, CC7, or CC11), with optional velocity conditioning and curve simplification. Note timing and velocities are preserved.
   - **Advanced Agent Mode** — use structured JSON music tools and precise tick-based timing for detailed arrangement editing. The assistant can update or remove volume, pan, pitch-bend, and MIDI CC automation, including bulk keypoint updates as a single undoable operation. Structured track and instrument listings provide richer project context.

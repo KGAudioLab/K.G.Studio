@@ -2,6 +2,7 @@ import type { ChordGuideCustomConfig } from '../ChordGuideTypes';
 import { KGConfigStorage } from '../io/KGConfigStorage';
 import type { LanguageSetting } from '../../i18n/types';
 import type { AgentMode } from '../../util/agentMode';
+import type { FXDefaults } from '../fx/fxDefaults';
 
 /**
  * Application configuration interface
@@ -100,6 +101,12 @@ interface AppConfig {
     output_device_id: string;
     playback_delay: number;
     recording_offset: number;
+    fx_visual?: {
+      eq?: { fps?: number; fft_size?: number };
+      compressor?: { fps?: number; history_seconds?: number; min_db?: number; max_db?: number; reduction_range_db?: number };
+      limiter?: { fps?: number; history_seconds?: number; min_db?: number; max_db?: number };
+    };
+    fx_defaults?: FXDefaults;
   };
   templates: {
     custom_instructions: string;

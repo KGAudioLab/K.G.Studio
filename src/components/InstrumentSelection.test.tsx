@@ -17,7 +17,7 @@ const storeState = {
 };
 
 vi.mock('../stores/projectStore', () => ({
-  useProjectStore: () => storeState,
+  useProjectStore: (selector?: (state: typeof storeState) => unknown) => selector ? selector(storeState) : storeState,
 }));
 
 function renderWithLocale(resolvedLocale: ResolvedLocaleCode) {

@@ -14,11 +14,11 @@ English | [Français](./README-fr.md) | [简体中文](./README-zh_cn.md) | [繁
 
 K.G.Studio is a lightweight, modern DAW that runs entirely in the browser with **K.G.Studio Musician Assistant** at its core. It features realistic instrument playback via Tone.js samplers, a piano‑roll editor, track and region management with full undo/redo, project persistence to OPFS (Origin Private File System), a configurable settings panel, and an integrated AI assistant with tool execution.
 
+**K.G.Studio Musician Assistant** helps you compose melodies, build chord progressions, and edit tracks and MIDI notes through natural language. Connect external LLM APIs, or use the built-in **Gemma 4 E4B** fallback, which runs entirely in your browser with WebGPU acceleration—no API key required.
+
 <div align="center">
   <img src="./docs/KGStudio-Demo-20261010.gif" alt="K.G.Studio demo animation" width="640" />
 </div>
-
-**K.G.Studio Musician Assistant** helps you compose melodies, build chord progressions, and edit tracks and MIDI notes through natural language. Connect external LLM APIs, or use the built-in **Gemma 4 E4B** fallback, which runs entirely in your browser with WebGPU acceleration—no API key required.
 
 ### AI Music Tools
 
@@ -28,6 +28,15 @@ Both tools run entirely inside your browser with **WebGPU acceleration** on supp
 - **Stem Extraction** — Separate audio into vocals and instruments, or vocals, drums, bass, and other instruments. Preview the extracted stems and import them directly into your arrangement for further editing.
 
 ## Latest Updates
+
+- **2026.10.11**: Introduced track FX for sound shaping and mixing:
+  - **Flexible effect chains** — add EQ, Reverb, Compressor, and Limiter to MIDI and audio tracks, with adjustable parameters, effect bypass, drag-and-drop reordering, and full undo/redo support.
+  - **Real-time visual feedback** — shape EQ with an interactive response curve and live spectrum, and monitor compressor and limiter levels and gain reduction during playback.
+  - **Reusable FX settings** — save and load effect-chain presets, copy individual effects between tracks, and include FX when duplicating tracks. Effect settings are saved with your project.
+
+<div align="center">
+  <img src="./docs/KGStudio-FX-Demo-20261011.gif" alt="K.G.Studio track FX demo animation" width="420" />
+</div>
 
 - **2026.10.10**: Added expressive MIDI humanization and expanded AI agent editing:
   - **AIRE Humanization** — generate editable MIDI expression for strings, brass, and woodwinds entirely in your browser with WebGPU acceleration. Choose musical role, mood, and target controller (CC1, CC2, CC7, or CC11), with optional velocity conditioning and curve simplification. Note timing and velocities are preserved.
@@ -411,4 +420,4 @@ Licensed under the Apache License, Version 2.0, with additional terms (see `LICE
 - No patent applications using this software or assets
 - Attribution required when used in public/commercial products (“Powered by K.G.Studio”)  
 
-Third‑party notices (FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE, and demucs-web) are included in `LICENSE`.
+Third‑party notices (FluidR3_GM SoundFont, midi‑js‑soundfonts, VexFlow, Hopkins Media Services, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE, and demucs-web) are included in `LICENSE`.

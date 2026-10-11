@@ -1,3 +1,4 @@
+import { createDefaultFXChain } from '../../fx/defaultFXChain';
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGMidiTrack, type InstrumentType } from '../../track/KGMidiTrack';
@@ -55,6 +56,7 @@ export class AddTrackCommand extends KGCommand {
     
     // Create a new MIDI track
     this.createdTrack = new KGMidiTrack(this.trackName, this.trackId);
+    this.createdTrack.setFX(createDefaultFXChain());
     this.createdTrack.setTrackIndex(this.trackIndex);
     this.createdTrack.setInstrument(this.instrument);
     

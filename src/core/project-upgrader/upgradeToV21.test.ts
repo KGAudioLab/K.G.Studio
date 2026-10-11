@@ -19,7 +19,7 @@ describe('base track pan persistence and v21 migration', () => {
     const expected = typeof pan === 'number' && Number.isFinite(pan) && pan >= -1 && pan <= 1 ? pan : 0;
     expect(restored.getTracks()[0].getPan()).toBe(expected);
     expect(restored.getTracks()[0].getPanAutomation()[0].getValue()).toBe(0.5);
-    expect(restored.getProjectStructureVersion()).toBe(21);
+    expect(restored.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     upgradeProjectToLatest(restored);
     expect(restored.getTracks()[0].getPan()).toBe(expected);
   });

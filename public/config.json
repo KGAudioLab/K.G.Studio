@@ -92,7 +92,63 @@
         "midi_automation_interpolation_interval_ms": 10,
         "output_device_id": "default",
         "playback_delay": 0.2,
-        "recording_offset": 0
+        "recording_offset": 0,
+        "fx_visual": {
+            "eq": {
+                "fps": 10,
+                "fft_size": 2048
+            },
+            "limiter": {
+                "fps": 10,
+                "history_seconds": 8,
+                "min_db": -100,
+                "max_db": 0
+            },
+            "compressor": {
+                "fps": 10,
+                "history_seconds": 8,
+                "min_db": -100,
+                "max_db": 0,
+                "reduction_range_db": 30
+            }
+        },
+        "fx_defaults": {
+            "enabled": true,
+            "eq": {
+                "bands": [
+                    {
+                        "frequencyHz": 100,
+                        "q": 0.7,
+                        "gainDb": 0
+                    },
+                    {
+                        "frequencyHz": 1000,
+                        "q": 0.7,
+                        "gainDb": 0
+                    },
+                    {
+                        "frequencyHz": 10000,
+                        "q": 0.7,
+                        "gainDb": 0
+                    }
+                ]
+            },
+            "reverb": {
+                "reverbType": "chamber",
+                "wet": 0.33
+            },
+            "compressor": {
+                "thresholdDb": -20,
+                "ratio": 4,
+                "attackMs": 10,
+                "releaseMs": 100,
+                "gainDb": 0
+            },
+            "limiter": {
+                "inputGainDb": 0,
+                "thresholdDb": -1
+            }
+        }
     },
     "templates": {
         "custom_instructions": ""

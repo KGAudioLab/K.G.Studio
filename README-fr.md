@@ -14,11 +14,11 @@
 
 K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le navigateur, avec **K.G.Studio Musician Assistant** en son cœur. Il propose une lecture réaliste des instruments via les samplers Tone.js, un éditeur piano roll, une gestion des pistes et des régions avec annulation/rétablissement complets, la persistance des projets dans OPFS (Origin Private File System), un panneau de configuration personnalisable, et un assistant IA intégré avec exécution d'outils.
 
+**K.G.Studio Musician Assistant** vous aide à composer des mélodies, construire des progressions d’accords et éditer des pistes et des notes MIDI en langage naturel. Connectez des API LLM externes, ou utilisez **Gemma 4 E4B** comme solution de repli intégrée, entièrement exécutée dans votre navigateur avec l’accélération WebGPU, sans clé API.
+
 <div align="center">
   <img src="./docs/KGStudio-Demo-20261010.gif" alt="Animation de démonstration de K.G.Studio" width="640" />
 </div>
-
-**K.G.Studio Musician Assistant** vous aide à composer des mélodies, construire des progressions d’accords et éditer des pistes et des notes MIDI en langage naturel. Connectez des API LLM externes, ou utilisez **Gemma 4 E4B** comme solution de repli intégrée, entièrement exécutée dans votre navigateur avec l’accélération WebGPU, sans clé API.
 
 ### Outils musicaux IA
 
@@ -28,6 +28,15 @@ Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accé
 - **Extraction de stems** — Séparez l’audio en voix et instruments, ou en voix, batterie, basse et autres instruments. Écoutez les stems extraits et importez-les directement dans votre arrangement pour poursuivre l’édition.
 
 ## Dernières mises à jour
+
+- **2026.10.11** : introduction des effets de piste (FX) pour façonner le son et mixer :
+  - **Chaînes d’effets flexibles** — ajoutez un égaliseur (EQ), une réverbération, un compresseur et un limiteur aux pistes MIDI et audio, avec des paramètres réglables, le bypass des effets, la réorganisation par glisser-déposer et une prise en charge complète de l’annulation et du rétablissement.
+  - **Visualisation en temps réel** — ajustez l’égaliseur avec une courbe de réponse interactive et un spectre en direct, et suivez les niveaux et la réduction de gain du compresseur et du limiteur pendant la lecture.
+  - **Réglages FX réutilisables** — enregistrez et chargez des préréglages de chaînes d’effets, copiez des effets individuels entre les pistes et incluez les FX lors de la duplication de pistes. Les réglages des effets sont enregistrés avec votre projet.
+
+<div align="center">
+  <img src="./docs/KGStudio-FX-Demo-20261011.gif" alt="Animation de démonstration des effets de piste de K.G.Studio" width="420" />
+</div>
 
 - **2026.10.10** : ajout de l’humanisation expressive MIDI et de nouvelles capacités d’édition pour l’agent IA :
   - **Humanisation AIRE** — générez des courbes d’expression MIDI éditables pour les cordes, les cuivres et les bois, entièrement dans votre navigateur avec l’accélération WebGPU. Choisissez le rôle musical, l’ambiance et le contrôleur cible (CC1, CC2, CC7 ou CC11), avec un conditionnement optionnel par la vélocité et une simplification des courbes. Le placement temporel et la vélocité des notes sont préservés.
@@ -413,4 +422,4 @@ Ce projet est distribué sous Apache License, Version 2.0, avec des conditions s
 - Aucune demande de brevet à partir de ce logiciel ou de ses ressources
 - Attribution requise en cas d'utilisation dans des produits publics/commerciaux (« Powered by K.G.Studio »)
 
-Les notices tierces (FluidR3_GM SoundFont, midi-js-soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE et demucs-web) sont incluses dans `LICENSE`.
+Les notices tierces (FluidR3_GM SoundFont, midi-js-soundfonts, VexFlow, Hopkins Media Services, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE et demucs-web) sont incluses dans `LICENSE`.

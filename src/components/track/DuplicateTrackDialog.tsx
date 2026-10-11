@@ -13,6 +13,7 @@ interface DuplicateTrackDialogProps {
 }
 
 const DEFAULT_OPTIONS: DuplicateTrackOptions = {
+  includeFX: true,
   includeAutomation: false,
   includeRegions: false,
 };
@@ -66,6 +67,14 @@ const DuplicateTrackDialog: React.FC<DuplicateTrackDialogProps> = ({
             <label className="dialog-checkbox-row">
               <input type="checkbox" checked={true} disabled={true} readOnly={true} />
               <span>{t('track.duplicate.trackSettings')}</span>
+            </label>
+            <label className="dialog-checkbox-row">
+              <input
+                type="checkbox"
+                checked={options.includeFX}
+                onChange={event => setOptions(current => ({ ...current, includeFX: event.target.checked }))}
+              />
+              <span>{t('track.duplicate.fxChain')}</span>
             </label>
             <label className="dialog-checkbox-row">
               <input

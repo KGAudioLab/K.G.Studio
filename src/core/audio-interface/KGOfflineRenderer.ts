@@ -1,3 +1,6 @@
+import { KGTrackFXChain } from './KGTrackFXChain';
+import { getReverbTailSeconds } from './reverbPresets';
+import type { KGFX } from '../fx';
 import * as Tone from 'tone';
 import type { KGProject } from '../KGProject';
 import type { KGMidiNote } from '../midi/KGMidiNote';
@@ -93,7 +96,7 @@ export class KGOfflineRenderer {
   public async renderToBuffer(project: KGProject, options?: RenderOptions): Promise<Tone.ToneAudioBuffer> {
     const sampleRate = options?.sampleRate ?? 44100;
     const channels = options?.channels ?? 2;
-    const tailSeconds = options?.tailSeconds ?? 2;
+    const requestedTailSeconds = options?.tailSeconds ?? 2;
 
     // Calculate render duration in seconds
     const bpm = getEffectiveBpmAtTick(project, 0);
@@ -126,6 +129,7 @@ export class KGOfflineRenderer {
     // Pre-collect all the data we need before entering the offline context
     const midiTrackData: Array<{
       trackId: string;
+      fx: KGFX[];
       instrumentName: InstrumentType;
       volume: number;
       muted: boolean;
@@ -143,6 +147,7 @@ export class KGOfflineRenderer {
 
     const audioTrackData: Array<{
       trackId: string;
+      fx: KGFX[];
       volume: number;
       muted: boolean;
       solo: boolean;
@@ -223,7 +228,7 @@ export class KGOfflineRenderer {
 
         const volumeAutomation = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
         const panAutomation = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
-        midiTrackData.push({ trackId, instrumentName, volume, muted, solo, volumeAutomation, panAutomation, regions, pitchBends, controllerEventsByType });
+        midiTrackData.push({ fx: track.getFX().map(effect => effect.clone()), trackId, instrumentName, volume, muted, solo, volumeAutomation, panAutomation, regions, pitchBends, controllerEventsByType });
       } else if (track.getType() === 'Wave') {
         const volume = audioInterface.getTrackVolume(trackId);
         const muted = audioInterface.getTrackMuted(trackId);
@@ -251,7 +256,7 @@ export class KGOfflineRenderer {
 
         const volumeAutomation = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
         const panAutomation = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
-        audioTrackData.push({ trackId, volume, muted, solo, volumeAutomation, panAutomation, regions });
+        audioTrackData.push({ fx: track.getFX().map(effect => effect.clone()), trackId, volume, muted, solo, volumeAutomation, panAutomation, regions });
       }
     }
 
@@ -284,11 +289,17 @@ export class KGOfflineRenderer {
       // else: no content found, keep the full project range as fallback
     }
 
-    const durationSeconds = tickRangeToSeconds(project, renderStartTick, renderEndTick) + tailSeconds;
+    // Include serial reverb tails after the existing source-release allowance.
+    const reverbTailSeconds = Math.max(0, ...[...midiTrackData, ...audioTrackData]
+      .filter(track => shouldPlay(track, hasSoloedTracks) && (hasSoloedTracks || !track.muted))
+      .map(track => getReverbTailSeconds(track.fx)));
+    const durationSeconds = tickRangeToSeconds(project, renderStartTick, renderEndTick)
+      + requestedTailSeconds + reverbTailSeconds;
 
     console.log(`Offline render: ${durationSeconds}s (beats ${renderStartTick}-${renderEndTick}), ${sampleRate}Hz, ${channels}ch`);
 
     // Run offline render
+    const fxChains: KGTrackFXChain[] = [];
     const buffer = await Tone.Offline(async (context) => {
       // Master gain routed to offline destination
       const masterGain = new Tone.Gain(1).toDestination();
@@ -339,7 +350,11 @@ export class KGOfflineRenderer {
             const trackPanner = createStereoTrackPanner(0);
             sampler.connect(trackGain);
             trackGain.connect(trackPanner);
-            trackPanner.connect(masterGain);
+            const fxChain = new KGTrackFXChain();
+            fxChains.push(fxChain);
+            fxChain.sync(trackInfo.fx, false);
+            trackPanner.connect(fxChain.input);
+            fxChain.output.connect(masterGain);
             applyOfflineTrackAutomation(
               trackGain,
               trackPanner,
@@ -447,7 +462,11 @@ export class KGOfflineRenderer {
         const trackGain = new Tone.Gain(getOfflineTrackGain(trackInfo.volume, !hasSoloedTracks && trackInfo.muted));
         const trackPanner = createStereoTrackPanner(0);
         trackGain.connect(trackPanner);
-        trackPanner.connect(masterGain);
+        const fxChain = new KGTrackFXChain();
+        fxChains.push(fxChain);
+        fxChain.sync(trackInfo.fx, false);
+        trackPanner.connect(fxChain.input);
+        fxChain.output.connect(masterGain);
         applyOfflineTrackAutomation(
           trackGain,
           trackPanner,
@@ -495,10 +514,13 @@ export class KGOfflineRenderer {
 
       // Wait for all samplers to load
       await Promise.all(samplerPromises);
+      await Promise.all(fxChains.map(chain => chain.whenReady()));
 
       // Start offline transport
       context.transport.start(0);
-    }, durationSeconds, channels, sampleRate);
+    }, durationSeconds, channels, sampleRate).finally(() => {
+      fxChains.forEach(chain => chain.dispose());
+    });
 
     console.log(`Offline render complete: ${buffer.duration}s, ${buffer.numberOfChannels}ch`);
     return buffer;

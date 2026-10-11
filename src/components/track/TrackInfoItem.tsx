@@ -86,6 +86,7 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
   const activeTrackAutomationTrackId = useProjectStore(state => state.activeTrackAutomationTrackId);
   const activeTrackAutomationType = useProjectStore(state => state.activeTrackAutomationType);
   const setTrackAutomationView = useProjectStore(state => state.setTrackAutomationView);
+  const openInstrumentSelectionForTrack = useProjectStore(state => state.openInstrumentSelectionForTrack);
   const isSelected = selectedTrackId === track.getId().toString();
   // Inline instrument dropdown removed; use InstrumentSelection panel instead
   
@@ -615,6 +616,19 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
               />
             </div>
           </div>
+          <button
+            type="button"
+            className="fx"
+            title={t('track.controls.fxButton')}
+            aria-label={t('track.controls.fxButton')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTrack(track.getId().toString());
+              openInstrumentSelectionForTrack('fx');
+            }}
+          >
+            {t('instrumentSelection.tab.fx')}
+          </button>
           <div>
             {isAudioTrack ? (
               <button className="instrument" onClick={handleAudioImportClick} title="Import Audio">

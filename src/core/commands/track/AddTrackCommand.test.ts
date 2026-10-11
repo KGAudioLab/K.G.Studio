@@ -29,6 +29,7 @@ describe('AddTrackCommand', () => {
     const command = new AddTrackCommand(undefined, 'Pad', 'string_ensemble_1');
     command.execute();
 
+    expect(command.getCreatedTrack()?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
     const tracks = project.getTracks();
     expect(tracks.map(track => track.getName())).toEqual(['Lead', 'Bass', 'Pad']);
     expect(tracks.map(track => track.getTrackIndex())).toEqual([0, 1, 2]);
@@ -50,6 +51,7 @@ describe('AddTrackCommand', () => {
     const command = new AddTrackCommand(undefined, 'Pad', 'string_ensemble_1', 1);
     command.execute();
 
+    expect(command.getCreatedTrack()?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
     const tracks = project.getTracks();
     expect(tracks.map(track => track.getName())).toEqual(['Lead', 'Pad', 'Bass']);
     expect(tracks.map(track => track.getTrackIndex())).toEqual([0, 1, 2]);

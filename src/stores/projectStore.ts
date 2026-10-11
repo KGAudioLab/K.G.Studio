@@ -215,6 +215,7 @@ interface ProjectState {
 
   // Instrument selection panel state
   showInstrumentSelection: boolean;
+  instrumentSelectionTab: 'instrument' | 'fx';
   // instrumentSelectionTrackId removed; panel now follows selectedTrackId
 
   // Audio import modal state
@@ -331,7 +332,8 @@ interface ProjectState {
   activateSidePanel: (panel: SidePanelType) => void;
 
   // Instrument selection panel actions
-  openInstrumentSelectionForTrack: () => void;
+  openInstrumentSelectionForTrack: (tab?: 'instrument' | 'fx') => void;
+  setInstrumentSelectionTab: (tab: 'instrument' | 'fx') => void;
   toggleInstrumentSelectionForTrack: () => void;
   closeInstrumentSelection: () => void;
 
@@ -671,6 +673,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     // Initial Instrument Selection panel state
     showInstrumentSelection: initialShowInstrumentSelection,
+    instrumentSelectionTab: 'instrument',
 
     // Initial audio import modal state
     showAudioImportModal: false,
@@ -2149,11 +2152,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     },
 
     // Instrument selection panel actions
-    openInstrumentSelectionForTrack: () => {
-      set({ showInstrumentSelection: true });
+    openInstrumentSelectionForTrack: (tab = 'instrument') => {
+      set({ showInstrumentSelection: true, instrumentSelectionTab: tab });
     },
+    setInstrumentSelectionTab: (tab) => set({ instrumentSelectionTab: tab }),
     toggleInstrumentSelectionForTrack: () => {
-      set({ showInstrumentSelection: true });
+      set({ showInstrumentSelection: true, instrumentSelectionTab: 'instrument' });
     },
     closeInstrumentSelection: () => {
       set({ showInstrumentSelection: false });

@@ -13,6 +13,7 @@ import { KGTrackAutomationPoint } from '../../track/KGTrackAutomationPoint';
 import { generateUniqueId } from '../../../util/miscUtil';
 
 export interface DuplicateTrackOptions {
+  includeFX: boolean;
   includeAutomation: boolean;
   includeRegions: boolean;
 }
@@ -185,6 +186,7 @@ export class DuplicateTrackCommand extends KGCommand {
     duplicate.setMuted(source.getMuted());
     duplicate.setPan(source.getPan());
     duplicate.setSolo(source.getSolo());
+    if (this.options.includeFX) duplicate.setFX(source.getFX().map(effect => effect.clone(true)));
     if (this.options.includeAutomation) {
       duplicate.setVolumeAutomation(source.getVolumeAutomation().map(cloneAutomationPoint));
       duplicate.setPanAutomation(source.getPanAutomation().map(cloneAutomationPoint));

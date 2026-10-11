@@ -13,6 +13,8 @@ describe('DuplicateTrackDialog', () => {
     expect(screen.getByText('Choose what you’d like to include in the duplicated track.')).toBeInTheDocument();
     expect(screen.getByLabelText('Track Settings')).toBeChecked();
     expect(screen.getByLabelText('Track Settings')).toBeDisabled();
+    expect(screen.getByLabelText('FX Chain')).toBeChecked();
+    expect(screen.getByLabelText('FX Chain')).toBeEnabled();
     expect(screen.getByLabelText('Automation')).not.toBeChecked();
     expect(screen.getByLabelText('Regions')).not.toBeChecked();
     expect(screen.getByLabelText('Regions')).toBeDisabled();
@@ -29,7 +31,18 @@ describe('DuplicateTrackDialog', () => {
     fireEvent.click(screen.getByLabelText('Regions'));
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
 
-    expect(onConfirm).toHaveBeenCalledWith({ includeAutomation: true, includeRegions: true });
+    expect(onConfirm).toHaveBeenCalledWith({ includeFX: true, includeAutomation: true, includeRegions: true });
+  });
+
+  it('omits FX when unchecked and resets to checked on reopening', () => {
+    const onConfirm = vi.fn(); const onCancel = vi.fn();
+    const view = render(<DuplicateTrackDialog isOpen hasRegions onConfirm={onConfirm} onCancel={onCancel} />);
+    fireEvent.click(screen.getByLabelText('FX Chain'));
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+    expect(onConfirm).toHaveBeenCalledWith({ includeFX: false, includeAutomation: false, includeRegions: false });
+    view.rerender(<DuplicateTrackDialog isOpen={false} hasRegions onConfirm={onConfirm} onCancel={onCancel} />);
+    view.rerender(<DuplicateTrackDialog isOpen hasRegions onConfirm={onConfirm} onCancel={onCancel} />);
+    expect(screen.getByLabelText('FX Chain')).toBeChecked();
   });
 
   it('cancels on Escape, outside click, close, and Cancel without confirming', () => {

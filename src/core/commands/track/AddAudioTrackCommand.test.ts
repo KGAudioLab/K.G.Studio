@@ -29,6 +29,7 @@ describe('AddAudioTrackCommand', () => {
     const command = new AddAudioTrackCommand(undefined, 'Audio 3');
     command.execute();
 
+    expect(command.getCreatedTrack()?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
     const tracks = project.getTracks();
     expect(tracks.map(track => track.getName())).toEqual(['Audio 1', 'Audio 2', 'Audio 3']);
     expect(tracks.map(track => track.getTrackIndex())).toEqual([0, 1, 2]);
@@ -50,6 +51,7 @@ describe('AddAudioTrackCommand', () => {
     const command = new AddAudioTrackCommand(undefined, 'Audio 3', 1);
     command.execute();
 
+    expect(command.getCreatedTrack()?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
     const tracks = project.getTracks();
     expect(tracks.map(track => track.getName())).toEqual(['Audio 1', 'Audio 3', 'Audio 2']);
     expect(tracks.map(track => track.getTrackIndex())).toEqual([0, 1, 2]);

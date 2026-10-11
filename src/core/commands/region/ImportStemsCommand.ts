@@ -1,3 +1,4 @@
+import { createDefaultFXChain } from '../../fx/defaultFXChain';
 import * as Tone from 'tone';
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
@@ -76,6 +77,7 @@ export class ImportStemsCommand extends KGCommand {
       this.createdTrackIds.push(trackId);
 
       const track = new KGAudioTrack(stem.trackName, trackId);
+      track.setFX(createDefaultFXChain());
       track.setTrackIndex(project.getTracks().length);
       project.setTracks([...project.getTracks(), track]);
 

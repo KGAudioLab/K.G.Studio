@@ -1,0 +1,36 @@
+.fx-import-backdrop {
+  position: fixed; inset: 0; z-index: 10001; display: flex; align-items: center;
+  justify-content: center; padding: 24px; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(2px);
+}
+.fx-import-dialog {
+  width: min(1050px, 95vw); height: min(760px, 90vh); overflow: hidden; display: flex;
+  flex-direction: column; color: #e0e0e0; font-family: inherit; background: #2d2d2d;
+  border: 1px solid #3a3a3a; border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.fx-import-dialog header {
+  min-height: 48px; display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; padding: 0 18px; background: #252525; border-bottom: 1px solid #3a3a3a;
+}
+.fx-import-dialog h2 { margin: 0; font-size: 16px; font-weight: bold; }
+.fx-import-dialog header button { padding: 8px; color: #b0b0b0; font-size: 16px; background: transparent; border: 0; border-radius: 4px; cursor: pointer; }
+.fx-import-dialog header button:hover { color: #e0e0e0; background: #3a3a3a; }
+.fx-import-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); overflow: hidden; }
+.fx-import-body aside { min-height: 0; overflow: hidden; background: #292929; border-right: 1px solid #3a3a3a; }
+.fx-import-tracks { height: 100%; box-sizing: border-box; overflow-y: auto; padding: 8px; }
+.fx-import-tracks button { width: 100%; padding: 10px; color: #e0e0e0; text-align: left; background: transparent; border: 0; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; }
+.fx-import-tracks button:hover { background: #353535; }
+.fx-import-tracks button.active { background: #3a3a3a; }
+.fx-import-tracks span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fx-import-tracks small { display: block; margin-top: 2px; color: #888; font-size: 11px; }
+.fx-import-body main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.fx-import-hint { flex-shrink: 0; padding: 10px 18px; color: #b0b0b0; font-size: 11px; line-height: 1.45; border-bottom: 1px solid #3a3a3a; }
+.fx-import-table { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 0 18px 14px; }
+.fx-import-table table { width: 100%; table-layout: fixed; border-collapse: collapse; color: #e0e0e0; font-size: 12px; }
+.fx-import-table th { position: sticky; top: 0; z-index: 1; padding: 10px; color: #e0e0e0; text-align: left; background: #2d2d2d; border-bottom: 1px solid #3a3a3a; }
+.fx-import-table th:first-child { width: 25%; }
+.fx-import-table td { overflow: hidden; padding: 8px 10px; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid #3a3a3a; }
+.fx-import-table tbody tr { cursor: pointer; }
+.fx-import-table tbody tr:hover { background: #353535; }
+.fx-import-empty { padding: 10px; color: #888; font-size: 12px; }
+.fx-import-dialog button:focus-visible, .fx-import-table tr:focus-visible { outline: 2px solid #5a9fd4; outline-offset: -2px; }
+@media (max-width: 780px) { .fx-import-body { grid-template-columns: 160px minmax(0, 1fr); } }

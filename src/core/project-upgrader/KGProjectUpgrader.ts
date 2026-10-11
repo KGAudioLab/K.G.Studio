@@ -20,6 +20,7 @@ import { upgradeToV18 } from './upgradeToV18';
 import { upgradeToV19 } from './upgradeToV19';
 import { upgradeToV20 } from './upgradeToV20';
 import { upgradeToV21 } from './upgradeToV21';
+import { upgradeToV22 } from './upgradeToV22';
 import { KGTempoRegion } from '../region/KGTempoRegion';
 import { KGKeySignatureRegion } from '../region/KGKeySignatureRegion';
 import { ticksPerBar } from '../timing';
@@ -138,6 +139,10 @@ export function upgradeProjectToLatest(project: KGProject): KGProject {
       }
       case 21: {
         workingProject = upgradeToV21(workingProject);
+        break;
+      }
+      case 22: {
+        workingProject = upgradeToV22(workingProject);
         break;
       }
       default: {

@@ -1,0 +1,12 @@
+/* Put shared confirmations above the preset browser, regardless of portal order. */
+body:has(.fx-preset-backdrop) .dialog-overlay { z-index: 10002; }
+.fx-preset-list .fx-preset-item { position: relative; border-radius: 4px; }
+.fx-preset-item.active { background: #3a3a3a; }
+.fx-preset-list .fx-preset-select { padding-right: 32px; }
+.fx-preset-list .fx-preset-trash { position: absolute; right: 5px; bottom: 4px; width: 26px; padding: 5px; color: #999; text-align: center; }
+.fx-preset-list .fx-preset-trash:hover { color: #e08080; }
+.fx-preset-dialog .dialog-footer { flex-shrink: 0; }
+.fx-preset-dialog .fx-preset-delete { color: #e08080; border: 1px solid #704040; background: transparent; }
+.fx-preset-dialog .fx-preset-delete:hover:not(:disabled) { color: #fff; background: #704040; }
+.fx-preset-dialog button:disabled { opacity: .5; cursor: default; }
+.fx-preset-dialog .fx-import-table tbody tr { cursor: default; }

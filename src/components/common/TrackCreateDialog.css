@@ -32,27 +32,15 @@
 }
 
 .track-create-option.selected {
-  border-color: #e1ae01;
-  box-shadow: inset 0 0 0 1px rgba(225, 174, 1, 0.35);
+  border-color: #5a9fd4;
+  box-shadow: inset 0 0 0 1px rgba(90, 159, 212, 0.35);
 }
 
-.track-create-option-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  color: #ffffff;
-}
-
-.track-create-option-icon.midi {
-  background-color: #159947;
-}
-
-.track-create-option-icon.audio {
-  background-color: #1f78d1;
+.track-create-option-image {
+  width: 128px;
+  height: 112px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .track-create-option-label {

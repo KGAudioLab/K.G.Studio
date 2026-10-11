@@ -1,0 +1,37 @@
+import { act, render } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import EqSpectrum from './EqSpectrum';
+import { eqSpectrumPath } from './eqSpectrumPath';
+const mocks = vi.hoisted(() => ({ open: vi.fn(), listener: vi.fn(() => () => {}) }));
+vi.mock('../../core/audio-interface/KGAudioInterface', () => ({ KGAudioInterface: { instance: () => ({ openEQSpectrum: mocks.open }) } }));
+vi.mock('../../core/config/ConfigManager', () => ({ ConfigManager: { instance: () => ({ get: () => undefined, addChangeListener: mocks.listener }) } }));
+afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+it('updates at 10 FPS, replaces track readers, and releases collapsed monitors', () => {
+  vi.useFakeTimers();
+  const dispose = vi.fn();
+  const read = vi.fn(() => new Float32Array(1024).fill(-30));
+  mocks.open.mockImplementation(() => ({ sampleRate: 48000, read, dispose }));
+  const props = { trackId: '1', effectId: 2, active: true, width: 600, height: 300 };
+  const view = render(<svg><EqSpectrum {...props} /></svg>);
+  expect(mocks.open).toHaveBeenCalledWith('1', 2, 2048);
+  expect(view.container.querySelector('path')?.getAttribute('d')).toContain('Z');
+  act(() => vi.advanceTimersByTime(99));
+  expect(read).toHaveBeenCalledTimes(1);
+  act(() => vi.advanceTimersByTime(1));
+  expect(read).toHaveBeenCalledTimes(2);
+  view.rerender(<svg><EqSpectrum {...props} trackId="3" /></svg>);
+  expect(dispose).toHaveBeenCalledTimes(1);
+  expect(mocks.open).toHaveBeenLastCalledWith('3', 2, 2048);
+  view.rerender(<svg><EqSpectrum {...props} active={false} /></svg>);
+  expect(dispose).toHaveBeenCalledTimes(2);
+  expect(view.container.querySelector('path')?.hasAttribute('d')).toBe(false);
+  act(() => vi.advanceTimersByTime(1000));
+  expect(mocks.open).toHaveBeenCalledTimes(2);
+});
+it('draws silence at the floor and clamps strong signals without invalid coordinates', () => {
+  const silent = eqSpectrumPath(new Float32Array(1024).fill(-Infinity), 48000, 600, 300);
+  expect(silent).not.toMatch(/NaN|Infinity/);
+  expect(silent).toContain('L300.00,300.00');
+  const loud = eqSpectrumPath(new Float32Array(1024).fill(6), 48000, 600, 300);
+  expect(loud).toContain('L300.00,0.00');
+});
