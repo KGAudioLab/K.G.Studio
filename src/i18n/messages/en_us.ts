@@ -709,7 +709,7 @@ export const enUsMessages: TranslationMessages = {
   'fileImport.browse': 'Browse Files',
   'track.controls.fxButton': 'Open track FX',
   'fx.add': 'Add',
-  'fx.copy': 'Copy',
+  'fx.import': 'Import',
   'fx.save': 'Save',
   'fx.load': 'Load',
   'fx.history.update': 'Update track "{track}" FX',

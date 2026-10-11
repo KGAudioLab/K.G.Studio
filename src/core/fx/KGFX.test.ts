@@ -54,12 +54,12 @@ describe('track FX persistence', () => {
       { __type: 'KGLimiterFX', inputGainDb: 100, thresholdDb: 10 },
     ] });
     expect((track.getFX()[0] as KGEQFX).getBands()).toEqual([
-      { frequencyHz: 1349, q: 0.1, gainDb: 0 }, { frequencyHz: 1350, q: 0.5, gainDb: 0 }, { frequencyHz: 6500, q: 0.5, gainDb: 0 },
+      { frequencyHz: 999, q: 0.1, gainDb: 0 }, { frequencyHz: 1000, q: 0.7, gainDb: 0 }, { frequencyHz: 10000, q: 0.7, gainDb: 0 },
     ]);
     expect(track.getFX()[0].getEnabled()).toBe(true);
     expect((track.getFX()[1] as KGReverbFX).getReverbType()).toBe('chamber');
     expect((track.getFX()[1] as KGReverbFX).getWet()).toBe(1);
-    expect((track.getFX()[2] as KGCompressorFX).getParameters()).toEqual({ ratio: 20, attackMs: 0, releaseMs: 228, thresholdDb: -100, gainDb: 0 });
+    expect((track.getFX()[2] as KGCompressorFX).getParameters()).toEqual({ ratio: 20, attackMs: 0, releaseMs: 100, thresholdDb: -100, gainDb: 0 });
     expect((track.getFX()[3] as KGLimiterFX).getParameters()).toEqual({ inputGainDb: 24, thresholdDb: 0 });
   });
 

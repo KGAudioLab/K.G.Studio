@@ -115,8 +115,8 @@ describe('track compressor routing', () => {
     expect(comp.connect).toHaveBeenCalledWith(gain);
     expect(gain.connect).toHaveBeenCalledWith(wet);
     expect(wet.connect).toHaveBeenCalledWith(output);
-    expect(comp.threshold.value).toBe(-24); expect(comp.ratio.value).toBe(4);
-    expect(comp.attack.value).toBe(0.01); expect(comp.release.value).toBe(0.228);
+    expect(comp.threshold.value).toBe(-20); expect(comp.ratio.value).toBe(4);
+    expect(comp.attack.value).toBe(0.01); expect(comp.release.value).toBe(0.1);
     expect(gain.gain.value).toBeCloseTo(Math.pow(10, 6 / 20));
     effect.setParameters({ thresholdDb: 0, ratio: 20, attackMs: 0, releaseMs: 1000, gainDb: -24 });
     chain.sync([effect]);

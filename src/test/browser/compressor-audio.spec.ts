@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type {} from './compressorAudioHarness';
 
-const defaults = { gainDb: 0, thresholdDb: -24, ratio: 4, attackMs: 10, releaseMs: 228 };
+const defaults = { gainDb: 0, thresholdDb: -20, ratio: 4, attackMs: 10, releaseMs: 100 };
 
 test('compressor matches native Tone processing, controls, bypass, and live edits', async ({ page }) => {
   await page.goto('/kgstudio/compressor-audio-test.html');

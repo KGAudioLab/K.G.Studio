@@ -139,7 +139,7 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
         <button type="button" className="fx-action-button" disabled={!track} onClick={() => setDialogTrack(track)}>
           <TbPlus aria-hidden="true" />{t('fx.add')}
         </button>
-        <button type="button" className="fx-action-button" disabled={!track}><TbCopy aria-hidden="true" />{t('fx.copy')}</button>
+        <button type="button" className="fx-action-button" disabled={!track}><TbCopy aria-hidden="true" />{t('fx.import')}</button>
         <button type="button" className="fx-action-button" disabled={!track}><TbDeviceFloppy aria-hidden="true" />{t('fx.save')}</button>
         <button type="button" className="fx-action-button" disabled={!track}><TbFolderOpen aria-hidden="true" />{t('fx.load')}</button>
       </div>

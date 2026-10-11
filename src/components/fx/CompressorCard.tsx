@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
 import FxLevelControl from './FxLevelControl';
+import { getFXDefaults } from '../../core/fx/fxDefaults';
 import './CompressorCard.css';
 
 export interface CompressorPreviewState {
@@ -41,16 +42,16 @@ export default function CompressorCard({ state, onChange, onRemove }: {
       </div>
       <div id={bodyId} className="fx-card-body" hidden={!state.expanded}>
         <FxLevelControl label={t('fx.compressor.threshold')} value={state.threshold}
-          onChange={threshold => onChange({ ...state, threshold })} onReset={() => onChange({ ...state, threshold: -24 })} />
+          onChange={threshold => onChange({ ...state, threshold })} onReset={() => onChange({ ...state, threshold: getFXDefaults().compressor.thresholdDb })} />
         <div className="fx-dynamics-parameters">
           <FxKnob label={t('fx.compressor.ratio')} valueText={`${state.ratio.toFixed(1)}:1`} position={(state.ratio - 1) / 19}
-            onChange={position => onChange({ ...state, ratio: 1 + position * 19 })} onReset={() => onChange({ ...state, ratio: 4 })} />
+            onChange={position => onChange({ ...state, ratio: 1 + position * 19 })} onReset={() => onChange({ ...state, ratio: getFXDefaults().compressor.ratio })} />
           <FxKnob label={t('fx.compressor.attack')} valueText={`${state.attack.toFixed(1)} ms`} position={state.attack / 1000}
-            onChange={position => onChange({ ...state, attack: position * 1000 })} onReset={() => onChange({ ...state, attack: 10 })} />
+            onChange={position => onChange({ ...state, attack: position * 1000 })} onReset={() => onChange({ ...state, attack: getFXDefaults().compressor.attackMs })} />
           <FxKnob label={t('fx.compressor.release')} valueText={`${state.release.toFixed(0)} ms`} position={state.release / 1000}
-            onChange={position => onChange({ ...state, release: position * 1000 })} onReset={() => onChange({ ...state, release: 228 })} />
+            onChange={position => onChange({ ...state, release: position * 1000 })} onReset={() => onChange({ ...state, release: getFXDefaults().compressor.releaseMs })} />
           <FxKnob label={t('fx.compressor.gain')} valueText={`${state.gain.toFixed(1)} dB`} position={(state.gain + 24) / 48}
-            onChange={position => onChange({ ...state, gain: position * 48 - 24 })} onReset={() => onChange({ ...state, gain: 0 })} />
+            onChange={position => onChange({ ...state, gain: position * 48 - 24 })} onReset={() => onChange({ ...state, gain: getFXDefaults().compressor.gainDb })} />
         </div>
       </div>
     </section>

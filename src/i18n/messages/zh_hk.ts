@@ -707,7 +707,7 @@ export const zhHkMessages: TranslationMessages = {
   'fileImport.browse': '瀏覽檔案',
   'track.controls.fxButton': '開啟軌道 FX',
   'fx.add': '新增',
-  'fx.copy': '複製',
+  'fx.import': '匯入',
   'fx.save': '儲存',
   'fx.load': '載入',
   'fx.history.update': '更新軌道「{track}」的效果器',

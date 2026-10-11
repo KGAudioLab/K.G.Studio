@@ -76,7 +76,7 @@ window.renderEQProjectFixture = async (type = 'audio', effectType = 'eq') => {
     import('../../core/midi/KGMidiNote'), import('../../core/audio-interface/KGToneBuffersPool'),
   ]);
   const track = type === 'audio' ? new KGAudioTrack('EQ fixture', 123) : new KGMidiTrack('EQ fixture', 123);
-  const eq = new KGEQFX(); const bands = eq.getBands(); bands[1].gainDb = 6; eq.setBands(bands);
+  const eq = new KGEQFX(); const bands = eq.getBands(); bands[1].frequencyHz = 1350; bands[1].gainDb = 6; eq.setBands(bands);
   track.addFX(effectType === 'limiter' ? new KGLimiterFX({ inputGainDb: 6, thresholdDb: -18 }) : effectType === 'compressor' ? new KGCompressorFX({ gainDb: 6, thresholdDb: -18 }) : eq);
   if (track instanceof KGAudioTrack) {
     track.setRegions([new KGAudioRegion('clip', '123', 0, 'Sine', 0, 1920, 'fixture', 'fixture.wav', 1)]);

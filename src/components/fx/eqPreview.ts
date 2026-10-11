@@ -1,4 +1,5 @@
 import { EQ_BAND_TYPES } from '../../core/fx/KGEQFX';
+import { getFXDefaults } from '../../core/fx/fxDefaults';
 
 export interface EqBand {
   frequency: number;
@@ -13,7 +14,7 @@ export const EQ_MIN_Q = 0.1;
 export const EQ_MAX_Q = 10;
 
 export function createPreviewBands(): EqBand[] {
-  return [200, 1350, 6500].map(frequency => ({ frequency, q: 0.5, gain: 0 }));
+  return getFXDefaults().eq.bands.map(band => ({ frequency: band.frequencyHz, q: band.q, gain: band.gainDb }));
 }
 
 export const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));

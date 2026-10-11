@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fxDefaultsConfigPlugin } from './build/fxDefaultsConfigPlugin';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
@@ -11,7 +12,7 @@ const version = packageJson.version;
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), fxDefaultsConfigPlugin()],
   base: '/kgstudio/',
   define: {
     __APP_VERSION__: JSON.stringify(version),

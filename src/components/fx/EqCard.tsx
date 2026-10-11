@@ -8,6 +8,7 @@ import './EqCard.css';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
 import { clampEQBandFrequency } from '../../core/fx/KGEQFX';
+import { getFXDefaults } from '../../core/fx/fxDefaults';
 
 export interface EqPreviewState {
   enabled: boolean;
@@ -107,11 +108,11 @@ export default function EqCard({ state, onChange, onRemove }: { state: EqPreview
           <span className="eq-band-number" aria-label={t('fx.eq.band', { number: state.selectedBand + 1 })}>{state.selectedBand + 1}</span>
           <div className="fx-parameters">
             <FxKnob label={t('fx.eq.frequency')} valueText={formatFrequency(selected.frequency)} position={frequencyToPosition(selected.frequency)}
-              onChange={position => setBand(state.selectedBand, { frequency: positionToFrequency(position) })} onReset={() => setBand(state.selectedBand, { frequency: [200, 1350, 6500][state.selectedBand] })} />
+              onChange={position => setBand(state.selectedBand, { frequency: positionToFrequency(position) })} onReset={() => setBand(state.selectedBand, { frequency: getFXDefaults().eq.bands[state.selectedBand].frequencyHz })} />
             <FxKnob label={t('fx.eq.q')} disabled={state.selectedBand !== 1} valueText={state.selectedBand === 1 ? selected.q.toFixed(2) : '--'} position={Math.log(selected.q / EQ_MIN_Q) / Math.log(EQ_MAX_Q / EQ_MIN_Q)}
-              onChange={position => setBand(state.selectedBand, { q: EQ_MIN_Q * Math.pow(EQ_MAX_Q / EQ_MIN_Q, position) })} onReset={() => setBand(state.selectedBand, { q: 0.5 })} />
+              onChange={position => setBand(state.selectedBand, { q: EQ_MIN_Q * Math.pow(EQ_MAX_Q / EQ_MIN_Q, position) })} onReset={() => setBand(state.selectedBand, { q: getFXDefaults().eq.bands[state.selectedBand].q })} />
             <FxKnob label={t('fx.eq.gain')} valueText={`${selected.gain.toFixed(1)} dB`} position={(selected.gain + EQ_GAIN_RANGE) / (2 * EQ_GAIN_RANGE)}
-              onChange={position => setBand(state.selectedBand, { gain: (position * 2 - 1) * EQ_GAIN_RANGE })} onReset={() => setBand(state.selectedBand, { gain: 0 })} />
+              onChange={position => setBand(state.selectedBand, { gain: (position * 2 - 1) * EQ_GAIN_RANGE })} onReset={() => setBand(state.selectedBand, { gain: getFXDefaults().eq.bands[state.selectedBand].gainDb })} />
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
 import FxLevelControl from './FxLevelControl';
+import { getFXDefaults } from '../../core/fx/fxDefaults';
 
 export interface LimiterPreviewState {
   enabled: boolean;
@@ -37,12 +38,12 @@ export default function LimiterCard({ state, onChange, onRemove }: {
       </div>
       <div id={bodyId} className="fx-card-body" hidden={!state.expanded}>
         <FxLevelControl label={t('fx.limiter.threshold')} value={state.threshold}
-          onChange={threshold => onChange({ ...state, threshold })} onReset={() => onChange({ ...state, threshold: -4.1 })} />
+          onChange={threshold => onChange({ ...state, threshold })} onReset={() => onChange({ ...state, threshold: getFXDefaults().limiter.thresholdDb })} />
         <div className="fx-dynamics-parameters">
           <FxKnob label={t('fx.limiter.inputGain')} valueText={`${state.inputGain.toFixed(1)} dB`} position={(state.inputGain + 24) / 48}
-            onChange={position => onChange({ ...state, inputGain: position * 48 - 24 })} onReset={() => onChange({ ...state, inputGain: 0 })} />
+            onChange={position => onChange({ ...state, inputGain: position * 48 - 24 })} onReset={() => onChange({ ...state, inputGain: getFXDefaults().limiter.inputGainDb })} />
           <FxKnob label={t('fx.limiter.threshold')} valueText={`${state.threshold.toFixed(1)} dB`} position={(state.threshold + 100) / 100}
-            onChange={position => onChange({ ...state, threshold: position * 100 - 100 })} onReset={() => onChange({ ...state, threshold: -4.1 })} />
+            onChange={position => onChange({ ...state, threshold: position * 100 - 100 })} onReset={() => onChange({ ...state, threshold: getFXDefaults().limiter.thresholdDb })} />
         </div>
       </div>
     </section>

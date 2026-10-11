@@ -7,6 +7,8 @@ import { KGEQFX, KGReverbFX, KGCompressorFX, KGLimiterFX } from '../../core/fx';
 import { KGTrack } from '../../core/track/KGTrack';
 import { showConfirm } from '../../util/dialogUtil';
 import TrackFxPanel from './TrackFxPanel';
+import { ConfigManager } from '../../core/config/ConfigManager';
+import config from '../../../public/config.json';
 
 vi.mock('../../util/dialogUtil', () => ({ showConfirm: vi.fn() }));
 
@@ -14,6 +16,37 @@ function addEq() {
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add' }));
 }
+
+describe('configured FX resets', () => {
+  it('uses the loaded factory config for resets without rewriting saved settings on render', () => {
+    const configured = structuredClone(config);
+    configured.audio.fx_defaults.eq.bands[1] = { frequencyHz: 1200, q: 1.5, gainDb: 3 };
+    configured.audio.fx_defaults.reverb.wet = .6;
+    configured.audio.fx_defaults.compressor = { thresholdDb: -30, ratio: 8, attackMs: 15, releaseMs: 250, gainDb: 3 };
+    configured.audio.fx_defaults.limiter = { thresholdDb: -2, inputGainDb: 4 };
+    const spy = vi.spyOn(ConfigManager.instance(), 'getDefaults').mockReturnValue(configured as ReturnType<ConfigManager['getDefaults']>);
+    try {
+      const track = new KGTrack();
+      const eqModel = new KGEQFX(); const bands = eqModel.getBands(); bands[1].q = 2; eqModel.setBands(bands);
+      track.setFX([eqModel, new KGReverbFX('spring', .8), new KGCompressorFX({ releaseMs: 400 }), new KGLimiterFX({ thresholdDb: -8 })]);
+      render(<TrackFxPanel track={track} hidden={false} />);
+      expect((track.getFX()[1] as KGReverbFX).getWet()).toBe(.8);
+      expect((track.getFX()[2] as KGCompressorFX).getParameters().releaseMs).toBe(400);
+      const eq = within(screen.getByRole('region', { name: 'EQ' }));
+      for (const label of ['Freq', 'Q', 'Gain']) fireEvent.doubleClick(eq.getByRole('slider', { name: label }));
+      fireEvent.doubleClick(within(screen.getByRole('region', { name: 'Reverb' })).getByRole('slider'));
+      const compressor = within(screen.getByRole('region', { name: 'Compressor' }));
+      for (const label of ['Threshold', 'Ratio', 'Attack', 'Release', 'Gain']) fireEvent.doubleClick(compressor.getByRole('slider', { name: label }));
+      const limiter = within(screen.getByRole('region', { name: 'Limiter' }));
+      fireEvent.doubleClick(limiter.getByRole('slider', { name: 'Input Gain' }));
+      fireEvent.doubleClick(limiter.getAllByRole('slider', { name: 'Threshold' })[1]);
+      expect((track.getFX()[0] as KGEQFX).getBands()[1]).toEqual(configured.audio.fx_defaults.eq.bands[1]);
+      expect((track.getFX()[1] as KGReverbFX).getWet()).toBe(.6);
+      expect((track.getFX()[2] as KGCompressorFX).getParameters()).toEqual(configured.audio.fx_defaults.compressor);
+      expect((track.getFX()[3] as KGLimiterFX).getParameters()).toEqual(configured.audio.fx_defaults.limiter);
+    } finally { spy.mockRestore(); }
+  });
+});
 
 describe('FX removal', () => {
   beforeEach(() => { KGCommandHistory.instance().clear(); vi.mocked(showConfirm).mockReset(); });

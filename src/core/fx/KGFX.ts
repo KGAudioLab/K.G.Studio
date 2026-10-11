@@ -1,5 +1,6 @@
 import { Expose, Transform } from 'class-transformer';
 import { FXBoolean } from './fxValidation';
+import { getFXDefaults } from './fxDefaults';
 
 export type FXType = 'eq' | 'reverb' | 'compressor' | 'limiter';
 
@@ -13,13 +14,13 @@ export abstract class KGFX {
   protected id: string;
 
   @Expose()
-  @FXBoolean(true)
-  protected enabled: boolean = true;
+  @FXBoolean(() => getFXDefaults().enabled)
+  protected enabled: boolean = getFXDefaults().enabled;
 
   constructor(id: string = crypto.randomUUID()) { this.id = id; }
   public getId(): string { return this.id; }
   public getEnabled(): boolean { return this.enabled; }
-  public setEnabled(enabled: boolean): void { this.enabled = typeof enabled === 'boolean' ? enabled : true; }
+  public setEnabled(enabled: boolean): void { this.enabled = typeof enabled === 'boolean' ? enabled : getFXDefaults().enabled; }
   public getRootType(): string { return 'KGFX'; }
   public getCurrentType(): string { return this.__type; }
   public abstract getType(): FXType;

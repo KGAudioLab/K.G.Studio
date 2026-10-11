@@ -593,7 +593,7 @@ export const frFrMessages: TranslationMessages = {
   'fileImport.browse': 'Parcourir les fichiers',
   'track.controls.fxButton': 'Ouvrir les FX de la piste',
   'fx.add': 'Ajouter',
-  'fx.copy': 'Copier',
+  'fx.import': 'Importer',
   'fx.save': 'Enregistrer',
   'fx.load': 'Charger',
   'fx.history.update': 'Modifier les effets de la piste « {track} »',

@@ -3,7 +3,8 @@ import { TbChevronLeft, TbChevronRight, TbPower } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
-import { DEFAULT_REVERB_WET, REVERB_TYPES } from '../../core/fx/KGReverbFX';
+import { REVERB_TYPES } from '../../core/fx/KGReverbFX';
+import { getFXDefaults } from '../../core/fx/fxDefaults';
 import './ReverbCard.css';
 
 export interface ReverbPreviewState {
@@ -49,7 +50,7 @@ export default function ReverbCard({ state, onChange, onRemove }: {
             onClick={() => changeType(1)}><TbChevronRight aria-hidden="true" /></button>
         </div>
         <FxKnob label={t('fx.reverb.mix')} valueText={`${Math.round(state.mix * 100)}%`} position={state.mix}
-          onChange={mix => onChange({ ...state, mix })} onReset={() => onChange({ ...state, mix: DEFAULT_REVERB_WET })} />
+          onChange={mix => onChange({ ...state, mix })} onReset={() => onChange({ ...state, mix: getFXDefaults().reverb.wet })} />
       </div>
     </section>
   );

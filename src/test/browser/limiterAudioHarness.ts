@@ -25,7 +25,7 @@ window.renderLimiterFixture = async (options, reference = false) => {
   const effect = new KGLimiterFX(options); effect.setEnabled(!options.bypass);
   const effects: KGFX[] = Array.from({ length: options.copies ?? 1 }, () => effect.clone(true));
   if (options.eqOrder) {
-    const eq = new KGEQFX(); const bands = eq.getBands(); bands[1].gainDb = 12; eq.setBands(bands);
+    const eq = new KGEQFX(); const bands = eq.getBands(); bands[1].frequencyHz = 1350; bands[1].q = 0.5; bands[1].gainDb = 12; eq.setBands(bands);
     if (options.eqOrder === 'before') effects.unshift(eq); else effects.push(eq);
   }
   let chain: KGTrackFXChain | undefined;
