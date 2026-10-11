@@ -195,8 +195,8 @@ function createReverb(context: Tone.BaseContext): RuntimeFX {
 export class KGTrackFXChain {
   readonly input = new Tone.Gain(1);
   readonly output = new Tone.Gain({ gain: 1, context: this.input.context });
-  private stages = new Map<string, RuntimeFX>();
-  private order: string[] = [];
+  private stages = new Map<number, RuntimeFX>();
+  private order: number[] = [];
 
   constructor() { this.input.connect(this.output); }
 

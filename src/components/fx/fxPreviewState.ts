@@ -7,10 +7,10 @@ import type { LimiterPreviewState } from './LimiterCard';
 export type FxType = FXType;
 export interface FXViewState { expanded: boolean; selectedBand: number }
 export type FxInstance =
-  | { id: string; type: 'eq'; state: EqPreviewState }
-  | { id: string; type: 'reverb'; state: ReverbPreviewState }
-  | { id: string; type: 'compressor'; state: CompressorPreviewState }
-  | { id: string; type: 'limiter'; state: LimiterPreviewState };
+  | { id: number; type: 'eq'; state: EqPreviewState }
+  | { id: number; type: 'reverb'; state: ReverbPreviewState }
+  | { id: number; type: 'compressor'; state: CompressorPreviewState }
+  | { id: number; type: 'limiter'; state: LimiterPreviewState };
 
 /** Adapt the core's explicit units to the existing card controls. */
 export function toFxPreview(effect: KGFX, view?: FXViewState): FxInstance {

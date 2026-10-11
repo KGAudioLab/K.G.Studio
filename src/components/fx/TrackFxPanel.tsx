@@ -15,7 +15,7 @@ import { KGCommandHistory } from '../../core/commands/KGCommandHistory';
 import { SetTrackFXCommand } from '../../core/commands/track/SetTrackFXCommand';
 
 // Only presentation state is temporary; effect settings belong to the track.
-const views = new WeakMap<KGTrack, Map<string, FXViewState>>();
+const views = new WeakMap<KGTrack, Map<number, FXViewState>>();
 
 export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null; hidden: boolean }) {
   const { t } = useI18n();
@@ -25,8 +25,8 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
   const confirmingRemoval = useRef(false);
   const [dialogTrack, setDialogTrack] = useState<KGTrack | null>(null);
   const closeDialog = useCallback(() => setDialogTrack(null), []);
-  const [dragging, setDragging] = useState<{ track: KGTrack; id: string } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ id: string; after: boolean } | null>(null);
+  const [dragging, setDragging] = useState<{ track: KGTrack; id: number } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: number; after: boolean } | null>(null);
   useEffect(() => {
     if (hidden || dialogTrack !== track) closeDialog();
   }, [hidden, track, dialogTrack, closeDialog]);
@@ -39,7 +39,7 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
   };
   const update = (next: FxInstance) => {
     if (!track) return;
-    const view = views.get(track) ?? new Map<string, FXViewState>();
+    const view = views.get(track) ?? new Map<number, FXViewState>();
     view.set(next.id, { expanded: next.state.expanded, selectedBand: next.type === 'eq' ? next.state.selectedBand : 1 });
     views.set(track, view);
     const previous = instances.find(instance => instance.id === next.id);
@@ -74,7 +74,7 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
       case 'limiter': return <LimiterCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
     }
   };
-  const move = (source: string, target: string, after: boolean) => {
+  const move = (source: number, target: number, after: boolean) => {
     if (source === target) return;
     const moving = effects.find(effect => effect.getId() === source);
     if (!moving) return;
@@ -101,7 +101,7 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
             if (!dragAllowed.current) { event.preventDefault(); return; }
             event.stopPropagation();
             event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', instance.id);
+            event.dataTransfer.setData('text/plain', String(instance.id));
             setDragging({ track, id: instance.id });
           }}
           onDragOver={event => {

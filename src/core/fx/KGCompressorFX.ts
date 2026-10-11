@@ -30,7 +30,7 @@ export class KGCompressorFX extends KGFX {
   @FXNumber(() => getFXDefaults().compressor.gainDb, -24, 24)
   protected gainDb: number = getFXDefaults().compressor.gainDb;
 
-  constructor(parameters: Partial<KGCompressorFXParameters> = {}, id?: string) {
+  constructor(parameters: Partial<KGCompressorFXParameters> = {}, id?: number) {
     super(id); this.setParameters(parameters);
   }
   public getType(): 'compressor' { return 'compressor'; }

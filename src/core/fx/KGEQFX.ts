@@ -38,7 +38,7 @@ export class KGEQFX extends KGFX {
   @Transform(({ value }) => normalizeEQBands(value), { toClassOnly: true })
   protected bands: KGEQBand[] = normalizeEQBands(undefined);
 
-  constructor(bands?: KGEQBand[], id?: string) { super(id); this.setBands(bands ?? this.bands); }
+  constructor(bands?: KGEQBand[], id?: number) { super(id); this.setBands(bands ?? this.bands); }
   public getType(): 'eq' { return 'eq'; }
   public getBandType(index: number): EQBandType {
     const type = EQ_BAND_TYPES[index];

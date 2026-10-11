@@ -8,6 +8,40 @@ import { upgradeProjectToLatest } from '../project-upgrader/KGProjectUpgrader';
 import { KGEQFX, KGReverbFX, KGCompressorFX, KGLimiterFX } from './index';
 
 describe('track FX persistence', () => {
+  it('assigns increasing integer IDs across FX types and tracks, reserving explicit IDs', () => {
+    const first = new KGEQFX();
+    const effects = [first, new KGReverbFX(), new KGCompressorFX(), new KGLimiterFX()];
+    expect(effects.map(effect => effect.getId())).toEqual([0, 1, 2, 3].map(offset => first.getId() + offset));
+    const reserved = new KGEQFX(undefined, effects[3].getId() + 100);
+    const secondTrack = new KGAudioTrack('Audio', 2);
+    secondTrack.addFX(new KGReverbFX());
+    expect(secondTrack.getFX()[0].getId()).toBe(reserved.getId() + 1);
+    expect(reserved.clone().getId()).toBe(reserved.getId());
+    expect(reserved.clone(true).getId()).toBe(secondTrack.getFX()[0].getId() + 1);
+  });
+
+  it('migrates legacy UUIDs and invalid IDs and repairs duplicate numeric IDs on load', () => {
+    const reservedId = new KGEQFX().getId() + 100;
+    const track = plainToInstance(KGTrack, { fx: [
+      { __type: 'KGEQFX', id: crypto.randomUUID(), enabled: false },
+      { __type: 'KGReverbFX', id: reservedId, wet: 0.5 },
+      { __type: 'KGCompressorFX', id: reservedId, ratio: 8 },
+      { __type: 'KGLimiterFX', id: -1, thresholdDb: -3 },
+      { __type: 'KGEQFX', id: 1.5 },
+    ] });
+    const ids = track.getFX().map(effect => effect.getId());
+    expect(ids.every(id => Number.isSafeInteger(id) && id > 0)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids[1]).toBe(reservedId);
+    expect(track.getFX()[0].getEnabled()).toBe(false);
+    expect((track.getFX()[1] as KGReverbFX).getWet()).toBe(0.5);
+    expect((track.getFX()[2] as KGCompressorFX).getParameters().ratio).toBe(8);
+    expect((track.getFX()[3] as KGLimiterFX).getParameters().thresholdDb).toBe(-3);
+    expect(new KGEQFX().getId()).toBeGreaterThan(Math.max(...ids));
+    const saved = instanceToPlain(track);
+    expect(instanceToPlain(plainToInstance(KGTrack, saved))).toEqual(saved);
+  });
+
   it('round-trips ordered subclasses, duplicates, identity, and parameters on MIDI and audio tracks', () => {
     const project = new KGProject('FX');
     const tracks = [new KGMidiTrack('MIDI', 1), new KGAudioTrack('Audio', 2)];

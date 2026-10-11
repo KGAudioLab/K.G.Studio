@@ -19,7 +19,7 @@ export function createFX(type: FXType): KGFX {
 export function normalizeFXList(value: unknown): KGFX[] {
   if (value == null) return [];
   if (!Array.isArray(value)) throw new Error('Invalid track FX list');
-  const ids = new Set<string>();
+  const ids = new Set<number>();
   return value.map(effect => {
     if (!(effect instanceof KGEQFX || effect instanceof KGReverbFX || effect instanceof KGCompressorFX || effect instanceof KGLimiterFX)) {
       throw new Error('Unsupported FX type');

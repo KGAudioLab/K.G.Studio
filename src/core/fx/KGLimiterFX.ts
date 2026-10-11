@@ -18,7 +18,7 @@ export class KGLimiterFX extends KGFX {
   @FXNumber(() => getFXDefaults().limiter.thresholdDb, -100, 0)
   protected thresholdDb: number = getFXDefaults().limiter.thresholdDb;
 
-  constructor(parameters: Partial<KGLimiterFXParameters> = {}, id?: string) {
+  constructor(parameters: Partial<KGLimiterFXParameters> = {}, id?: number) {
     super(id); this.setParameters(parameters);
   }
   public getType(): 'limiter' { return 'limiter'; }

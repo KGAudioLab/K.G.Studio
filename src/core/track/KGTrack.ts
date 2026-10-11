@@ -103,8 +103,8 @@ export class KGTrack {
   public getFX(): readonly KGFX[] { return [...this.fx]; }
   public setFX(effects: readonly KGFX[]): void { this.fx = normalizeFXList(effects); }
   public addFX(effect: KGFX): void { this.setFX([...this.fx, effect]); }
-  public removeFX(id: string): void { this.fx = this.fx.filter(effect => effect.getId() !== id); }
-  public moveFX(id: string, targetIndex: number): void {
+  public removeFX(id: number): void { this.fx = this.fx.filter(effect => effect.getId() !== id); }
+  public moveFX(id: number, targetIndex: number): void {
     const from = this.fx.findIndex(effect => effect.getId() === id);
     if (from < 0 || !Number.isInteger(targetIndex)) return;
     const next = [...this.fx];

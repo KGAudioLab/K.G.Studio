@@ -18,7 +18,7 @@ export class KGReverbFX extends KGFX {
   @FXNumber(() => getFXDefaults().reverb.wet, 0, 1)
   protected wet: number = getFXDefaults().reverb.wet;
 
-  constructor(reverbType: ReverbType = getFXDefaults().reverb.reverbType, wet = getFXDefaults().reverb.wet, id?: string) {
+  constructor(reverbType: ReverbType = getFXDefaults().reverb.reverbType, wet = getFXDefaults().reverb.wet, id?: number) {
     super(id); this.setReverbType(reverbType); this.setWet(wet);
   }
   public getType(): 'reverb' { return 'reverb'; }
