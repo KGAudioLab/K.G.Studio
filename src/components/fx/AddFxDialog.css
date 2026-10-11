@@ -4,22 +4,43 @@
 .fx-create-option .track-create-option-label { font-size: 16px; }
 .fx-create-option:focus-visible { outline: 2px solid #5a9fd4; outline-offset: 2px; }
 .fx-add-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   width: 100%;
   min-height: 40px;
   margin-top: 10px;
   background: #252525;
   border: 1px solid #3a3a3a;
   border-radius: 6px;
-  color: #999;
-  font-size: 12px;
-  cursor: pointer;
 }
 .fx-add-button:first-child { margin-top: 0; }
-.fx-add-button:hover:not(:disabled) { color: #e0e0e0; border-color: #5a9fd4; }
-.fx-add-button:disabled { opacity: 0.5; cursor: default; }
-.fx-add-button:focus-visible { outline: 1px solid #5a9fd4; outline-offset: 2px; }
-.fx-add-button svg { font-size: 16px; }
+.fx-action-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  color: #999;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.fx-action-button:hover:not(:disabled) { color: #e0e0e0; }
+.fx-action-button + .fx-action-button::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1px;
+  height: 16px;
+  transform: translateY(-50%);
+  background: #3a3a3a;
+  pointer-events: none;
+}
+.fx-action-button:disabled { opacity: 0.5; cursor: default; }
+.fx-action-button:focus-visible { outline: 1px solid #5a9fd4; outline-offset: -3px; }
+.fx-action-button svg { flex-shrink: 0; font-size: 16px; }

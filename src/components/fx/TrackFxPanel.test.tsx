@@ -74,6 +74,29 @@ describe('FX removal', () => {
     expect(within(screen.getByRole('region', { name: 'Limiter' })).getAllByRole('slider', { name: 'Threshold' })[0]).toHaveAttribute('aria-valuenow', '-100');
   });
 
+  it('prevents frequency knobs, graph keyboard moves, and resets from crossing neighboring bands', () => {
+    const track = new KGTrack();
+    track.addFX(new KGEQFX([100, 150, 200].map(frequencyHz => ({ frequencyHz, q: 0.5, gainDb: 0 }))));
+    render(<TrackFxPanel track={track} hidden={false} />);
+    const frequencies = () => (track.getFX()[0] as KGEQFX).getBands().map(band => band.frequencyHz);
+    fireEvent.click(screen.getByRole('button', { name: 'Band 1' }));
+    expect(screen.getByRole('slider', { name: 'Q' })).toBeDisabled();
+    expect(screen.getByRole('slider', { name: 'Q' })).toHaveAttribute('aria-valuetext', '--');
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Freq' }), { key: 'End' });
+    expect(frequencies()).toEqual([149, 150, 200]);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Band 1' }), { key: 'ArrowRight' });
+    expect(frequencies()).toEqual([149, 150, 200]);
+    fireEvent.click(screen.getByRole('button', { name: 'Band 3' }));
+    expect(screen.getByRole('slider', { name: 'Q' })).toBeDisabled();
+    expect(screen.getByRole('slider', { name: 'Q' })).toHaveAttribute('aria-valuetext', '--');
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Freq' }), { key: 'Home' });
+    expect(frequencies()).toEqual([149, 150, 151]);
+    fireEvent.click(screen.getByRole('button', { name: 'Band 2' }));
+    expect(screen.getByRole('slider', { name: 'Q' })).toBeEnabled();
+    fireEvent.doubleClick(screen.getByRole('slider', { name: 'Freq' }));
+    expect(frequencies()).toEqual([149, 150, 151]);
+  });
+
   it('persists reordered cards, keeps UI changes out of history, and supports undo/redo', () => {
     const track = new KGTrack();
     const { rerender, unmount } = render(<TrackFxPanel track={track} hidden={false} />);

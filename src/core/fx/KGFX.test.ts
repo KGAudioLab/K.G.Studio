@@ -54,7 +54,7 @@ describe('track FX persistence', () => {
       { __type: 'KGLimiterFX', inputGainDb: 100, thresholdDb: 10 },
     ] });
     expect((track.getFX()[0] as KGEQFX).getBands()).toEqual([
-      { frequencyHz: 20000, q: 0.1, gainDb: 0 }, { frequencyHz: 1350, q: 0.5, gainDb: 0 }, { frequencyHz: 6500, q: 0.5, gainDb: 0 },
+      { frequencyHz: 1349, q: 0.1, gainDb: 0 }, { frequencyHz: 1350, q: 0.5, gainDb: 0 }, { frequencyHz: 6500, q: 0.5, gainDb: 0 },
     ]);
     expect(track.getFX()[0].getEnabled()).toBe(true);
     expect((track.getFX()[1] as KGReverbFX).getReverbType()).toBe('hall');

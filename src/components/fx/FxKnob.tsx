@@ -3,9 +3,10 @@ import type { PointerEvent } from 'react';
 import { clamp } from './eqPreview';
 import './EqCard.css';
 
-export default function FxKnob({ label, valueText, position, onChange, onReset }: {
+export default function FxKnob({ label, valueText, position, onChange, onReset, disabled = false }: {
   label: string; valueText: string; position: number;
   onChange: (position: number) => void; onReset: () => void;
+  disabled?: boolean;
 }) {
   const gesture = useRef<{ pointerId: number; y: number; position: number } | null>(null);
   const finish = (event: PointerEvent<HTMLButtonElement>) => {
@@ -14,11 +15,11 @@ export default function FxKnob({ label, valueText, position, onChange, onReset }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
   return (
-    <div className="fx-parameter">
-      <button type="button" className="fx-knob" role="slider" aria-label={label}
+    <div className={`fx-parameter${disabled ? ' is-disabled' : ''}`}>
+      <button type="button" className="fx-knob" role="slider" aria-label={label} disabled={disabled}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(position * 100)} aria-valuetext={valueText}
         onPointerDown={event => {
-          if (event.button !== 0) return;
+          if (disabled || event.button !== 0) return;
           event.preventDefault();
           event.currentTarget.focus();
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -26,11 +27,12 @@ export default function FxKnob({ label, valueText, position, onChange, onReset }
         }}
         onPointerMove={event => {
           const active = gesture.current;
-          if (active?.pointerId === event.pointerId) onChange(clamp(active.position + (active.y - event.clientY) / 150, 0, 1));
+          if (!disabled && active?.pointerId === event.pointerId) onChange(clamp(active.position + (active.y - event.clientY) / 150, 0, 1));
         }}
         onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
-        onDoubleClick={onReset}
+        onDoubleClick={disabled ? undefined : onReset}
         onKeyDown={event => {
+          if (disabled) return;
           const step = event.shiftKey ? 0.001 : 0.01;
           const delta = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step }[event.key];
           if (delta === undefined && event.key !== 'Home' && event.key !== 'End') return;

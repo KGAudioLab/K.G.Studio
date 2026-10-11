@@ -80,6 +80,8 @@
 .eq-band-number { align-self: flex-start; border: 1px solid #e0e0e0; border-radius: 3px; padding: 2px 7px; font-weight: 600; background: transparent; }
 .fx-parameters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .fx-parameter { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.fx-parameter.is-disabled { opacity: 0.4; }
+.fx-knob:disabled { cursor: default; }
 .fx-knob {
   position: relative;
   flex-shrink: 0;
@@ -94,8 +96,8 @@
   user-select: none;
   cursor: grab;
 }
-.fx-knob:hover { background: #4a4a4a; }
-.fx-knob:active { cursor: grabbing; }
+.fx-knob:hover:not(:disabled) { background: #4a4a4a; }
+.fx-knob:active:not(:disabled) { cursor: grabbing; }
 .fx-knob-indicator { position: absolute; inset: 0; pointer-events: none; }
 .fx-knob-indicator::before { content: ''; position: absolute; top: 3px; left: calc(50% - 1px); width: 2px; height: 10px; border-radius: 1px; background: currentColor; }
 .fx-parameter-text { display: flex; flex-direction: column; gap: 3px; font-size: 10px; line-height: 1.4; font-variant-numeric: tabular-nums; }

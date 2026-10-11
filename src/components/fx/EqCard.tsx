@@ -6,6 +6,7 @@ import { clamp, EQ_GAIN_RANGE, EQ_MAX_Q, EQ_MIN_Q, frequencyToPosition, position
 import './EqCard.css';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
+import { clampEQBandFrequency } from '../../core/fx/KGEQFX';
 
 export interface EqPreviewState {
   enabled: boolean;
@@ -26,7 +27,11 @@ export default function EqCard({ state, onChange, onRemove }: { state: EqPreview
   const graph = useRef<SVGSVGElement>(null);
   const dragging = useRef<number | null>(null);
   const selected = state.bands[state.selectedBand];
-  const setBand = (index: number, update: Partial<EqBand>) => onChange({ ...state, bands: state.bands.map((band, i) => i === index ? { ...band, ...update } : band) });
+  const setBand = (index: number, update: Partial<EqBand>) => {
+    const constrained = update.frequency === undefined ? update : { ...update,
+      frequency: clampEQBandFrequency(state.bands.map(band => band.frequency), index, update.frequency) };
+    onChange({ ...state, bands: state.bands.map((band, i) => i === index ? { ...band, ...constrained } : band) });
+  };
   const response = Array.from({ length: 201 }, (_, i) => {
     const x = i / 200 * WIDTH;
     const gain = previewResponseDb(state.bands, positionToFrequency(i / 200));
@@ -101,7 +106,7 @@ export default function EqCard({ state, onChange, onRemove }: { state: EqPreview
           <div className="fx-parameters">
             <FxKnob label={t('fx.eq.frequency')} valueText={formatFrequency(selected.frequency)} position={frequencyToPosition(selected.frequency)}
               onChange={position => setBand(state.selectedBand, { frequency: positionToFrequency(position) })} onReset={() => setBand(state.selectedBand, { frequency: [200, 1350, 6500][state.selectedBand] })} />
-            <FxKnob label={t('fx.eq.q')} valueText={selected.q.toFixed(2)} position={Math.log(selected.q / EQ_MIN_Q) / Math.log(EQ_MAX_Q / EQ_MIN_Q)}
+            <FxKnob label={t('fx.eq.q')} disabled={state.selectedBand !== 1} valueText={state.selectedBand === 1 ? selected.q.toFixed(2) : '--'} position={Math.log(selected.q / EQ_MIN_Q) / Math.log(EQ_MAX_Q / EQ_MIN_Q)}
               onChange={position => setBand(state.selectedBand, { q: EQ_MIN_Q * Math.pow(EQ_MAX_Q / EQ_MIN_Q, position) })} onReset={() => setBand(state.selectedBand, { q: 0.5 })} />
             <FxKnob label={t('fx.eq.gain')} valueText={`${selected.gain.toFixed(1)} dB`} position={(selected.gain + EQ_GAIN_RANGE) / (2 * EQ_GAIN_RANGE)}
               onChange={position => setBand(state.selectedBand, { gain: (position * 2 - 1) * EQ_GAIN_RANGE })} onReset={() => setBand(state.selectedBand, { gain: 0 })} />
