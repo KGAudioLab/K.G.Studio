@@ -1,0 +1,34 @@
+.reverb-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-top: 1px solid #3a3a3a;
+}
+
+.reverb-type-selector {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reverb-type-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: #888;
+  font-size: 18px;
+  cursor: pointer;
+}
+.reverb-type-arrow:hover { color: #e0e0e0; }
+.reverb-type-arrow:focus-visible { outline: 1px solid #5a9fd4; outline-offset: 2px; }
+.reverb-type-name { flex: 1; text-align: center; font-size: 12px; }
+.reverb-controls > .fx-parameter { flex-shrink: 0; }

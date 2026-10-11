@@ -10,6 +10,7 @@ import { UserInstrumentRegistry } from '../core/instruments/UserInstrumentRegist
 import { resolveInstrumentDefinition } from '../core/instruments/instrumentResolver';
 import { resolvePlaybackInstrument } from '../core/instruments/instrumentResolver';
 import { UserInstrumentManager } from './UserInstrumentManager';
+import TrackFxPanel from './fx/TrackFxPanel';
 
 const CUSTOM_GROUP = 'CUSTOM';
 
@@ -19,10 +20,13 @@ const InstrumentSelection: React.FC = () => {
     tracks,
     selectedTrackId,
     closeInstrumentSelection,
-    setTrackInstrument
+    setTrackInstrument,
+    instrumentSelectionTab = 'instrument',
+    setInstrumentSelectionTab
   } = useProjectStore();
   const [registryRevision, setRegistryRevision] = useState(0);
   const [showManager, setShowManager] = useState(false);
+  const activeTab = instrumentSelectionTab;
   useEffect(() => UserInstrumentRegistry.subscribe(() => setRegistryRevision(value => value + 1)), []);
 
   const targetTrack = useMemo(() => {
@@ -95,37 +99,60 @@ const InstrumentSelection: React.FC = () => {
           )}
           <div className="instrument-name-overlay">{hasTargetTrack ? targetTrack.getName() : ''}</div>
       </div>
-      {!isAudioTrack && (
       <div className="instrument-selection-bottom">
-        <div className="instrument-groups">
-          <div className="instrument-groups-list">
-            {groups.map((key) => (
-              <div
-                key={key}
-                className={`instrument-group-item${selectedGroupKey === key ? ' active' : ''}`}
-                onClick={() => handleSelectGroup(key)}
-              >
-                {key === CUSTOM_GROUP ? t('instrument.group.CUSTOM') : getInstrumentGroupLabel(key as InstrumentGroupKey, t)}
-              </div>
-            ))}
-          </div>
+        <div className="instrument-selection-tabs" role="group" aria-label={t('instrumentSelection.tabs')}>
+          <button
+            type="button"
+            className={`instrument-selection-tab${activeTab === 'instrument' ? ' active' : ''}`}
+            aria-pressed={activeTab === 'instrument'}
+            onClick={() => setInstrumentSelectionTab('instrument')}
+          >
+            {t('instrumentSelection.tab.instrument')}
+          </button>
+          <button
+            type="button"
+            className={`instrument-selection-tab${activeTab === 'fx' ? ' active' : ''}`}
+            aria-pressed={activeTab === 'fx'}
+            onClick={() => setInstrumentSelectionTab('fx')}
+          >
+            {t('instrumentSelection.tab.fx')}
+          </button>
         </div>
-        <div className="instrument-list">
-          <div className="instrument-instruments-list">
-            {instrumentsInGroup.map((inst) => (
-              <div
-                key={inst.key}
-                className={`instrument-instrument-item${currentInstrumentKey === inst.key ? ' active' : ''}`}
-                onClick={() => handleSelectInstrument(inst.key)}
-              >
-                {inst.label}
+        <div className="instrument-selection-content">
+          <TrackFxPanel track={targetTrack} hidden={activeTab !== 'fx'} />
+          {activeTab === 'instrument' && !isAudioTrack && (
+            <div className="instrument-selection-browser">
+              <div className="instrument-groups">
+                <div className="instrument-groups-list">
+                  {groups.map((key) => (
+                    <div
+                      key={key}
+                      className={`instrument-group-item${selectedGroupKey === key ? ' active' : ''}`}
+                      onClick={() => handleSelectGroup(key)}
+                    >
+                      {key === CUSTOM_GROUP ? t('instrument.group.CUSTOM') : getInstrumentGroupLabel(key as InstrumentGroupKey, t)}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-            {selectedGroupKey === CUSTOM_GROUP && <div className="instrument-instrument-item manage-instruments" onClick={() => setShowManager(true)}>{t('userInstrument.manage')}</div>}
-          </div>
+              <div className="instrument-list">
+                <div className="instrument-instruments-list">
+                  {instrumentsInGroup.map((inst) => (
+                    <div
+                      key={inst.key}
+                      className={`instrument-instrument-item${currentInstrumentKey === inst.key ? ' active' : ''}`}
+                      onClick={() => handleSelectInstrument(inst.key)}
+                    >
+                      {inst.label}
+                    </div>
+                  ))}
+                  {selectedGroupKey === CUSTOM_GROUP && <div className="instrument-instrument-item manage-instruments" onClick={() => setShowManager(true)}>{t('userInstrument.manage')}</div>}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-      )}
       {showManager && <UserInstrumentManager onClose={() => setShowManager(false)}/>}
     </div>
   );
