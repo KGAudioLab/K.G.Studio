@@ -707,6 +707,7 @@ export const zhCnMessages: TranslationMessages = {
   'fileImport.browse': '浏览文件',
   'track.controls.fxButton': '打开轨道 FX',
   'fx.add': '添加',
+  'fx.history.update': '更新轨道“{track}”的效果器',
   'fx.remove': '删除{effect}',
   'fx.removeConfirm': '从轨道中删除此{effect}？',
   'fx.removeConfirm.delete': '删除',

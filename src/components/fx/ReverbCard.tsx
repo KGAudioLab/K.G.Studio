@@ -3,9 +3,9 @@ import { TbChevronLeft, TbChevronRight, TbPower } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
+import { REVERB_TYPES } from '../../core/fx/KGReverbFX';
 import './ReverbCard.css';
 
-const REVERB_TYPES = ['hall', 'room', 'chamber', 'plate', 'spring'] as const;
 export interface ReverbPreviewState {
   enabled: boolean;
   expanded: boolean;

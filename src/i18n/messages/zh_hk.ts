@@ -707,6 +707,7 @@ export const zhHkMessages: TranslationMessages = {
   'fileImport.browse': '瀏覽檔案',
   'track.controls.fxButton': '開啟軌道 FX',
   'fx.add': '新增',
+  'fx.history.update': '更新軌道「{track}」的效果器',
   'fx.remove': '刪除{effect}',
   'fx.removeConfirm': '從軌道中刪除此{effect}？',
   'fx.removeConfirm.delete': '刪除',

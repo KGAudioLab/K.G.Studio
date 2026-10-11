@@ -10,6 +10,7 @@ import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGAudioTrack } from '../../track/KGAudioTrack';
 import { KGMidiTrack } from '../../track/KGMidiTrack';
 import { KGTrackAutomationPoint } from '../../track/KGTrackAutomationPoint';
+import { KGEQFX, KGReverbFX } from '../../fx';
 import { DuplicateTrackCommand, generateDuplicateTrackName } from './DuplicateTrackCommand';
 
 describe('DuplicateTrackCommand', () => {
@@ -47,6 +48,7 @@ describe('DuplicateTrackCommand', () => {
     source.setPan(-0.4);
     source.setTransposeSettings({ followKeySignature: true, transpose: 5 });
     source.setNoTranspose(true);
+    source.setFX([new KGEQFX(), new KGReverbFX('plate', 0.7), new KGEQFX()]);
     source.setVolumeAutomation([new KGTrackAutomationPoint('volume-source', 2, -4)]);
     source.setPanAutomation([new KGTrackAutomationPoint('pan-source', 3, 0.25)]);
 
@@ -79,6 +81,12 @@ describe('DuplicateTrackCommand', () => {
     expect(duplicate.getPan()).toBe(-0.4);
     expect(duplicate.getTransposeSettings()).toEqual({ followKeySignature: true, transpose: 5 });
     expect(duplicate.getNoTranspose()).toBe(true);
+    expect(duplicate.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb', 'eq']);
+    duplicate.getFX().forEach((effect, index) => expect(effect.getId()).not.toBe(source.getFX()[index].getId()));
+    const duplicateEQ = duplicate.getFX()[0] as KGEQFX;
+    const bands = duplicateEQ.getBands(); bands[0].gainDb = 9; duplicateEQ.setBands(bands);
+    expect((source.getFX()[0] as KGEQFX).getBands()[0].gainDb).toBe(0);
+    expect((duplicate.getFX()[1] as KGReverbFX).getWet()).toBe(0.7);
     expect(duplicate.getVolumeAutomation()[0].getId()).not.toBe('volume-source');
     expect([duplicate.getVolumeAutomation()[0].getTick(), duplicate.getVolumeAutomation()[0].getValue()]).toEqual([2, -4]);
     expect(duplicate.getVolumeAutomation()[0].isSelected()).toBe(false);

@@ -1,4 +1,5 @@
-import { Expose, Type } from 'class-transformer';
+import { Expose, Transform, Type } from 'class-transformer';
+import { KGFX, KGEQFX, KGReverbFX, KGCompressorFX, KGLimiterFX, normalizeFXList } from '../fx';
 import { KGRegion } from '../region/KGRegion';
 import { KGMidiRegion } from '../region/KGMidiRegion';
 import { KGAudioRegion } from '../region/KGAudioRegion';
@@ -52,6 +53,19 @@ export class KGTrack {
   @Expose()
   @WithDefault(false)
   protected solo: boolean = false;
+
+  @Expose()
+  @Type(() => KGFX, {
+    discriminator: { property: '__type', subTypes: [
+      { value: KGEQFX, name: 'KGEQFX' },
+      { value: KGReverbFX, name: 'KGReverbFX' },
+      { value: KGCompressorFX, name: 'KGCompressorFX' },
+      { value: KGLimiterFX, name: 'KGLimiterFX' },
+    ] },
+    keepDiscriminatorProperty: true,
+  })
+  @Transform(({ value }) => normalizeFXList(value), { toClassOnly: true })
+  protected fx: KGFX[] = [];
   
   @Expose()
   @Type(() => KGRegion, {
@@ -84,6 +98,19 @@ export class KGTrack {
   // Getters
   public getName(): string {
     return this.name;
+  }
+
+  public getFX(): readonly KGFX[] { return [...this.fx]; }
+  public setFX(effects: readonly KGFX[]): void { this.fx = normalizeFXList(effects); }
+  public addFX(effect: KGFX): void { this.setFX([...this.fx, effect]); }
+  public removeFX(id: string): void { this.fx = this.fx.filter(effect => effect.getId() !== id); }
+  public moveFX(id: string, targetIndex: number): void {
+    const from = this.fx.findIndex(effect => effect.getId() === id);
+    if (from < 0 || !Number.isInteger(targetIndex)) return;
+    const next = [...this.fx];
+    const [effect] = next.splice(from, 1);
+    next.splice(Math.max(0, Math.min(next.length, targetIndex)), 0, effect);
+    this.fx = next;
   }
 
   public getId(): number {

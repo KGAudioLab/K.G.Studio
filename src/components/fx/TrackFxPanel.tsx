@@ -9,10 +9,13 @@ import ReverbCard from './ReverbCard';
 import CompressorCard from './CompressorCard';
 import LimiterCard from './LimiterCard';
 import AddFxDialog from './AddFxDialog';
-import { createFxInstance, type FxInstance } from './fxPreviewState';
+import { toFxPreview, fromFxPreview, type FxInstance, type FXViewState } from './fxPreviewState';
+import { createFX, type KGFX } from '../../core/fx';
+import { KGCommandHistory } from '../../core/commands/KGCommandHistory';
+import { SetTrackFXCommand } from '../../core/commands/track/SetTrackFXCommand';
 
-// Temporary ordered instances only; excluded from projects and the audio graph.
-const previews = new WeakMap<KGTrack, FxInstance[]>();
+// Only presentation state is temporary; effect settings belong to the track.
+const views = new WeakMap<KGTrack, Map<string, FXViewState>>();
 
 export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null; hidden: boolean }) {
   const { t } = useI18n();
@@ -27,13 +30,26 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
   useEffect(() => {
     if (hidden || dialogTrack !== track) closeDialog();
   }, [hidden, track, dialogTrack, closeDialog]);
-  const instances = track ? previews.get(track) ?? [] : [];
-  const save = (next: FxInstance[]) => {
-    if (!track) return;
-    previews.set(track, next);
+  const effects = track?.getFX() ?? [];
+  const instances = effects.map(effect => toFxPreview(effect, track ? views.get(track)?.get(effect.getId()) : undefined));
+  const save = (next: readonly KGFX[], mergeKey?: string, owner = track) => {
+    if (!owner) return;
+    KGCommandHistory.instance().executeCommand(new SetTrackFXCommand(owner, next, mergeKey), { rethrow: true });
     redraw(revision => revision + 1);
   };
-  const update = (next: FxInstance) => save(instances.map(instance => instance.id === next.id ? next : instance));
+  const update = (next: FxInstance) => {
+    if (!track) return;
+    const view = views.get(track) ?? new Map<string, FXViewState>();
+    view.set(next.id, { expanded: next.state.expanded, selectedBand: next.type === 'eq' ? next.state.selectedBand : 1 });
+    views.set(track, view);
+    const previous = instances.find(instance => instance.id === next.id);
+    if (!previous) return;
+    const changed = Object.keys(next.state).filter(key => key !== 'expanded' && key !== 'selectedBand'
+      && JSON.stringify(previous.state[key as keyof typeof previous.state]) !== JSON.stringify(next.state[key as keyof typeof next.state]));
+    if (changed.length) save(effects.map(effect => effect.getId() === next.id ? fromFxPreview(next) : effect),
+      changed.includes('enabled') ? undefined : `${next.id}:${changed.join(',')}`);
+    else redraw(revision => revision + 1);
+  };
   const remove = async (instance: FxInstance) => {
     if (!track || confirmingRemoval.current) return;
     const owner = track;
@@ -45,8 +61,7 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
       });
       if (!confirmed) return;
       // Read the latest list and retain the originating track across the async confirmation.
-      previews.set(owner, (previews.get(owner) ?? []).filter(entry => entry.id !== instance.id));
-      redraw(revision => revision + 1);
+      save(owner.getFX().filter(entry => entry.getId() !== instance.id), undefined, owner);
     } finally {
       confirmingRemoval.current = false;
     }
@@ -61,10 +76,10 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
   };
   const move = (source: string, target: string, after: boolean) => {
     if (source === target) return;
-    const moving = instances.find(instance => instance.id === source);
+    const moving = effects.find(effect => effect.getId() === source);
     if (!moving) return;
-    const next = instances.filter(instance => instance.id !== source);
-    const targetIndex = next.findIndex(instance => instance.id === target);
+    const next = effects.filter(effect => effect.getId() !== source);
+    const targetIndex = next.findIndex(effect => effect.getId() === target);
     if (targetIndex < 0) return;
     next.splice(targetIndex + (after ? 1 : 0), 0, moving);
     save(next);
@@ -124,7 +139,7 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
         <TbPlus aria-hidden="true" />{t('fx.add')}
       </button>
       {track && dialogTrack === track && !hidden && <AddFxDialog onCancel={closeDialog} onAdd={type => {
-        save([...instances, createFxInstance(type)]);
+        save([...effects, createFX(type)]);
         closeDialog();
       }} />}
     </div>

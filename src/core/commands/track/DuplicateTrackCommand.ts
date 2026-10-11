@@ -185,6 +185,7 @@ export class DuplicateTrackCommand extends KGCommand {
     duplicate.setMuted(source.getMuted());
     duplicate.setPan(source.getPan());
     duplicate.setSolo(source.getSolo());
+    duplicate.setFX(source.getFX().map(effect => effect.clone(true)));
     if (this.options.includeAutomation) {
       duplicate.setVolumeAutomation(source.getVolumeAutomation().map(cloneAutomationPoint));
       duplicate.setPanAutomation(source.getPanAutomation().map(cloneAutomationPoint));

@@ -1,6 +1,9 @@
 import 'reflect-metadata';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { instanceToPlain, plainToInstance } from 'class-transformer';
+import { KGCommandHistory } from '../../core/commands/KGCommandHistory';
+import { KGEQFX, KGReverbFX, KGCompressorFX, KGLimiterFX } from '../../core/fx';
 import { KGTrack } from '../../core/track/KGTrack';
 import { showConfirm } from '../../util/dialogUtil';
 import TrackFxPanel from './TrackFxPanel';
@@ -13,6 +16,7 @@ function addEq() {
 }
 
 describe('FX removal', () => {
+  beforeEach(() => { KGCommandHistory.instance().clear(); vi.mocked(showConfirm).mockReset(); });
   it('preserves a card when confirmation is cancelled', async () => {
     vi.mocked(showConfirm).mockResolvedValue(false);
     render(<TrackFxPanel track={new KGTrack()} hidden={false} />);
@@ -46,5 +50,49 @@ describe('FX removal', () => {
     expect(screen.getAllByRole('region', { name: 'EQ' })).toHaveLength(1);
     rerender(<TrackFxPanel track={first} hidden={false} />);
     expect(screen.queryByRole('region', { name: 'EQ' })).not.toBeInTheDocument();
+  });
+
+  it('writes card controls into saved models and restores them after loading', () => {
+    const track = new KGTrack();
+    track.setFX([new KGEQFX(), new KGReverbFX(), new KGCompressorFX(), new KGLimiterFX()]);
+    const { rerender } = render(<TrackFxPanel track={track} hidden={false} />);
+    const eq = within(screen.getByRole('region', { name: 'EQ' }));
+    fireEvent.keyDown(eq.getByRole('slider', { name: 'Gain' }), { key: 'End' });
+    const reverb = within(screen.getByRole('region', { name: 'Reverb' }));
+    fireEvent.keyDown(reverb.getByRole('slider'), { key: 'End' });
+    const compressor = within(screen.getByRole('region', { name: 'Compressor' }));
+    fireEvent.keyDown(compressor.getByRole('slider', { name: 'Attack' }), { key: 'End' });
+    const limiter = within(screen.getByRole('region', { name: 'Limiter' }));
+    fireEvent.keyDown(limiter.getAllByRole('slider', { name: 'Threshold' })[1], { key: 'Home' });
+    expect((track.getFX()[0] as KGEQFX).getBands()[1].gainDb).toBe(18);
+    expect((track.getFX()[1] as KGReverbFX).getWet()).toBe(1);
+    expect((track.getFX()[2] as KGCompressorFX).getParameters().attackMs).toBe(1000);
+    expect((track.getFX()[3] as KGLimiterFX).getParameters().thresholdDb).toBe(-100);
+    const restored = plainToInstance(KGTrack, JSON.parse(JSON.stringify(instanceToPlain(track))) as Record<string, unknown>);
+    rerender(<TrackFxPanel track={restored} hidden={false} />);
+    expect(within(screen.getByRole('region', { name: 'EQ' })).getByRole('slider', { name: 'Gain' })).toHaveAttribute('aria-valuetext', '18.0 dB');
+    expect(within(screen.getByRole('region', { name: 'Limiter' })).getAllByRole('slider', { name: 'Threshold' })[0]).toHaveAttribute('aria-valuenow', '-100');
+  });
+
+  it('persists reordered cards, keeps UI changes out of history, and supports undo/redo', () => {
+    const track = new KGTrack();
+    const { rerender, unmount } = render(<TrackFxPanel track={track} hidden={false} />);
+    addEq();
+    const id = track.getFX()[0].getId();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse FX' }));
+    KGCommandHistory.instance().undo();
+    rerender(<TrackFxPanel track={track} hidden={false} />);
+    expect(track.getFX()).toHaveLength(0);
+    expect(screen.queryByRole('region', { name: 'EQ' })).not.toBeInTheDocument();
+    KGCommandHistory.instance().redo();
+    rerender(<TrackFxPanel track={track} hidden={false} />);
+    expect(track.getFX()[0].getId()).toBe(id);
+    addEq();
+    fireEvent.keyDown(screen.getAllByRole('button', { name: 'Reorder EQ' })[1], { key: 'ArrowUp', altKey: true });
+    expect(track.getFX()[1].getId()).toBe(id);
+    unmount();
+    render(<TrackFxPanel track={track} hidden={false} />);
+    expect(screen.getAllByRole('region', { name: 'EQ' })).toHaveLength(2);
+    expect(track.getFX()[1].getId()).toBe(id);
   });
 });

@@ -709,6 +709,7 @@ export const enUsMessages: TranslationMessages = {
   'fileImport.browse': 'Browse Files',
   'track.controls.fxButton': 'Open track FX',
   'fx.add': 'Add',
+  'fx.history.update': 'Update track "{track}" FX',
   'fx.remove': 'Delete {effect}',
   'fx.removeConfirm': 'Delete this {effect} from the track?',
   'fx.removeConfirm.delete': 'Delete',
