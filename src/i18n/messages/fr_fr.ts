@@ -592,6 +592,8 @@ export const frFrMessages: TranslationMessages = {
   'fileImport.or': 'ou',
   'fileImport.browse': 'Parcourir les fichiers',
   'track.controls.fxButton': 'Ouvrir les FX de la piste',
+  'fx.reorder': 'Réordonner {effect}',
+  'fx.reorderHint': 'Glisser pour réordonner, ou utiliser Alt + Haut/Bas',
   'fx.limiter.title': 'Limiteur',
   'fx.limiter.ceiling': 'Plafond',
   'fx.compressor.title': 'Compresseur',

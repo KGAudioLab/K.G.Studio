@@ -25,13 +25,13 @@ export default function ReverbCard({ state, onChange }: {
   };
   return (
     <section className={`fx-card reverb-card${state.enabled ? '' : ' is-bypassed'}`} aria-label={title}>
-      <div className="fx-card-header">
+      <div className="fx-card-header" draggable>
         <button type="button" className="fx-collapse" aria-expanded={state.expanded} aria-controls={bodyId}
           title={t(state.expanded ? 'fx.collapse' : 'fx.expand')} aria-label={t(state.expanded ? 'fx.collapse' : 'fx.expand')}
           onClick={() => onChange({ ...state, expanded: !state.expanded })}>
           <span className={`arrow${state.expanded ? ' open' : ''}`} aria-hidden="true">▶</span>
         </button>
-        <span className="fx-card-title">{title}</span>
+        <span className="fx-card-title" role="button" tabIndex={0} aria-label={t('fx.reorder', { effect: t('fx.reverb.title') })} title={t('fx.reorderHint')}>{title}</span>
         <button type="button" className={`fx-power${state.enabled ? ' is-on' : ''}`} aria-pressed={state.enabled}
           title={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: title })}
           aria-label={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: title })}

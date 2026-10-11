@@ -706,6 +706,8 @@ export const zhCnMessages: TranslationMessages = {
   'fileImport.or': '或',
   'fileImport.browse': '浏览文件',
   'track.controls.fxButton': '打开轨道 FX',
+  'fx.reorder': '调整{effect}顺序',
+  'fx.reorderHint': '拖动调整顺序，或使用 Alt + 上/下方向键',
   'fx.limiter.title': '限幅器',
   'fx.limiter.ceiling': '上限',
   'fx.compressor.title': '压缩器',

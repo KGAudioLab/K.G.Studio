@@ -708,6 +708,8 @@ export const enUsMessages: TranslationMessages = {
   'fileImport.or': 'or',
   'fileImport.browse': 'Browse Files',
   'track.controls.fxButton': 'Open track FX',
+  'fx.reorder': 'Reorder {effect}',
+  'fx.reorderHint': 'Drag to reorder, or use Alt + Up/Down',
   'fx.limiter.title': 'Limiter',
   'fx.limiter.ceiling': 'Ceiling',
   'fx.compressor.title': 'Compressor',
