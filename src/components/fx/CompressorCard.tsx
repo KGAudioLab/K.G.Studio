@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { TbPower } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
+import FxDeleteButton from './FxDeleteButton';
 import FxLevelControl from './FxLevelControl';
 import './CompressorCard.css';
 
@@ -15,9 +16,10 @@ export interface CompressorPreviewState {
   gain: number;
 }
 
-export default function CompressorCard({ state, onChange }: {
+export default function CompressorCard({ state, onChange, onRemove }: {
   state: CompressorPreviewState;
   onChange: (state: CompressorPreviewState) => void;
+  onRemove: () => void;
 }) {
   const { t } = useI18n();
   const bodyId = useId();
@@ -31,6 +33,7 @@ export default function CompressorCard({ state, onChange }: {
           <span className={`arrow${state.expanded ? ' open' : ''}`} aria-hidden="true">▶</span>
         </button>
         <span className="fx-card-title" role="button" tabIndex={0} aria-label={t('fx.reorder', { effect: t('fx.compressor.title') })} title={t('fx.reorderHint')}>{title}</span>
+        <FxDeleteButton effect={title} onRemove={onRemove} />
         <button type="button" className={`fx-power${state.enabled ? ' is-on' : ''}`} aria-pressed={state.enabled}
           title={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: title })}
           aria-label={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: title })}

@@ -1,78 +1,83 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
-import EqCard, { type EqPreviewState } from './EqCard';
-import { createPreviewBands } from './eqPreview';
+import { TbPlus } from 'react-icons/tb';
+import { useI18n } from '../../i18n/useI18n';
+import { showConfirm } from '../../util/dialogUtil';
+import EqCard from './EqCard';
 import type { KGTrack } from '../../core/track/KGTrack';
-import ReverbCard, { type ReverbPreviewState } from './ReverbCard';
-import CompressorCard, { type CompressorPreviewState } from './CompressorCard';
-import LimiterCard, { type LimiterPreviewState } from './LimiterCard';
+import ReverbCard from './ReverbCard';
+import CompressorCard from './CompressorCard';
+import LimiterCard from './LimiterCard';
+import AddFxDialog from './AddFxDialog';
+import { createFxInstance, type FxInstance } from './fxPreviewState';
 
-const previews = new WeakMap<KGTrack, EqPreviewState>();
-const reverbPreviews = new WeakMap<KGTrack, ReverbPreviewState>();
-const compressorPreviews = new WeakMap<KGTrack, CompressorPreviewState>();
-const limiterPreviews = new WeakMap<KGTrack, LimiterPreviewState>();
-type FxType = 'eq' | 'reverb' | 'compressor' | 'limiter';
-const defaultOrder: FxType[] = ['eq', 'reverb', 'compressor', 'limiter'];
-const orders = new WeakMap<KGTrack, FxType[]>();
+// Temporary ordered instances only; excluded from projects and the audio graph.
+const previews = new WeakMap<KGTrack, FxInstance[]>();
 
-function createCompressorPreview(): CompressorPreviewState {
-  return { enabled: true, expanded: true, threshold: -24, ratio: 4, attack: 10, release: 228, gain: 0 };
-}
-
-function createLimiterPreview(): LimiterPreviewState {
-  return { enabled: true, expanded: true, gain: 0, ceiling: -4.1, attack: 5, release: 50 };
-}
-
-// Temporary UI state only; excluded from projects and the audio graph.
 export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null; hidden: boolean }) {
+  const { t } = useI18n();
   const [, redraw] = useState(0);
   const panel = useRef<HTMLDivElement>(null);
   const dragAllowed = useRef(false);
-  const [dragging, setDragging] = useState<{ track: KGTrack; type: FxType } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ type: FxType; after: boolean } | null>(null);
-  const state = track ? previews.get(track) ?? {
-    enabled: true, expanded: true, selectedBand: 1, bands: createPreviewBands(),
-  } : null;
-  const compressorState = track ? compressorPreviews.get(track) ?? createCompressorPreview() : null;
-  const limiterState = track ? limiterPreviews.get(track) ?? createLimiterPreview() : null;
-  const reverbState = track ? reverbPreviews.get(track) ?? {
-    enabled: true, expanded: true, type: 'hall' as const, mix: 0.1,
-  } : null;
-  const order = track ? orders.get(track) ?? defaultOrder : defaultOrder;
-  const move = (source: FxType, target: FxType, after: boolean) => {
-    if (!track || source === target) return;
-    const next = order.filter(type => type !== source);
-    next.splice(next.indexOf(target) + (after ? 1 : 0), 0, source);
-    orders.set(track, next);
+  const confirmingRemoval = useRef(false);
+  const [dialogTrack, setDialogTrack] = useState<KGTrack | null>(null);
+  const closeDialog = useCallback(() => setDialogTrack(null), []);
+  const [dragging, setDragging] = useState<{ track: KGTrack; id: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; after: boolean } | null>(null);
+  useEffect(() => {
+    if (hidden || dialogTrack !== track) closeDialog();
+  }, [hidden, track, dialogTrack, closeDialog]);
+  const instances = track ? previews.get(track) ?? [] : [];
+  const save = (next: FxInstance[]) => {
+    if (!track) return;
+    previews.set(track, next);
     redraw(revision => revision + 1);
+  };
+  const update = (next: FxInstance) => save(instances.map(instance => instance.id === next.id ? next : instance));
+  const remove = async (instance: FxInstance) => {
+    if (!track || confirmingRemoval.current) return;
+    const owner = track;
+    confirmingRemoval.current = true;
+    try {
+      const confirmed = await showConfirm(t('fx.removeConfirm', { effect: t(`fx.${instance.type}.title`) }), {
+        confirmLabel: t('fx.removeConfirm.delete'),
+        cancelLabel: t('dialog.cancel'),
+      });
+      if (!confirmed) return;
+      // Read the latest list and retain the originating track across the async confirmation.
+      previews.set(owner, (previews.get(owner) ?? []).filter(entry => entry.id !== instance.id));
+      redraw(revision => revision + 1);
+    } finally {
+      confirmingRemoval.current = false;
+    }
+  };
+  const renderCard = (instance: FxInstance) => {
+    switch (instance.type) {
+      case 'eq': return <EqCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+      case 'reverb': return <ReverbCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+      case 'compressor': return <CompressorCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+      case 'limiter': return <LimiterCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+    }
+  };
+  const move = (source: string, target: string, after: boolean) => {
+    if (source === target) return;
+    const moving = instances.find(instance => instance.id === source);
+    if (!moving) return;
+    const next = instances.filter(instance => instance.id !== source);
+    const targetIndex = next.findIndex(instance => instance.id === target);
+    if (targetIndex < 0) return;
+    next.splice(targetIndex + (after ? 1 : 0), 0, moving);
+    save(next);
   };
   const isAfter = (event: DragEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return event.clientY > rect.top + rect.height / 2;
   };
   const finishDrag = () => { setDragging(null); setDropTarget(null); dragAllowed.current = false; };
-  const cards = {
-    eq: track && state && <EqCard state={state} onChange={next => {
-      previews.set(track, next);
-      redraw(revision => revision + 1);
-    }} />,
-    reverb: track && reverbState && <ReverbCard state={reverbState} onChange={next => {
-      reverbPreviews.set(track, next);
-      redraw(revision => revision + 1);
-    }} />,
-    compressor: track && compressorState && <CompressorCard state={compressorState} onChange={next => {
-      compressorPreviews.set(track, next);
-      redraw(revision => revision + 1);
-    }} />,
-    limiter: track && limiterState && <LimiterCard state={limiterState} onChange={next => {
-      limiterPreviews.set(track, next);
-      redraw(revision => revision + 1);
-    }} />,
-  };
   return (
     <div ref={panel} className="track-fx-panel" hidden={hidden}>
-      {track && order.map(type => (
-        <div key={type} className={`fx-sortable${dragging?.track === track && dragging.type === type ? ' is-dragging' : ''}${dragging?.track === track && dropTarget?.type === type ? ` drop-${dropTarget.after ? 'after' : 'before'}` : ''}`}
+      {track && instances.map(instance => (
+        <div key={instance.id} className={`fx-sortable${dragging?.track === track && dragging.id === instance.id ? ' is-dragging' : ''}${dragging?.track === track && dropTarget?.id === instance.id ? ` drop-${dropTarget.after ? 'after' : 'before'}` : ''}`}
           onMouseDownCapture={event => {
             const target = event.target as HTMLElement;
             dragAllowed.current = !!target.closest('.fx-card-header') && !target.closest('button');
@@ -81,14 +86,14 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
             if (!dragAllowed.current) { event.preventDefault(); return; }
             event.stopPropagation();
             event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', type);
-            setDragging({ track, type });
+            event.dataTransfer.setData('text/plain', instance.id);
+            setDragging({ track, id: instance.id });
           }}
           onDragOver={event => {
             if (dragging?.track !== track) return;
             event.preventDefault(); event.stopPropagation();
             event.dataTransfer.dropEffect = 'move';
-            setDropTarget(dragging.type === type ? null : { type, after: isAfter(event) });
+            setDropTarget(dragging.id === instance.id ? null : { id: instance.id, after: isAfter(event) });
             if (panel.current) {
               const rect = panel.current.getBoundingClientRect();
               if (event.clientY > rect.bottom - 32) panel.current.scrollTop += 12;
@@ -101,20 +106,27 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
           onDrop={event => {
             if (dragging?.track !== track) return;
             event.preventDefault(); event.stopPropagation();
-            move(dragging.type, type, isAfter(event));
+            move(dragging.id, instance.id, isAfter(event));
             finishDrag();
           }}
           onDragEnd={event => { event.stopPropagation(); finishDrag(); }}
           onKeyDownCapture={event => {
             if (!(event.target as HTMLElement).closest('.fx-card-title') || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
             event.preventDefault(); event.stopPropagation();
-            const index = order.indexOf(type);
-            const neighbor = order[index + (event.key === 'ArrowUp' ? -1 : 1)];
-            if (neighbor) move(type, neighbor, event.key === 'ArrowDown');
+            const index = instances.findIndex(entry => entry.id === instance.id);
+            const neighbor = instances[index + (event.key === 'ArrowUp' ? -1 : 1)];
+            if (neighbor) move(instance.id, neighbor.id, event.key === 'ArrowDown');
           }}>
-          {cards[type]}
+          {renderCard(instance)}
         </div>
       ))}
+      <button type="button" className="fx-add-button" disabled={!track} onClick={() => setDialogTrack(track)}>
+        <TbPlus aria-hidden="true" />{t('fx.add')}
+      </button>
+      {track && dialogTrack === track && !hidden && <AddFxDialog onCancel={closeDialog} onAdd={type => {
+        save([...instances, createFxInstance(type)]);
+        closeDialog();
+      }} />}
     </div>
   );
 }

@@ -1,0 +1,25 @@
+.fx-create-dialog-modal { max-height: calc(100vh - 40px); overflow-y: auto; }
+.fx-create-option { padding: 14px 12px; gap: 10px; }
+.fx-create-option img { width: 128px; height: 112px; object-fit: contain; }
+.fx-create-option .track-create-option-label { font-size: 16px; }
+.fx-create-option:focus-visible { outline: 2px solid #5a9fd4; outline-offset: 2px; }
+.fx-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px;
+  background: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #999;
+  font-size: 12px;
+  cursor: pointer;
+}
+.fx-add-button:first-child { margin-top: 0; }
+.fx-add-button:hover:not(:disabled) { color: #e0e0e0; border-color: #5a9fd4; }
+.fx-add-button:disabled { opacity: 0.5; cursor: default; }
+.fx-add-button:focus-visible { outline: 1px solid #5a9fd4; outline-offset: 2px; }
+.fx-add-button svg { font-size: 16px; }

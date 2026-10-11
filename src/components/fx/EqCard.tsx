@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/useI18n';
 import { clamp, EQ_GAIN_RANGE, EQ_MAX_Q, EQ_MIN_Q, frequencyToPosition, positionToFrequency, previewResponseDb, type EqBand } from './eqPreview';
 import './EqCard.css';
 import FxKnob from './FxKnob';
+import FxDeleteButton from './FxDeleteButton';
 
 export interface EqPreviewState {
   enabled: boolean;
@@ -19,7 +20,7 @@ const gainToY = (gain: number) => HEIGHT / 2 - gain / EQ_GAIN_RANGE * HEIGHT / 2
 const formatFrequency = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(2)} kHz` : `${Math.round(value)} Hz`;
 
 
-export default function EqCard({ state, onChange }: { state: EqPreviewState; onChange: (state: EqPreviewState) => void }) {
+export default function EqCard({ state, onChange, onRemove }: { state: EqPreviewState; onChange: (state: EqPreviewState) => void; onRemove: () => void }) {
   const { t } = useI18n();
   const bodyId = useId();
   const graph = useRef<SVGSVGElement>(null);
@@ -59,6 +60,7 @@ export default function EqCard({ state, onChange }: { state: EqPreviewState; onC
           <span className={`arrow${state.expanded ? ' open' : ''}`} aria-hidden="true">▶</span>
         </button>
         <span className="fx-card-title" role="button" tabIndex={0} aria-label={t('fx.reorder', { effect: t('fx.eq.title') })} title={t('fx.reorderHint')}>{t('fx.eq.title')}</span>
+        <FxDeleteButton effect={t('fx.eq.title')} onRemove={onRemove} />
         <button type="button" className={`fx-power${state.enabled ? ' is-on' : ''}`} aria-pressed={state.enabled}
           title={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: t('fx.eq.title') })} aria-label={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: t('fx.eq.title') })}
           onClick={() => onChange({ ...state, enabled: !state.enabled })}><TbPower aria-hidden="true" /></button>

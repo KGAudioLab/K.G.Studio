@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FaMusic, FaTimes } from 'react-icons/fa';
-import { FaWaveSquare } from 'react-icons/fa6';
+import { FaTimes } from 'react-icons/fa';
 import './DialogProvider.css';
 import './TrackCreateDialog.css';
 
@@ -75,9 +74,7 @@ const TrackCreateDialog: React.FC<TrackCreateDialogProps> = ({ onResolve }) => {
             className={`track-create-option${selectedTrackType === 'midi' ? ' selected' : ''}`}
             onClick={() => setSelectedTrackType('midi')}
           >
-            <div className="track-create-option-icon midi">
-              <FaMusic />
-            </div>
+            <img className="track-create-option-image" src={`${import.meta.env.BASE_URL}resource/track/midi.png`} alt="" draggable={false} />
             <span className="track-create-option-label">MIDI</span>
           </button>
           <button
@@ -85,9 +82,7 @@ const TrackCreateDialog: React.FC<TrackCreateDialogProps> = ({ onResolve }) => {
             className={`track-create-option${selectedTrackType === 'audio' ? ' selected' : ''}`}
             onClick={() => setSelectedTrackType('audio')}
           >
-            <div className="track-create-option-icon audio">
-              <FaWaveSquare />
-            </div>
+            <img className="track-create-option-image" src={`${import.meta.env.BASE_URL}resource/track/audio.png`} alt="" draggable={false} />
             <span className="track-create-option-label">Audio</span>
           </button>
         </div>

@@ -44,7 +44,7 @@
 .fx-card-title { font-weight: 600; flex: 1; }
 .fx-card-title:focus-visible { outline: 1px solid #5a9fd4; outline-offset: 3px; }
 .fx-card-header:active { cursor: grabbing; }
-.fx-power, .fx-collapse {
+.fx-power, .fx-collapse, .fx-delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -55,11 +55,13 @@
   cursor: pointer;
 }
 .fx-power { font-size: 18px; margin-left: auto; }
+.fx-delete { font-size: 16px; border-radius: 4px; }
+.fx-delete:hover { color: #ff6666; }
 .fx-power.is-on { color: #5a9fd4; }
 .fx-collapse:hover { color: #bbb; }
 .fx-collapse .arrow { font-size: 9px; transition: transform 0.15s; }
 .fx-collapse .arrow.open { transform: rotate(90deg); }
-.fx-power:focus-visible, .fx-collapse:focus-visible, .fx-knob:focus-visible {
+.fx-power:focus-visible, .fx-collapse:focus-visible, .fx-delete:focus-visible, .fx-knob:focus-visible {
   outline: 1px solid #5a9fd4;
   outline-offset: 2px;
 }

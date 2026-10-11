@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { TbChevronLeft, TbChevronRight, TbPower } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
+import FxDeleteButton from './FxDeleteButton';
 import './ReverbCard.css';
 
 const REVERB_TYPES = ['hall', 'room', 'chamber', 'plate', 'spring'] as const;
@@ -12,9 +13,10 @@ export interface ReverbPreviewState {
   mix: number;
 }
 
-export default function ReverbCard({ state, onChange }: {
+export default function ReverbCard({ state, onChange, onRemove }: {
   state: ReverbPreviewState;
   onChange: (state: ReverbPreviewState) => void;
+  onRemove: () => void;
 }) {
   const { t } = useI18n();
   const bodyId = useId();
@@ -32,6 +34,7 @@ export default function ReverbCard({ state, onChange }: {
           <span className={`arrow${state.expanded ? ' open' : ''}`} aria-hidden="true">▶</span>
         </button>
         <span className="fx-card-title" role="button" tabIndex={0} aria-label={t('fx.reorder', { effect: t('fx.reverb.title') })} title={t('fx.reorderHint')}>{title}</span>
+        <FxDeleteButton effect={title} onRemove={onRemove} />
         <button type="button" className={`fx-power${state.enabled ? ' is-on' : ''}`} aria-pressed={state.enabled}
           title={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: title })}
           aria-label={t(state.enabled ? 'fx.disable' : 'fx.enable', { effect: title })}
