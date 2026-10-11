@@ -4,6 +4,10 @@ This file contains the complete release history of K.G.Studio. For a summary of 
 
 ---
 
+- **2026.10.10**: Added expressive MIDI humanization and expanded AI agent editing:
+  - **AIRE Humanization** — generate editable MIDI expression for strings, brass, and woodwinds entirely in your browser with WebGPU acceleration. Choose musical role, mood, and target controller (CC1, CC2, CC7, or CC11), with optional velocity conditioning and curve simplification. Note timing and velocities are preserved.
+  - **Advanced Agent Mode** — use structured JSON music tools and precise tick-based timing for detailed arrangement editing. The assistant can update or remove volume, pan, pitch-bend, and MIDI CC automation, including bulk keypoint updates as a single undoable operation. Structured track and instrument listings provide richer project context.
+
 - **2026.07.18**: Introduced powerful new MIDI arrangement and editing workflows:
   - **Flexible, key-aware transposition** — apply independent transpose settings at the track or region level, shift material by up to three octaves, and optionally follow key-signature changes. Chord-track content can now be transposed automatically when the project key or a key-signature region changes, preserving harmonic intent across the arrangement.
   - **MIDI Reference mode** — overlay a second MIDI region as a read-only, timeline-aligned reference in the piano roll, making it easier to coordinate melodies, harmonies, voicings, and rhythmic relationships while editing another part.
