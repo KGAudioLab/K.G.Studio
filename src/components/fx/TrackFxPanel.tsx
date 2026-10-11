@@ -2,13 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { TbPlus, TbCopy, TbDeviceFloppy, TbFolderOpen } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
-import { showConfirm } from '../../util/dialogUtil';
+import { showAlert, showChoice, showConfirm, showPrompt } from '../../util/dialogUtil';
 import EqCard from './EqCard';
 import type { KGTrack } from '../../core/track/KGTrack';
 import ReverbCard from './ReverbCard';
 import CompressorCard from './CompressorCard';
 import LimiterCard from './LimiterCard';
 import AddFxDialog from './AddFxDialog';
+import ImportFxDialog from './ImportFxDialog';
+import LoadFxPresetDialog from './LoadFxPresetDialog';
+import { isValidFXPresetName, serializeFXPreset } from '../../core/fx/fxPresets';
+import { fxPresetStorage, FXPresetExistsError } from '../../core/io/FXPresetStorage';
+import { useProjectStore } from '../../stores/projectStore';
 import { toFxPreview, fromFxPreview, type FxInstance, type FXViewState } from './fxPreviewState';
 import { createFX, type KGFX } from '../../core/fx';
 import { KGCommandHistory } from '../../core/commands/KGCommandHistory';
@@ -25,6 +30,38 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
   const confirmingRemoval = useRef(false);
   const [dialogTrack, setDialogTrack] = useState<KGTrack | null>(null);
   const closeDialog = useCallback(() => setDialogTrack(null), []);
+  const tracks = useProjectStore(state => state.tracks);
+  const [importTrack, setImportTrack] = useState<KGTrack | null>(null);
+  const closeImportDialog = useCallback(() => setImportTrack(null), []);
+  useEffect(() => {
+    if (hidden || importTrack !== track || (importTrack && !tracks.includes(importTrack))) closeImportDialog();
+  }, [hidden, track, importTrack, tracks, closeImportDialog]);
+  const [presetTrack, setPresetTrack] = useState<KGTrack | null>(null);
+  const closePresetDialog = useCallback(() => setPresetTrack(null), []);
+  const savingPreset = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const destination = useRef({ track, hidden });
+  destination.current = { track, hidden };
+  useEffect(() => {
+    if (hidden || presetTrack !== track || (presetTrack && !tracks.includes(presetTrack))) closePresetDialog();
+  }, [hidden, track, presetTrack, tracks, closePresetDialog]);
+  const savePreset = async () => {
+    if (!track || savingPreset.current) return;
+    const snapshot = serializeFXPreset(track.getFX());
+    savingPreset.current = true;
+    try {
+      const name = await showPrompt(t('fx.preset.savePrompt'), '', { confirmLabel: t('fx.save'), cancelLabel: t('dialog.cancel') });
+      if (name === null || name === '') return;
+      if (!isValidFXPresetName(name)) { await showAlert(t(name.trim().toLowerCase() === 'default' ? 'fx.preset.reserved' : 'toolbar.projectName.invalid')); return; }
+      try { await fxPresetStorage.save(name, snapshot); }
+      catch (error) {
+        if (!(error instanceof FXPresetExistsError)) throw error;
+        if (await showConfirm(t('fx.preset.overwrite', { name }), { confirmLabel: t('fx.preset.overwriteButton'), cancelLabel: t('dialog.cancel') })) await fxPresetStorage.save(name, snapshot, true);
+      }
+    } catch { await showAlert(t('fx.preset.error')); }
+    finally { savingPreset.current = false; }
+  };
   const [dragging, setDragging] = useState<{ track: KGTrack; id: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: number; after: boolean } | null>(null);
   useEffect(() => {
@@ -139,10 +176,32 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
         <button type="button" className="fx-action-button" disabled={!track} onClick={() => setDialogTrack(track)}>
           <TbPlus aria-hidden="true" />{t('fx.add')}
         </button>
-        <button type="button" className="fx-action-button" disabled={!track}><TbCopy aria-hidden="true" />{t('fx.import')}</button>
-        <button type="button" className="fx-action-button" disabled={!track}><TbDeviceFloppy aria-hidden="true" />{t('fx.save')}</button>
-        <button type="button" className="fx-action-button" disabled={!track}><TbFolderOpen aria-hidden="true" />{t('fx.load')}</button>
+        <button type="button" className="fx-action-button" disabled={!track} onClick={() => setImportTrack(track)}><TbCopy aria-hidden="true" />{t('fx.import')}</button>
+        <button type="button" className="fx-action-button" disabled={!track} onClick={() => void savePreset()}><TbDeviceFloppy aria-hidden="true" />{t('fx.save')}</button>
+        <button type="button" className="fx-action-button" disabled={!track} onClick={() => setPresetTrack(track)}><TbFolderOpen aria-hidden="true" />{t('fx.load')}</button>
       </div>
+      {track && presetTrack === track && !hidden && <LoadFxPresetDialog onClose={closePresetDialog} onLoad={async preset => {
+        const owner = track;
+        const valid = () => mounted.current && destination.current.track === owner && !destination.current.hidden && useProjectStore.getState().tracks.includes(owner);
+        if (!valid()) return false;
+        const action = owner.getFX().length ? await showChoice(t('fx.preset.loadChoice'), [
+          { label: t('fx.preset.replace'), value: 'replace' },
+          { label: t('fx.preset.append'), value: 'append' },
+        ]) : 'replace';
+        if (!valid() || !['replace', 'append'].includes(action ?? '')) return false;
+        const copies = preset.map(effect => effect.clone(true));
+        save(action === 'append' ? [...owner.getFX(), ...copies] : copies, undefined, owner);
+        return true;
+      }} />}
+      {track && importTrack === track && !hidden && <ImportFxDialog tracks={tracks} onClose={closeImportDialog} onImport={(source, effectId) => {
+        const currentTracks = useProjectStore.getState().tracks;
+        if (!currentTracks.includes(track)) { closeImportDialog(); return; }
+        if (!currentTracks.includes(source)) return;
+        const effect = source.getFX().find(entry => entry.getId() === effectId);
+        if (!effect) return;
+        save([...track.getFX(), effect.clone(true)], undefined, track);
+        closeImportDialog();
+      }} />}
       {track && dialogTrack === track && !hidden && <AddFxDialog onCancel={closeDialog} onAdd={type => {
         save([...effects, createFX(type)]);
         closeDialog();

@@ -7,3 +7,8 @@ declare module 'virtual:fx-defaults' {
   const defaults: import('./core/fx/fxDefaults').FXDefaults;
   export default defaults;
 }
+
+declare module 'virtual:fx-default-chain' {
+  const chain: { version: 1; effects: { type: import('./core/fx').FXType }[] };
+  export default chain;
+}

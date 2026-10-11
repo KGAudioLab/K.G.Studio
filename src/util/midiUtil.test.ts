@@ -393,6 +393,7 @@ describe('midiUtil', () => {
       });
 
       const importedProject = convertMidiToProject(convertProjectToMidi(sourceProject), existingProject);
+      expect(importedProject.getTracks().at(-1)?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
 
       expect(importedProject.getMaxBars()).toBe(12);
     });
@@ -407,6 +408,7 @@ describe('midiUtil', () => {
       });
 
       const importedProject = convertMidiToProject(convertProjectToMidi(sourceProject), existingProject);
+      expect(importedProject.getTracks().at(-1)?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
 
       expect(importedProject.getMaxBars()).toBe(40);
     });

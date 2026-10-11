@@ -82,6 +82,7 @@ describe('CreateNewTrackTool', () => {
     });
 
     expect(result.success).toBe(true);
+    expect(project.getTracks()[1].getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
     expect(project.getTracks().map(track => track.getName())).toEqual(['Lead', 'Pad', 'Bass']);
     expect(project.getTracks().map(track => track.getTrackIndex())).toEqual([0, 1, 2]);
   });

@@ -1,3 +1,4 @@
+import { createDefaultFXChain } from '../../fx/defaultFXChain';
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGAudioTrack } from '../../track/KGAudioTrack';
@@ -44,6 +45,7 @@ export class AddAudioTrackCommand extends KGCommand {
     this.trackIndex = targetInsertionIndex;
 
     this.createdTrack = new KGAudioTrack(this.trackName, this.trackId);
+    this.createdTrack.setFX(createDefaultFXChain());
     this.createdTrack.setTrackIndex(this.trackIndex);
 
     const updatedTracks = [...tracks];

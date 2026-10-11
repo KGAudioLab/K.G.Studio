@@ -1,3 +1,4 @@
+import { createDefaultFXChain } from '../core/fx/defaultFXChain';
 import { DEBUG_MODE } from '../constants/uiConstants';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGProject, type KeySignature } from '../core/KGProject';
@@ -879,6 +880,7 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
     const trackId = Date.now() + midiTrackIndex; // Simple unique ID
     const trackName = midiTrack.name || `Track ${actualTrackIndex + 1}`;
     const kgTrack = new KGMidiTrack(trackName, trackId, instrument);
+    kgTrack.setFX(createDefaultFXChain());
     kgTrack.setTrackIndex(actualTrackIndex);
     
     const regionStartTick = Math.min(...midiTrack.notes.map(note => note.startTick));
