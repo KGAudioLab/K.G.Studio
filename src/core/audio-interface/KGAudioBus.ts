@@ -1,3 +1,4 @@
+import type { LimiterLevel } from './limiterPeakMonitor';
 import { KGTrackFXChain } from './KGTrackFXChain';
 import type { KGFX } from '../fx';
 import * as Tone from 'tone';
@@ -55,6 +56,9 @@ export class KGAudioBus {
   private readonly fxChain = new KGTrackFXChain();
 
   public setFX(effects: readonly KGFX[], smooth = true): void { this.fxChain.sync(effects, smooth); }
+  public openCompressorMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) { return this.fxChain.openCompressorMonitor(effectId, fps, onLevel); }
+  public openLimiterMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) { return this.fxChain.openLimiterMonitor(effectId, fps, onLevel); }
+  public openEQSpectrum(effectId: number, fftSize: number) { return this.fxChain.openEQSpectrum(effectId, fftSize); }
   public whenFXReady(): Promise<void> { return this.fxChain.whenReady(); }
 
   /** Private constructor — use create() instead. */

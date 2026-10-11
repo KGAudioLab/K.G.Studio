@@ -1,3 +1,4 @@
+import type { LimiterLevel } from './limiterPeakMonitor';
 import type { KGFX } from '../fx';
 import type { KGProject } from '../KGProject';
 import type { KGMidiNote } from '../midi/KGMidiNote';
@@ -1323,6 +1324,21 @@ export class KGAudioInterface {
     } catch (error) {
       console.error(`Error setting track ${trackId} volume:`, error);
     }
+  }
+
+  public async openCompressorMonitor(trackId: string, effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) {
+    const bus = this.trackAudioPlayerBuses.get(trackId) ?? this.trackAudioBuses.get(trackId);
+    return bus?.openCompressorMonitor(effectId, fps, onLevel) ?? null;
+  }
+
+  public async openLimiterMonitor(trackId: string, effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) {
+    const bus = this.trackAudioPlayerBuses.get(trackId) ?? this.trackAudioBuses.get(trackId);
+    return bus?.openLimiterMonitor(effectId, fps, onLevel) ?? null;
+  }
+
+  public openEQSpectrum(trackId: string, effectId: number, fftSize: number) {
+    const bus = this.trackAudioPlayerBuses.get(trackId) ?? this.trackAudioBuses.get(trackId);
+    return bus?.openEQSpectrum(effectId, fftSize) ?? null;
   }
 
   public setTrackFX(trackId: string, effects: readonly KGFX[]): void {

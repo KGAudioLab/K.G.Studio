@@ -105,10 +105,10 @@ export default function TrackFxPanel({ track, hidden }: { track: KGTrack | null;
   };
   const renderCard = (instance: FxInstance) => {
     switch (instance.type) {
-      case 'eq': return <EqCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+      case 'eq': return <EqCard trackId={track ? String(track.getId()) : undefined} effectId={instance.id} visible={!hidden} state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
       case 'reverb': return <ReverbCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
-      case 'compressor': return <CompressorCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
-      case 'limiter': return <LimiterCard state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+      case 'compressor': return <CompressorCard trackId={track ? String(track.getId()) : undefined} effectId={instance.id} visible={!hidden} state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
+      case 'limiter': return <LimiterCard trackId={track ? String(track.getId()) : undefined} effectId={instance.id} visible={!hidden} state={instance.state} onChange={state => update({ ...instance, state })} onRemove={() => void remove(instance)} />;
     }
   };
   const move = (source: number, target: number, after: boolean) => {

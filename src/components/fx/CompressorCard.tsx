@@ -1,8 +1,11 @@
-import { useId } from 'react';
+import { useId, useEffect, useState } from 'react';
 import { TbPower } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
+import DynamicsHistory from './DynamicsHistory';
+import { ConfigManager } from '../../core/config/ConfigManager';
+import { getCompressorVisualConfig } from '../../core/config/compressorVisualConfig';
 import FxLevelControl from './FxLevelControl';
 import { getFXDefaults } from '../../core/fx/fxDefaults';
 import './CompressorCard.css';
@@ -17,12 +20,17 @@ export interface CompressorPreviewState {
   gain: number;
 }
 
-export default function CompressorCard({ state, onChange, onRemove }: {
+export default function CompressorCard({ state, onChange, onRemove, trackId, effectId, visible = true }: {
+  trackId?: string; effectId?: number; visible?: boolean;
   state: CompressorPreviewState;
   onChange: (state: CompressorPreviewState) => void;
   onRemove: () => void;
 }) {
   const { t } = useI18n();
+  const [settings, setSettings] = useState(getCompressorVisualConfig);
+  useEffect(() => ConfigManager.instance().addChangeListener(keys => {
+    if (keys.some(key => key.startsWith('audio.fx_visual.compressor.') || 'audio.fx_visual.compressor'.startsWith(key))) setSettings(getCompressorVisualConfig());
+  }), []);
   const bodyId = useId();
   const title = t('fx.compressor.title');
   return (
@@ -41,8 +49,10 @@ export default function CompressorCard({ state, onChange, onRemove }: {
           onClick={() => onChange({ ...state, enabled: !state.enabled })}><TbPower aria-hidden="true" /></button>
       </div>
       <div id={bodyId} className="fx-card-body" hidden={!state.expanded}>
-        <FxLevelControl label={t('fx.compressor.threshold')} value={state.threshold}
-          onChange={threshold => onChange({ ...state, threshold })} onReset={() => onChange({ ...state, threshold: getFXDefaults().compressor.thresholdDb })} />
+        <FxLevelControl minDb={settings.minDb} maxDb={settings.maxDb} label={t('fx.compressor.threshold')} value={state.threshold}
+          onChange={threshold => onChange({ ...state, threshold })} onReset={() => onChange({ ...state, threshold: getFXDefaults().compressor.thresholdDb })}>
+          <DynamicsHistory kind="compressor" trackId={trackId} effectId={effectId} active={visible && state.expanded && state.enabled} settings={settings} />
+        </FxLevelControl>
         <div className="fx-dynamics-parameters">
           <FxKnob label={t('fx.compressor.ratio')} valueText={`${state.ratio.toFixed(1)}:1`} position={(state.ratio - 1) / 19}
             onChange={position => onChange({ ...state, ratio: 1 + position * 19 })} onReset={() => onChange({ ...state, ratio: getFXDefaults().compressor.ratio })} />

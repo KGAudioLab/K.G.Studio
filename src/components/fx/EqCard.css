@@ -68,6 +68,7 @@
 .fx-card.is-bypassed .fx-card-title, .fx-card.is-bypassed .fx-card-body { opacity: 0.5; }
 .eq-graph { display: block; width: 100%; background: #000; touch-action: none; user-select: none; }
 .eq-grid-line { stroke: #3a3a3a; stroke-width: 1; }
+.eq-spectrum { fill: rgba(255, 255, 255, 0.22); stroke: none; pointer-events: none; }
 .eq-response { stroke: #e0e0e0; stroke-width: 2; fill: none; }
 .eq-band-point { cursor: grab; outline: none; }
 .eq-band-point:active { cursor: grabbing; }

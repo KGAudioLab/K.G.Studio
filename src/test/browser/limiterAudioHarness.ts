@@ -87,3 +87,88 @@ window.renderLimiterProjectFixture = async type => {
   await import('./eqAudioHarness');
   return window.renderEQProjectFixture(type, 'limiter');
 };
+
+// Continuous metering catches single-sample transients, including antiphase stereo.
+declare global { interface Window { checkLimiterHistory: () => Promise<{
+  peaks: number[]; reduction: number; reordered: boolean; removed: boolean;
+}> } }
+window.checkLimiterHistory = async () => {
+  await Tone.start();
+  const chain = new KGTrackFXChain();
+  const limiter = new KGLimiterFX({ inputGainDb: 6, thresholdDb: -18 });
+  const eq = new KGEQFX();
+  const levels: import('../../core/audio-interface/limiterPeakMonitor').LimiterLevel[] = [];
+  const sampleRate = chain.input.context.sampleRate;
+  const buffer = chain.input.context.createBuffer(2, sampleRate / 2, sampleRate);
+  for (let pulse = 0; pulse < 5; pulse++) {
+    const index = Math.round((0.075 + pulse * 0.1) * sampleRate);
+    buffer.getChannelData(0)[index] = 0.5;
+    buffer.getChannelData(1)[index] = -0.5;
+  }
+  let monitor: import('../../core/audio-interface/limiterPeakMonitor').LimiterMonitor | null = null;
+  let source: Tone.ToneBufferSource | undefined;
+  let oscillator: Tone.Oscillator | undefined;
+  try {
+    chain.sync([limiter, eq], false);
+    chain.output.toDestination();
+    monitor = await chain.openLimiterMonitor(limiter.getId(), 10, level => levels.push(level));
+    source = new Tone.ToneBufferSource(buffer).connect(chain.input);
+    source.start(Tone.now());
+    await new Promise(resolve => setTimeout(resolve, 750));
+    const peaks = levels.filter(level => level.peakDb > -10).map(level => level.peakDb);
+    oscillator = new Tone.Oscillator({ frequency: 1000, volume: -6 }).connect(chain.input).start();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const reduction = Math.min(...levels.map(level => level.reductionDb));
+    const before = levels.length;
+    chain.sync([eq, limiter], false);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const reordered = levels.length > before && !monitor!.closed;
+    chain.sync([eq], false);
+    const removed = monitor!.closed;
+    return { peaks, reduction, reordered, removed };
+  } finally { monitor?.dispose(); source?.dispose(); oscillator?.dispose(); chain.dispose(); }
+};
+
+// Render the production card against a real processing chain for visual/interaction QA.
+declare global { interface Window { mountLimiterHistoryPreview: () => Promise<void> } }
+window.mountLimiterHistoryPreview = async () => {
+  await import('../../stores/projectStore');
+  const [{ createElement }, { createRoot }, { default: LimiterCard }, { KGAudioInterface }] = await Promise.all([
+    import('react'), import('react-dom/client'), import('../../components/fx/LimiterCard'),
+    import('../../core/audio-interface/KGAudioInterface'), import('../../components/fx/EqCard.css'),
+  ]);
+  await Tone.start();
+  const chain = new KGTrackFXChain();
+  const effect = new KGLimiterFX({ thresholdDb: -18 });
+  chain.sync([effect], false);
+  chain.output.toDestination();
+  const context = chain.input.context;
+  const buffer = context.createBuffer(2, context.sampleRate * 5, context.sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    const time = i / context.sampleRate;
+    const envelope = (time % 2.5 < 1.8) ? 0.08 + 0.18 * Math.sin(time * 3) ** 2 : 0;
+    const value = envelope * Math.sin(2 * Math.PI * 220 * time);
+    buffer.getChannelData(0)[i] = value;
+    buffer.getChannelData(1)[i] = value;
+  }
+  new Tone.ToneBufferSource({ url: buffer, loop: true }).connect(chain.input).start();
+  const audio = KGAudioInterface.instance();
+  audio.openLimiterMonitor = async (_trackId, id, fps, onLevel) => chain.openLimiterMonitor(id, fps, onLevel);
+  const host = document.createElement('div');
+  host.style.cssText = 'width:560px;margin:30px;background:#252525';
+  document.body.style.background = '#202020';
+  document.body.append(host);
+  const root = createRoot(host);
+  let state = { enabled: true, expanded: true, inputGain: 0, threshold: -18 };
+  const draw = () => root.render(createElement(LimiterCard, { state, trackId: 'preview', effectId: effect.getId(),
+    onRemove: () => { root.unmount(); chain.dispose(); },
+    onChange: next => {
+      state = next;
+      effect.setEnabled(next.enabled);
+      effect.setParameters({ thresholdDb: next.threshold, inputGainDb: next.inputGain });
+      chain.sync([effect]);
+      draw();
+    },
+  }));
+  draw();
+};

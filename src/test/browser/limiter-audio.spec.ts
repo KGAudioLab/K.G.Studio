@@ -45,3 +45,33 @@ test('MIDI and audio project exports include saved limiter controls', async ({ p
     expect(actual, type).toBeCloseTo(reference, 2);
   }
 });
+
+test('limiter history continuously captures stereo transients and reports reduction', async ({ page }) => {
+  await page.goto('/kgstudio/limiter-audio-test.html');
+  await page.waitForFunction(() => typeof window.checkLimiterHistory === 'function');
+  const result = await page.evaluate(() => window.checkLimiterHistory());
+  expect(result.peaks).toHaveLength(5);
+  for (const peak of result.peaks) expect(peak).toBeCloseTo(-0.02, 1);
+  expect(result.reduction).toBeLessThan(-1);
+  expect(result.reordered).toBe(true);
+  expect(result.removed).toBe(true);
+});
+
+test('limiter card draws white history behind the interactive threshold', async ({ page }) => {
+  await page.goto('/kgstudio/limiter-audio-test.html');
+  await page.waitForFunction(() => typeof window.mountLimiterHistoryPreview === 'function');
+  await page.evaluate(() => window.mountLimiterHistoryPreview());
+  const history = page.locator('.limiter-history path');
+  await expect(history).toHaveAttribute('d', /Z$/);
+  await expect(history).toHaveCSS('fill', 'rgba(255, 255, 255, 0.22)');
+  const threshold = page.locator('.fx-level-line');
+  await threshold.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(threshold).toHaveAttribute('aria-valuenow', '-19');
+  // Capture enough history to inspect the filled graph and readout together.
+  await page.waitForTimeout(9000);
+  await expect(history).toHaveAttribute('d', /^M0\.00,110 L0\.00,/);
+  await page.screenshot({ path: '/tmp/kg-limiter-history.png' });
+  await page.locator('.fx-collapse').click();
+  await expect(history).not.toHaveAttribute('d', /.+/);
+});

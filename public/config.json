@@ -93,6 +93,25 @@
         "output_device_id": "default",
         "playback_delay": 0.2,
         "recording_offset": 0,
+        "fx_visual": {
+            "eq": {
+                "fps": 10,
+                "fft_size": 2048
+            },
+            "limiter": {
+                "fps": 10,
+                "history_seconds": 8,
+                "min_db": -100,
+                "max_db": 0
+            },
+            "compressor": {
+                "fps": 10,
+                "history_seconds": 8,
+                "min_db": -100,
+                "max_db": 0,
+                "reduction_range_db": 30
+            }
+        },
         "fx_defaults": {
             "enabled": true,
             "eq": {

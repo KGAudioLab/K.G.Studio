@@ -1,9 +1,10 @@
 import { useRef } from 'react';
-import type { PointerEvent } from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 import { clamp } from './eqPreview';
 import './CompressorCard.css';
 
-export default function FxLevelControl({ label, value, onChange, onReset }: {
+export default function FxLevelControl({ label, value, onChange, onReset, children, minDb = -100, maxDb = 0 }: {
+  children?: ReactNode; minDb?: number; maxDb?: number;
   label: string; value: number;
   onChange: (value: number) => void; onReset: () => void;
 }) {
@@ -12,7 +13,7 @@ export default function FxLevelControl({ label, value, onChange, onReset }: {
   const move = (event: PointerEvent<HTMLButtonElement>) => {
     if (pointer.current !== event.pointerId || !surface.current) return;
     const rect = surface.current.getBoundingClientRect();
-    onChange(clamp(-(event.clientY - rect.top) / rect.height * 100, -100, 0));
+    onChange(clamp(maxDb - (event.clientY - rect.top) / rect.height * (maxDb - minDb), -100, 0));
   };
   const finish = (event: PointerEvent<HTMLButtonElement>) => {
     if (pointer.current !== event.pointerId) return;
@@ -23,9 +24,10 @@ export default function FxLevelControl({ label, value, onChange, onReset }: {
     <div className="fx-level-display">
       <div className="fx-level-readout"><span>{label}</span><span>{value.toFixed(1)} dB</span></div>
       <div className="fx-level-surface" ref={surface}>
+        {children}
         <button type="button" className="fx-level-line" role="slider"
           aria-label={label} aria-orientation="vertical" aria-valuemin={-100} aria-valuemax={0}
-          aria-valuenow={Number(value.toFixed(1))} aria-valuetext={`${value.toFixed(1)} dB`} style={{ top: `${-value}%` }}
+          aria-valuenow={Number(value.toFixed(1))} aria-valuetext={`${value.toFixed(1)} dB`} style={{ top: `${clamp((maxDb - value) / (maxDb - minDb) * 100, 0, 100)}%` }}
           onPointerDown={event => {
             if (event.button !== 0) return;
             event.preventDefault(); event.currentTarget.focus();

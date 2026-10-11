@@ -31,3 +31,13 @@ test('project WAV bounce includes the saved track EQ', async ({ page }) => {
     expect(gainDb, type).toBeCloseTo(6, 2);
   }
 });
+
+test('live EQ spectrum survives FX reordering and closes on removal', async ({ page }) => {
+  await page.goto('/kgstudio/eq-audio-test.html');
+  await page.waitForFunction(() => typeof window.checkLiveEQSpectrum === 'function');
+  const result = await page.evaluate(() => window.checkLiveEQSpectrum());
+  expect(Math.abs(result.peakHz - 1000)).toBeLessThan(25);
+  expect(result.peakDb).toBeGreaterThan(-45);
+  expect(result.afterReorderDb).toBeGreaterThan(-45);
+  expect(result.removedClosed).toBe(true);
+});

@@ -5,6 +5,7 @@ import { TbPower } from 'react-icons/tb';
 import { useI18n } from '../../i18n/useI18n';
 import { clamp, EQ_GAIN_RANGE, EQ_MAX_Q, EQ_MIN_Q, frequencyToPosition, positionToFrequency, previewResponseDb, type EqBand } from './eqPreview';
 import './EqCard.css';
+import EqSpectrum from './EqSpectrum';
 import FxKnob from './FxKnob';
 import FxDeleteButton from './FxDeleteButton';
 import { clampEQBandFrequency } from '../../core/fx/KGEQFX';
@@ -23,7 +24,7 @@ const gainToY = (gain: number) => HEIGHT / 2 - gain / EQ_GAIN_RANGE * HEIGHT / 2
 const formatFrequency = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(2)} kHz` : `${Math.round(value)} Hz`;
 
 
-export default function EqCard({ state, onChange, onRemove }: { state: EqPreviewState; onChange: (state: EqPreviewState) => void; onRemove: () => void }) {
+export default function EqCard({ state, onChange, onRemove, trackId, effectId, visible = true }: { trackId?: string; effectId?: number; visible?: boolean; state: EqPreviewState; onChange: (state: EqPreviewState) => void; onRemove: () => void }) {
   const { t } = useI18n();
   const bodyId = useId();
   const graph = useRef<SVGSVGElement>(null);
@@ -77,6 +78,7 @@ export default function EqCard({ state, onChange, onRemove }: { state: EqPreview
         <svg className="eq-graph" viewBox={`-30 -30 ${WIDTH + 60} ${HEIGHT + 60}`} role="group" aria-label={t('fx.eq.graph')}>
           <svg ref={graph} x="0" y="0" width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
             <rect width={WIDTH} height={HEIGHT} fill="#000" />
+            <EqSpectrum trackId={trackId} effectId={effectId} active={visible && state.expanded} width={WIDTH} height={HEIGHT} />
             {[20, 30, 40, 50, 60, 80, 100, 200, 300, 400, 500, 600, 800, 1000, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 20000].map(frequency => (
               <line key={frequency} x1={frequencyToPosition(frequency) * WIDTH} x2={frequencyToPosition(frequency) * WIDTH} y1={0} y2={HEIGHT} className="eq-grid-line" />
             ))}

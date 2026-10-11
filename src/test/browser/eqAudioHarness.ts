@@ -98,3 +98,31 @@ window.renderEQProjectFixture = async (type = 'audio', effectType = 'eq') => {
     return 20 * Math.log10(Math.sqrt(sum / (sampleRate * 0.4)) / (amplitude / Math.sqrt(2)));
   } finally { audio.getAudioBuffer = getBuffer; pool.getToneAudioBuffers = getBuffers; buffers.dispose(); }
 };
+
+// Live analyser coverage uses the real Web Audio graph, including connection cleanup.
+declare global { interface Window { checkLiveEQSpectrum: () => Promise<{ peakHz: number; peakDb: number; afterReorderDb: number; removedClosed: boolean }> } }
+window.checkLiveEQSpectrum = async () => {
+  await Tone.start();
+  const chain = new KGTrackFXChain();
+  const eq = new KGEQFX();
+  const second = new KGEQFX();
+  const oscillator = new Tone.Oscillator({ frequency: 1000, volume: 0 });
+  try {
+    chain.sync([eq, second], false);
+    chain.output.toDestination();
+    oscillator.connect(chain.input).start();
+    const reader = chain.openEQSpectrum(eq.getId(), 2048)!;
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const data = reader.read()!;
+    const index = data.reduce((best, value, i) => value > data[best] ? i : best, 0);
+    const peakHz = index * reader.sampleRate / 2048;
+    const peakDb = data[index];
+    chain.sync([second, eq], false);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const afterReorderDb = reader.read()![index];
+    chain.sync([second], false);
+    const removedClosed = reader.read() === null;
+    reader.dispose();
+    return { peakHz, peakDb, afterReorderDb, removedClosed };
+  } finally { oscillator.dispose(); chain.dispose(); }
+};

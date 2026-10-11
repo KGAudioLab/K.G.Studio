@@ -2,6 +2,13 @@ import * as Tone from 'tone';
 import { KGEQFX, KGLimiterFX, KGCompressorFX, KGReverbFX, type KGFX } from '../fx';
 import type { ReverbType } from '../fx/KGReverbFX';
 import { loadReverbIR } from './reverbPresets';
+import { createLimiterMonitor, loadLimiterMeter, type LimiterLevel, type LimiterMonitor } from './limiterPeakMonitor';
+
+export interface EQSpectrumReader {
+  sampleRate: number;
+  read(): Float32Array | null;
+  dispose(): void;
+}
 
 type SupportedFX = KGEQFX | KGLimiterFX | KGCompressorFX | KGReverbFX;
 interface RuntimeFX {
@@ -10,6 +17,8 @@ interface RuntimeFX {
   output: Tone.ToneAudioNode;
   nodes: Tone.ToneAudioNode[];
   update(effect: SupportedFX, smooth: boolean): void;
+  meterInput?: Tone.ToneAudioNode;
+  reduction?(): number;
   ready?(): Promise<void>;
   dispose?(): void;
 }
@@ -57,6 +66,7 @@ function createLimiter(context: Tone.BaseContext): RuntimeFX {
   const output = new Tone.Gain({ context, gain: 1 });
   const inputGain = new Tone.Gain({ context, gain: 1 });
   const limiter = new Tone.Limiter({ context });
+  let enabled = true;
   const dry = new Tone.Gain({ context, gain: 0 });
   const wet = new Tone.Gain({ context, gain: 1 });
   input.connect(inputGain);
@@ -67,9 +77,10 @@ function createLimiter(context: Tone.BaseContext): RuntimeFX {
   input.connect(dry);
   dry.connect(output);
   return {
-    type: 'limiter', input, output, nodes: [input, inputGain, limiter, dry, wet, output],
+    type: 'limiter', input, output, meterInput: inputGain, reduction: () => enabled ? limiter.reduction : 0, nodes: [input, inputGain, limiter, dry, wet, output],
     update(effect, smooth) {
       if (!(effect instanceof KGLimiterFX)) return;
+      enabled = effect.getEnabled();
       const { inputGainDb, thresholdDb } = effect.getParameters();
       setParameter(inputGain.gain, Math.pow(10, inputGainDb / 20), smooth);
       setParameter(limiter.threshold, thresholdDb, smooth);
@@ -84,6 +95,7 @@ function createCompressor(context: Tone.BaseContext): RuntimeFX {
   const input = new Tone.Gain({ context, gain: 1 });
   const output = new Tone.Gain({ context, gain: 1 });
   const compressor = new Tone.Compressor({ context, knee: 30 });
+  let enabled = true;
   // Tone.Compressor wraps DynamicsCompressorNode, whose automatic makeup gain
   // depends on threshold, ratio, and knee. Tone exposes no switch to disable it.
   // The UI Gain knob is additional output gain: 0 dB means unity here, but does
@@ -104,9 +116,10 @@ function createCompressor(context: Tone.BaseContext): RuntimeFX {
   input.connect(dry);
   dry.connect(output);
   return {
-    type: 'compressor', input, output, nodes: [input, compressor, outputGain, dry, wet, output],
+    type: 'compressor', input, output, meterInput: input, reduction: () => enabled ? compressor.reduction : 0, nodes: [input, compressor, outputGain, dry, wet, output],
     update(effect, smooth) {
       if (!(effect instanceof KGCompressorFX)) return;
+      enabled = effect.getEnabled();
       const { thresholdDb, ratio, attackMs, releaseMs, gainDb } = effect.getParameters();
       setParameter(compressor.threshold, thresholdDb, smooth);
       setParameter(compressor.ratio, ratio, smooth);
@@ -197,6 +210,60 @@ export class KGTrackFXChain {
   readonly output = new Tone.Gain({ gain: 1, context: this.input.context });
   private stages = new Map<number, RuntimeFX>();
   private order: number[] = [];
+  private dynamicsMonitors = new Map<number, LimiterMonitor>();
+
+  async openDynamicsMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void): Promise<LimiterMonitor | null> {
+    const stage = this.stages.get(effectId);
+    if (!stage?.meterInput || !stage.reduction || this.input.context.isOffline) return null;
+    await loadLimiterMeter(this.input.context);
+    // A stage may have been removed while the worklet module was loading.
+    if (this.stages.get(effectId) !== stage) return null;
+    this.dynamicsMonitors.get(effectId)?.dispose();
+    const monitor = createLimiterMonitor(this.input.context, stage.meterInput, fps, stage.reduction, onLevel,
+      () => this.dynamicsMonitors.delete(effectId));
+    this.dynamicsMonitors.set(effectId, monitor);
+    return monitor;
+  }
+
+  openLimiterMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) {
+    return this.stages.get(effectId)?.type === 'limiter' ? this.openDynamicsMonitor(effectId, fps, onLevel) : Promise.resolve(null);
+  }
+
+  openCompressorMonitor(effectId: number, fps: number, onLevel: (level: LimiterLevel) => void) {
+    return this.stages.get(effectId)?.type === 'compressor' ? this.openDynamicsMonitor(effectId, fps, onLevel) : Promise.resolve(null);
+  }
+
+  private spectrumTaps = new Map<number, { node: AnalyserNode; reader: EQSpectrumReader }>();
+
+  /** A parallel monitor of this EQ's output; never routed to the speakers. */
+  openEQSpectrum(effectId: number, fftSize: number): EQSpectrumReader | null {
+    const stage = this.stages.get(effectId);
+    if (!stage || stage.type !== 'eq' || this.input.context.isOffline) return null;
+    this.spectrumTaps.get(effectId)?.reader.dispose();
+    const node = this.input.context.createAnalyser();
+    node.fftSize = fftSize;
+    node.smoothingTimeConstant = 0.8;
+    const data = new Float32Array(node.frequencyBinCount);
+    let closed = false;
+    const reader: EQSpectrumReader = {
+      sampleRate: this.input.context.sampleRate,
+      read: () => {
+        if (closed) return null;
+        node.getFloatFrequencyData(data);
+        return data;
+      },
+      dispose: () => {
+        if (closed) return;
+        closed = true;
+        stage.output.disconnect(node);
+        node.disconnect();
+        this.spectrumTaps.delete(effectId);
+      },
+    };
+    stage.output.connect(node);
+    this.spectrumTaps.set(effectId, { node, reader });
+    return reader;
+  }
 
   constructor() { this.input.connect(this.output); }
 
@@ -208,6 +275,8 @@ export class KGTrackFXChain {
     for (const effect of supported) {
       let stage = this.stages.get(effect.getId());
       if (stage && stage.type !== effect.getType()) {
+        this.dynamicsMonitors.get(effect.getId())?.dispose();
+        this.spectrumTaps.get(effect.getId())?.reader.dispose();
         disposeStage(stage);
         stage = undefined;
         replaced = true;
@@ -221,6 +290,12 @@ export class KGTrackFXChain {
       }
       stage.update(effect, smooth && !isNew);
     }
+    for (const [id, monitor] of this.dynamicsMonitors) {
+      if (!order.includes(id)) monitor.dispose();
+    }
+    for (const [id, tap] of this.spectrumTaps) {
+      if (!order.includes(id)) tap.reader.dispose();
+    }
     if (replaced || order.length !== this.order.length || order.some((id, index) => id !== this.order[index])) {
       this.input.disconnect();
       for (const stage of this.stages.values()) stage.output.disconnect();
@@ -231,10 +306,14 @@ export class KGTrackFXChain {
         previous = stage.output;
       }
       previous.connect(this.output);
+      for (const [id, tap] of this.spectrumTaps) {
+        if (order.includes(id)) this.stages.get(id)!.output.connect(tap.node);
+      }
       this.order = order;
     }
     for (const [id, stage] of this.stages) {
       if (!order.includes(id)) {
+        this.spectrumTaps.get(id)?.reader.dispose();
         disposeStage(stage);
         this.stages.delete(id);
       }
@@ -246,6 +325,8 @@ export class KGTrackFXChain {
   }
 
   dispose(): void {
+    for (const monitor of this.dynamicsMonitors.values()) monitor.dispose();
+    for (const tap of this.spectrumTaps.values()) tap.reader.dispose();
     this.input.dispose();
     this.output.dispose();
     for (const stage of this.stages.values()) disposeStage(stage);

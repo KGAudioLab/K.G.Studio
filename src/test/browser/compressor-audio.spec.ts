@@ -43,3 +43,39 @@ test('MIDI and audio exports include compressor and output gain', async ({ page 
     expect(actual, type).toBeCloseTo(reference, 2);
   }
 });
+
+
+test('compressor history captures input before output gain and reports reduction', async ({ page }) => {
+  await page.goto('/kgstudio/compressor-audio-test.html');
+  await page.waitForFunction(() => typeof window.checkCompressorHistory === 'function');
+  const result = await page.evaluate(() => window.checkCompressorHistory());
+  expect(result.peaks).toHaveLength(5);
+  for (const peak of result.peaks) expect(peak).toBeCloseTo(-6.02, 1);
+  expect(result.reduction).toBeLessThan(-1);
+  expect(result.reordered).toBe(true);
+  expect(result.removed).toBe(true);
+});
+
+test('compressor draws input and reduction histories while keeping threshold interactive', async ({ page }) => {
+  await page.goto('/kgstudio/compressor-audio-test.html');
+  await page.waitForFunction(() => typeof window.mountCompressorHistoryPreview === 'function');
+  await page.evaluate(() => window.mountCompressorHistoryPreview());
+  const input = page.locator('.compressor-history path').first();
+  const reduction = page.locator('.dynamics-reduction-history');
+  await expect(input).toHaveAttribute('d', /Z$/);
+  await expect(reduction).toHaveAttribute('d', /Z$/);
+  await expect(input).toHaveCSS('fill', 'rgba(255, 255, 255, 0.22)');
+  await expect(reduction).toHaveCSS('fill', 'rgba(90, 159, 212, 0.45)');
+  const threshold = page.locator('.fx-level-line');
+  await threshold.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(threshold).toHaveAttribute('aria-valuenow', '-19');
+  await page.waitForTimeout(9000);
+  await expect(input).toHaveAttribute('d', /^M0\.00,110 L0\.00,/);
+  await expect(reduction).toHaveAttribute('d', /^M0\.00,0 L0\.00,/);
+  await threshold.blur();
+  await page.screenshot({ path: '/tmp/kg-compressor-history.png' });
+  await page.locator('.fx-power').click();
+  await expect(input).not.toHaveAttribute('d', /.+/);
+  await expect(reduction).not.toHaveAttribute('d', /.+/);
+});

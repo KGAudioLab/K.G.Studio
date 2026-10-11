@@ -91,3 +91,88 @@ window.renderCompressorProjectFixture = async type => {
   await import('./eqAudioHarness');
   return window.renderEQProjectFixture(type, 'compressor');
 };
+
+// Continuous metering catches single-sample transients, including antiphase stereo.
+declare global { interface Window { checkCompressorHistory: () => Promise<{
+  peaks: number[]; reduction: number; reordered: boolean; removed: boolean;
+}> } }
+window.checkCompressorHistory = async () => {
+  await Tone.start();
+  const chain = new KGTrackFXChain();
+  const limiter = new KGCompressorFX({ gainDb: 12, thresholdDb: -18, ratio: 4, attackMs: 10, releaseMs: 100 });
+  const eq = new KGEQFX();
+  const levels: import('../../core/audio-interface/limiterPeakMonitor').LimiterLevel[] = [];
+  const sampleRate = chain.input.context.sampleRate;
+  const buffer = chain.input.context.createBuffer(2, sampleRate / 2, sampleRate);
+  for (let pulse = 0; pulse < 5; pulse++) {
+    const index = Math.round((0.075 + pulse * 0.1) * sampleRate);
+    buffer.getChannelData(0)[index] = 0.5;
+    buffer.getChannelData(1)[index] = -0.5;
+  }
+  let monitor: import('../../core/audio-interface/limiterPeakMonitor').LimiterMonitor | null = null;
+  let source: Tone.ToneBufferSource | undefined;
+  let oscillator: Tone.Oscillator | undefined;
+  try {
+    chain.sync([limiter, eq], false);
+    chain.output.toDestination();
+    monitor = await chain.openCompressorMonitor(limiter.getId(), 10, level => levels.push(level));
+    source = new Tone.ToneBufferSource(buffer).connect(chain.input);
+    source.start(Tone.now());
+    await new Promise(resolve => setTimeout(resolve, 750));
+    const peaks = levels.filter(level => level.peakDb > -10).map(level => level.peakDb);
+    oscillator = new Tone.Oscillator({ frequency: 1000, volume: -6 }).connect(chain.input).start();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const reduction = Math.min(...levels.map(level => level.reductionDb));
+    const before = levels.length;
+    chain.sync([eq, limiter], false);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const reordered = levels.length > before && !monitor!.closed;
+    chain.sync([eq], false);
+    const removed = monitor!.closed;
+    return { peaks, reduction, reordered, removed };
+  } finally { monitor?.dispose(); source?.dispose(); oscillator?.dispose(); chain.dispose(); }
+};
+
+// Render the production card against a real processing chain for visual/interaction QA.
+declare global { interface Window { mountCompressorHistoryPreview: () => Promise<void> } }
+window.mountCompressorHistoryPreview = async () => {
+  await import('../../stores/projectStore');
+  const [{ createElement }, { createRoot }, { default: CompressorCard }, { KGAudioInterface }] = await Promise.all([
+    import('react'), import('react-dom/client'), import('../../components/fx/CompressorCard'),
+    import('../../core/audio-interface/KGAudioInterface'), import('../../components/fx/EqCard.css'),
+  ]);
+  await Tone.start();
+  const chain = new KGTrackFXChain();
+  const effect = new KGCompressorFX({ thresholdDb: -18, ratio: 4, attackMs: 10, releaseMs: 100 });
+  chain.sync([effect], false);
+  chain.output.toDestination();
+  const context = chain.input.context;
+  const buffer = context.createBuffer(2, context.sampleRate * 5, context.sampleRate);
+  for (let i = 0; i < buffer.length; i++) {
+    const time = i / context.sampleRate;
+    const envelope = (time % 2.5 < 1.8) ? 0.08 + 0.18 * Math.sin(time * 3) ** 2 : 0;
+    const value = envelope * Math.sin(2 * Math.PI * 220 * time);
+    buffer.getChannelData(0)[i] = value;
+    buffer.getChannelData(1)[i] = value;
+  }
+  new Tone.ToneBufferSource({ url: buffer, loop: true }).connect(chain.input).start();
+  const audio = KGAudioInterface.instance();
+  audio.openCompressorMonitor = async (_trackId, id, fps, onLevel) => chain.openCompressorMonitor(id, fps, onLevel);
+  const host = document.createElement('div');
+  host.style.cssText = 'width:560px;margin:30px;background:#252525';
+  document.body.style.background = '#202020';
+  document.body.append(host);
+  const root = createRoot(host);
+  let state = { enabled: true, expanded: true, gain: 0, threshold: -18, ratio: 4, attack: 10, release: 100 };
+  const draw = () => root.render(createElement(CompressorCard, { state, trackId: 'preview', effectId: effect.getId(),
+    onRemove: () => { root.unmount(); chain.dispose(); },
+    onChange: next => {
+      state = next;
+      effect.setEnabled(next.enabled);
+      effect.setParameters({ thresholdDb: next.threshold, gainDb: next.gain, ratio: next.ratio, attackMs: next.attack, releaseMs: next.release });
+      chain.sync([effect]);
+      draw();
+    },
+  }));
+  draw();
+};
