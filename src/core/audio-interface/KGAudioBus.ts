@@ -1,3 +1,5 @@
+import { KGTrackFXChain } from './KGTrackFXChain';
+import type { KGFX } from '../fx';
 import * as Tone from 'tone';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
@@ -50,9 +52,12 @@ export class KGAudioBus {
   // private gain: Tone.Gain;
   // private filter: Tone.Filter;
   
-  /**
-   * Private constructor - use KGAudioBus.create() instead
-   */
+  private readonly fxChain = new KGTrackFXChain();
+
+  public setFX(effects: readonly KGFX[], smooth = true): void { this.fxChain.sync(effects, smooth); }
+  public whenFXReady(): Promise<void> { return this.fxChain.whenReady(); }
+
+  /** Private constructor — use create() instead. */
   private constructor(
     sampler: Tone.Sampler,
     audioBuffers: Tone.ToneAudioBuffers,
@@ -67,6 +72,7 @@ export class KGAudioBus {
     this.audioBuffers = audioBuffers;
     this.instrument = instrument;
     this.panner = panner;
+    this.panner.connect(this.fxChain.input);
     this.volume = volume;
     this.pan = pan;
     this.muted = muted;
@@ -452,7 +458,7 @@ export class KGAudioBus {
    */
   public connect(destination: Tone.InputNode): void {
     try {
-      this.panner.connect(destination);
+      this.fxChain.output.connect(destination);
       console.log(`Connected ${this.instrument} to audio destination`);
     } catch (error) {
       console.error(`Error connecting ${this.instrument} to destination:`, error);
@@ -464,7 +470,7 @@ export class KGAudioBus {
    */
   public disconnect(): void {
     try {
-      this.panner.disconnect();
+      this.fxChain.output.disconnect();
       console.log(`Disconnected ${this.instrument} from all destinations`);
     } catch (error) {
       console.error(`Error disconnecting ${this.instrument}:`, error);
@@ -476,7 +482,7 @@ export class KGAudioBus {
    */
   public toDestination(): void {
     try {
-      this.panner.toDestination();
+      this.fxChain.output.toDestination();
       console.log(`Connected ${this.instrument} to main output`);
     } catch (error) {
       console.error(`Error connecting ${this.instrument} to main output:`, error);
@@ -493,6 +499,7 @@ export class KGAudioBus {
       this.releaseAll();
       this.sampler.dispose();
       this.panner.dispose();
+      this.fxChain.dispose();
       console.log(`Disposed KGAudioBus for ${this.instrument}`);
     } catch (error) {
       console.error(`Error disposing KGAudioBus for ${this.instrument}:`, error);

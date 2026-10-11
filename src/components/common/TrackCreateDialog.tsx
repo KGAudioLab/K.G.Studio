@@ -74,7 +74,7 @@ const TrackCreateDialog: React.FC<TrackCreateDialogProps> = ({ onResolve }) => {
             className={`track-create-option${selectedTrackType === 'midi' ? ' selected' : ''}`}
             onClick={() => setSelectedTrackType('midi')}
           >
-            <img className="track-create-option-image" src={`${import.meta.env.BASE_URL}resource/track/midi.png`} alt="" draggable={false} />
+            <img className="track-create-option-image" src={`${import.meta.env.BASE_URL}resources/track/midi.png`} alt="" draggable={false} />
             <span className="track-create-option-label">MIDI</span>
           </button>
           <button
@@ -82,7 +82,7 @@ const TrackCreateDialog: React.FC<TrackCreateDialogProps> = ({ onResolve }) => {
             className={`track-create-option${selectedTrackType === 'audio' ? ' selected' : ''}`}
             onClick={() => setSelectedTrackType('audio')}
           >
-            <img className="track-create-option-image" src={`${import.meta.env.BASE_URL}resource/track/audio.png`} alt="" draggable={false} />
+            <img className="track-create-option-image" src={`${import.meta.env.BASE_URL}resources/track/audio.png`} alt="" draggable={false} />
             <span className="track-create-option-label">Audio</span>
           </button>
         </div>

@@ -1,9 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
+import { describe, expect, it, vi } from 'vitest';
 import { KGTrack } from '../../track/KGTrack';
 import { KGEQFX, KGLimiterFX } from '../../fx';
 import { SetTrackFXCommand } from './SetTrackFXCommand';
 
 describe('FX command snapshots', () => {
+  it('synchronizes audio after edits, undo, and redo', () => {
+    const sync = vi.spyOn(KGAudioInterface.instance(), 'setTrackFX');
+    try {
+      const track = new KGTrack('Audio', 123); const eq = new KGEQFX();
+      const command = new SetTrackFXCommand(track, [eq]);
+      command.execute();
+      expect(sync).toHaveBeenLastCalledWith('123', track.getFX());
+      command.undo();
+      expect(sync).toHaveBeenLastCalledWith('123', []);
+      command.execute();
+      expect(sync).toHaveBeenCalledTimes(3);
+      expect(sync.mock.calls[2][1][0].getId()).toBe(eq.getId());
+    } finally { sync.mockRestore(); }
+  });
   it('undoes and redoes edits with stable identity and independent snapshots', () => {
     const track = new KGTrack(); const eq = new KGEQFX(); track.addFX(eq);
     const limiter = new KGLimiterFX({ inputGainDb: 8 });

@@ -1,0 +1,67 @@
+{
+  "source": "https://hopkinsmedia.services/ir",
+  "author": "Greg Hopkins",
+  "licenseStatus": "CONFIRMED: Creative Commons Attribution (CC BY), confirmed by the project owner on 2026-10-11. Exact version unspecified. Temporary non-commercial restriction removed; retain attribution, source link and modification notice.",
+  "presets": [
+    {
+      "preset": "Hall",
+      "original": "480L Halls 03 Medium Hall.wav",
+      "archivePath": "Hopkins IR Library/Digital Reverb Devices/480L Halls 03 Medium Hall.wav",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bits": 24,
+      "durationSeconds": 2.986666666666667,
+      "modification": "50 ms linear endpoint fade; no trimming or gain change",
+      "originalSHA256": "9e5a844ca794906de74da86c5f5cb4b27666fdf2bdce34844158a38288e29331",
+      "preparedSHA256": "88e7d23ecd9c279c0bae76c27e3775307c3cc82f2589200d9204527222ad7b17"
+    },
+    {
+      "preset": "Room",
+      "original": "480L Rooms 05 Very Small Room.wav",
+      "archivePath": "Hopkins IR Library/Digital Reverb Devices/480L Rooms 05 Very Small Room.wav",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bits": 24,
+      "durationSeconds": 1.2266666666666666,
+      "modification": "50 ms linear endpoint fade; no trimming or gain change",
+      "originalSHA256": "029af7d22cd41434a5b44d3e0f3904f06194afaf7446a8dc7bab3629e4d1099d",
+      "preparedSHA256": "c34d953c24ef63b4ff2b45b5331f163972d6c7b2ea3deeeaa835aa264abe30f6"
+    },
+    {
+      "preset": "Chamber",
+      "original": "Lexicon 300 Chamber.wav",
+      "archivePath": "Hopkins IR Library/Digital Reverb Devices/Lexicon 300 Chamber.wav",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bits": 24,
+      "durationSeconds": 2.0056458333333333,
+      "modification": "50 ms linear endpoint fade; no trimming or gain change",
+      "originalSHA256": "2148a188fbba20ef70e22a2f63f0383e64ec405e75e853f539b2fd1b51c4faae",
+      "preparedSHA256": "c8db3799e3f5a6f77edf4ebe6385f99b296c1bc2b6403e38c78718f971a5e206"
+    },
+    {
+      "preset": "Plate",
+      "original": "EMT 21 Natural Plate 01.wav",
+      "archivePath": "Hopkins IR Library/Analog Reverb Devices/EMT 21 Natural Plate 01.wav",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bits": 24,
+      "durationSeconds": 2.9846458333333334,
+      "modification": "50 ms linear endpoint fade; no trimming or gain change",
+      "originalSHA256": "0151e6a5f5e39811b08248de1f0ba60469bfc84c50c39c23da40786a385ecc38",
+      "preparedSHA256": "e964e6f801992dca51adc76239dac14ee533c0cda1ad8aac7f12612e649bc238"
+    },
+    {
+      "preset": "Spring",
+      "original": "BX20E1 01.wav",
+      "archivePath": "Hopkins IR Library/Analog Reverb Devices/BX20E1 01.wav",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bits": 24,
+      "durationSeconds": 4.8213333333333335,
+      "modification": "50 ms linear endpoint fade; no trimming or gain change",
+      "originalSHA256": "e430d75c2ad2d72d7064e0e70c35bd1ebc6b371be5b648a4b0d1b92a0b1476ec",
+      "preparedSHA256": "539e2679d3a54a1bc7fd2918da76c032f5f7a32bd6102d6de33941dae70f7cc3"
+    }
+  ]
+}

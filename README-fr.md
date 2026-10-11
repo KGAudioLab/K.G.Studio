@@ -413,4 +413,4 @@ Ce projet est distribué sous Apache License, Version 2.0, avec des conditions s
 - Aucune demande de brevet à partir de ce logiciel ou de ses ressources
 - Attribution requise en cas d'utilisation dans des produits publics/commerciaux (« Powered by K.G.Studio »)
 
-Les notices tierces (FluidR3_GM SoundFont, midi-js-soundfonts, VexFlow, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE et demucs-web) sont incluses dans `LICENSE`.
+Les notices tierces (FluidR3_GM SoundFont, midi-js-soundfonts, VexFlow, Hopkins Media Services, prompt structure notes, Gemma 4 E4B, UVR-MDX-NET-Inst_HQ_3, MediaPipe, Meyda, web-audio-beat-detector, tonal, htdemucs_4s, onnxruntime-web, AIRE et demucs-web) sont incluses dans `LICENSE`.

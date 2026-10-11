@@ -413,4 +413,4 @@ K.G.Studio 不提供也不託管任何 LLM 模型，也不隸屬於任何模型�
 - 不得使用本軟體或相關素材申請專利
 - 當用於公開或商業產品時需要署名（「Powered by K.G.Studio」）
 
-第三方聲明（FluidR3_GM SoundFont、midi-js-soundfonts、VexFlow、prompt structure notes、Gemma 4 E4B、UVR-MDX-NET-Inst_HQ_3、MediaPipe、Meyda、web-audio-beat-detector、tonal、htdemucs_4s、onnxruntime-web、AIRE 和 demucs-web）已包含在 `LICENSE` 中。
+第三方聲明（FluidR3_GM SoundFont、midi-js-soundfonts、VexFlow、Hopkins Media Services、prompt structure notes、Gemma 4 E4B、UVR-MDX-NET-Inst_HQ_3、MediaPipe、Meyda、web-audio-beat-detector、tonal、htdemucs_4s、onnxruntime-web、AIRE 和 demucs-web）已包含在 `LICENSE` 中。

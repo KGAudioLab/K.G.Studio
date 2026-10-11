@@ -1,3 +1,4 @@
+import { KGEQFX } from '../fx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockMidiNote, createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
 import { MockTransport } from '../../test/mocks/tone';
@@ -44,24 +45,30 @@ describe('KGAudioInterface saved base pan', () => {
   it('initializes and recreates MIDI and player buses with saved pan', async () => {
     const midi = new KGMidiTrack('Lead', 1);
     const wave = new KGAudioTrack('Audio', 2);
+    midi.addFX(new KGEQFX());
+    wave.addFX(new KGEQFX());
     midi.setPan(-0.4);
     wave.setPan(0.6);
     const project = createMockProject();
     project.setTracks([midi, wave]);
     vi.mocked(KGCore.instance).mockReturnValue({ getCurrentProject: () => project } as unknown as KGCore);
-    const midiBus = { toDestination: vi.fn(), dispose: vi.fn(), setInstrument: vi.fn() };
-    const playerBus = { dispose: vi.fn() };
+    const midiBus = { setFX: vi.fn(), whenFXReady: vi.fn().mockResolvedValue(undefined), toDestination: vi.fn(), dispose: vi.fn(), setInstrument: vi.fn() };
+    const playerBus = { setFX: vi.fn(), whenFXReady: vi.fn().mockResolvedValue(undefined), dispose: vi.fn() };
     const createMidi = vi.spyOn(KGAudioBus, 'create').mockResolvedValue(midiBus as unknown as KGAudioBus);
     const createPlayer = vi.spyOn(KGAudioPlayerBus, 'create').mockResolvedValue(playerBus as unknown as KGAudioPlayerBus);
     try {
       const audio = KGAudioInterface.instance();
       await audio.createTrackAudioBus('1', 'trumpet');
       expect(createMidi).toHaveBeenLastCalledWith('trumpet', 0, -0.4, false, false);
+      expect(midiBus.setFX).toHaveBeenLastCalledWith(midi.getFX(), false);
+      audio.setTrackFX('1', []);
+      expect(midiBus.setFX).toHaveBeenLastCalledWith([]);
       await audio.setTrackInstrument('1', 'flute');
       expect(midiBus.setInstrument).toHaveBeenCalledWith('flute');
       await audio.createTrackAudioBus('1', 'flute');
       expect(createMidi).toHaveBeenLastCalledWith('flute', 0, -0.4, false, false);
       await audio.createTrackAudioPlayerBus('2');
+      expect(playerBus.setFX).toHaveBeenLastCalledWith(wave.getFX(), false);
       expect(createPlayer).toHaveBeenLastCalledWith(0, 0.6, false, false);
       await audio.createTrackAudioPlayerBus('2');
       expect(createPlayer).toHaveBeenLastCalledWith(0, 0.6, false, false);

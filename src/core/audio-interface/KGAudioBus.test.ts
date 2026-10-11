@@ -100,7 +100,7 @@ describe('KGAudioBus live MIDI pitch bend', () => {
     const audioBus = await KGAudioBus.create('acoustic_grand_piano');
 
     audioBus.triggerLiveMidiAttack(60, 0, 1);
-    const gainNode = MockGain.mock.results[0].value;
+    const gainNode = MockGain.mock.results.at(-1)!.value;
 
     audioBus.setLiveMidiExpression(0.25);
 
@@ -113,7 +113,7 @@ describe('KGAudioBus live MIDI pitch bend', () => {
     audioBus.setLiveMidiExpression(0.4);
     audioBus.triggerLiveMidiAttack(60, 0, 1);
 
-    const gainNode = MockGain.mock.results[0].value;
+    const gainNode = MockGain.mock.results.at(-1)!.value;
     expect(MockGain).toHaveBeenCalledWith(0.4);
     expect(gainNode.gain.value).toBeCloseTo(0.4, 5);
   });
@@ -149,7 +149,7 @@ describe('KGAudioBus live MIDI pitch bend', () => {
 
     audioBus.triggerLiveMidiAttack(60, 0, 0.5);
     const source = MockBufferSource.mock.results[0].value;
-    const gainNode = MockGain.mock.results[0].value;
+    const gainNode = MockGain.mock.results.at(-1)!.value;
 
     audioBus.setLiveMidiExpression(0.2);
     audioBus.setLiveMidiSustain(true);
@@ -158,7 +158,7 @@ describe('KGAudioBus live MIDI pitch bend', () => {
 
     expect(source.stop).toHaveBeenCalled();
     expect(gainNode.dispose).toHaveBeenCalled();
-    expect(MockGain.mock.calls[1]?.[0]).toBe(1);
+    expect(MockGain.mock.calls.at(-1)?.[0]).toBe(1);
   });
 
   it('lets solo override mute while any track is soloed', async () => {

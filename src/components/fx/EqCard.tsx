@@ -1,3 +1,4 @@
+import { getContext } from 'tone';
 import { useId, useRef } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
 import { TbPower } from 'react-icons/tb';
@@ -32,9 +33,10 @@ export default function EqCard({ state, onChange, onRemove }: { state: EqPreview
       frequency: clampEQBandFrequency(state.bands.map(band => band.frequency), index, update.frequency) };
     onChange({ ...state, bands: state.bands.map((band, i) => i === index ? { ...band, ...constrained } : band) });
   };
+  const sampleRate = getContext().sampleRate || 48000;
   const response = Array.from({ length: 201 }, (_, i) => {
     const x = i / 200 * WIDTH;
-    const gain = previewResponseDb(state.bands, positionToFrequency(i / 200));
+    const gain = previewResponseDb(state.bands, positionToFrequency(i / 200), sampleRate);
     return `${i ? 'L' : 'M'}${x.toFixed(2)},${gainToY(gain).toFixed(2)}`;
   }).join(' ');
   const moveBand = (event: PointerEvent<SVGGElement>, index: number) => {

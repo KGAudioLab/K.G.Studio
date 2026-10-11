@@ -90,16 +90,43 @@ export const MockToneAudioBuffer = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock Gain node
-export const MockGain = vi.fn().mockImplementation((initialValue: number = 1) => ({
+export const MockGain = vi.fn().mockImplementation((initialValue: number | { gain?: number } = 1) => ({
+  context: { sampleRate: 48000, isOffline: true, now: () => 0,
+    setTimeout: (fn: () => void, seconds: number) => window.setTimeout(fn, seconds * 1000),
+    clearTimeout: (id: number) => window.clearTimeout(id) },
   gain: {
-    value: initialValue,
+    context: { now: () => 0 },
+    cancelAndHoldAtTime: vi.fn(),
+    value: typeof initialValue === 'number' ? initialValue : initialValue.gain ?? 1,
     setValueAtTime: vi.fn(),
     linearRampToValueAtTime: vi.fn(),
-    exponentialRampToValueAtTime: vi.fn()
+    exponentialRampToValueAtTime: vi.fn(),
+    rampTo: vi.fn()
   },
   connect: vi.fn(),
   disconnect: vi.fn(),
   dispose: vi.fn()
+}));
+
+export const MockBiquadFilter = vi.fn().mockImplementation((options: { type: string }) => {
+  const param = () => ({ value: 0, context: { now: () => 0 }, cancelAndHoldAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), rampTo: vi.fn() });
+  return { type: options.type, frequency: param(), Q: param(), gain: param(),
+    connect: vi.fn(), disconnect: vi.fn(), dispose: vi.fn() };
+});
+
+export const MockLimiter = vi.fn().mockImplementation(() => ({
+  threshold: { value: -12, context: { now: () => 0 }, cancelAndHoldAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), rampTo: vi.fn() },
+  connect: vi.fn(), disconnect: vi.fn(), dispose: vi.fn(),
+}));
+
+export const MockCompressor = vi.fn().mockImplementation(() => {
+  const param = () => ({ value: 0, context: { now: () => 0 }, cancelAndHoldAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() });
+  return { threshold: param(), ratio: param(), attack: param(), release: param(), knee: param(),
+    connect: vi.fn(), disconnect: vi.fn(), dispose: vi.fn() };
+});
+
+export const MockConvolver = vi.fn().mockImplementation((options: { url?: AudioBuffer }) => ({
+  buffer: options.url, connect: vi.fn(), disconnect: vi.fn(), dispose: vi.fn(),
 }));
 
 // Mock Panner node
@@ -132,6 +159,10 @@ export const ToneMock = {
   Destination: MockDestination,
   ToneAudioBuffer: MockToneAudioBuffer,
   Gain: MockGain,
+  BiquadFilter: MockBiquadFilter,
+  Limiter: MockLimiter,
+  Compressor: MockCompressor,
+  Convolver: MockConvolver,
   Panner: MockPanner,
   Meter: MockMeter,
   

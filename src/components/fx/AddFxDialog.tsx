@@ -51,7 +51,7 @@ export default function AddFxDialog({ onCancel, onAdd }: {
           {TYPES.map(type => (
             <button key={type} type="button" className={`track-create-option fx-create-option${selected === type ? ' selected' : ''}`}
               aria-pressed={selected === type} onClick={() => setSelected(type)}>
-              <img src={`${import.meta.env.BASE_URL}resource/fx/${type}.png`} alt="" draggable={false} />
+              <img src={`${import.meta.env.BASE_URL}resources/fx/${type}.png`} alt="" draggable={false} />
               <span className="track-create-option-label">{t(`fx.${type}.title`)}</span>
             </button>
           ))}

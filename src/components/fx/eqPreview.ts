@@ -22,11 +22,10 @@ export const positionToFrequency = (position: number) => EQ_MIN_FREQUENCY * Math
 
 // Match native low-shelf, peaking, and high-shelf biquads without audio nodes.
 // Native shelves use a fixed slope and do not use Q.
-export function previewResponseDb(bands: EqBand[], frequency: number): number {
-  const sampleRate = 48000;
+export function previewResponseDb(bands: EqBand[], frequency: number, sampleRate = 48000): number {
   const w = 2 * Math.PI * frequency / sampleRate;
   return bands.reduce((total, band, index) => {
-    const center = 2 * Math.PI * band.frequency / sampleRate;
+    const center = 2 * Math.PI * Math.min(band.frequency, sampleRate / 2 - 1) / sampleRate;
     const a = Math.pow(10, band.gain / 40);
     const cosine = Math.cos(center);
     let b: number[];
