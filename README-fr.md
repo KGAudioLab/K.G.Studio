@@ -368,9 +368,8 @@ Les priorités peuvent évoluer.
 ### Après la 1.0
 
 - [X] Extension des outils de l'agent IA pour manipuler directement depuis le chat les régions, les pistes et les pistes globales (progressions d'accords, tempo, tonalité)
+- [X] Effets de piste (FX) — égaliseur (EQ), réverbération, compresseur et limiteur avec ordre configurable dans la chaîne d’effets
 - [ ] Vue Mixer avec panneau dédié, faders par piste, sends, bus de retour et canal master
-- [ ] EQ et channel strip avec égaliseur paramétrique et compresseur par piste
-- [ ] Filtres et effets, comme réverbération, délai et autres effets d'insertion natifs WebAudio
 - [ ] Audio time-stretch / warp pour étirer les régions audio et les adapter au tempo du projet
 - [ ] Effets MIDI, comme arpégiateur, quantificateur de gamme et mémoire d'accords
 - [ ] Sortie vers périphérique MIDI virtuel

@@ -366,9 +366,8 @@ Feature priorities might change.
 ### Post 1.0
 
 - [X] Expanded AI agent tools — manipulate regions, tracks, and global tracks (chord progressions, tempo, key) directly from chat
+- [X] Track FX — EQ, Reverb, Compressor, and Limiter with configurable effect-chain ordering
 - [ ] Mixer view — dedicated panel with per-track faders, sends, return buses, and master channel
-- [ ] EQ and channel strip — per-track parametric EQ and compressor
-- [ ] Filters and effects — reverb, delay, and other WebAudio-native insert effects
 - [ ] Audio time-stretch / warp — stretch audio regions to match project tempo
 - [ ] MIDI effects — arpeggiator, scale quantizer, chord memory
 - [ ] Virtual MIDI device output
