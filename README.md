@@ -130,7 +130,7 @@ K.G.Studio can run **Gemma 4 E4B** entirely inside your browser using WebGPU acc
   - In **LLM Provider (OpenAI Compatible) → Base URL**, enter `https://openrouter.ai/api/v1`.
 
 **Tips:**
-- You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. For self-deployment (requiring ~24G VRAM or 24-32GB Unified Memory), we recommend GPT 6.1 Sol (as of 10/10/2026). 
+- You can also use the official OpenAI API, other OpenAI-compatible services, or a self-hosted LLM server (e.g., Ollama, vLLM). Note that model quality varies — not all models perform equally well for music editing tasks. We recommend GPT 6.1 Sol for its balance of quality and cost.
 - If you have an active subscription with OpenAI or another LLM provider, you can use [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) to run a local proxy server that routes requests through your existing subscription, without needing a separate API key.
 
 ### Basic DAW operations

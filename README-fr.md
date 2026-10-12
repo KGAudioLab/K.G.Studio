@@ -130,7 +130,7 @@ K.G.Studio peut exécuter **Gemma 4 E4B** directement dans votre navigateur grâ
   - Dans **Fournisseur LLM (compatible OpenAI) → Base URL**, saisissez `https://openrouter.ai/api/v1`.
 
 **Conseils :**
-- Vous pouvez également utiliser l'API officielle d'OpenAI, d'autres services compatibles OpenAI, ou un serveur LLM auto-hébergé (par exemple Ollama, vLLM). Notez que la qualité des modèles varie : tous les modèles ne sont pas aussi performants pour les tâches d'édition musicale. Pour l'auto-déploiement (nécessite ~24 Go de VRAM ou 24-32 Go de mémoire unifiée), nous recommandons GPT 6.1 Sol (au 10 octobre 2026).
+- Vous pouvez également utiliser l'API officielle d'OpenAI, d'autres services compatibles OpenAI, ou un serveur LLM auto-hébergé (par exemple Ollama, vLLM). Notez que la qualité des modèles varie : tous les modèles ne sont pas aussi performants pour les tâches d'édition musicale. Nous recommandons GPT 6.1 Sol pour son équilibre entre qualité et coût.
 - Si vous disposez d'un abonnement actif chez OpenAI ou chez un autre fournisseur LLM, vous pouvez utiliser [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) pour exécuter un serveur proxy local qui achemine les requêtes via votre abonnement existant, sans nécessiter de clé API séparée.
 
 ### Opérations DAW de base
