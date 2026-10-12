@@ -1,3 +1,21 @@
+# [0.24.0-build.20261012] (2026-10-12)
+
+* Merge pull request #74 from KGAudioLab/feat/2026-10-10-fx (9fb9c9f)
+* docs: updated READMEs (357ea57)
+* Merge pull request #73 from KGAudioLab/feat/2026-10-10-fx (8000293)
+* docs: updated README and RELEASE_NOTES (a739450)
+* feat: implemented FX visualization logic for EQ, Compressor, and Limiter (a9d0822)
+* feat: add "FX" option to duplicate track feature (731a2c1)
+* feat: added FX preset feature. (1c28ee6)
+* refactor: update data type of KGFX.id from UUID to integer (fedcefa)
+* fix: minor adjustments (89426b6)
+* feat: implemented audio logic for EQ, Reverb, Compressor, and Limiter FX (b1bb71d)
+* feat: minor UI adjustments for FX tab (6e70927)
+* feat: implemented data structure and data persistent logic for FX (bed52f6)
+* feat: introduced add FX dialog; updated create new track dialog's icons; few misc UI adjustments (e5678f8)
+* feat: make FX cards can be rearranged (d8374c5)
+* feat: added FX cards' mock up (b1f05ca)
+
 # [0.23.0-build.20261011] (2026-10-11)
 
 * Merge pull request #72 from KGAudioLab/feat/2026-10-09-misc (54b1ec0)
