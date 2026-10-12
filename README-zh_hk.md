@@ -130,7 +130,7 @@ K.G.Studio 可以藉助 WebGPU 加速，在瀏覽器中直接執行 **Gemma 4 E4
   - 在 **LLM 提供方（OpenAI 相容） → 基礎 URL** 中輸入 `https://openrouter.ai/api/v1`。
 
 **提示：**
-- 您也可以使用官方 OpenAI API、其他 OpenAI 相容服務，或自行託管的 LLM 伺服器（如 Ollama、vLLM）。請注意，不同模型的品質差異較大，並非所有模型都同樣適合音樂編輯任務。對於自託管/本地部署（需要約 24G 顯存或 24-32GB 統一記憶體），我們推薦 GPT 6.1 Sol（截至 2026 年 10 月 10 日）。
+- 您也可以使用官方 OpenAI API、其他 OpenAI 相容服務，或自行託管的 LLM 伺服器（如 Ollama、vLLM）。請注意，不同模型的品質差異較大，並非所有模型都同樣適合音樂編輯任務。我們推薦 GPT 6.1 Sol，因為它在品質與成本之間取得了良好的平衡。
 - 如果您已訂閱 OpenAI 或其他 LLM 提供方，可以使用 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 執行一個本地代理伺服器，透過現有訂閱轉發請求，而無需另外準備 API Key。
 
 ### 基本 DAW 操作
