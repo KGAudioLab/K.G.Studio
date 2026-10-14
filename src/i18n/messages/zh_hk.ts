@@ -3,6 +3,12 @@ import { enUsMessages } from './en_us';
 
 export const zhHkMessages: TranslationMessages = {
   ...enUsMessages,
+  'trackImage.choose': "選擇音軌圖像",
+  'trackImage.title': "音軌圖像",
+  'trackImage.close': "關閉圖像選擇器",
+  'trackImage.cancel': "取消",
+  'trackImage.ok': "確定",
+
   "runtimeProvider.webgpuAvailable": "WebGPU 可用",
   "runtimeProvider.cpuOnly": "僅 CPU/WASM",
   "runtimeProvider.cpuFallback": "已回退至 CPU/WASM",

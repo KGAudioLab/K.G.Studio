@@ -1,6 +1,12 @@
 import type { TranslationMessages } from '../types';
 
 export const enUsMessages: TranslationMessages = {
+  'trackImage.choose': "Choose track image",
+  'trackImage.title': "Track Image",
+  'trackImage.close': "Close image picker",
+  'trackImage.cancel': "Cancel",
+  'trackImage.ok': "OK",
+
   "runtimeProvider.webgpuAvailable": "webgpu available",
   "runtimeProvider.cpuOnly": "cpu/wasm only",
   "runtimeProvider.cpuFallback": "cpu/wasm fallback",

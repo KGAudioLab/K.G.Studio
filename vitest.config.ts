@@ -1,10 +1,11 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { instrumentImagesPlugin } from './build/instrumentImagesPlugin';
 import { fxDefaultsConfigPlugin } from './build/fxDefaultsConfigPlugin';
 
 export default defineConfig({
-  plugins: [react(), fxDefaultsConfigPlugin()],
+  plugins: [react(), fxDefaultsConfigPlugin(), instrumentImagesPlugin()],
   test: {
     // Use jsdom environment for DOM testing
     environment: 'jsdom',

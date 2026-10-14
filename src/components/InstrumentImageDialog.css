@@ -1,0 +1,7 @@
+.track-image-dialog { max-width: 744px; max-height: calc(100dvh - 40px); display: flex; flex-direction: column; }
+.track-image-dialog .dialog-header, .track-image-dialog .dialog-footer { flex-shrink: 0; }
+.track-image-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 128px)); justify-content: center; gap: 12px; overflow-y: auto; min-height: 0; }
+.track-image-option { width: 100%; aspect-ratio: 1; min-width: 0; padding: 6px; border-radius: 8px; gap: 0; }
+.track-image-option img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.track-image-option:focus-visible { outline: 2px solid #5a9fd4; outline-offset: -3px; }
+@media (max-width: 600px) { .track-image-grid { gap: 6px; padding: 12px; } }

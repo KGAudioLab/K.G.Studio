@@ -2,6 +2,8 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import InstrumentSelection from './InstrumentSelection';
+import { KGAudioTrack } from '../core/track/KGAudioTrack';
+import type { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack } from '../core/track/KGMidiTrack';
 import { I18nContext } from '../i18n/I18nProvider';
 import type { ResolvedLocaleCode } from '../i18n/types';
@@ -10,9 +12,10 @@ import { translate } from '../i18n/translate';
 const midiTrack = new KGMidiTrack('Lead Track', 1, 'acoustic_grand_piano');
 
 const storeState = {
-  tracks: [midiTrack],
+  tracks: [midiTrack] as KGTrack[],
   selectedTrackId: '1',
   closeInstrumentSelection: vi.fn(),
+  updateTrackProperties: vi.fn(),
   setTrackInstrument: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -37,6 +40,10 @@ function renderWithLocale(resolvedLocale: ResolvedLocaleCode) {
 
 describe('InstrumentSelection', () => {
   beforeEach(() => {
+    storeState.tracks = [midiTrack];
+    storeState.selectedTrackId = '1';
+    storeState.updateTrackProperties.mockClear();
+    midiTrack.setImageName(undefined);
     storeState.setTrackInstrument.mockClear();
     midiTrack.setInstrument('acoustic_grand_piano');
   });
@@ -85,4 +92,44 @@ describe('InstrumentSelection', () => {
     expect(screen.getByText('Acoustic Guitar (nylon)')).toBeTruthy();
     expect(screen.queryByText('Bright Acoustic Piano')).toBeNull();
   });
+  it('defers the image update until OK and displays the saved choice', () => {
+    midiTrack.setImageName('violin.png');
+    const view = renderWithLocale('en_us');
+    expect(document.querySelector('.instrument-preview img')).toHaveAttribute('src', expect.stringContaining('/resources/instruments/violin.png'));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose track image' }));
+    expect(screen.getByRole('button', { name: 'violin' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'cello' }));
+    expect(storeState.updateTrackProperties).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(storeState.updateTrackProperties).toHaveBeenCalledWith(1, { imageName: 'cello.png' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    midiTrack.setImageName('cello.png');
+    view.rerender(<InstrumentSelection />);
+    expect(document.querySelector('.instrument-preview img')).toHaveAttribute('src', expect.stringContaining('cello.png'));
+  });
+
+  it('allows audio tracks to customize their speaker default', () => {
+    storeState.tracks = [new KGAudioTrack('Audio', 1)];
+    renderWithLocale('en_us');
+    fireEvent.click(screen.getByRole('button', { name: 'Choose track image' }));
+    expect(screen.getByRole('button', { name: 'speaker' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'microphone' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(storeState.updateTrackProperties).toHaveBeenCalledWith(1, { imageName: 'microphone.png' });
+  });
+
+  it('discards the picker when the selected track changes or disappears', () => {
+    const view = renderWithLocale('en_us');
+    fireEvent.click(screen.getByRole('button', { name: 'Choose track image' }));
+    storeState.tracks = [new KGMidiTrack('Other', 2)];
+    storeState.selectedTrackId = '2';
+    view.rerender(<InstrumentSelection />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose track image' }));
+    storeState.tracks = [];
+    view.rerender(<InstrumentSelection />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(storeState.updateTrackProperties).not.toHaveBeenCalled();
+  });
+
 });

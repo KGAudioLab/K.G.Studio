@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
 import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
+import { KGMidiTrack } from '../../track/KGMidiTrack';
 import { KGTrack } from '../../track/KGTrack';
 import { UpdateTrackCommand } from './UpdateTrackCommand';
 
@@ -122,4 +123,40 @@ describe('UpdateTrackCommand', () => {
     expect(track.getColor()).toBeUndefined();
     expect(command.getChangedProperties()).toEqual(new Set(['color']));
   });
+  it('updates images with undo/redo and supports returning to default', () => {
+    const command = new UpdateTrackCommand(1, { imageName: 'violin.png' });
+    command.execute();
+    expect(track.getImageName()).toBe('violin.png');
+    expect(command.getDescription()).toContain('image');
+    command.undo();
+    expect(track.getImageName()).toBeUndefined();
+    command.execute();
+    expect(track.getImageName()).toBe('violin.png');
+    const reset = new UpdateTrackCommand(1, { imageName: null });
+    reset.execute();
+    expect(track.getImageName()).toBeUndefined();
+    reset.undo();
+    expect(track.getImageName()).toBe('violin.png');
+  });
+
+  it('restores the custom image when undoing an instrument change', () => {
+    const midi = new KGMidiTrack('Lead', 1);
+    midi.setImageName('cello.png');
+    project.setTracks([midi]);
+    const unchanged = new UpdateTrackCommand(1, { instrument: midi.getInstrument() });
+    unchanged.execute();
+    expect(midi.getImageName()).toBe('cello.png');
+    expect(unchanged.getChangedProperties().size).toBe(0);
+    const change = new UpdateTrackCommand(1, { instrument: 'violin' });
+    change.execute();
+    expect(midi.getResolvedImageName()).toBe('violin.png');
+    change.undo();
+    expect(midi.getInstrument()).toBe('acoustic_grand_piano');
+    expect(midi.getImageName()).toBe('cello.png');
+    change.execute();
+    expect(midi.getResolvedImageName()).toBe('violin.png');
+    change.undo();
+    expect(midi.getImageName()).toBe('cello.png');
+  });
+
 });

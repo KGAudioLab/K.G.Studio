@@ -3,6 +3,12 @@ import { enUsMessages } from './en_us';
 
 export const frFrMessages: TranslationMessages = {
   ...enUsMessages,
+  'trackImage.choose': "Choisir l’image de la piste",
+  'trackImage.title': "Image de la piste",
+  'trackImage.close': "Fermer le sélecteur d’image",
+  'trackImage.cancel': "Annuler",
+  'trackImage.ok': "OK",
+
   "runtimeProvider.webgpuAvailable": "WebGPU disponible",
   "runtimeProvider.cpuOnly": "CPU/WASM uniquement",
   "runtimeProvider.cpuFallback": "Repli sur CPU/WASM",

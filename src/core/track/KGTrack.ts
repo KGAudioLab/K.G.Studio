@@ -1,3 +1,4 @@
+import instrumentImages from 'virtual:instrument-images';
 import { Expose, Transform, Type } from 'class-transformer';
 import { KGFX, KGEQFX, KGReverbFX, KGCompressorFX, KGLimiterFX, normalizeFXList } from '../fx';
 import { KGRegion } from '../region/KGRegion';
@@ -37,6 +38,9 @@ export class KGTrack {
 
   @Expose()
   protected color?: string;
+
+  @Expose()
+  protected imageName?: string;
 
   @Expose()
   @WithDefault(AUDIO_INTERFACE_CONSTANTS.DEFAULT_TRACK_VOLUME)
@@ -96,6 +100,18 @@ export class KGTrack {
   }
 
   // Getters
+  /** Raw saved choice; absent means the current instrument's default. */
+  public getImageName(): string | undefined { return this.imageName; }
+
+  public setImageName(imageName: string | undefined): void { this.imageName = imageName; }
+
+  public getDefaultImageName(): string { return this.type === TrackType.Wave ? 'speaker.png' : 'piano.png'; }
+
+  public getResolvedImageName(): string {
+    return this.imageName && instrumentImages.includes(this.imageName)
+      ? this.imageName : this.getDefaultImageName();
+  }
+
   public getName(): string {
     return this.name;
   }

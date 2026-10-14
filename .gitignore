@@ -32,3 +32,6 @@ DEPLOYMENT.md
 *.psd
 audio-debug.html
 src/audio-debug.ts
+
+# temp output
+output/

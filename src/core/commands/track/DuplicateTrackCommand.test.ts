@@ -43,6 +43,7 @@ describe('DuplicateTrackCommand', () => {
     const source = new KGMidiTrack('Lead', 4, 'trumpet', -3);
     source.setTrackIndex(0);
     source.setColor('#123456');
+    source.setImageName('microphone.png');
     source.setMuted(true);
     source.setSolo(true);
     source.setPan(-0.4);
@@ -76,6 +77,7 @@ describe('DuplicateTrackCommand', () => {
     expect(duplicate.getInstrument()).toBe('trumpet');
     expect(duplicate.getVolume()).toBe(-3);
     expect(duplicate.getColor()).toBe('#123456');
+    expect(duplicate.getImageName()).toBe('microphone.png');
     expect(duplicate.getMuted()).toBe(true);
     expect(duplicate.getSolo()).toBe(true);
     expect(duplicate.getPan()).toBe(-0.4);
@@ -115,6 +117,7 @@ describe('DuplicateTrackCommand', () => {
 
   it('copies audio regions by reference and omits unchecked optional content', () => {
     const source = new KGAudioTrack('Vocal', 2, -1);
+    source.setImageName('microphone.png');
     source.setTrackIndex(0);
     source.setVolumeAutomation([new KGTrackAutomationPoint('volume-source', 1, -8)]);
     source.setRegions([
@@ -132,6 +135,7 @@ describe('DuplicateTrackCommand', () => {
 
     const withRegions = new DuplicateTrackCommand(2, { includeFX: true, includeAutomation: false, includeRegions: true }, setSelectedTrack);
     withRegions.execute();
+    expect(withRegions.getDuplicateTrack()?.getImageName()).toBe('microphone.png');
     const copiedRegion = (withRegions.getDuplicateTrack() as KGAudioTrack).getRegions()[0];
     expect(copiedRegion.getId()).not.toBe('audio-source');
     expect(copiedRegion.getName()).toBe('Take 1');
