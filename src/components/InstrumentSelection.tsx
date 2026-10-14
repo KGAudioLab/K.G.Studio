@@ -1,7 +1,10 @@
+import { TbPhotoEdit } from 'react-icons/tb';
+import InstrumentImageDialog from './InstrumentImageDialog';
 import React, { useMemo, useState, useEffect } from 'react';
 import './InstrumentSelection.css';
 import { useProjectStore } from '../stores/projectStore';
 import { INSTRUMENT_GROUPS, FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
+import type { KGTrack } from '../core/track/KGTrack';
 import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { KGAudioTrack } from '../core/track/KGAudioTrack';
 import { useI18n } from '../i18n/useI18n';
@@ -21,10 +24,12 @@ const InstrumentSelection: React.FC = () => {
     selectedTrackId,
     closeInstrumentSelection,
     setTrackInstrument,
+    updateTrackProperties,
     instrumentSelectionTab = 'instrument',
     setInstrumentSelectionTab
   } = useProjectStore();
   const [registryRevision, setRegistryRevision] = useState(0);
+  const [imageDialogTrack, setImageDialogTrack] = useState<KGTrack | null>(null);
   const [showManager, setShowManager] = useState(false);
   const activeTab = instrumentSelectionTab;
   useEffect(() => UserInstrumentRegistry.subscribe(() => setRegistryRevision(value => value + 1)), []);
@@ -76,14 +81,20 @@ const InstrumentSelection: React.FC = () => {
 
   const isAudioTrack = targetTrack instanceof KGAudioTrack;
   const displayedInstrumentKey = resolvePlaybackInstrument(String(currentInstrumentKey));
-  const previewImage = isAudioTrack ? 'speaker.png' : (resolveInstrumentDefinition(displayedInstrumentKey)?.image || 'piano.png');
+  const previewImage = targetTrack?.getResolvedImageName() ?? 'piano.png';
   const previewAlt = isAudioTrack ? 'Audio Track' : (UserInstrumentRegistry.get(displayedInstrumentKey)?.displayName ?? getInstrumentDisplayName(displayedInstrumentKey as InstrumentType, t));
   const hasTargetTrack = !!targetTrack;
+  useEffect(() => { setImageDialogTrack(null); }, [targetTrack]);
 
   return (
       <div className="instrument-selection">
       <div className="instrument-selection-header">
-        <h3>{hasTargetTrack ? previewAlt : ''}</h3>
+        <div className="instrument-selection-heading">
+          <button type="button" className="instrument-image-edit-btn" disabled={!hasTargetTrack}
+            aria-label={t('trackImage.choose')} title={t('trackImage.choose')}
+            onClick={() => setImageDialogTrack(targetTrack)}><TbPhotoEdit aria-hidden="true" /></button>
+          <h3>{hasTargetTrack ? previewAlt : ''}</h3>
+        </div>
         <button className="instrument-selection-close-btn" onClick={closeInstrumentSelection}>✕</button>
       </div>
       <div className="instrument-selection-top">
@@ -153,6 +164,12 @@ const InstrumentSelection: React.FC = () => {
           )}
         </div>
       </div>
+      {imageDialogTrack && imageDialogTrack === targetTrack && <InstrumentImageDialog
+        imageName={previewImage} onCancel={() => setImageDialogTrack(null)}
+        onConfirm={imageName => {
+          void updateTrackProperties(imageDialogTrack.getId(), { imageName });
+          setImageDialogTrack(null);
+        }} />}
       {showManager && <UserInstrumentManager onClose={() => setShowManager(false)}/>}
     </div>
   );

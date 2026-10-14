@@ -1,3 +1,4 @@
+import IMAGES from 'virtual:instrument-images';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FLUIDR3_INSTRUMENT_MAP, INSTRUMENT_GROUPS } from '../constants/generalMidiConstants';
 import { UserInstrumentRegistry, type UserInstrumentDefinition } from '../core/instruments/UserInstrumentRegistry';
@@ -12,12 +13,7 @@ import './UserInstrumentManager.css';
 import { useI18n } from '../i18n/useI18n';
 import { getInstrumentDisplayName, getInstrumentGroupLabel, type InstrumentGroupKey } from '../i18n/instruments';
 
-const IMAGES = [
-  'accordian.png','baritone_sax.png','bass.png','bassoon.png','brass_ensemble.png','cello.png','clarinet.png','contrabass.png',
-  'drawbar_organ.png','drums.png','electric_guitar.png','electric_piano.png','english_horn.png','flute.png','french_horn.png',
-  'guitar.png','harmonica.png','harp.png','marimba.png','oboe.png','orchestra_percussion_kit.png','piano.png','piccolo.png','sax.png',
-  'shakuhachi.png','soprano_sax.png','speaker.png','string_ensemble.png','synth.png','trombone.png','trumpet.png','tuba.png','viola.png','violin.png',
-];
+
 
 interface Props { onClose: () => void; }
 

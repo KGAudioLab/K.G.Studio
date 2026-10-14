@@ -494,14 +494,14 @@ const TrackInfoItem: React.FC<TrackInfoItemProps> = ({
           <div className="instrument-image">
             {isAudioTrack ? (
               <img
-                src={`${import.meta.env.BASE_URL}resources/instruments/speaker.png`}
+                src={`${import.meta.env.BASE_URL}resources/instruments/${track.getResolvedImageName()}`}
                 alt="Audio Track"
                 width="64"
                 height="64"
               />
             ) : (
               <img
-                src={`${import.meta.env.BASE_URL}resources/instruments/${resolveInstrumentDefinition(resolvePlaybackInstrument(String(currentInstrument)))?.image || 'piano.png'}`}
+                src={`${import.meta.env.BASE_URL}resources/instruments/${track.getResolvedImageName()}`}
                 alt={resolveInstrumentDefinition(resolvePlaybackInstrument(String(currentInstrument)))?.displayName ?? getInstrumentDisplayName(currentInstrument as keyof typeof FLUIDR3_INSTRUMENT_MAP, t)}
                 width="64"
                 height="64"

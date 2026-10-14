@@ -421,4 +421,16 @@ describe('TrackInfoItem mute and solo controls', () => {
 
     expect(screen.getByRole('button', { name: 'M' })).toHaveClass('solo-overrides-mute');
   });
+  it.each(['midi', 'audio'])('renders the saved %s track image and updates after a model change', type => {
+    const track = type === 'midi' ? new KGMidiTrack('Lead', 1) : new KGAudioTrack('Voice', 1);
+    track.setImageName('microphone.png');
+    const props = { track, index: 0, isDragging: false, isDragOver: false,
+      onTrackNameEdit: vi.fn(), onDragStart: vi.fn(), onDragOver: vi.fn(), onDrop: vi.fn(), onDragEnd: vi.fn() };
+    const view = render(<TrackInfoItem {...props} />);
+    expect(view.container.querySelector('.instrument-image img')).toHaveAttribute('src', expect.stringContaining('microphone.png'));
+    track.setImageName('cello.png');
+    view.rerender(<TrackInfoItem {...props} />);
+    expect(view.container.querySelector('.instrument-image img')).toHaveAttribute('src', expect.stringContaining('cello.png'));
+  });
+
 });

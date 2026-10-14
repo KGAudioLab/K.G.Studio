@@ -183,6 +183,7 @@ export class DuplicateTrackCommand extends KGCommand {
 
     duplicate.setTrackIndex(trackIndex);
     duplicate.setColor(source.getColor());
+    duplicate.setImageName(source.getImageName());
     duplicate.setMuted(source.getMuted());
     duplicate.setPan(source.getPan());
     duplicate.setSolo(source.getSolo());

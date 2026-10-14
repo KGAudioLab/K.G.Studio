@@ -26,6 +26,8 @@ export class KGAudioTrack extends KGTrack {
     this.volume = volume;
   }
 
+  public override getDefaultImageName(): string { return 'speaker.png'; }
+
   // Override parent setRegions to enforce KGAudioRegion type
   public override setRegions(regions: KGAudioRegion[]): void {
     this.regions = regions;

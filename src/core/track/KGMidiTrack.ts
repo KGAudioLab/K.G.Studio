@@ -5,7 +5,7 @@ import { KGRegion } from '../region/KGRegion';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { WithDefault } from '../../types/projectTypes';
-import { isPercussionInstrument } from '../instruments/instrumentResolver';
+import { isPercussionInstrument, resolveInstrumentDefinition, resolvePlaybackInstrument } from '../instruments/instrumentResolver';
 
 export type InstrumentType = keyof typeof FLUIDR3_INSTRUMENT_MAP;
 export interface MidiTransposeSettings {
@@ -65,10 +65,15 @@ export class KGMidiTrack extends KGTrack {
   }
 
   public setInstrument(instrument: InstrumentType): void {
+    if (instrument !== this.getInstrument()) this.setImageName(undefined);
     this.instrument = instrument;
     if (isPercussionInstrument(String(instrument))) {
       this.noTranspose = true;
     }
+  }
+
+  public override getDefaultImageName(): string {
+    return resolveInstrumentDefinition(resolvePlaybackInstrument(String(this.getInstrument())))?.image || 'piano.png';
   }
 
   public getTransposeSettings(): MidiTransposeSettings {

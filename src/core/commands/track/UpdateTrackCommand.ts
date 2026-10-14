@@ -10,6 +10,7 @@ import { isPercussionInstrument } from '../../instruments/instrumentResolver';
  */
 export interface TrackUpdateProperties {
   name?: string;
+  imageName?: string | null;
   instrument?: InstrumentType; // Only applies to MIDI tracks
   type?: TrackType;
   volume?: number;
@@ -48,9 +49,12 @@ export class UpdateTrackCommand extends KGCommand {
       throw new Error(`Track with ID ${this.trackId} not found`);
     }
 
+    this.changedProperties.clear();
+
     // Store original properties for undo
     this.originalProperties = {
       name: this.targetTrack.getName(),
+      imageName: this.targetTrack.getImageName(),
       type: this.targetTrack.getType(),
       volume: this.targetTrack.getVolume(),
       pan: this.targetTrack.getPan(),
@@ -94,6 +98,7 @@ export class UpdateTrackCommand extends KGCommand {
         audioInterface.setTrackInstrument(this.trackId.toString(), this.newProperties.instrument);
         
         this.changedProperties.add('instrument');
+        this.changedProperties.add('imageName');
         updatedProperties.push(`instrument: ${originalInstrument} → ${this.newProperties.instrument}`);
       }
 
@@ -112,6 +117,15 @@ export class UpdateTrackCommand extends KGCommand {
       this.targetTrack.setNoTranspose(this.newProperties.noTranspose);
       this.changedProperties.add('noTranspose');
       updatedProperties.push(`no transpose: ${this.originalProperties.noTranspose} → ${this.newProperties.noTranspose}`);
+    }
+
+    if ('imageName' in this.newProperties && this.newProperties.imageName !== undefined) {
+      const nextImage = this.newProperties.imageName ?? undefined;
+      if (nextImage !== this.targetTrack.getImageName()) {
+        this.targetTrack.setImageName(nextImage);
+        this.changedProperties.add('imageName');
+        updatedProperties.push(`image: ${nextImage ?? 'default'}`);
+      }
     }
 
     // Update volume
@@ -214,6 +228,11 @@ export class UpdateTrackCommand extends KGCommand {
       restoredProperties.push(`instrument: ${this.originalProperties.instrument}`);
     }
 
+    // Restore after instrument, whose setter clears the image choice.
+    if (this.changedProperties.has('imageName')) {
+      this.targetTrack.setImageName(this.originalProperties.imageName ?? undefined);
+    }
+
     if (this.changedProperties.has('noTranspose') && this.targetTrack instanceof KGMidiTrack) {
       this.targetTrack.setNoTranspose(this.originalProperties.noTranspose ?? false);
       restoredProperties.push(`no transpose: ${this.originalProperties.noTranspose ?? false}`);
@@ -267,6 +286,7 @@ export class UpdateTrackCommand extends KGCommand {
     const trackName = this.originalProperties.name || `Track ${this.trackId}`;
     const updatedProps: string[] = [];
 
+    if ('imageName' in this.newProperties) updatedProps.push('image');
     if (this.newProperties.name !== undefined) {
       updatedProps.push('name');
     }

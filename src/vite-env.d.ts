@@ -12,3 +12,13 @@ declare module 'virtual:fx-default-chain' {
   const chain: { version: 1; effects: { type: import('./core/fx').FXType }[] };
   export default chain;
 }
+
+declare module 'virtual:instrument-images' {
+  const names: readonly string[];
+  export default names;
+}
+
+declare module 'virtual:instrument-image-order' {
+  const names: readonly string[];
+  export default names;
+}
