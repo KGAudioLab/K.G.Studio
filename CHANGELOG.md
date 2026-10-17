@@ -1,3 +1,8 @@
+# [0.24.2-build.20261017] (2026-10-17)
+
+* Merge pull request #78 from KGAudioLab/feat/2026-10-17-mcp (9b157db)
+* chore: upgrade Node.js to 24.22.0 LTS (e002934)
+
 # [0.24.1-build.20261017] (2026-10-17)
 
 * Merge pull request #77 from KGAudioLab/feat/2026-10-13-track-image (50715ac)
