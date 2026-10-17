@@ -172,13 +172,13 @@ Pour une vue technique plus approfondie, voir [overview.md](./docs/technical/ove
 
 ### Ou cloner et exécuter localement :
 ```bash
-# Assurez-vous d'avoir Node.js >= 20.19.3 installé
+# Assurez-vous d'avoir Node.js 24.22.0 LTS (npm 11.19.1) installé
 # Cloner le dépôt
 git clone https://github.com/KGAudioLab/KGStudio {your-local-path}
 cd {your-local-path}
 
 # Installer les dépendances
-npm install
+npm ci
 
 # Lancer le serveur de développement
 npm run dev

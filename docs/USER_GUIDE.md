@@ -15,13 +15,13 @@ A lightweight, browser‑based DAW with an AI Agent "K.G.Studio Musician Assista
 - **Use the hosted app: [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)**
 - Or clone and run locally:
   ```bash
-  # Make sure you have Node.js >= 20.19.3 installed
+  # Make sure you have Node.js 24.22.0 LTS (npm 11.19.1) installed
   # Clone the repository
   git clone https://github.com/KGAudioLab/KGStudio {your-local-path}
   cd {your-local-path}
 
   # Install dependencies
-  npm install
+  npm ci
 
   # Run the development server
   npm run dev

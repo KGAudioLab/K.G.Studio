@@ -172,13 +172,13 @@ K.G.Studio 可以藉助 WebGPU 加速，在瀏覽器中直接執行 **Gemma 4 E4
 
 ### 或者在本地複製並執行：
 ```bash
-# 請確認已安裝 Node.js >= 20.19.3
+# 請確認已安裝 Node.js 24.22.0 LTS (npm 11.19.1)
 # 複製倉庫
 git clone https://github.com/KGAudioLab/KGStudio {your-local-path}
 cd {your-local-path}
 
 # 安裝依賴
-npm install
+npm ci
 
 # 啟動開發伺服器
 npm run dev
