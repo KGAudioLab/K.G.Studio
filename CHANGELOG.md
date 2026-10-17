@@ -1,3 +1,12 @@
+# [0.24.1-build.20261017] (2026-10-17)
+
+* Merge pull request #77 from KGAudioLab/feat/2026-10-13-track-image (50715ac)
+* fix: updated choir_female.png (e077f15)
+* Merge pull request #76 from KGAudioLab/feat/2026-10-13-track-image (3bb2e93)
+* feat: add customizable track images and singer artwork (aa2a91e)
+* Merge pull request #75 from KGAudioLab/feat/2026-10-10-fx (59049a6)
+* docs: updated README docs (86fba44)
+
 # [0.24.0-build.20261012] (2026-10-12)
 
 * Merge pull request #74 from KGAudioLab/feat/2026-10-10-fx (9fb9c9f)
