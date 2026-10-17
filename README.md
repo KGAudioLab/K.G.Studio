@@ -172,17 +172,21 @@ For a deeper technical overview, see [overview.md](./docs/technical/overview.md)
 
 ### Or clone and run locally:
 ```bash
-# Make sure you have Node.js >= 20.19.3 installed
+# Make sure you have Node.js 24.22.0 LTS (npm 11.19.1) installed
 # Clone the repository
 git clone https://github.com/KGAudioLab/KGStudio {your-local-path}
 cd {your-local-path}
 
 # Install dependencies
-npm install
+npm ci
 
 # Run the development server
 npm run dev
 ```
+
+The Node.js version is pinned in `.nvmrc`. If you use nvm, run `nvm install` and
+`nvm use` from the repository root before installing dependencies. CI and the
+VS Code development task use the same version.
 
 ## Configuration
 

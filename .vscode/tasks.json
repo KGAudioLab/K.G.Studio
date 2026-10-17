@@ -6,8 +6,9 @@
             "label": "npm: dev",
             "detail": "vite",
             "isBackground": true,
-            "command": "source ~/.nvm/nvm.sh && nvm use 20 && npm run dev",
+            "command": "source ~/.nvm/nvm.sh && nvm use && npm run dev",
             "options": {
+                "cwd": "${workspaceFolder}",
                 "shell": {
                     "executable": "/bin/zsh",
                     "args": ["-c"]

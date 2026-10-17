@@ -3,6 +3,11 @@
   "private": true,
   "version": "0.24.1-build.20261017",
   "type": "module",
+  "engines": {
+    "node": ">=24.22.0 <25",
+    "npm": ">=11.19.1 <12"
+  },
+  "packageManager": "npm@11.19.1",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -50,7 +55,7 @@
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^22.9.3",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/react-syntax-highlighter": "^15.5.13",
