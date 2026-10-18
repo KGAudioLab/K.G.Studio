@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { instrumentImagesPlugin } from './build/instrumentImagesPlugin';
 import { fxDefaultsConfigPlugin } from './build/fxDefaultsConfigPlugin';
+import { localMcpPlugin } from './build/mcpPlugin';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
@@ -12,8 +13,8 @@ const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 
 const version = packageJson.version;
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), fxDefaultsConfigPlugin(), instrumentImagesPlugin()],
+export default defineConfig(({ mode, command }) => ({
+  plugins: [react(), fxDefaultsConfigPlugin(), instrumentImagesPlugin(), ...(mode === 'mcp' && command === 'serve' ? [localMcpPlugin()] : [])],
   base: '/kgstudio/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
@@ -30,7 +31,7 @@ export default defineConfig({
     } } } : {}),
   },
   server: {
-    host: true,
+    host: mode === 'mcp' ? '127.0.0.1' : true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -39,9 +40,10 @@ export default defineConfig({
     allowedHosts: ['testlocal.com', '.testlocal.com', 'localhost', '127.0.0.1'],
   },
   preview: {
+    ...(mode === 'mcp' ? { host: '127.0.0.1' } : {}),
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
-});
+}));

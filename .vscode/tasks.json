@@ -11,7 +11,9 @@
                 "cwd": "${workspaceFolder}",
                 "shell": {
                     "executable": "/bin/zsh",
-                    "args": ["-c"]
+                    "args": [
+                        "-c"
+                    ]
                 }
             },
             "problemMatcher": {
@@ -34,8 +36,64 @@
             "options": {
                 "shell": {
                     "executable": "cmd.exe",
-                    "args": ["/d", "/c"]
+                    "args": [
+                        "/d",
+                        "/c"
+                    ]
                 }
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": "ready in .*ms"
+                }
+            }
+        },
+        {
+            "type": "shell",
+            "label": "npm: dev:mcp (macOS)",
+            "detail": "Vite development server with local MCP (browser tab required)",
+            "isBackground": true,
+            "command": "source ~/.nvm/nvm.sh && nvm use && npm run dev:mcp",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "shell": {
+                    "executable": "/bin/zsh",
+                    "args": [
+                        "-c"
+                    ]
+                }
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^.*$"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": "ready in .*ms"
+                }
+            }
+        },
+        {
+            "type": "shell",
+            "label": "npm: dev:mcp (Windows)",
+            "detail": "Vite development server with local MCP (browser tab required)",
+            "isBackground": true,
+            "command": "npm run dev:mcp",
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": [
+                        "/d",
+                        "/c"
+                    ]
+                },
+                "cwd": "${workspaceFolder}"
             },
             "problemMatcher": {
                 "pattern": {

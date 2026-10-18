@@ -11,6 +11,7 @@ interface AppConfig {
   general: {
     language: LanguageSetting;
     agent_mode: AgentMode;
+    mcp_enabled?: boolean;
     llm_provider: 'local_browser' | 'openai' | 'gemini' | 'claude' | 'claude_openrouter' | 'openai_compatible';
     persist_api_keys_non_localhost: boolean;
     auto_compact_threshold_percent: 80 | 90 | 95;
@@ -231,6 +232,7 @@ export class ConfigManager {
         general: {
           language: 'auto',
           agent_mode: 'advanced',
+          mcp_enabled: false,
           llm_provider: 'local_browser',
           persist_api_keys_non_localhost: false,
           auto_compact_threshold_percent: 90,

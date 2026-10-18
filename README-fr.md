@@ -184,6 +184,82 @@ npm ci
 npm run dev
 ```
 
+### Serveur MCP local (Codex, Claude Code, OpenCode et Pi)
+
+K.G.Studio peut mettre ses outils musicaux à la disposition de clients MCP externes via **la révision MCP `2025-11-25` sur Streamable HTTP**.
+
+**Les deux conditions suivantes doivent être remplies :**
+
+1. Exécutez le serveur K.G.Studio avec MCP activé **sur votre ordinateur local**.
+2. Ouvrez la page locale de K.G.Studio **dans votre navigateur** et gardez cet onglet ouvert. Les outils utilisent le projet actif, la sélection et l'historique d'annulation de cet onglet. Démarrer uniquement le serveur ne suffit pas.
+
+Après avoir installé les dépendances, choisissez l'une des options suivantes :
+
+```bash
+# Développement : Vite avec rechargement à chaud + MCP
+npm run dev:mcp
+
+# Ou servir les fichiers compilés + MCP (compiler d'abord)
+npm run build
+npm run preview:mcp
+```
+
+| Commande | Page à ouvrir dans votre navigateur | Point d'accès MCP |
+| --- | --- | --- |
+| `dev:mcp` | `http://127.0.0.1:5173/kgstudio/` | `http://127.0.0.1:5173/mcp` |
+| `preview:mcp` | `http://127.0.0.1:4173/kgstudio/` | `http://127.0.0.1:4173/mcp` |
+
+Ces commandes écoutent uniquement sur l'interface de bouclage et échouent si leur port est occupé. Le terminal affiche l'URL de la page et le point d'accès MCP. **Aucun jeton, variable d'environnement ou en-tête d'authentification n'est nécessaire.** Configurez votre client MCP avec le point d'accès HTTP local ; les requêtes restent limitées à l'interface de bouclage et aux origines locales autorisées.
+
+Pour les clients utilisant une configuration MCP en JSON, une entrée de serveur HTTP ressemble généralement à ceci (adaptez la structure englobante à votre client) :
+
+```json
+{
+  "mcpServers": {
+    "kgstudio": {
+      "type": "http",
+      "url": "http://127.0.0.1:5173/mcp"
+    }
+  }
+}
+```
+
+Pour Codex, ajoutez ceci à votre fichier local `config.toml` :
+
+```toml
+[mcp_servers.kgstudio]
+url = "http://127.0.0.1:5173/mcp"
+```
+
+Utilisez le port `4173` pour `preview:mcp`. Pour OpenCode V2, configurez un serveur `remote` avec cette URL et conservez le protocole `legacy` (`oauth: false` désactive la découverte OAuth inutile). Claude Code et Pi peuvent utiliser l'URL HTTP sans authentification ; consultez la documentation de configuration propre à chaque client.
+
+**Outils et changement de mode :**
+
+- MCP suit le **mode d'agent effectif** de l'application (Regular, Advanced ou Efficient). Le fournisseur Local LLM (Browser) impose le mode Efficient, comme pour l'assistant interne.
+- Changer de mode met à jour le catalogue d'outils et envoie une notification MCP de changement de liste, sans redémarrer le serveur. Si votre client ne se met pas à jour automatiquement, reconnectez-le.
+- Les outils dont les interfaces diffèrent de manière incompatible selon le mode portent un nom qualifié, comme `regular_add_notes`, `advanced_add_notes` et `efficient_add_notes`. Les outils Advanced utilisent **960 ticks par noire** ; les outils Regular/Efficient expriment le temps en noires. Les outils communs conservent leur nom d'origine.
+- `update_todo_list` est réservé à l'assistant interne de K.G.Studio et n'est jamais accessible via MCP.
+- La section MCP des paramètres n'apparaît que lorsque cet onglet est connecté au service MCP local ; elle est masquée sur un hébergement statique et lorsque le service est indisponible. **Les requêtes MCP sont désactivées par défaut.** Dans **Paramètres → MCP → Autoriser les requêtes MCP**, choisissez **Activé** pour autoriser les outils externes. Ce choix est enregistré dans ce navigateur. Les requêtes désactivées renvoient une erreur demandant au client d'inviter l'utilisateur à activer MCP ; une fenêtre d'information indique également à l'utilisateur d'ouvrir Paramètres → MCP. Les requêtes répétées partagent le même message tant qu'il est ouvert. Les requêtes autorisées s'exécutent sans confirmation individuelle, indépendamment des réglages de l'assistant interne. Désactiver MCP invalide les appels en attente.
+- Les modifications musicales utilisent le système de commandes existant et offrent le même comportement d'annulation que les outils correspondants dans l'application.
+- Un seul **onglet de navigateur** contrôle MCP à la fois. Les autres onglets affichent un message d'état ; fermez l'onglet qui contrôle MCP, puis rechargez l'onglet souhaité pour le connecter. Fermer l'onglet rend les outils indisponibles. La mise en veille d'un onglet par le navigateur peut retarder l'exécution.
+- Les appels expirent après deux minutes. Si une requête expire ou si la connexion est interrompue, vérifiez le projet avant de réessayer une modification : une opération déjà en cours peut avoir abouti. Les appels en attente sont refusés si le mode ou le projet change avant leur exécution.
+
+**Les outils de projet réservés à MCP** sont disponibles dans tous les modes d'agent :
+
+| Outil | Comportement |
+| --- | --- |
+| `get_current_project_info` | Lire le nom du projet actif, l'état de sa sauvegarde, ses paramètres musicaux, le nombre de pistes et le mode effectif. |
+| `create_project` | Nécessite `name`. Créer et activer un projet non enregistré, en abandonnant les modifications actuelles non enregistrées. Les noms invalides, le nom réservé `Untitled Project` et les noms déjà présents dans le stockage renvoient une erreur. |
+| `list_projects` | Lister les projets enregistrés et non supprimés avec leurs dates de création et de modification. |
+| `save_project` | Enregistrer sous le nom actuel exact, sans renommage ni suffixe automatique. Enregistrer `Untitled Project` ou écraser un autre projet renvoie une erreur. |
+| `open_project` | Nécessite `name`. Activer un projet enregistré par son nom exact, en abandonnant les modifications actuelles non enregistrées. Un projet absent, supprimé ou impossible à charger renvoie une erreur. |
+
+Les projets sont stockés dans l'OPFS du navigateur qui contrôle MCP. Des profils, noms d'hôte ou ports différents (y compris développement et prévisualisation) peuvent avoir des bibliothèques de projets distinctes. Créer ou ouvrir un projet réinitialise l'éditeur et l'historique d'annulation ; les modifications abandonnées ne peuvent pas être annulées. Arrêtez l'enregistrement avant de changer de projet. La création n'enregistre pas automatiquement le projet : appelez `save_project` pour le conserver.
+
+Le client externe doit fonctionner sur le même ordinateur ou avoir accès à son interface de bouclage ; les agents hébergés dans le cloud ne peuvent pas accéder directement à ce point d'accès localhost. Aucune clé API LLM de K.G.Studio n'est nécessaire pour exécuter les outils MCP : l'agent externe utilise son propre modèle.
+
+**L'hébergement statique reste pris en charge.** Les commandes habituelles `dev`, `build` et `preview` n'activent pas les points d'accès MCP. `npm run build` produit toujours un dossier `dist/` autonome pour GitHub Pages et les autres hébergeurs statiques, et le workflow de déploiement GitHub Pages reste inchangé. La page publique ne se connecte pas à localhost. Seules les commandes locales avec MCP activé fournissent ce serveur facultatif.
+
 ## Configuration
 
 K.G.Studio charge ses valeurs par défaut depuis `./public/config.json` (avec une valeur de secours interne) et persiste les modifications utilisateur dans le navigateur via `ConfigManager` + IndexedDB. IndexedDB est la base de données locale propre à votre navigateur, stockée sur votre appareil ; elle ne quitte pas votre machine et est effacée si vous supprimez les données de ce site. Modifiez les paramètres via le panneau Settings intégré à l'application.
@@ -207,7 +283,8 @@ K.G.Studio charge ses valeurs par défaut depuis `./public/config.json` (avec un
 - L'accès réseau est utilisé uniquement pour :
   - télécharger les échantillons d'instruments depuis le CDN de soundfonts configuré
   - communiquer avec le fournisseur LLM que vous avez choisi (par exemple OpenAI ou des services compatibles OpenAI)
-- En dehors de ces deux cas, l'application fonctionne localement. Si vous bloquez ces points d'accès, l'application se charge toujours ; la lecture des instruments et les fonctions IA ne fonctionneront pas tant que l'accès réseau ne sera pas rétabli.
+  - lorsque vous l'activez explicitement avec `dev:mcp` ou `preview:mcp`, communiquer avec le pont MCP local pour permettre aux agents externes d'utiliser les outils musicaux du navigateur
+- En dehors de ces cas, l'application fonctionne localement. Si vous bloquez les points d'accès aux échantillons ou au LLM, l'application se charge toujours ; les fonctions de lecture et d'IA concernées nécessitent que ces points d'accès soient disponibles.
 - Pour des raisons de sécurité, lorsque l'application est exécutée depuis un hôte non local, nous ne persistons pas votre clé API dans IndexedDB par défaut (afin de réduire le risque XSS). Vous devrez la saisir à chaque démarrage de K.G.Studio. Pour activer la persistance sur des hôtes non locaux, activez « Persist API Keys on Non-Localhost » dans les paramètres (non recommandé pour les environnements partagés ou de production).
 
 ## Utiliser l'application

@@ -20,7 +20,11 @@
     "test:browser:tempo": "playwright test src/test/browser/audio-tempo-detection.spec.ts",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "dev:mcp": "vite --mode mcp --host 127.0.0.1 --port 5173 --strictPort",
+    "preview:mcp": "vite preview --mode mcp --host 127.0.0.1 --port 4173 --strictPort",
+    "test:mcp": "vitest run --config vitest.mcp.config.ts",
+    "test:browser:mcp": "npm run build && playwright test --config playwright.mcp.config.ts"
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
@@ -49,6 +53,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@playwright/test": "^1.60.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
@@ -59,6 +64,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^4.5.2",
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
@@ -72,6 +78,7 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.34.1",
     "vite": "^7.0.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "ws": "^8.22.0"
   }
 }

@@ -151,6 +151,15 @@ function App() {
       // Log maxBars after initialization completes
       const currentMaxBars = useProjectStore.getState().maxBars;
       console.log(`Project max bars: ${currentMaxBars}`);
+      // Static/public deployments never contact a local MCP service.
+      if (['127.0.0.1', 'localhost', '[::1]'].includes(window.location.hostname)) {
+        try {
+          const { startMcpBrowserBridge } = await import('./mcp/browserBridge');
+          await startMcpBrowserBridge();
+        } catch (error) {
+          console.warn('Optional local MCP bridge could not start:', error);
+        }
+      }
     };
 
     initializeApp();

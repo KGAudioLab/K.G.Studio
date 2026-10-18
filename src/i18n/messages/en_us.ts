@@ -1,6 +1,12 @@
 import type { TranslationMessages } from '../types';
 
 export const enUsMessages: TranslationMessages = {
+  "settings.mcp.disabledNotice": "MCP requests are disabled. Enable \"Allow MCP requests\" in Settings → MCP before using MCP.",
+  "settings.mcp.allowRequests": "Allow MCP requests",
+  "settings.mcp.disabled": "Disabled",
+  "settings.mcp.enabled": "Enabled",
+  "settings.mcp.help": "Disabled by default. When enabled, connected MCP clients can use music and project tools without per-request confirmation. Requires the local MCP server and K.G.Studio open in your browser. Creating or opening a project discards unsaved changes.",
+
   'trackImage.choose': "Choose track image",
   'trackImage.title': "Track Image",
   'trackImage.close': "Close image picker",

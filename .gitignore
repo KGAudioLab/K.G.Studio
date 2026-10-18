@@ -23,6 +23,7 @@ DEPLOYMENT.md
 !.vscode/extensions.json
 .idea
 .claude
+.codex
 .DS_Store
 *.suo
 *.ntvs*

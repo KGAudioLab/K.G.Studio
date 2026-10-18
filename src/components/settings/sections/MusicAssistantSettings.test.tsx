@@ -2,6 +2,8 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import MusicAssistantSettings from './MusicAssistantSettings';
+import McpSettings from './McpSettings';
+import { setMcpServiceAvailable } from '../../../mcp/serviceAvailability';
 import SettingsPanel from '../SettingsPanel';
 import { LocalLLMModelManager } from '../../../util/localLLMModelManager';
 import type { ResolvedLocaleCode } from '../../../i18n/types';
@@ -132,6 +134,8 @@ describe('MusicAssistantSettings', () => {
   );
 
   beforeEach(() => {
+    setMcpServiceAvailable(false);
+    configState.delete('general.mcp_enabled');
     configState.set('general.language', 'auto');
     configState.set('general.agent_mode', 'regular');
     configState.set('general.llm_provider', 'local_browser');
@@ -220,6 +224,26 @@ describe('MusicAssistantSettings', () => {
     expect(
       await screen.findByLabelText(translate('settings.general.autoCompactThreshold.label', undefined, 'zh_cn')),
     ).toBeTruthy();
+  });
+
+  it('defaults MCP to disabled and persists enabling/disabling in the standalone MCP section', async () => {
+    const view = renderSettings('en_us', <McpSettings />);
+    const select = await screen.findByLabelText('Allow MCP requests');
+    expect(select).toHaveValue('disabled');
+    fireEvent.change(select, { target: { value: 'enabled' } });
+    await waitFor(() => expect(configManagerMock.set).toHaveBeenCalledWith('general.mcp_enabled', true));
+    view.unmount();
+    renderSettings('en_us', <McpSettings />);
+    expect(await screen.findByLabelText('Allow MCP requests')).toHaveValue('enabled');
+    fireEvent.change(screen.getByLabelText('Allow MCP requests'), { target: { value: 'disabled' } });
+    await waitFor(() => expect(configManagerMock.set).toHaveBeenCalledWith('general.mcp_enabled', false));
+  });
+
+  it.each(['en_us', 'fr_fr', 'zh_cn', 'zh_hk'] as const)('localizes the MCP setting in %s', async locale => {
+    renderSettings(locale, <McpSettings />);
+    const select = await screen.findByLabelText(translate('settings.mcp.allowRequests', undefined, locale));
+    expect(select).toHaveValue('disabled');
+    expect(screen.getByText(translate('settings.mcp.help', undefined, locale))).toBeTruthy();
   });
 
   it('places Agent Mode at the bottom of Assistant Settings and initializes its value', async () => {
@@ -317,10 +341,11 @@ describe('MusicAssistantSettings', () => {
 
   it('keeps the settings sections exclusively in Music Assistant and preserves sidebar order', async () => {
     const onClose = vi.fn();
+    setMcpServiceAvailable(true);
     renderSettings('en_us', <SettingsPanel onClose={onClose} />);
     const nav = screen.getByRole('navigation');
     expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual([
-      'General', 'Music Assistant', 'Audio I/O', 'Behavior', 'Templates', 'Chord Guide',
+      'General', 'Music Assistant', 'MCP', 'Audio I/O', 'Behavior', 'Templates', 'Chord Guide',
     ]);
     const generalGroups = ['UVR5 Web Runtime', 'Soundfont Settings', 'AIRE Settings'];
     expect(screen.getByRole('heading', { level: 3, name: 'General' })).toBeTruthy();
@@ -333,12 +358,30 @@ describe('MusicAssistantSettings', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Music Assistant' }));
     expect(screen.getByRole('heading', { level: 3, name: 'Music Assistant' })).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 4 }).map(heading => heading.textContent)).toEqual(assistantGroups);
+    expect(screen.queryByLabelText('Allow MCP requests')).toBeNull();
+    fireEvent.click(within(nav).getByRole('button', { name: 'MCP' }));
+    expect(screen.getByRole('heading', { level: 3, name: 'MCP' })).toBeTruthy();
+    expect(await screen.findByLabelText('Allow MCP requests')).toHaveValue('disabled');
+    expect(screen.queryByLabelText('Agent Mode')).toBeNull();
     expect(screen.queryByLabelText('Language')).toBeNull();
     for (const name of generalGroups) expect(screen.queryByRole('heading', { name })).toBeNull();
     fireEvent.click(within(nav).getByRole('button', { name: 'General' }));
     expect(await screen.findByLabelText('Language')).toBeTruthy();
     fireEvent.click(screen.getByTitle('Close Settings'));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('hides MCP when unavailable and responds to live connection changes', async () => {
+    renderSettings('en_us', <SettingsPanel onClose={() => {}} />);
+    const nav = screen.getByRole('navigation');
+    expect(within(nav).queryByRole('button', { name: 'MCP' })).toBeNull();
+    act(() => setMcpServiceAvailable(true));
+    fireEvent.click(within(nav).getByRole('button', { name: 'MCP' }));
+    expect(await screen.findByLabelText('Allow MCP requests')).toHaveValue('disabled');
+    act(() => setMcpServiceAvailable(false));
+    expect(within(nav).queryByRole('button', { name: 'MCP' })).toBeNull();
+    expect(screen.queryByLabelText('Allow MCP requests')).toBeNull();
+    expect(screen.getByRole('heading', { level: 3, name: 'General' })).toBeTruthy();
   });
 
   it.each([

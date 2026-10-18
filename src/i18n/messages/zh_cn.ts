@@ -2,6 +2,12 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const zhCnMessages: TranslationMessages = {
+  "settings.mcp.disabledNotice": "MCP 请求已禁用。请先在设置 → MCP 中启用“允许 MCP 请求”，再使用 MCP。",
+  "settings.mcp.allowRequests": "允许 MCP 请求",
+  "settings.mcp.disabled": "禁用",
+  "settings.mcp.enabled": "启用",
+  "settings.mcp.help": "默认禁用。启用后，已连接的 MCP 客户端可直接使用音乐和项目工具，无需逐次确认。需要运行本地 MCP 服务器，并在浏览器中打开 K.G.Studio。创建或打开项目会丢弃未保存的更改。",
+
   ...enUsMessages,
   'trackImage.choose': "选择音轨图像",
   'trackImage.title': "音轨图像",

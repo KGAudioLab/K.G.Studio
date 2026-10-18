@@ -145,6 +145,27 @@ describe('KGProjectStorage', () => {
     expect(loaded!.getBpm()).toBe(120);
   });
 
+  it('reads one project metadata record and distinguishes unsaved media folders', async () => {
+    expect(await storage.getMetadata('Missing')).toBeNull();
+    const projects = await mockRoot.getDirectoryHandle('projects');
+    await projects.getDirectoryHandle('Media only', { create: true });
+    expect(await storage.getMetadata('Media only')).toBeNull();
+    await storage.save('Saved', createTestProject('Saved'));
+    expect(await storage.getMetadata('Saved')).toMatchObject({ name: 'Saved', createdAt: expect.any(Number), updatedAt: expect.any(Number) });
+    await storage.softDelete('Saved');
+    expect(await storage.getMetadata('Saved')).toMatchObject({ deletedAt: expect.any(Number) });
+  });
+
+  it('reports corrupt metadata instead of treating a saved project as absent', async () => {
+    await storage.save('Corrupt', createTestProject('Corrupt'));
+    const projects = await mockRoot.getDirectoryHandle('projects');
+    const directory = await projects.getDirectoryHandle('Corrupt');
+    const writable = await (await directory.getFileHandle('meta.json')).createWritable();
+    await writable.write('invalid JSON');
+    await writable.close();
+    await expect(storage.getMetadata('Corrupt')).rejects.toThrow();
+  });
+
   it('recreates the virtual metronome without persisting it in project.json', async () => {
     const project = createTestProject('Virtual Track');
     await storage.save('Virtual Track', project);

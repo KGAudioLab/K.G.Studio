@@ -28,6 +28,34 @@
                 "webpack://?:*/*": "${webRoot}/*"
             },
             "preLaunchTask": "npm: dev (Windows)"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Chrome with dev server + MCP (macOS)",
+            "url": "http://localhost:5173/kgstudio/",
+            "webRoot": "${workspaceFolder}",
+            "sourceMaps": true,
+            "sourceMapPathOverrides": {
+                "/@fs/*": "${webRoot}/*",
+                "webpack:///./~/*": "${webRoot}/node_modules/*",
+                "webpack://?:*/*": "${webRoot}/*"
+            },
+            "preLaunchTask": "npm: dev:mcp (macOS)"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Launch Chrome with dev server + MCP (Windows)",
+            "url": "http://localhost:5173/kgstudio/",
+            "webRoot": "${workspaceFolder}",
+            "sourceMaps": true,
+            "sourceMapPathOverrides": {
+                "/@fs/*": "${webRoot}/*",
+                "webpack:///./~/*": "${webRoot}/node_modules/*",
+                "webpack://?:*/*": "${webRoot}/*"
+            },
+            "preLaunchTask": "npm: dev:mcp (Windows)"
         }
     ]
 }

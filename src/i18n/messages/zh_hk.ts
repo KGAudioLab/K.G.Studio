@@ -2,6 +2,12 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const zhHkMessages: TranslationMessages = {
+  "settings.mcp.disabledNotice": "MCP 請求已停用。請先在設定 → MCP 中啟用「允許 MCP 請求」，再使用 MCP。",
+  "settings.mcp.allowRequests": "允許 MCP 請求",
+  "settings.mcp.disabled": "停用",
+  "settings.mcp.enabled": "啟用",
+  "settings.mcp.help": "預設停用。啟用後，已連線的 MCP 客戶端可直接使用音樂和專案工具，無需逐次確認。需要執行本地 MCP 伺服器，並在瀏覽器中開啟 K.G.Studio。建立或開啟專案會捨棄未儲存的變更。",
+
   ...enUsMessages,
   'trackImage.choose': "選擇音軌圖像",
   'trackImage.title': "音軌圖像",

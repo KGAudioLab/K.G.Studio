@@ -5,12 +5,14 @@ import { useI18n } from '../../i18n/useI18n';
 
 interface SettingsSidebarProps {
   activeSection: SettingsSection;
+  mcpAvailable: boolean;
   onSectionChange: (section: SettingsSection) => void;
   onClose: () => void;
 }
 
 const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   activeSection,
+  mcpAvailable,
   onSectionChange,
   onClose
 }) => {
@@ -18,6 +20,7 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   const sections = [
     { id: 'general' as SettingsSection, label: t('settings.sidebar.general') },
     { id: 'music_assistant' as SettingsSection, label: t('settings.sidebar.musicAssistant') },
+    { id: 'mcp' as SettingsSection, label: 'MCP' },
     { id: 'audio_io' as SettingsSection, label: t('settings.sidebar.audioIo') },
     { id: 'behavior' as SettingsSection, label: t('settings.sidebar.behavior') },
     { id: 'templates' as SettingsSection, label: t('settings.sidebar.templates') },
@@ -38,7 +41,7 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
       </div>
       
       <nav className="settings-nav">
-        {sections.map((section) => (
+        {sections.filter(section => section.id !== 'mcp' || mcpAvailable).map((section) => (
           <button
             key={section.id}
             className={`settings-nav-item ${activeSection === section.id ? 'active' : ''}`}
