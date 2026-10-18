@@ -2,6 +2,12 @@ import type { TranslationMessages } from '../types';
 import { enUsMessages } from './en_us';
 
 export const frFrMessages: TranslationMessages = {
+  "settings.mcp.disabledNotice": "Les requêtes MCP sont désactivées. Activez « Autoriser les requêtes MCP » dans Paramètres → MCP avant d’utiliser MCP.",
+  "settings.mcp.allowRequests": "Autoriser les requêtes MCP",
+  "settings.mcp.disabled": "Désactivé",
+  "settings.mcp.enabled": "Activé",
+  "settings.mcp.help": "Désactivé par défaut. Une fois activé, les clients MCP connectés peuvent utiliser les outils musicaux et de projet sans confirmation à chaque requête. Le serveur MCP local doit fonctionner et K.G.Studio doit être ouvert dans votre navigateur. Créer ou ouvrir un projet abandonne les modifications non enregistrées.",
+
   ...enUsMessages,
   'trackImage.choose': "Choisir l’image de la piste",
   'trackImage.title': "Image de la piste",

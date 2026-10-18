@@ -188,6 +188,82 @@ The Node.js version is pinned in `.nvmrc`. If you use nvm, run `nvm install` and
 `nvm use` from the repository root before installing dependencies. CI and the
 VS Code development task use the same version.
 
+### Local MCP server (Codex, Claude Code, OpenCode, and Pi)
+
+K.G.Studio can expose its music tools to external MCP clients using **MCP revision `2025-11-25` over Streamable HTTP**.
+
+**Both requirements must be met:**
+
+1. Run K.G.Studio's MCP-enabled server **on your local computer**.
+2. Open the local K.G.Studio webpage **in your browser** and keep the tab open. Tool execution uses that tab's active project, selection, and undo history. Starting the server alone is not enough.
+
+After installing dependencies, choose one:
+
+```bash
+# Development: Vite with hot reload + MCP
+npm run dev:mcp
+
+# Or serve built files + MCP (build first)
+npm run build
+npm run preview:mcp
+```
+
+| Command | Open this webpage in your browser | MCP endpoint |
+| --- | --- | --- |
+| `dev:mcp` | `http://127.0.0.1:5173/kgstudio/` | `http://127.0.0.1:5173/mcp` |
+| `preview:mcp` | `http://127.0.0.1:4173/kgstudio/` | `http://127.0.0.1:4173/mcp` |
+
+The commands bind to loopback and fail if their port is occupied. The terminal prints the webpage URL and MCP endpoint. **No token, environment variable, or authentication header is required.** Configure your MCP client with the local HTTP endpoint; requests remain restricted to loopback and allowed local origins.
+
+For clients using JSON MCP configuration, an HTTP server entry commonly looks like this (adapt the outer configuration structure to your client):
+
+```json
+{
+  "mcpServers": {
+    "kgstudio": {
+      "type": "http",
+      "url": "http://127.0.0.1:5173/mcp"
+    }
+  }
+}
+```
+
+For Codex, add the following to your local `config.toml`:
+
+```toml
+[mcp_servers.kgstudio]
+url = "http://127.0.0.1:5173/mcp"
+```
+
+Use port `4173` for `preview:mcp`. For OpenCode V2, configure a `remote` server with the URL and keep its protocol set to `legacy` (`oauth: false` disables unnecessary OAuth discovery). Claude Code and Pi can use the HTTP URL without authentication; consult their client-specific configuration documentation.
+
+**Tools and mode switching:**
+
+- MCP follows the app's **effective agent mode** (Regular, Advanced, or Efficient). The Local LLM (Browser) provider forces Efficient mode, just as it does for the internal assistant.
+- Changing mode updates the tool catalog and sends an MCP tool-list-change notification without restarting the server. If your client does not refresh automatically, reconnect it.
+- Tools with incompatible mode contracts have qualified names, such as `regular_add_notes`, `advanced_add_notes`, and `efficient_add_notes`. Advanced tools use **960 ticks per quarter note**; Regular/Efficient tools use quarter-note timing. Common tools retain their original names.
+- `update_todo_list` is internal to K.G.Studio's assistant and is never available through MCP.
+- The MCP settings section is shown only while this browser tab is connected to the local MCP service; it is hidden on static hosting and when the service is unavailable. **MCP requests are disabled by default.** In **Settings → MCP → Allow MCP requests**, choose **Enabled** to allow external tools. The choice is stored in this browser. Disabled requests return an error asking the caller to tell the user to enable MCP; an informational popup also directs the user to Settings → MCP. Repeated requests share one notice while it is open. Enabled requests execute without per-request confirmation, independently of the internal assistant's approval settings. Disabling MCP invalidates queued calls.
+- Music edits use the existing command system and support the same undo behavior as the corresponding in-app tools.
+- Only **one browser tab** controls MCP at a time. Other tabs show a status message; close the controlling tab, then reload the desired tab to connect it. Closing the tab makes tools unavailable. Browser suspension can delay execution.
+- Calls expire after two minutes. If a request times out or disconnects, inspect the project before retrying an edit; an edit already executing may have completed. Pending calls are rejected if their mode or project changes before execution.
+
+**MCP-only project tools** are available in every agent mode:
+
+| Tool | Behavior |
+| --- | --- |
+| `get_current_project_info` | Read the active project's name, saved snapshot status, musical settings, track count, and effective mode. |
+| `create_project` | Requires `name`. Create and activate an unsaved project, discarding current unsaved changes. Invalid names, the reserved `Untitled Project`, and names already present in storage return errors. |
+| `list_projects` | List saved, non-deleted projects with creation/update timestamps. |
+| `save_project` | Save with exactly the current name, without renaming or automatic suffixes. Saving `Untitled Project` or overwriting a different project returns an error. |
+| `open_project` | Requires `name`. Activate a saved project by exact name, discarding current unsaved changes. Missing, deleted, or unloadable projects return errors. |
+
+Projects are stored in the controlling browser's OPFS. Different browser profiles, hostnames, or ports (including development versus preview) can have separate project libraries. Creating/opening projects resets editor and undo state; discarded changes cannot be undone. Stop recording before switching projects. Creating does not save automatically: call `save_project` to persist it.
+
+The external client must run on the same computer or otherwise have access to its loopback interface; cloud-hosted agents cannot directly reach this localhost endpoint. No K.G.Studio LLM API key is needed for MCP execution—the external agent provides its own model.
+
+**Static hosting is still supported.** The regular `dev`, `build`, and `preview` commands do not enable the MCP endpoints. `npm run build` still produces a standalone `dist/` for GitHub Pages and other static hosts, and the GitHub Pages deployment workflow is unchanged. The public webpage does not connect to localhost. Only the MCP-enabled local commands provide the optional server.
+
 ## Configuration
 
 K.G.Studio loads defaults from `./public/config.json` (with an internal fallback) and persists user edits in the browser via `ConfigManager` + IndexedDB. IndexedDB is your browser’s own local database stored on your device; it does not leave your machine and is cleared if you clear this site’s data. Modify settings via the in‑app Settings panel.
@@ -211,7 +287,8 @@ K.G.Studio loads defaults from `./public/config.json` (with an internal fallback
 - Network access is only used for:
   - Downloading instrument sound samples from the configured soundfont CDN
   - Communicating with the LLM provider you select (e.g., OpenAI or OpenAI‑compatible services)
-- Outside of the two cases above, the app functions locally. If you block those endpoints, the app still loads; instrument playback and AI features will not function until network access is restored.
+  - When explicitly enabled with `dev:mcp` or `preview:mcp`, communicating with the local MCP bridge so external agents can use the browser's music tools
+- Outside of these cases, the app functions locally. If you block sample or LLM endpoints, the app still loads; affected playback and AI features require those endpoints to be available.
 - For security, when running from a non‑local host we do not persist your API key in IndexedDB by default (to reduce XSS risk). You'll be prompted to enter it each time you start K.G.Studio. To opt‑in to persistence on non‑local hosts, enable "Persist API Keys on Non-Localhost" in Settings (not recommended for shared/production environments).
 
 ## Using the App

@@ -1,11 +1,11 @@
 import type { LLMProvider } from '../llm/LLMProvider';
 import { AgentState } from './AgentState';
 import { SystemPrompts } from './SystemPrompts';
-import { AVAILABLE_TOOLS, createToolInstance } from '../tools';
-import { useProjectStore } from '../../stores/projectStore';
+import { createToolInstance } from '../tools';
+import { executeAvailableTool, getAvailableToolInstances } from '../tools/toolExecution';
 import type { StreamChunk, ToolApprovalDecision } from '../llm/StreamingTypes';
 import type { ToolCall } from './AgentState';
-import type { BaseTool, ToolPayload, ToolResult, OpenAIToolDefinition } from '../tools/BaseTool';
+import type { ToolPayload, ToolResult, OpenAIToolDefinition } from '../tools/BaseTool';
 import { ConversationCompactor, type CompactProgress } from '../compact/ConversationCompactor';
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { buildTodoContext } from './todo';
@@ -72,10 +72,7 @@ export class AgentCore {
    * Get OpenAI tool definitions for all available tools
    */
   private getToolDefinitions(agentMode: AgentMode): OpenAIToolDefinition[] {
-    return Object.keys(AVAILABLE_TOOLS).map(name => {
-      const tool = createToolInstance(name, agentMode)!;
-      return this.isToolAvailableInMode(tool, agentMode) ? tool.getDefinition() : null;
-    }).filter((tool): tool is OpenAIToolDefinition => tool !== null);
+    return getAvailableToolInstances(agentMode).map(tool => tool.getDefinition());
   }
 
   private async getSystemPrompt(templatePath?: string): Promise<string> {
@@ -90,18 +87,6 @@ export class AgentCore {
     return getSystemPromptPathForAgentMode(agentMode);
   }
 
-  private isToolAvailableInMode(toolInstance: BaseTool<ToolPayload> | null, agentMode: AgentMode): boolean {
-    if (!toolInstance) {
-      return false;
-    }
-
-    return agentMode === 'efficient'
-      ? toolInstance.isAvailableInEfficientMode()
-      : agentMode === 'advanced'
-        ? toolInstance.isAvailableInAdvancedMode()
-        : toolInstance.isAvailableInRegularMode();
-  }
-
   /**
    * Execute a single tool call and return the result
    */
@@ -109,28 +94,8 @@ export class AgentCore {
     toolCall: ToolCall,
     agentMode: AgentMode,
   ): Promise<ToolResult<ToolPayload>> {
-    const toolInstance = createToolInstance(toolCall.function.name, agentMode);
-    if (!toolInstance) {
-      return { success: false, result: `Unknown tool: ${toolCall.function.name}` };
-    }
-
-    if (!this.isToolAvailableInMode(toolInstance, agentMode)) {
-      return {
-        success: false,
-        result: `Tool '${toolCall.function.name}' is not available in ${agentMode === 'efficient' ? 'Efficient Mode' : agentMode === 'advanced' ? 'Advanced Mode' : 'Regular Mode'}.`,
-      };
-    }
-
     try {
-      const params = JSON.parse(toolCall.function.arguments);
-      const result = await toolInstance.execute(params);
-
-      // Sync UI state after successful tool execution
-      if (result.success) {
-        useProjectStore.getState().refreshProjectState();
-      }
-
-      return result;
+      return await executeAvailableTool(toolCall.function.name, JSON.parse(toolCall.function.arguments), agentMode);
     } catch (error) {
       return { success: false, result: `Tool execution failed: ${error}` };
     }

@@ -192,6 +192,19 @@ export class KGProjectStorage {
     return results.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  /** Read one saved snapshot's metadata without scanning the entire library. */
+  public async getMetadata(name: string): Promise<ProjectMeta | null> {
+    this.ensureInitialized();
+    try {
+      const dir = await this.projectsDirHandle!.getDirectoryHandle(name);
+      const meta = JSON.parse(await this.readFile(dir, OPFS_CONSTANTS.METADATA_FILE)) as ProjectMeta;
+      return { ...meta, name };
+    } catch (error) {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'NotFoundError') return null;
+      throw error;
+    }
+  }
+
   /**
    * Soft-delete a project by setting deletedAt in its meta.json.
    */

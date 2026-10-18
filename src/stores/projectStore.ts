@@ -271,7 +271,7 @@ interface ProjectState {
   setStatus: (status: string) => void;
   removeStatus: () => void;
   refreshStatus: () => void;
-  loadProject: (project: KGProject | null, savedName?: string) => Promise<void>;
+  loadProject: (project: KGProject | null, savedName?: string, options?: { throwOnError?: boolean; suppressAlerts?: boolean }) => Promise<void>;
   setPlayheadTick: (position: number) => void;
   seekPlayheadTick: (position: number) => Promise<boolean>;
   setPlayheadSeekPreviewPosition: (position: number | null) => boolean;
@@ -1074,7 +1074,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       set({ currentStatus: KGCore.instance().getStatus() || 'Unknown' });
     },
 
-    loadProject: async (project: KGProject | null = null, savedName?: string) => {
+    loadProject: async (project: KGProject | null = null, savedName?: string, options?: { throwOnError?: boolean; suppressAlerts?: boolean }) => {
       try {
         await UserInstrumentRegistry.initialize();
         // Upgrade incoming project data to latest structure version (only when provided explicitly)
@@ -1108,7 +1108,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           .filter((track): track is KGMidiTrack => track instanceof KGMidiTrack)
           .map(track => String(track.getInstrument()))
           .filter(id => !FLUIDR3_INSTRUMENT_MAP[id] && !UserInstrumentRegistry.get(id)))];
-        if (missingUserInstruments.length > 0) {
+        if (missingUserInstruments.length > 0 && !options?.suppressAlerts) {
           void showAlert(translate('userInstrument.missingWarning', { instruments: missingUserInstruments.join('\n') }));
         }
         const restoredPlayheadTick = clampPlayheadTick(projectToLoad, projectToLoad.getPlayheadTick());
@@ -1240,6 +1240,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       } catch (error) {
         console.error('Error loading project:', error);
         get().setStatus('Failed to load project');
+        if (options?.throwOnError) throw error;
       }
     },
 
