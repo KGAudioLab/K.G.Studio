@@ -1,3 +1,10 @@
+# [0.25.0-build.20261018] (2026-10-18)
+
+* Merge pull request #80 from KGAudioLab/feat/2026-10-17-mcp (c1b4112)
+* docs: update README files (65b51db)
+* Merge pull request #79 from KGAudioLab/feat/2026-10-17-mcp (46a06c1)
+* feat: expose K.G.Studio tools through a local MCP server (5f4b5b8)
+
 # [0.24.2-build.20261017] (2026-10-17)
 
 * Merge pull request #78 from KGAudioLab/feat/2026-10-17-mcp (9b157db)

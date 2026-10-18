@@ -1,7 +1,7 @@
 {
   "name": "K.G.Studio",
   "private": true,
-  "version": "0.24.2-build.20261017",
+  "version": "0.25.0-build.20261018",
   "type": "module",
   "engines": {
     "node": ">=24.22.0 <25",
