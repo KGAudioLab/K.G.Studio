@@ -29,6 +29,11 @@ Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accé
 
 ## Dernières mises à jour
 
+- **2026.10.18** : ajout de la prise en charge locale de MCP pour les agents IA externes :
+  - **Outils pour les agents externes** — connectez Codex, Claude Code, OpenCode ou Pi pour éditer la musique avec des outils qui se mettent à jour automatiquement lorsque le mode d’agent actif change.
+  - **Gestion des projets** — consultez les informations du projet actuel et créez, listez, enregistrez ou ouvrez des projets directement depuis votre agent connecté.
+  - **Configuration et contrôle en local** — utilisez `npm run dev:mcp` ou `npm run preview:mcp` et gardez K.G.Studio ouvert dans votre navigateur. Les requêtes sont désactivées par défaut ; activez-les dans **Paramètres → MCP**.
+
 - **2026.10.11** : introduction des effets de piste (FX) pour façonner le son et mixer :
   - **Chaînes d’effets flexibles** — ajoutez un égaliseur (EQ), une réverbération, un compresseur et un limiteur aux pistes MIDI et audio, avec des paramètres réglables, le bypass des effets, la réorganisation par glisser-déposer et une prise en charge complète de l’annulation et du rétablissement.
   - **Visualisation en temps réel** — ajustez l’égaliseur avec une courbe de réponse interactive et un spectre en direct, et suivez les niveaux et la réduction de gain du compresseur et du limiteur pendant la lecture.
@@ -62,14 +67,6 @@ Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accé
   - **Historique des conversations** — les sessions de chat sont persistées par projet et peuvent être reprises après rechargement de la page.
   - **Compactage automatique du contexte** — les longues conversations sont résumées automatiquement lorsque la limite de contexte approche, permettant aux sessions de continuer sans intervention manuelle.
   - **Mode agent efficace** — un prompt simplifié et un ensemble d'outils réduit pour les modèles de langage plus petits ou locaux, activé automatiquement lors de l'utilisation du Local Browser LLM.
-
-- **2026.05.30** : ajout de la **prise en charge de l'internationalisation (i18n)** — K.G.Studio est désormais disponible en quatre langues : **English**, **Simplified Chinese (简体中文)**, **Traditional Chinese (繁體中文)** et **Français**. La langue active se configure dans **Réglages ⚙️ → Général → Langue**, avec une option `Auto` qui détecte automatiquement la langue de votre navigateur.
-
-- **2026.05.27** :
-  - Ajout du **système de pistes globales** : introduction de quatre pistes globales, **Marker**, **Tempo**, **Key Signature** et **Chord** (régions d'étendue avec symboles d'accords).
-  - Ajout de la fonction **Audio Chord Detection** : ouvrez la fenêtre piano roll pour une région audio ou MIDI, puis cliquez sur « ... » -> **Detect Chords** pour analyser automatiquement l'enregistrement et remplir la Chord Track à l'aide d'un pipeline FFT sans dépendance, avec sensibilité, stabilité et détection des accords de septième configurables.
-  - Ajout de la fonction **Tempo Detection with Auto-Align Beats** : ouvrez la fenêtre piano roll pour une région audio, puis cliquez sur « ... » -> **Detect Tempo** dans la barre d'outils pour analyser le BPM de l'audio et, si vous le souhaitez, réaligner les régions de la Tempo Track du projet.
-  - Ajout de **Demucs 4S** comme second modèle local de séparation de stems intégré au navigateur. En plus du modèle UVR-MDX-NET à deux stems existant, le modèle `htdemucs_4s` à quatre stems (~172 MB, vocals / drums / bass / others) est désormais disponible, les deux s'exécutant entièrement dans le navigateur via ONNX Runtime WebGPU.
 
 Pour consulter l'historique complet des versions, voir les [**Notes de version**](./docs/RELEASE_NOTES.md).
 

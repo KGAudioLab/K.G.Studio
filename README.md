@@ -29,6 +29,11 @@ Both tools run entirely inside your browser with **WebGPU acceleration** on supp
 
 ## Latest Updates
 
+- **2026.10.18**: Added local MCP support for external AI agents:
+  - **External agent tools** — connect Codex, Claude Code, OpenCode, or Pi to edit music with tools that update automatically when the active agent mode changes.
+  - **Project management** — inspect the current project and create, list, save, or open projects directly from your connected agent.
+  - **Local setup and control** — use `npm run dev:mcp` or `npm run preview:mcp` and keep K.G.Studio open in your browser. Requests are disabled by default; enable them in **Settings → MCP**.
+
 - **2026.10.11**: Introduced track FX for sound shaping and mixing:
   - **Flexible effect chains** — add EQ, Reverb, Compressor, and Limiter to MIDI and audio tracks, with adjustable parameters, effect bypass, drag-and-drop reordering, and full undo/redo support.
   - **Real-time visual feedback** — shape EQ with an interactive response curve and live spectrum, and monitor compressor and limiter levels and gain reduction during playback.
@@ -62,14 +67,6 @@ Both tools run entirely inside your browser with **WebGPU acceleration** on supp
   - **Conversation history** — chat sessions are persisted per project and can be resumed across page reloads.
   - **Automatic context compaction** — long conversations are summarised automatically when the context limit approaches, keeping sessions running without manual intervention.
   - **Efficient agent mode** — a streamlined prompt and reduced tool set for smaller / local language models, activated automatically when using the Local Browser LLM.
-
-- **2026.05.30**: Added **internationalization (i18n) support** — K.G.Studio now ships in four languages: **English**, **Simplified Chinese (简体中文)**, **Traditional Chinese (繁體中文)**, and **French (Français)**. The active language can be configured under **Settings ⚙️ → General → Language**, with an `Auto` option that automatically detects your browser's locale.
-
-- **2026.05.27**: 
-  - Added **Global Track System** — introduce four global tracks: **Marker**, **Tempo**, **Key Signature**, and **Chord** (chord-symbol span regions). 
-  - Added **Audio Chord Detection** feature — open piano roll window for an audio or a MIDI region and click "..." -> **Detect Chords** to automatically analyse the recording and populate the Chord Track using a zero-dependency FFT pipeline with configurable sensitivity, stability, and seventh-chord detection. 
-  - Added **Tempo Detection with Auto-Align Beats** feature — open piano roll window for an audio region and click "..." -> **Detect Tempo** in the toolbar to analyse the audio for BPM and optionally realign the project's Tempo Track regions to match. 
-  - Added **Demucs 4S** as a second local browser-embedded stem-separation model — the existing two-stem UVR-MDX-NET model is now joined by the four-stem `htdemucs_4s` model (~172 MB, vocals / drums / bass / others), both running entirely in-browser via ONNX Runtime WebGPU.
 
 For the full release history, see [**Release Notes**](./docs/RELEASE_NOTES.md).
 
