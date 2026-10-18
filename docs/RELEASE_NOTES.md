@@ -4,6 +4,11 @@ This file contains the complete release history of K.G.Studio. For a summary of 
 
 ---
 
+- **2026.10.18**: Added local MCP support for external AI agents:
+  - **External agent tools** — connect Codex, Claude Code, OpenCode, or Pi to edit music with tools that update automatically when the active agent mode changes.
+  - **Project management** — inspect the current project and create, list, save, or open projects directly from your connected agent.
+  - **Local setup and control** — use `npm run dev:mcp` or `npm run preview:mcp` and keep K.G.Studio open in your browser. Requests are disabled by default; enable them in **Settings → MCP**.
+
 - **2026.10.11**: Introduced track FX for sound shaping and mixing:
   - **Flexible effect chains** — add EQ, Reverb, Compressor, and Limiter to MIDI and audio tracks, with adjustable parameters, effect bypass, drag-and-drop reordering, and full undo/redo support.
   - **Real-time visual feedback** — shape EQ with an interactive response curve and live spectrum, and monitor compressor and limiter levels and gain reduction during playback.
