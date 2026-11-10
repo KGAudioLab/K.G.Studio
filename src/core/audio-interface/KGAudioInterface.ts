@@ -86,6 +86,7 @@ export class KGAudioInterface {
 
   // Playback state
   private isPlaying: boolean = false;
+  private earliestTransportStartTime: number = 0;
   private masterVolume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_MASTER_VOLUME;
   private scheduledEvents: Set<number> = new Set(); // Tone event IDs
   private prerollMidiEvents: PrerollMidiEvent[] = [];
@@ -137,7 +138,7 @@ export class KGAudioInterface {
       const configManager = ConfigManager.instance();
 
       // Reduce lookahead time to 0.05 seconds to improve MIDI input responsiveness
-      Tone.getContext().lookAhead = configManager.get('audio.lookahead_time') as number;
+      this.setLookaheadTime(configManager.get('audio.lookahead_time') as number);
 
       // Set up master gain for volume control
       this.masterGain = new Tone.Gain(this.masterVolume).toDestination();
@@ -954,10 +955,10 @@ export class KGAudioInterface {
           this.delayedTransportStartTimeoutId = null;
           this.virtualPrerollStartTick = null;
           this.virtualPrerollStartAudioTime = null;
-          Tone.Transport.start();
+          this.startTransport();
         }, this.delayedTransportStartSeconds);
       } else {
-        Tone.Transport.start();
+        this.startTransport();
       }
 
       this.isPlaying = true;
@@ -967,6 +968,10 @@ export class KGAudioInterface {
       console.error('Error starting playback:', error);
       throw error;
     }
+  }
+
+  private startTransport(): void {
+    Tone.Transport.start(Math.max(Tone.now(), this.earliestTransportStartTime));
   }
 
   /**
@@ -1754,6 +1759,9 @@ export class KGAudioInterface {
    */
   public setLookaheadTime(seconds: number): void {
     try {
+      // A shorter lookahead moves Tone.now() backwards. The transport may
+      // have already processed that time and would skip the opening events.
+      this.earliestTransportStartTime = Math.max(this.earliestTransportStartTime, Tone.now());
       Tone.getContext().lookAhead = seconds;
       console.log(`Audio lookahead time set to: ${seconds}s (${seconds * 1000}ms)`);
     } catch (error) {

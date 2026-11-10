@@ -1,7 +1,7 @@
 import { KGEQFX } from '../fx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockMidiNote, createMockMidiPitchBend, createMockMidiRegion, createMockMidiTrack, createMockProject } from '../../test/utils/mock-data';
-import { MockTransport } from '../../test/mocks/tone';
+import { MockTransport, ToneMock } from '../../test/mocks/tone';
 import { GlobalTrackType } from '../global-track';
 import { KGTempoRegion } from '../region/KGTempoRegion';
 import { KGMidiControllerEvent } from '../midi/KGMidiControllerEvent';
@@ -216,6 +216,31 @@ describe('KGAudioInterface preroll playback', () => {
     expect(metronomeBus.triggerPitchBendAwareAttack).not.toHaveBeenCalled();
     expect(MockTransport.stop).toHaveBeenCalledTimes(1);
     expect(audio.getTransportPosition()).toBe(0);
+  });
+
+  it('starts on an unprocessed audio time after lookahead decreases', () => {
+    const audio = KGAudioInterface.instance();
+    ;(audio as unknown as { isInitialized: boolean }).isInitialized = true;
+    ;(audio as unknown as { isAudioContextStarted: boolean }).isAudioContextStarted = true;
+    const context = ToneMock.getContext();
+    const previousLookahead = context.lookAhead;
+
+    try {
+      context.lookAhead = 0.1;
+      ToneMock.now.mockReturnValueOnce(0.1);
+      audio.setLookaheadTime(0.05);
+
+      ToneMock.now.mockReturnValueOnce(0.05);
+      audio.startPlayback();
+      expect(MockTransport.start).toHaveBeenLastCalledWith(0.1);
+
+      vi.advanceTimersByTime(200);
+      audio.stopPlayback();
+      audio.startPlayback();
+      expect(MockTransport.start).toHaveBeenLastCalledWith(0.2);
+    } finally {
+      context.lookAhead = previousLookahead;
+    }
   });
 
   it('gates the metronome bus live and exempts it from user-track solo', () => {
