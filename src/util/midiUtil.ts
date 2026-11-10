@@ -880,7 +880,7 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
     const trackId = Date.now() + midiTrackIndex; // Simple unique ID
     const trackName = midiTrack.name || `Track ${actualTrackIndex + 1}`;
     const kgTrack = new KGMidiTrack(trackName, trackId, instrument);
-    kgTrack.setFX(createDefaultFXChain());
+    kgTrack.setFX(createDefaultFXChain('midi'));
     kgTrack.setTrackIndex(actualTrackIndex);
     
     const regionStartTick = Math.min(...midiTrack.notes.map(note => note.startTick));

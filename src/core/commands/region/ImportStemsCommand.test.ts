@@ -10,8 +10,9 @@ describe('stem track defaults', () => {
   it('applies independent default FX before bus creation and restores them on redo', async () => {
     const project = new KGProject('Stems'); const source = new KGAudioTrack('Source', 1); project.setTracks([source]);
     vi.spyOn(KGCore, 'instance').mockReturnValue({ getCurrentProject: () => project } as unknown as KGCore);
-    const create = vi.fn(async (id: string) => {
-      expect(project.getTracks().find(track => track.getId().toString() === id)?.getFX().map(effect => effect.getType())).toEqual(['eq', 'reverb']);
+    const create = vi.fn((id: string) => {
+      expect(project.getTracks().find(track => track.getId().toString() === id)?.getFX().map(effect => effect.getType())).toEqual(['eq']);
+      return Promise.resolve();
     });
     vi.spyOn(KGAudioInterface, 'instance').mockReturnValue({ createTrackAudioPlayerBus: create, loadAudioBufferForTrack: vi.fn(), removeTrackAudioPlayerBus: vi.fn() } as unknown as KGAudioInterface);
     try {
@@ -20,8 +21,8 @@ describe('stem track defaults', () => {
       expect(source.getFX()).toEqual([]);
       const tracks = project.getTracks().slice(1);
       expect(tracks).toHaveLength(2);
-      expect(new Set(tracks.flatMap(track => track.getFX().map(effect => effect.getId()))).size).toBe(4);
-      tracks[0].getFX()[1].setEnabled(false); expect(tracks[1].getFX()[1].getEnabled()).toBe(true);
+      expect(new Set(tracks.flatMap(track => track.getFX().map(effect => effect.getId()))).size).toBe(2);
+      tracks[0].getFX()[0].setEnabled(false); expect(tracks[1].getFX()[0].getEnabled()).toBe(true);
       command.undo(); expect(project.getTracks()).toEqual([source]);
       command.execute(); await Promise.resolve(); expect(create).toHaveBeenCalledTimes(4);
     } finally { vi.restoreAllMocks(); }

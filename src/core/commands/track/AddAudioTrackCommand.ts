@@ -45,7 +45,7 @@ export class AddAudioTrackCommand extends KGCommand {
     this.trackIndex = targetInsertionIndex;
 
     this.createdTrack = new KGAudioTrack(this.trackName, this.trackId);
-    this.createdTrack.setFX(createDefaultFXChain());
+    this.createdTrack.setFX(createDefaultFXChain('audio'));
     this.createdTrack.setTrackIndex(this.trackIndex);
 
     const updatedTracks = [...tracks];

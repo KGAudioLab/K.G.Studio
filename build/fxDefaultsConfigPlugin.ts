@@ -2,13 +2,17 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
 
-/** Bundle only the FX fallback values from the same public config file.
- * A virtual module avoids importing a public asset as application source.
+/** Bundle the FX fallback values and default chains from public JSON files.
+ * Virtual modules avoid importing public assets as application source.
  */
 export function fxDefaultsConfigPlugin(): Plugin {
   const file = fileURLToPath(new URL('../public/config.json', import.meta.url));
   const id = '\0virtual:fx-defaults';
-  const chainFile = fileURLToPath(new URL('../public/resources/fx/default.json', import.meta.url));
+  const chainFiles = {
+    preset: fileURLToPath(new URL('../public/resources/fx/default.json', import.meta.url)),
+    audio: fileURLToPath(new URL('../public/resources/fx/default-audio.json', import.meta.url)),
+    midi: fileURLToPath(new URL('../public/resources/fx/default-midi.json', import.meta.url)),
+  };
   const chainId = '\0virtual:fx-default-chain';
   return {
     name: 'kgstudio-fx-defaults',
@@ -18,10 +22,15 @@ export function fxDefaultsConfigPlugin(): Plugin {
     },
     load(source) {
       if (source === chainId) {
-        this.addWatchFile(chainFile);
-        const chain = JSON.parse(readFileSync(chainFile, 'utf8'));
-        if (chain.version !== 1 || !Array.isArray(chain.effects) || chain.effects.some((node: { type: string }) => !['eq', 'reverb', 'compressor', 'limiter'].includes(node.type))) throw new Error('Invalid default FX chain');
-        return `export default ${JSON.stringify(chain)};`;
+        const chains = Object.fromEntries(Object.entries(chainFiles).map(([kind, chainFile]) => {
+          this.addWatchFile(chainFile);
+          const chain = JSON.parse(readFileSync(chainFile, 'utf8'));
+          if (chain.version !== 1 || !Array.isArray(chain.effects) || chain.effects.some((node: { type: string }) => !['eq', 'reverb', 'compressor', 'limiter'].includes(node.type))) {
+            throw new Error(`Invalid default FX chain in ${chainFile}`);
+          }
+          return [kind, chain];
+        }));
+        return `export default ${JSON.stringify(chains)};`;
       }
       if (source !== id) return;
       this.addWatchFile(file);
@@ -29,7 +38,7 @@ export function fxDefaultsConfigPlugin(): Plugin {
       return `export default ${JSON.stringify(defaults)};`;
     },
     handleHotUpdate(context) {
-      if (context.file === file || context.file === chainFile) {
+      if (context.file === file || Object.values(chainFiles).includes(context.file)) {
         const module = context.server.moduleGraph.getModuleById(context.file === file ? id : chainId);
         if (module) context.server.moduleGraph.invalidateModule(module);
         context.server.ws.send({ type: 'full-reload' });
