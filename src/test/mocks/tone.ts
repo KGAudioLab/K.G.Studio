@@ -193,7 +193,8 @@ export const ToneMock = {
     toFrequency: vi.fn().mockReturnValue(parseFloat(freq) || 440),
     valueOf: vi.fn().mockReturnValue(parseFloat(freq) || 440)
   })),
-  now: vi.fn().mockImplementation(() => Date.now() / 1000)
+  now: vi.fn().mockImplementation(() => Date.now() / 1000),
+  immediate: vi.fn().mockImplementation(() => Date.now() / 1000)
 };
 
 // Setup the global mock

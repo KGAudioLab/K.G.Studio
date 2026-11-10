@@ -186,6 +186,7 @@ describe('KGAudioInterface preroll playback', () => {
     expect(MockTransport.start).not.toHaveBeenCalled();
     expect(metronomeBus.triggerPitchBendAwareAttack).not.toHaveBeenCalled();
     expect(audio.getTransportPosition()).toBeCloseTo(-q(2), 2);
+    expect(audio.getAudiblePlaybackPosition()).toBe(-q(2));
 
     vi.advanceTimersByTime(200);
     expect(metronomeBus.triggerPitchBendAwareAttack).toHaveBeenCalledWith(60, 0.2, 1, 0.125, false);
@@ -196,6 +197,58 @@ describe('KGAudioInterface preroll playback', () => {
     vi.advanceTimersByTime(500);
     expect(MockTransport.start).toHaveBeenCalledTimes(1);
     expect(audio.getTransportPosition()).toBe(0);
+    expect(audio.getAudiblePlaybackPosition()).toBeCloseTo(-q(0.4));
+  });
+
+  it.each([0, 0.5])('holds at the start until the lookahead and %ss playback delay have elapsed', (delaySeconds) => {
+    const project = KGCore.instance().getCurrentProject();
+    const audio = KGAudioInterface.instance();
+    ;(audio as unknown as { isInitialized: boolean }).isInitialized = true;
+    ;(audio as unknown as { isAudioContextStarted: boolean }).isAudioContextStarted = true;
+    vi.mocked(ConfigManager.instance).mockReturnValue({
+      get: (key: string) => key === 'audio.playback_delay' ? delaySeconds : null,
+    } as ConfigManager);
+
+    vi.setSystemTime(10000);
+    audio.preparePlayback(project, q(2));
+    ToneMock.now.mockReturnValueOnce(10.05);
+    audio.startPlayback();
+
+    vi.advanceTimersByTime(40 + delaySeconds * 1000);
+    expect(audio.getAudiblePlaybackPosition()).toBe(q(2));
+    expect(MockTransport.getTicksAtTime).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(260);
+    MockTransport.getTicksAtTime.mockReturnValueOnce(q(0.5));
+    expect(audio.getAudiblePlaybackPosition()).toBe(q(2.5));
+    expect(MockTransport.getTicksAtTime).toHaveBeenCalledWith(10.3);
+  });
+
+  it('reads the position on either side of an audible loop wrap after an in-loop restart', () => {
+    const project = KGCore.instance().getCurrentProject();
+    project.setIsLooping(true);
+    project.setLoopingRange([1, 1]);
+    const audio = KGAudioInterface.instance();
+    ;(audio as unknown as { isInitialized: boolean }).isInitialized = true;
+    ;(audio as unknown as { isAudioContextStarted: boolean }).isAudioContextStarted = true;
+
+    audio.preparePlayback(project, q(4));
+    audio.startPlayback();
+    vi.advanceTimersByTime(1000);
+    audio.stopPlayback();
+    audio.preparePlayback(project, q(7), { scheduleFullLoop: true });
+    audio.startPlayback();
+
+    expect(audio.getAudiblePlaybackPosition()).toBe(q(7));
+    vi.advanceTimersByTime(600);
+    MockTransport.getTicksAtTime.mockReturnValueOnce(q(3.8));
+    expect(audio.getAudiblePlaybackPosition()).toBe(q(7.8));
+    expect(MockTransport.getTicksAtTime).toHaveBeenLastCalledWith(expect.closeTo(1.4));
+
+    vi.advanceTimersByTime(200);
+    MockTransport.getTicksAtTime.mockReturnValueOnce(q(0.2));
+    expect(audio.getAudiblePlaybackPosition()).toBe(q(4.2));
+    expect(MockTransport.getTicksAtTime).toHaveBeenLastCalledWith(expect.closeTo(1.6));
   });
 
   it('cancels the delayed transport start when playback stops during preroll', () => {
