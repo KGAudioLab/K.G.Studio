@@ -421,9 +421,15 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
       };
 
       if (resizeAction === 'end') {
-        // End resize: snap length to nearest bar, or use raw value
         const rawLength = currentResizeWidth.current / barWidth;
-        newLength = Math.max(REGION_CONSTANTS.MIN_REGION_LENGTH, snapBarValue(rawLength, snapSettings));
+        const minLength = REGION_CONSTANTS.MIN_REGION_LENGTH;
+        if (track.getType() === TrackType.MIDI && snapSettings.enabled && snapSettings.mode === 'bar') {
+          const firstAllowedEndBar = Math.ceil(newBarNumber + minLength);
+          const snappedEndBar = snapBarValue(newBarNumber + rawLength, snapSettings);
+          newLength = Math.max(firstAllowedEndBar, snappedEndBar) - newBarNumber;
+        } else {
+          newLength = Math.max(minLength, snapBarValue(rawLength, snapSettings));
+        }
       } else if (resizeAction === 'start') {
         // Start resize: snap bar number, or use raw value
         const rawBarNumber = currentResizeLeft.current / barWidth + 1;
