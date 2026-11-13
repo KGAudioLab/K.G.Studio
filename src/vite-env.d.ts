@@ -9,8 +9,8 @@ declare module 'virtual:fx-defaults' {
 }
 
 declare module 'virtual:fx-default-chain' {
-  const chain: { version: 1; effects: { type: import('./core/fx').FXType }[] };
-  export default chain;
+  const chains: Record<'preset' | 'audio' | 'midi', { version: 1; effects: { type: import('./core/fx').FXType }[] }>;
+  export default chains;
 }
 
 declare module 'virtual:instrument-images' {

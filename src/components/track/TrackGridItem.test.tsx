@@ -342,6 +342,33 @@ describe('TrackGridItem preview behavior', () => {
     });
   });
 
+  it.each([
+    { mode: 'off', deltaX: 40, expectedEndBar: 3.65 },
+    { mode: 'beat', deltaX: 40, expectedEndBar: 3.75 },
+    { mode: 'bar', deltaX: 40, expectedEndBar: 4 },
+    { mode: 'bar', deltaX: 10, expectedEndBar: 3 },
+    { mode: 'bar', deltaX: -150, expectedEndBar: 3 },
+  ] as const)('commits a MIDI right edge at bar $expectedEndBar with $mode snapping and delta $deltaX', ({
+    mode, deltaX, expectedEndBar,
+  }) => {
+    const startBar = 1.25;
+    const { onRegionResizeEnd } = renderSharedPreviewHarness([], [
+      { id: 'region-a', trackId: '1', trackIndex: 0, barNumber: startBar, length: 2, name: 'Region A' },
+      { id: 'region-b', trackId: '2', trackIndex: 1, barNumber: 4, length: 2, name: 'Region B' },
+    ]);
+    const snapping = KGMainContentState.instance();
+    snapping.setSnapping(mode !== 'off');
+    snapping.setSnappingMode(mode === 'beat' ? 'beat' : 'bar');
+
+    act(() => {
+      getRegionItem('region-a').onResizeStart?.('region-a', 'end', 0);
+      getRegionItem('region-a').onResize?.('region-a', 'end', deltaX);
+      getRegionItem('region-a').onResizeEnd?.('region-a', 'end');
+    });
+
+    expect(onRegionResizeEnd).toHaveBeenCalledExactlyOnceWith('region-a', startBar, expectedEndBar - startBar);
+  });
+
   it('previews start resize for all selected regions across track rows', () => {
     renderSharedPreviewHarness(
       ['region-a', 'region-b'],

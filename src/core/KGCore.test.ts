@@ -9,6 +9,7 @@ const audioMocks = vi.hoisted(() => ({
   setTransportPosition: vi.fn(),
   startPlayback: vi.fn(),
   stopPlayback: vi.fn(),
+  getAudiblePlaybackPosition: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -79,6 +80,10 @@ describe('KGCore playback seeking', () => {
     expect(core.getPlayheadTick()).toBe(12);
     expect(core.getIsPlaying()).toBe(true);
     expect(playbackStates).not.toContain(false);
+
+    audioMocks.getAudiblePlaybackPosition.mockReturnValueOnce(13);
+    vi.advanceTimersByTime(34);
+    expect(core.getPlayheadTick()).toBe(13);
   });
 
   it('rejects active-loop seeks outside the half-open loop range', async () => {

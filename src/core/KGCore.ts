@@ -50,8 +50,6 @@ export class KGCore {
 
   // Timer management for playback
   private playbackIntervalId: number | null = null;
-  private playbackStartTime: number = 0;
-  private playbackStartPosition: number = 0;
   private playbackSeekGeneration: number = 0;
   
   // Callback for external state updates (e.g., store)
@@ -350,10 +348,6 @@ export class KGCore {
     // Start playing (non-blocking)
     this.play(); // Don't await this
 
-    // Set up the regular playback update timer
-    this.playbackStartTime = performance.now();
-    this.playbackStartPosition = this.playheadTick;
-
     this.startPlaybackUpdates();
 
   }
@@ -413,8 +407,6 @@ export class KGCore {
       audioInterface.setTransportPosition(position);
       audioInterface.startPlayback();
       this.isPlaying = true;
-      this.playbackStartTime = performance.now();
-      this.playbackStartPosition = position;
       this.startPlaybackUpdates();
       return true;
     } catch (error) {
@@ -459,7 +451,7 @@ export class KGCore {
       return;
     }
     const audioInterface = KGAudioInterface.instance();
-    let newPosition = audioInterface.getTransportPosition();
+    let newPosition = audioInterface.getAudiblePlaybackPosition();
 
     // Handle looping or end-of-project
     const currentTimeSignature = this.currentProject.getTimeSignature();
@@ -470,11 +462,10 @@ export class KGCore {
       const [startBar, endBarOriginal] = this.currentProject.getLoopingRange();
       const endBar = (startBar === 0 && endBarOriginal === 0) ? this.currentProject.getMaxBars() : endBarOriginal;
 
-      const loopStartTicks = startBar * ticksPerBar;
       const loopEndTicks = (endBar + 1) * ticksPerBar; // +1 because endBar is inclusive
       const previousPosition = this.playheadTick;
 
-      // Tone.Transport position wraps back to loop start. Preserve the loop-end callback behavior.
+      // The audible position wraps when playback reaches the end of the loop.
       if (this.loopBoundaryReachedCallback && previousPosition < loopEndTicks && newPosition < previousPosition) {
         if (this.loopBoundaryReachedCallback) {
           const callback = this.loopBoundaryReachedCallback;
@@ -485,7 +476,7 @@ export class KGCore {
         }
       }
 
-      newPosition = Math.max(loopStartTicks, Math.min(newPosition, loopEndTicks));
+      newPosition = Math.min(newPosition, loopEndTicks);
     } else {
       // Non-looping mode: stop at project end
       const maxBars = this.currentProject.getMaxBars();
@@ -502,11 +493,6 @@ export class KGCore {
 
     // Update playhead position
     this.setPlayheadTick(newPosition);
-
-    // TODO: Future enhancements
-    // - Sync with Tone.Transport position for more accurate timing
-    // - Handle tempo changes mid-playback
-    // - Account for latency compensation
   }
 
   // selected items

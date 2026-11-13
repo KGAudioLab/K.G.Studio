@@ -86,14 +86,17 @@ export class KGAudioInterface {
 
   // Playback state
   private isPlaying: boolean = false;
+  private earliestTransportStartTime: number = 0;
   private masterVolume: number = AUDIO_INTERFACE_CONSTANTS.DEFAULT_MASTER_VOLUME;
   private scheduledEvents: Set<number> = new Set(); // Tone event IDs
   private prerollMidiEvents: PrerollMidiEvent[] = [];
   private prerollMidiTimeoutIds: number[] = [];
   private delayedTransportStartTimeoutId: number | null = null;
   private delayedTransportStartSeconds: number = 0;
-  private virtualPrerollStartTick: number | null = null;
   private virtualPrerollStartAudioTime: number | null = null;
+  private transportStartAudioTime: number | null = null;
+  private playbackStartTick: number = 0;
+  private playbackDelaySeconds: number = 0;
   private playbackOriginTick: number = 0;
   private playbackOriginSeconds: number = 0;
 
@@ -137,7 +140,7 @@ export class KGAudioInterface {
       const configManager = ConfigManager.instance();
 
       // Reduce lookahead time to 0.05 seconds to improve MIDI input responsiveness
-      Tone.getContext().lookAhead = configManager.get('audio.lookahead_time') as number;
+      this.setLookaheadTime(configManager.get('audio.lookahead_time') as number);
 
       // Set up master gain for volume control
       this.masterGain = new Tone.Gain(this.masterVolume).toDestination();
@@ -469,7 +472,7 @@ export class KGAudioInterface {
   public preparePlayback(project: KGProject, startPosition: number, options?: PreparePlaybackOptions): void {
     // Clear any existing scheduled events
     this.clearScheduledEvents();
-    this.clearDelayedTransportStart();
+    this.resetPlaybackStart();
     this.trackAudioBuses.forEach(audioBus => audioBus.resetLiveMidiPitchBend());
     this.clearTrackAutomationOverrides();
 
@@ -478,6 +481,7 @@ export class KGAudioInterface {
     // Get playback delay from ConfigManager
     const configManager = ConfigManager.instance();
     const playbackDelay = (configManager.get('audio.playback_delay') as number) ?? 0.2;
+    this.playbackDelaySeconds = playbackDelay;
 
     try {
       project.refreshMetronomeTrack();
@@ -539,14 +543,9 @@ export class KGAudioInterface {
       }
       this.scheduleTempoChanges(project, playbackWindowStartTick, scheduleEndTick);
 
+      this.playbackStartTick = startPosition;
       if (startPosition < 0) {
         this.delayedTransportStartSeconds = (Math.abs(startPosition) / TICKS_PER_QUARTER) * (60 / project.getBpm());
-        this.virtualPrerollStartTick = startPosition;
-        this.virtualPrerollStartAudioTime = null;
-      } else {
-        this.delayedTransportStartSeconds = 0;
-        this.virtualPrerollStartTick = null;
-        this.virtualPrerollStartAudioTime = null;
       }
 
       // Set transport position (convert beats to Tone.js format)
@@ -947,17 +946,15 @@ export class KGAudioInterface {
         throw new Error('Audio context not started');
       }
 
-      if (this.delayedTransportStartSeconds > 0 && this.virtualPrerollStartTick !== null) {
+      if (this.delayedTransportStartSeconds > 0) {
         this.virtualPrerollStartAudioTime = Tone.now();
         this.startPrerollMidiEvents();
         this.delayedTransportStartTimeoutId = Tone.getContext().setTimeout(() => {
           this.delayedTransportStartTimeoutId = null;
-          this.virtualPrerollStartTick = null;
-          this.virtualPrerollStartAudioTime = null;
-          Tone.Transport.start();
+          this.startTransport();
         }, this.delayedTransportStartSeconds);
       } else {
-        Tone.Transport.start();
+        this.startTransport();
       }
 
       this.isPlaying = true;
@@ -969,12 +966,18 @@ export class KGAudioInterface {
     }
   }
 
+  private startTransport(): void {
+    const startTime = Math.max(Tone.now(), this.earliestTransportStartTime);
+    Tone.Transport.start(startTime);
+    this.transportStartAudioTime = startTime;
+  }
+
   /**
    * Stop playback
    */
   public stopPlayback(): void {
     try {
-      this.clearDelayedTransportStart();
+      this.resetPlaybackStart();
       this.clearPrerollMidiEvents();
       Tone.Transport.stop();
       this.resetPlaybackOrigin();
@@ -1262,12 +1265,8 @@ export class KGAudioInterface {
    */
   public getTransportPosition(): number {
     try {
-      if (this.virtualPrerollStartTick !== null && this.virtualPrerollStartAudioTime !== null) {
-        const project = KGCore.instance().getCurrentProject();
-        const secondsPerQuarter = 60 / project.getBpm();
-        const elapsedSeconds = Math.max(0, Tone.now() - this.virtualPrerollStartAudioTime);
-        const elapsedTicks = (elapsedSeconds / secondsPerQuarter) * TICKS_PER_QUARTER;
-        return Math.min(0, this.virtualPrerollStartTick + elapsedTicks);
+      if (this.transportStartAudioTime === null && this.virtualPrerollStartAudioTime !== null) {
+        return this.getPrerollPosition(Tone.now(), this.virtualPrerollStartAudioTime);
       }
 
       const transportSeconds = Number(Tone.Transport.seconds);
@@ -1283,6 +1282,19 @@ export class KGAudioInterface {
       console.error('Error getting transport position:', error);
       return 0;
     }
+  }
+
+  /** Get the project tick for the audio being rendered now. */
+  public getAudiblePlaybackPosition(): number {
+    const audioTime = Tone.immediate() - this.playbackDelaySeconds;
+    if (this.transportStartAudioTime !== null && audioTime >= this.transportStartAudioTime) {
+      return this.playbackOriginTick + Tone.Transport.getTicksAtTime(audioTime);
+    }
+
+    // The scheduler may already have left the count-in while its last clicks are still audible.
+    return this.virtualPrerollStartAudioTime === null
+      ? this.playbackStartTick
+      : this.getPrerollPosition(audioTime, this.virtualPrerollStartAudioTime);
   }
 
   // ===== METRONOME =====
@@ -1492,15 +1504,16 @@ export class KGAudioInterface {
     return this.captureStream;
   }
 
-  private clearDelayedTransportStart(): void {
+  private resetPlaybackStart(): void {
     if (this.delayedTransportStartTimeoutId !== null) {
       Tone.getContext().clearTimeout(this.delayedTransportStartTimeoutId);
       this.delayedTransportStartTimeoutId = null;
     }
 
     this.delayedTransportStartSeconds = 0;
-    this.virtualPrerollStartTick = null;
     this.virtualPrerollStartAudioTime = null;
+    this.transportStartAudioTime = null;
+    this.playbackStartTick = 0;
   }
 
   // ===== PRIVATE UTILITY METHODS =====
@@ -1697,6 +1710,12 @@ export class KGAudioInterface {
 
   // ===== TIME CONVERSION UTILITIES =====
 
+  private getPrerollPosition(audioTime: number, prerollStartAudioTime: number): number {
+    const elapsedSeconds = Math.max(0, audioTime - prerollStartAudioTime);
+    const elapsedTicks = (elapsedSeconds / this.delayedTransportStartSeconds) * Math.abs(this.playbackStartTick);
+    return Math.min(0, this.playbackStartTick + elapsedTicks);
+  }
+
   private setPlaybackOrigin(project: KGProject, tick: number): void {
     this.playbackOriginTick = Math.max(0, Math.round(tick));
     this.playbackOriginSeconds = tickToSeconds(project, this.playbackOriginTick);
@@ -1754,6 +1773,9 @@ export class KGAudioInterface {
    */
   public setLookaheadTime(seconds: number): void {
     try {
+      // A shorter lookahead moves Tone.now() backwards. The transport may
+      // have already processed that time and would skip the opening events.
+      this.earliestTransportStartTime = Math.max(this.earliestTransportStartTime, Tone.now());
       Tone.getContext().lookAhead = seconds;
       console.log(`Audio lookahead time set to: ${seconds}s (${seconds * 1000}ms)`);
     } catch (error) {

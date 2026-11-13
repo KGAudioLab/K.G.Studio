@@ -1,6 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { KGMarkerRegion } from '../../core/region/KGMarkerRegion';
+import { KGMainContentState } from '../../core/state/KGMainContentState';
+import { clampTimelineTick, ticksPerBar, toTimelineTick } from '../../core/timing';
 import type { RegionClickOptions } from '../interfaces';
+import { snapBarValue } from '../../util/mainContentSnapUtil';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { TOOLBAR_CONSTANTS } from '../../constants';
 
@@ -19,10 +22,19 @@ interface GlobalMarkerLaneProps {
   onSelectRegion: (regionId: string, options?: RegionClickOptions) => void;
   onCreateAtTick: (startTick: number) => void;
   onMoveRegion: (regionId: string, startTick: number) => void;
-  onResizeRegion: (regionId: string, edge: 'start' | 'end', beat: number) => void;
+  onResizeRegion: (regionId: string, edge: 'start' | 'end', tick: number) => void;
 }
 
 type ResizeEdge = 'start' | 'end' | null;
+
+interface MarkerInteraction {
+  regionId: string;
+  initialMouseX: number;
+  initialStartTick: number;
+  initialLength: number;
+  resizeEdge: ResizeEdge;
+  moved: boolean;
+}
 
 const REGION_EDGE_HITBOX_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
@@ -50,43 +62,21 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
   onResizeRegion,
 }) => {
   const laneRef = useRef<HTMLDivElement | null>(null);
-  const [previewTicks, setPreviewBeats] = useState<Record<string, { startTick: number; length: number }>>({});
+  const [previewTicks, setPreviewTicks] = useState<Record<string, { startTick: number; length: number }>>({});
   const [hoverEdges, setHoverEdges] = useState<Record<string, ResizeEdge>>({});
   const [isModifierPressed, setIsModifierPressed] = useState(false);
-  const interactionRef = useRef<{
-    mode: 'drag' | 'resize' | null;
-    regionId: string;
-    initialMouseX: number;
-    initialStartTick: number;
-    initialLength: number;
-    resizeEdge: ResizeEdge;
-    moved: boolean;
-  } | null>(null);
+  const interactionRef = useRef<MarkerInteraction | null>(null);
 
-  const totalTicks = maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
-  const beatWidth = useMemo(() => {
-    const barWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
-    return barWidth / timeSignature.numerator;
-  }, [barWidthMultiplier, timeSignature.numerator]);
-
-  const clampStartTick = (value: number) => Math.max(0, Math.min(totalTicks - 1, value));
-  const clampEndTick = (value: number) => Math.max(1, Math.min(totalTicks, value));
-  const ticksPerBar = timeSignature.numerator * 960 * (4 / timeSignature.denominator);
-  const ticksPerMeterBeat = ticksPerBar / timeSignature.numerator;
-
-  const getTickFromClientX = (clientX: number, mode: 'start' | 'end' = 'start') => {
-    if (!laneRef.current) return 0;
-    const rect = laneRef.current.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
-    const rawTick = (relativeX / beatWidth) * ticksPerMeterBeat;
-    return mode === 'end'
-      ? clampEndTick(Math.round(rawTick))
-      : clampStartTick(Math.round(rawTick));
-  };
+  const barWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * barWidthMultiplier;
+  const barTicks = ticksPerBar(timeSignature);
+  const totalTicks = maxBars * barTicks;
+  const beatsPerBar = timeSignature.numerator;
 
   const getBarSnappedTickFromClientX = (clientX: number) => {
-    const beat = getTickFromClientX(clientX);
-    return clampStartTick(Math.floor(beat / ticksPerBar) * ticksPerBar);
+    if (!laneRef.current) return 0;
+    const relativeX = clientX - laneRef.current.getBoundingClientRect().left;
+    const tick = clampTimelineTick((relativeX / barWidth) * barTicks, 0, totalTicks - 1);
+    return Math.floor(tick / barTicks) * barTicks;
   };
 
   const getRenderedTickState = (region: KGMarkerRegion) => (
@@ -136,83 +126,71 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
   }, []);
 
   useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!interactionRef.current) return;
+    const getPreview = (interaction: MarkerInteraction, clientX: number) => {
+      const { initialStartTick, initialLength, resizeEdge } = interaction;
+      const tickDelta = ((clientX - interaction.initialMouseX) / barWidth) * barTicks;
+      const mainContentState = KGMainContentState.instance();
+      const snapSettings = {
+        enabled: mainContentState.isSnappingEnabled(),
+        mode: mainContentState.getSnappingMode(),
+        ticksPerBar: beatsPerBar,
+      };
+      const snapTickValue = (tick: number) => toTimelineTick(snapBarValue(tick / barTicks, snapSettings) * barTicks);
 
-      const interaction = interactionRef.current;
-      const deltaX = event.clientX - interaction.initialMouseX;
-      if (Math.abs(deltaX) >= DRAG_THRESHOLD_PX) {
-        interaction.moved = true;
-      }
-
-      if (interaction.mode === 'drag') {
-        const tickDelta = Math.round((deltaX / beatWidth) * ticksPerMeterBeat);
-        const nextStartTick = clampStartTick(interaction.initialStartTick + tickDelta);
-        setPreviewBeats({
-          [interaction.regionId]: {
-            startTick: nextStartTick,
-            length: interaction.initialLength,
-          },
-        });
-        return;
-      }
-
-      if (interaction.mode === 'resize') {
-        const desiredTick = getTickFromClientX(
-          event.clientX,
-          interaction.resizeEdge === 'end' ? 'end' : 'start'
-        );
-
-        if (interaction.resizeEdge === 'start') {
-          const nextStartTick = Math.min(desiredTick, interaction.initialStartTick + interaction.initialLength - 1);
-          const endTick = interaction.initialStartTick + interaction.initialLength;
-          setPreviewBeats({
-            [interaction.regionId]: {
-              startTick: nextStartTick,
-              length: Math.max(1, endTick - nextStartTick),
-            },
-          });
-          return;
+      if (resizeEdge === 'end') {
+        const rawLength = initialLength + tickDelta;
+        let snappedLength: number;
+        if (snapSettings.enabled && snapSettings.mode === 'bar') {
+          const firstAllowedEndTick = Math.ceil((initialStartTick + 1) / barTicks) * barTicks;
+          const snappedEndTick = snapTickValue(initialStartTick + rawLength);
+          snappedLength = Math.max(firstAllowedEndTick, snappedEndTick) - initialStartTick;
+        } else {
+          snappedLength = snapTickValue(rawLength);
         }
-
-        setPreviewBeats({
-          [interaction.regionId]: {
-            startTick: interaction.initialStartTick,
-            length: Math.max(1, desiredTick - interaction.initialStartTick),
-          },
-        });
+        const length = Math.max(1, Math.min(totalTicks - initialStartTick, snappedLength));
+        return { startTick: initialStartTick, length };
       }
+
+      const startTick = Math.max(0, Math.min(totalTicks - 1, snapTickValue(initialStartTick + tickDelta)));
+      if (resizeEdge === 'start') {
+        const endTick = initialStartTick + initialLength;
+        const resizedStartTick = Math.min(startTick, endTick - 1);
+        return { startTick: resizedStartTick, length: endTick - resizedStartTick };
+      }
+
+      return { startTick, length: initialLength };
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const interaction = interactionRef.current;
+      if (!interaction) return;
+      if (!interaction.moved && Math.abs(event.clientX - interaction.initialMouseX) < DRAG_THRESHOLD_PX) return;
+
+      interaction.moved = true;
+      setPreviewTicks({ [interaction.regionId]: getPreview(interaction, event.clientX) });
     };
 
     const handleMouseUp = (event: MouseEvent) => {
-      if (!interactionRef.current) return;
-
       const interaction = interactionRef.current;
+      if (!interaction) return;
       interactionRef.current = null;
+      setPreviewTicks({});
 
       if (!interaction.moved) {
-        setPreviewBeats({});
         onSelectRegion(interaction.regionId, getRegionClickOptions(event));
         return;
       }
 
-      const preview = previewTicks[interaction.regionId];
-      setPreviewBeats({});
-
-      if (!preview) {
+      const { startTick, length } = getPreview(interaction, event.clientX);
+      if (startTick === interaction.initialStartTick && length === interaction.initialLength) {
         return;
       }
 
-      if (interaction.mode === 'drag') {
-        onMoveRegion(interaction.regionId, preview.startTick);
-        return;
-      }
-
-      if (interaction.mode === 'resize' && interaction.resizeEdge) {
-        const beat = interaction.resizeEdge === 'start'
-          ? preview.startTick
-          : preview.startTick + preview.length;
-        onResizeRegion(interaction.regionId, interaction.resizeEdge, beat);
+      if (interaction.resizeEdge) {
+        const tick = interaction.resizeEdge === 'start' ? startTick : startTick + length;
+        onResizeRegion(interaction.regionId, interaction.resizeEdge, tick);
+      } else {
+        onMoveRegion(interaction.regionId, startTick);
       }
     };
 
@@ -222,7 +200,7 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [beatWidth, onMoveRegion, onResizeRegion, onSelectRegion, previewTicks, totalTicks]);
+  }, [barTicks, barWidth, beatsPerBar, onMoveRegion, onResizeRegion, onSelectRegion, totalTicks]);
 
   const handleLaneMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -255,8 +233,8 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
         const { startTick, length } = getRenderedTickState(region);
         const isSelected = selectedRegionIds.includes(region.getId());
         const isEditing = editingRegionId === region.getId();
-        const left = (startTick / ticksPerMeterBeat) * beatWidth;
-        const width = Math.max(1, (length / ticksPerMeterBeat) * beatWidth);
+        const left = (startTick / barTicks) * barWidth;
+        const width = Math.max(1, (length / barTicks) * barWidth);
 
         return (
           <div
@@ -312,7 +290,6 @@ const GlobalMarkerLane: React.FC<GlobalMarkerLaneProps> = ({
               const resizeEdge = getResizeEdgeFromMouseEvent(event);
 
               interactionRef.current = {
-                mode: resizeEdge ? 'resize' : 'drag',
                 regionId: region.getId(),
                 initialMouseX: event.clientX,
                 initialStartTick: region.getStartTick(),

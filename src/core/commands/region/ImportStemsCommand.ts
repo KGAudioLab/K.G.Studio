@@ -77,7 +77,7 @@ export class ImportStemsCommand extends KGCommand {
       this.createdTrackIds.push(trackId);
 
       const track = new KGAudioTrack(stem.trackName, trackId);
-      track.setFX(createDefaultFXChain());
+      track.setFX(createDefaultFXChain('audio'));
       track.setTrackIndex(project.getTracks().length);
       project.setTracks([...project.getTracks(), track]);
 

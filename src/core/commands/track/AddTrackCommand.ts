@@ -56,7 +56,7 @@ export class AddTrackCommand extends KGCommand {
     
     // Create a new MIDI track
     this.createdTrack = new KGMidiTrack(this.trackName, this.trackId);
-    this.createdTrack.setFX(createDefaultFXChain());
+    this.createdTrack.setFX(createDefaultFXChain('midi'));
     this.createdTrack.setTrackIndex(this.trackIndex);
     this.createdTrack.setInstrument(this.instrument);
     

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "effects": [
+    { "type": "eq" },
+    { "type": "reverb" }
+  ]
+}

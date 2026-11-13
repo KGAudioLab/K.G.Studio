@@ -14,6 +14,7 @@ import { KGCore } from '../../core/KGCore';
 import { tickRangeToSeconds, tickToSeconds } from '../../util/globalTrackUtil';
 
 const DRAG_START_THRESHOLD_PX = 4;
+const MAX_WAVEFORM_CANVAS_WIDTH = 4096;
 const getRegionClickOptions = (event: Pick<React.MouseEvent, 'shiftKey' | 'metaKey' | 'ctrlKey'>): RegionClickOptions => ({
   shiftKey: event.shiftKey,
   metaKey: event.metaKey,
@@ -114,6 +115,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
   const regionRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewContentRef = useRef<HTMLDivElement | null>(null);
+  const updateWaveformViewportRef = useRef<(() => void) | null>(null);
 
   // Function to render notes on canvas
   const renderNotesOnCanvas = () => {
@@ -264,41 +266,15 @@ const RegionItem: React.FC<RegionItemProps> = ({
   };
 
   // Function to render audio waveform on canvas
-  const renderWaveformOnCanvas = () => {
-    if (!canvasRef.current || !previewContentRef.current || !audioBuffer) return;
+  const renderWaveformOnCanvas = (viewport: HTMLElement | null) => {
+    if (!canvasRef.current || !previewContentRef.current || !audioRegion || !audioBuffer) return false;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!ctx) return false;
 
     const contentRect = previewContentRef.current.getBoundingClientRect();
     const height = Math.max(1, Math.round(contentRect.height));
-
-    // Get channel data (use first channel)
-    const channelData = audioBuffer.getChannelData(0);
-    const totalSamples = channelData.length;
-    const sampleRate = audioBuffer.sampleRate;
-
-    const clipStartOffsetSeconds = audioRegion ? audioRegion.getClipStartOffsetSeconds() : 0;
-    const currentProject = KGCore.instance().getCurrentProject();
-    const regionDurationSeconds = audioRegion
-      ? tickRangeToSeconds(
-          currentProject,
-          audioRegion.getStartTick(),
-          audioRegion.getStartTick() + audioRegion.getLengthTicks()
-        )
-      : 0;
-    const visibleDurationSeconds = audioRegion
-      ? Math.min(regionDurationSeconds, audioRegion.getPlayableDurationSeconds())
-      : 0;
-    const renderStartSample = Math.max(0, clipStartOffsetSeconds * sampleRate);
-    const renderEndSample = Math.min(
-      Math.floor((clipStartOffsetSeconds + visibleDurationSeconds) * sampleRate),
-      totalSamples
-    );
-    if (renderEndSample <= renderStartSample || regionDurationSeconds <= 0) return;
 
     const regionStyle = regionRef.current ? getComputedStyle(regionRef.current) : null;
     const borderLeft = parseFloat(regionStyle?.borderLeftWidth || '0') || 0;
@@ -312,22 +288,57 @@ const RegionItem: React.FC<RegionItemProps> = ({
     const timelineWidth = declaredPixels > 0
       ? declaredPixels + (previewContentStyle ? borderLeft + borderRight : 0)
       : contentWidth + borderLeft + borderRight;
-    const regionStartTick = audioRegion?.getStartTick() ?? 0;
-    const pixelsPerTick = timelineWidth / (audioRegion?.getLengthTicks() || 1);
+    const regionStartTick = audioRegion.getStartTick();
+    const pixelsPerTick = timelineWidth / (audioRegion.getLengthTicks() || 1);
     const timelineStartPixel = regionStartTick * pixelsPerTick;
     const contentStartPixel = timelineStartPixel + borderLeft;
-    const pixelRatio = window.devicePixelRatio || 1;
+    const viewportWidth = viewport?.clientWidth || contentWidth;
+    // Leave room to round both edges to the shared pixel grid.
+    const pixelRatio = Math.min(
+      window.devicePixelRatio || 1,
+      (MAX_WAVEFORM_CANVAS_WIDTH - 2) / viewportWidth,
+    );
     // Every region samples the same device-pixel grid on the timeline. Keep
     // backing pixels at a fixed CSS size instead of stretching a rounded canvas.
     const firstPixel = Math.floor(contentStartPixel * pixelRatio);
     const canvasOffset = firstPixel / pixelRatio - contentStartPixel;
-    const width = Math.max(1, Math.ceil((contentWidth - canvasOffset) * pixelRatio));
-    canvas.width = width;
-    canvas.height = height;
+    const fullWidth = Math.ceil((contentWidth - canvasOffset) * pixelRatio);
+    const drawVisibleSlice = fullWidth > MAX_WAVEFORM_CANVAS_WIDTH && viewport !== null;
+    let firstColumn = 0;
+    let endColumn = fullWidth;
+    if (drawVisibleSlice) {
+      // Bound the backing store to the visible span, retaining its position
+      // on the same timeline pixel grid as neighboring regions.
+      const viewportLeft = viewport.getBoundingClientRect().left + viewport.clientLeft;
+      const canvasLeft = contentRect.left + canvasOffset;
+      firstColumn = Math.max(0, Math.floor((viewportLeft - canvasLeft) * pixelRatio));
+      endColumn = Math.min(fullWidth, Math.ceil((viewportLeft + viewportWidth - canvasLeft) * pixelRatio));
+    }
+    const width = Math.max(0, Math.min(MAX_WAVEFORM_CANVAS_WIDTH, endColumn - firstColumn));
+    const backingWidth = Math.max(1, width);
+    if (canvas.width !== backingWidth) canvas.width = backingWidth;
+    if (canvas.height !== height) canvas.height = height;
     canvas.style.width = `${width / pixelRatio}px`;
     canvas.style.height = `${height}px`;
-    canvas.style.marginLeft = `${canvasOffset}px`;
+    canvas.style.marginLeft = `${width ? canvasOffset + firstColumn / pixelRatio : 0}px`;
     ctx.clearRect(0, 0, width, height);
+    if (width === 0) return drawVisibleSlice;
+
+    const channelData = audioBuffer.getChannelData(0);
+    const sampleRate = audioBuffer.sampleRate;
+    const clipStartOffsetSeconds = audioRegion.getClipStartOffsetSeconds();
+    const currentProject = KGCore.instance().getCurrentProject();
+    const regionDurationSeconds = tickRangeToSeconds(
+      currentProject,
+      regionStartTick,
+      regionStartTick + audioRegion.getLengthTicks(),
+    );
+    const visibleDurationSeconds = Math.min(regionDurationSeconds, audioRegion.getPlayableDurationSeconds());
+    const renderEndSample = Math.min(
+      Math.floor((clipStartOffsetSeconds + visibleDurationSeconds) * sampleRate),
+      channelData.length,
+    );
+    if (renderEndSample <= clipStartOffsetSeconds * sampleRate) return drawVisibleSlice;
 
     const regionStartSeconds = tickToSeconds(currentProject, regionStartTick);
     const sampleAtPixel = (pixel: number) => {
@@ -340,12 +351,10 @@ const RegionItem: React.FC<RegionItemProps> = ({
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
 
+    let startSample = sampleAtPixel((firstPixel + firstColumn) / pixelRatio);
     for (let x = 0; x < width; x++) {
-      const startSample = sampleAtPixel((firstPixel + x) / pixelRatio);
-      const endSample = Math.min(
-        Math.max(startSample + 1, sampleAtPixel((firstPixel + x + 1) / pixelRatio)),
-        renderEndSample
-      );
+      const nextSample = sampleAtPixel((firstPixel + firstColumn + x + 1) / pixelRatio);
+      const endSample = Math.min(Math.max(startSample + 1, nextSample), renderEndSample);
 
       let min = 0;
       let max = 0;
@@ -361,8 +370,9 @@ const RegionItem: React.FC<RegionItemProps> = ({
       const yMax = centerY - min * centerY;
 
       ctx.fillRect(x, yMin, 1, yMax - yMin);
+      startSample = nextSample;
     }
-
+    return drawVisibleSlice;
   };
 
   const renderPreviewWaveformOnCanvas = () => {
@@ -422,39 +432,51 @@ const RegionItem: React.FC<RegionItemProps> = ({
     }
   });
 
-  // Set up canvas when component mounts or updates
+  // Keep canvas drawing and its observers on the current region geometry.
   useEffect(() => {
-    if (previewWaveformPeaks && previewWaveformPeaks.length > 0) {
-      renderPreviewWaveformOnCanvas();
-    } else if (audioRegion && audioBuffer) {
-      renderWaveformOnCanvas();
-    } else {
-      renderNotesOnCanvas();
-    }
-  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length, previewContentStyle?.width, redrawVersion]);
+    const content = previewContentRef.current;
+    if (!content) return;
 
-  // Re-render canvas when region content size changes
-  useEffect(() => {
-    if (!previewContentRef.current) return;
-
-    const resizeObserver = new ResizeObserver(() => {
+    const viewport = audioRegion && audioBuffer ? content.closest<HTMLElement>('.main-content-wrapper') : null;
+    let drawsVisibleSlice = false;
+    const draw = () => {
       if (previewWaveformPeaks && previewWaveformPeaks.length > 0) {
         renderPreviewWaveformOnCanvas();
       } else if (audioRegion && audioBuffer) {
-        renderWaveformOnCanvas();
+        drawsVisibleSlice = renderWaveformOnCanvas(viewport);
       } else {
         renderNotesOnCanvas();
       }
-    });
-
-    resizeObserver.observe(previewContentRef.current);
-
-    return () => {
-      if (previewContentRef.current) {
-        resizeObserver.unobserve(previewContentRef.current);
-      }
     };
-  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, previewContentStyle?.width, redrawVersion]);
+
+    let frame: number | null = null;
+    const scheduleViewportDraw = () => {
+      if (!drawsVisibleSlice || frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        draw();
+      });
+    };
+
+    draw();
+    const resizeObserver = new ResizeObserver(draw);
+    resizeObserver.observe(content);
+    if (viewport) {
+      resizeObserver.observe(viewport);
+      viewport.addEventListener('scroll', scheduleViewportDraw, { passive: true });
+      updateWaveformViewportRef.current = scheduleViewportDraw;
+    }
+    return () => {
+      resizeObserver.disconnect();
+      viewport?.removeEventListener('scroll', scheduleViewportDraw);
+      if (frame !== null) cancelAnimationFrame(frame);
+      updateWaveformViewportRef.current = null;
+    };
+  }, [midiRegion, audioRegion, audioBuffer, previewWaveformPeaks, timeSignature, bpm, id, noteUpdateTrigger, barNumber, length, style.width, previewContentStyle?.width, redrawVersion]);
+
+  useEffect(() => {
+    updateWaveformViewportRef.current?.();
+  }, [style.left, previewContentStyle?.left, fineTranslateX]);
 
   // Handle mouse movement to detect edge proximity
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
