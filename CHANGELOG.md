@@ -1,3 +1,12 @@
+# [0.25.1-build.20261113] (2026-11-13)
+
+* Merge pull request #81 from KGAudioLab/feat/2026-11-09-fix (b11b494)
+* fix: honor timeline snapping for marker and MIDI regions (5c8670f)
+* fix: sync playhead with delayed playback (00cc35d)
+* fix: preserve the opening beat when audio lookahead shrinks (afd4672)
+* fix: keep timeline audio waveforms aligned when zooming (c00f40c)
+* fix: split default FX chains for audio and MIDI tracks (f4f76f7)
+
 # [0.25.0-build.20261018] (2026-10-18)
 
 * Merge pull request #80 from KGAudioLab/feat/2026-10-17-mcp (c1b4112)
