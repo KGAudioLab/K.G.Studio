@@ -443,6 +443,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
               maxBars={maxBars}
               timeSignature={timeSignature}
               bpm={bpm}
+              pianoRollZoom={pianoRollZoom}
               redrawVersion={automationRedrawVersion}
               horizontalScrollLeft={noteScrollLeft}
               onHorizontalWheel={forwardAutomationHorizontalWheel}

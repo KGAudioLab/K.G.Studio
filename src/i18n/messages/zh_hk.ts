@@ -432,6 +432,7 @@ export const zhHkMessages: TranslationMessages = {
   'pianoRoll.automation': '自動化',
   'pianoRoll.automationLane': '{label} 自動化軌',
   'pianoRoll.automationType.pitchBend': '彎音',
+  'pianoRoll.automationType.velocity': '音符力度',
   'pianoRoll.automationType.cc1': 'CC1',
   'pianoRoll.automationType.cc2': 'CC2',
   'pianoRoll.automationType.cc7': 'CC7',

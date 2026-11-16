@@ -903,7 +903,7 @@
   position: relative;
   height: 100%;
   min-height: 160px;
-  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+  width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
 }
 
 .piano-roll-automation-scroll-layer {
@@ -978,6 +978,35 @@
 
 .piano-roll-automation-point.selected {
   filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
+}
+
+.piano-roll-automation-lane--velocity .piano-roll-automation-track {
+  min-height: 0;
+}
+
+.piano-roll-automation-lane--velocity .piano-roll-automation-lane-label {
+  max-width: calc(var(--region-piano-key-width) - 10px);
+  overflow-wrap: anywhere;
+}
+
+.piano-roll-velocity-svg {
+  color: #87cefa;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.piano-roll-velocity-svg .piano-roll-automation-point {
+  cursor: ns-resize;
+}
+
+.piano-roll-velocity-svg .selected {
+  color: #fff;
+}
+
+.piano-roll-velocity-ramp {
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .piano-roll-automation-value {

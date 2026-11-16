@@ -433,6 +433,7 @@ export const enUsMessages: TranslationMessages = {
   'pianoRoll.toggleAutomationLane': 'Toggle automation lane',
   'pianoRoll.automation': 'Automation',
   'pianoRoll.automationLane': '{label} automation lane',
+  'pianoRoll.automationType.velocity': 'Note Velocity',
   'pianoRoll.automationType.pitchBend': 'Pitch Bend',
   'pianoRoll.automationType.cc1': 'CC1',
   'pianoRoll.automationType.cc2': 'CC2',

@@ -17,15 +17,17 @@ import {
 } from '../../util/midiUtil';
 import { isModifierKeyPressed } from '../../util/osUtil';
 import { useProjectStore } from '../../stores/projectStore';
-import { PIANO_ROLL_CONSTANTS } from '../../constants';
+import { PIANO_ROLL_CONSTANTS, TOOLBAR_CONSTANTS } from '../../constants';
 import { getSnappedTickPosition } from './pianoRollSnap';
 import {
   getAutomationLabel,
   getAutomationInterpolationMode,
   getControllerNumberForAutomationType,
+  type MidiEventAutomationType,
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
 import { useI18n } from '../../i18n/useI18n';
+import PianoRollVelocityLane from './PianoRollVelocityLane';
 
 interface AutomationPoint {
   id: string;
@@ -43,6 +45,7 @@ interface PianoRollAutomationLaneProps {
   maxBars: number;
   timeSignature: { numerator: number; denominator: number };
   bpm?: number;
+  pianoRollZoom?: number;
   redrawVersion?: number;
   horizontalScrollLeft?: number;
   onHorizontalWheel?: (delta: number) => void;
@@ -66,48 +69,13 @@ const LANE_PADDING_Y = 16;
 const MIN_LANE_HEIGHT = 160;
 const POINT_RADIUS = 5;
 
-const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
-  activeRegion,
-  automationType,
-  maxBars,
-  timeSignature,
-  redrawVersion = 0,
-  horizontalScrollLeft = 0,
-  onHorizontalWheel,
-}) => {
+const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = (props) => {
+  const { activeRegion, automationType, pianoRollZoom = 1, horizontalScrollLeft = 0, onHorizontalWheel } = props;
   const { t } = useI18n();
   const laneRef = useRef<HTMLDivElement | null>(null);
-  const isLassoSelectingRef = useRef(false);
-  const lassoShiftKeyRef = useRef(false);
-  const [isModifierPressed, setIsModifierPressed] = useState(false);
-  const selectionBoxRef = useRef<SelectionBoxState>({ startX: 0, startY: 0, endX: 0, endY: 0 });
-  const [selectionBoxRenderTick, setSelectionBoxRenderTick] = useState(0);
-  const preventBackgroundClearRef = useRef(false);
-  const dragStateRef = useRef<{
-    primaryPointId: string;
-    originAbsoluteTick: number;
-    originValue: number;
-    originClientX: number;
-    originClientY: number;
-    selectedPoints: AutomationPoint[];
-    minDeltaValue: number;
-    maxDeltaValue: number;
-    hasMoved: boolean;
-  } | null>(null);
-  const [previewPoints, setPreviewPoints] = useState<Record<string, PreviewPoint>>({});
-  const previewPointsRef = useRef<Record<string, PreviewPoint>>({});
   const [laneHeight, setLaneHeight] = useState(MIN_LANE_HEIGHT);
-  const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
-  const keyWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')) || 60;
-
-  const {
-    tracks,
-    updateTrack,
-    refreshProjectState,
-    bumpAutomationRedrawVersion,
-    selectedPitchBendIds,
-    selectedControllerEventIds,
-  } = useProjectStore();
+  const laneLabel = getAutomationLabel(automationType, t);
+  const isVelocity = automationType === 'velocity';
 
   useEffect(() => {
     const element = laneRef.current;
@@ -116,7 +84,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     }
 
     const updateHeight = () => {
-      setLaneHeight(Math.max(Math.round(element.clientHeight), MIN_LANE_HEIGHT));
+      setLaneHeight(element.clientHeight || MIN_LANE_HEIGHT);
     };
 
     updateHeight();
@@ -152,6 +120,87 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
       element.removeEventListener('wheel', handleWheel);
     };
   }, [onHorizontalWheel]);
+
+  return (
+    <div
+      className={`piano-roll-automation-lane${isVelocity ? ' piano-roll-automation-lane--velocity' : ''}`}
+      data-testid="piano-roll-automation-lane"
+      aria-label={t('pianoRoll.automationLane', { label: laneLabel })}
+      ref={laneRef}
+    >
+      <div className="piano-roll-automation-track">
+        <div className="piano-roll-automation-gutter" />
+        <div className="piano-roll-automation-lane-label">{laneLabel}</div>
+        {isVelocity ? (
+          <PianoRollVelocityLane
+            key={activeRegion?.getId()}
+            activeRegion={activeRegion}
+            laneHeight={laneHeight}
+            beatWidth={TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * pianoRollZoom}
+            horizontalScrollLeft={horizontalScrollLeft}
+          />
+        ) : (
+          <MidiEventAutomationLane
+            {...props}
+            automationType={automationType}
+            laneLabel={laneLabel}
+            laneRef={laneRef}
+            laneHeight={Math.max(laneHeight, MIN_LANE_HEIGHT)}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface MidiEventAutomationLaneProps extends PianoRollAutomationLaneProps {
+  automationType: MidiEventAutomationType;
+  laneLabel: string;
+  laneRef: React.RefObject<HTMLDivElement | null>;
+  laneHeight: number;
+}
+
+const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
+  activeRegion,
+  automationType,
+  maxBars,
+  timeSignature,
+  redrawVersion = 0,
+  horizontalScrollLeft = 0,
+  laneRef,
+  laneHeight,
+  laneLabel,
+}) => {
+  const isLassoSelectingRef = useRef(false);
+  const lassoShiftKeyRef = useRef(false);
+  const [isModifierPressed, setIsModifierPressed] = useState(false);
+  const selectionBoxRef = useRef<SelectionBoxState>({ startX: 0, startY: 0, endX: 0, endY: 0 });
+  const [selectionBoxRenderTick, setSelectionBoxRenderTick] = useState(0);
+  const preventBackgroundClearRef = useRef(false);
+  const dragStateRef = useRef<{
+    primaryPointId: string;
+    originAbsoluteTick: number;
+    originValue: number;
+    originClientX: number;
+    originClientY: number;
+    selectedPoints: AutomationPoint[];
+    minDeltaValue: number;
+    maxDeltaValue: number;
+    hasMoved: boolean;
+  } | null>(null);
+  const [previewPoints, setPreviewPoints] = useState<Record<string, PreviewPoint>>({});
+  const previewPointsRef = useRef<Record<string, PreviewPoint>>({});
+  const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
+  const keyWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')) || 60;
+
+  const {
+    tracks,
+    updateTrack,
+    refreshProjectState,
+    bumpAutomationRedrawVersion,
+    selectedPitchBendIds,
+    selectedControllerEventIds,
+  } = useProjectStore();
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null): boolean => {
@@ -240,10 +289,8 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
     ? tracks.find(track => track.getId().toString() === activeRegion.getTrackId()) ?? null
     : null;
 
-  const laneLabel = getAutomationLabel(automationType, t);
   const interpolationMode = getAutomationInterpolationMode(automationType);
   const totalTicks = maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
-  const totalWidth = 'calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width))';
   const minValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MIN : 0;
   const maxValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MAX : 127;
 
@@ -769,93 +816,84 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = ({
   );
 
   return (
-    <div
-      className="piano-roll-automation-lane"
-      data-testid="piano-roll-automation-lane"
-      aria-label={t('pianoRoll.automationLane', { label: laneLabel })}
-      ref={laneRef}
-    >
-      <div className="piano-roll-automation-track" style={{ width: totalWidth }}>
-        <div className="piano-roll-automation-gutter" />
-        <div className="piano-roll-automation-lane-label">{laneLabel}</div>
-        <div
-          className={`piano-roll-automation-scroll-layer ${isModifierPressed ? 'pencil-cursor' : ''}`}
-          style={{ transform: `translateX(-${horizontalScrollLeft}px)` }}
-          onMouseDown={handleBackgroundMouseDown}
-          onClick={(event) => { void handleBackgroundClick(event); }}
-          onDoubleClick={(event) => { void handleBackgroundDoubleClick(event); }}
+    <>
+      <div
+        className={`piano-roll-automation-scroll-layer ${isModifierPressed ? 'pencil-cursor' : ''}`}
+        style={{ transform: `translateX(-${horizontalScrollLeft}px)` }}
+        onMouseDown={handleBackgroundMouseDown}
+        onClick={(event) => { void handleBackgroundClick(event); }}
+        onDoubleClick={(event) => { void handleBackgroundDoubleClick(event); }}
+      >
+        <div className="piano-roll-automation-grid" />
+        <svg
+          className="piano-roll-automation-svg"
+          width="100%"
+          height={laneHeight}
+          viewBox={`0 0 ${ticksToPixels(totalTicks, beatWidth) + keyWidth} ${laneHeight}`}
+          preserveAspectRatio="none"
         >
-          <div className="piano-roll-automation-grid" />
-          <svg
-            className="piano-roll-automation-svg"
-            width="100%"
-            height={laneHeight}
-            viewBox={`0 0 ${ticksToPixels(totalTicks, beatWidth) + keyWidth} ${laneHeight}`}
-            preserveAspectRatio="none"
-          >
-            {interpolationMode === 'linear' && renderedPoints.length > 0 && (
-              <polyline
-                className="piano-roll-automation-line"
-                fill="none"
-                stroke={AUTOMATION_COLOR}
-                strokeWidth="2"
-                points={polylinePoints}
-              />
-            )}
-            {interpolationMode === 'step' && stepSegments.map(segment => (
-              <line
-                key={segment.id}
-                className="piano-roll-automation-line"
-                x1={segment.x1}
-                y1={segment.y1}
-                x2={segment.x2}
-                y2={segment.y1}
-                stroke={AUTOMATION_COLOR}
-                strokeWidth="2"
-              />
-            ))}
-            {renderedPoints.map(point => {
-              const labelY = Math.max(14, Math.min(laneHeight - 6, point.y - 10));
-
-              return (
-                <g key={point.id}>
-                  <circle
-                    className={`piano-roll-automation-point${point.isSelected ? ' selected' : ''}`}
-                    cx={point.x}
-                    cy={point.y}
-                    r={POINT_RADIUS}
-                    fill={point.isSelected ? SELECTED_POINT_COLOR : AUTOMATION_COLOR}
-                    stroke={point.isSelected ? SELECTED_POINT_COLOR : '#1d2428'}
-                    strokeWidth={point.isSelected ? 3 : 2}
-                    onMouseDown={(event) => { void handlePointMouseDown(point.id, event); }}
-                  />
-                  <text
-                    className="piano-roll-automation-value"
-                    x={point.x + 6}
-                    y={labelY}
-                    fill={point.isSelected ? SELECTED_POINT_COLOR : AUTOMATION_COLOR}
-                  >
-                    {point.label}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-          {isLassoSelectingRef.current && (
-            <div
-              key={selectionBoxRenderTick}
-              className="piano-roll-automation-selection-box"
-              style={selectionBoxStyle}
+          {interpolationMode === 'linear' && renderedPoints.length > 0 && (
+            <polyline
+              className="piano-roll-automation-line"
+              fill="none"
+              stroke={AUTOMATION_COLOR}
+              strokeWidth="2"
+              points={polylinePoints}
             />
           )}
-        </div>
-        {renderedPointsSorted.length === 0 && (
-          <div className="piano-roll-automation-empty-state">
-            No {laneLabel} events in this region
-          </div>
+          {interpolationMode === 'step' && stepSegments.map(segment => (
+            <line
+              key={segment.id}
+              className="piano-roll-automation-line"
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y1}
+              stroke={AUTOMATION_COLOR}
+              strokeWidth="2"
+            />
+          ))}
+          {renderedPoints.map(point => {
+            const labelY = Math.max(14, Math.min(laneHeight - 6, point.y - 10));
+
+            return (
+              <g key={point.id}>
+                <circle
+                  className={`piano-roll-automation-point${point.isSelected ? ' selected' : ''}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={POINT_RADIUS}
+                  fill={point.isSelected ? SELECTED_POINT_COLOR : AUTOMATION_COLOR}
+                  stroke={point.isSelected ? SELECTED_POINT_COLOR : '#1d2428'}
+                  strokeWidth={point.isSelected ? 3 : 2}
+                  onMouseDown={(event) => { void handlePointMouseDown(point.id, event); }}
+                />
+                <text
+                  className="piano-roll-automation-value"
+                  x={point.x + 6}
+                  y={labelY}
+                  fill={point.isSelected ? SELECTED_POINT_COLOR : AUTOMATION_COLOR}
+                >
+                  {point.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        {isLassoSelectingRef.current && (
+          <div
+            key={selectionBoxRenderTick}
+            className="piano-roll-automation-selection-box"
+            style={selectionBoxStyle}
+          />
         )}
       </div>
-    </div>
+      {renderedPointsSorted.length === 0 && (
+        <div className="piano-roll-automation-empty-state">
+          No {laneLabel} events in this region
+        </div>
+      )}
+    </>
   );
 };
 
