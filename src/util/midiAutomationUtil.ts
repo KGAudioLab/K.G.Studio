@@ -102,29 +102,34 @@ export function resolveMidiAutomationValueAtTick(
   defaultValue: number,
   interpolationMode: 'linear' | 'step' = 'linear'
 ): number {
-  const normalizedPoints = normalizeMidiAutomationPoints(points);
-  if (normalizedPoints.length === 0) {
-    return defaultValue;
+  return resolveSortedMidiAutomationValueAtTick(normalizeMidiAutomationPoints(points), tick, defaultValue, interpolationMode);
+}
+
+/** Find the first point strictly after tick in a sorted curve. */
+export function findMidiAutomationPointAfter(points: readonly MidiAutomationPoint[], tick: number): number {
+  let low = 0;
+  let high = points.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (tick < points[mid].tick) high = mid;
+    else low = mid + 1;
   }
+  return low;
+}
 
-  let previousPoint: MidiAutomationPoint | null = null;
-  for (const point of normalizedPoints) {
-    if (tick < point.tick) {
-      if (!previousPoint) {
-        return defaultValue;
-      }
-
-      if (interpolationMode === 'step') {
-        return previousPoint.value;
-      }
-
-      return interpolateBetweenPoints(previousPoint, point, tick);
-    }
-
-    previousPoint = point;
-  }
-
-  return previousPoint?.value ?? defaultValue;
+export function resolveSortedMidiAutomationValueAtTick(
+  points: readonly MidiAutomationPoint[],
+  tick: number,
+  defaultValue: number,
+  interpolationMode: 'linear' | 'step' = 'linear',
+): number {
+  const after = findMidiAutomationPointAfter(points, tick);
+  if (after === 0) return defaultValue;
+  const previousPoint = points[after - 1];
+  const nextPoint = points[after];
+  return nextPoint && interpolationMode === 'linear'
+    ? interpolateBetweenPoints(previousPoint, nextPoint, tick)
+    : previousPoint.value;
 }
 
 export function bakeMidiAutomationPointsInWindow(
@@ -138,7 +143,7 @@ export function bakeMidiAutomationPointsInWindow(
   const anchorPoint = {
     tick: windowStartTick,
     value: quantizeValue(
-      resolveMidiAutomationValueAtTick(normalizedPoints, windowStartTick, options.defaultValue, interpolationMode),
+      resolveSortedMidiAutomationValueAtTick(normalizedPoints, windowStartTick, options.defaultValue, interpolationMode),
       options
     ),
   };
@@ -235,7 +240,7 @@ export function resolveSustainExtendedEndTick(
     return noteEndTick;
   }
 
-  const sustainValueAtEnd = resolveMidiAutomationValueAtTick(normalizedPoints, noteEndTick, defaultValue, 'step');
+  const sustainValueAtEnd = resolveSortedMidiAutomationValueAtTick(normalizedPoints, noteEndTick, defaultValue, 'step');
   if (sustainValueAtEnd < 64) {
     return noteEndTick;
   }

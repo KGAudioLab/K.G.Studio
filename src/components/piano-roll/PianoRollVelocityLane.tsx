@@ -2,17 +2,19 @@ import { useEffect, useState, type PointerEvent } from 'react';
 import { PIANO_ROLL_CONSTANTS } from '../../constants';
 import { MIDI_VELOCITY } from '../../constants/midiConstants';
 import { KGCore } from '../../core/KGCore';
-import { UpdateNotePropertiesCommand } from '../../core/commands/note/UpdateNotePropertiesCommand';
 import { KGMidiControllerEvent } from '../../core/midi/KGMidiControllerEvent';
 import { KGMidiPitchBend } from '../../core/midi/KGMidiPitchBend';
 import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { ticksToPixels } from '../../core/timing';
 import { useProjectStore } from '../../stores/projectStore';
+import { createNoteVelocityCommand, getAutomationLaneScale } from './pianoRollAutomationEditing';
+import PianoRollAutomationPencil from './PianoRollAutomationPencil';
 
 interface PianoRollVelocityLaneProps {
   activeRegion: KGMidiRegion | null;
   beatWidth: number;
   laneHeight: number;
+  pencilEnabled: boolean;
   horizontalScrollLeft: number;
 }
 
@@ -36,6 +38,7 @@ export default function PianoRollVelocityLane({
   activeRegion,
   beatWidth,
   laneHeight,
+  pencilEnabled,
   horizontalScrollLeft,
 }: PianoRollVelocityLaneProps) {
   const [gesture, setGesture] = useState<Gesture | null>(null);
@@ -43,9 +46,8 @@ export default function PianoRollVelocityLane({
   const notes = activeRegion?.getNotes() ?? [];
   const regionStartTick = activeRegion?.getStartTick() ?? 0;
   const keyWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')) || 60;
-  const padding = Math.min(16, laneHeight / 4);
-  const bottom = laneHeight - padding;
-  const valueHeight = laneHeight - 2 * padding;
+  const scale = getAutomationLaneScale(laneHeight, MIDI_VELOCITY.MAX);
+  const { toY } = scale;
 
   useEffect(() => {
     const core = KGCore.instance();
@@ -59,10 +61,7 @@ export default function PianoRollVelocityLane({
   }, [activeRegion]);
 
   const toX = (relativeTick: number) => keyWidth + ticksToPixels(regionStartTick + relativeTick, beatWidth);
-  const toY = (velocity: number) => bottom - velocity * valueHeight / MIDI_VELOCITY.MAX;
-  const toVelocity = (y: number) => (
-    Math.round(Math.min(MIDI_VELOCITY.MAX, Math.max(0, (bottom - y) * MIDI_VELOCITY.MAX / valueHeight)))
-  );
+  const toVelocity = (y: number) => Math.round(scale.toValue(y));
 
   const dragNote = gesture?.kind === 'note' ? gesture : null;
   const ramp = gesture?.kind === 'ramp' ? gesture : null;
@@ -117,35 +116,18 @@ export default function PianoRollVelocityLane({
     if (gesture.kind === 'ramp' && Math.abs(dx) < PIANO_ROLL_CONSTANTS.DRAG_THRESHOLD) return;
     if (gesture.kind === 'note' && dy === 0) return;
 
-    const snapshots = [];
-    const updates = [];
-    for (const note of notes) {
-      const noteId = note.getId();
-      let y: number;
+    const command = createNoteVelocityCommand(activeRegion, note => {
       if (gesture.kind === 'note') {
-        if (noteId !== gesture.noteId) continue;
-        y = toY(gesture.velocity) + dy;
-      } else {
-        const fraction = (toX(note.getStartTick()) - gesture.start.x) / dx;
-        if (fraction < 0 || fraction > 1) continue;
-        y = gesture.start.y + dy * fraction;
+        return note.getId() === gesture.noteId ? toVelocity(toY(gesture.velocity) + dy) : undefined;
       }
 
-      const velocity = toVelocity(y);
-      if (velocity === note.getVelocity()) continue;
+      const fraction = (toX(note.getStartTick()) - gesture.start.x) / dx;
+      if (fraction < 0 || fraction > 1) return undefined;
+      return toVelocity(gesture.start.y + dy * fraction);
+    });
 
-      snapshots.push({
-        noteId,
-        velocity: note.getVelocity(),
-        pitch: note.getPitch(),
-        startTick: note.getStartTick(),
-        endTick: note.getEndTick(),
-      });
-      updates.push({ noteId, velocity });
-    }
-
-    if (updates.length > 0) {
-      KGCore.instance().executeCommand(new UpdateNotePropertiesCommand(activeRegion.getId(), snapshots, updates));
+    if (command) {
+      KGCore.instance().executeCommand(command);
       refreshProjectState();
     }
   };
@@ -202,6 +184,14 @@ export default function PianoRollVelocityLane({
           />
         )}
       </svg>
+      {pencilEnabled && activeRegion && (
+        <PianoRollAutomationPencil
+          region={activeRegion}
+          automationType="velocity"
+          beatWidth={beatWidth}
+          laneHeight={laneHeight}
+        />
+      )}
     </div>
   );
 }

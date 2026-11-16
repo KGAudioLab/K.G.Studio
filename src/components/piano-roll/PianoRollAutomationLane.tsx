@@ -11,6 +11,7 @@ import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import {
   MIDI_PITCH_BEND_MAX,
   MIDI_PITCH_BEND_MIN,
+  MIDI_CONTROLLER_MAX,
   clampMidiControllerValue,
   clampMidiPitchBendValue,
   midiPitchBendToSignedValue,
@@ -26,7 +27,9 @@ import {
   type MidiEventAutomationType,
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
+import { getAutomationLaneScale } from './pianoRollAutomationEditing';
 import { useI18n } from '../../i18n/useI18n';
+import PianoRollAutomationPencil from './PianoRollAutomationPencil';
 import PianoRollVelocityLane from './PianoRollVelocityLane';
 
 interface AutomationPoint {
@@ -46,6 +49,7 @@ interface PianoRollAutomationLaneProps {
   timeSignature: { numerator: number; denominator: number };
   bpm?: number;
   pianoRollZoom?: number;
+  pencilEnabled?: boolean;
   redrawVersion?: number;
   horizontalScrollLeft?: number;
   onHorizontalWheel?: (delta: number) => void;
@@ -65,17 +69,17 @@ interface PreviewPoint {
 
 const AUTOMATION_COLOR = '#87CEFA';
 const SELECTED_POINT_COLOR = '#FFFFFF';
-const LANE_PADDING_Y = 16;
-const MIN_LANE_HEIGHT = 160;
+const DEFAULT_LANE_HEIGHT = 160;
 const POINT_RADIUS = 5;
 
 const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = (props) => {
-  const { activeRegion, automationType, pianoRollZoom = 1, horizontalScrollLeft = 0, onHorizontalWheel } = props;
+  const { activeRegion, automationType, pianoRollZoom = 1, pencilEnabled = false, horizontalScrollLeft = 0, onHorizontalWheel } = props;
   const { t } = useI18n();
   const laneRef = useRef<HTMLDivElement | null>(null);
-  const [laneHeight, setLaneHeight] = useState(MIN_LANE_HEIGHT);
+  const [laneHeight, setLaneHeight] = useState(DEFAULT_LANE_HEIGHT);
   const laneLabel = getAutomationLabel(automationType, t);
   const isVelocity = automationType === 'velocity';
+  const beatWidth = TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * pianoRollZoom;
 
   useEffect(() => {
     const element = laneRef.current;
@@ -84,7 +88,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = (props) 
     }
 
     const updateHeight = () => {
-      setLaneHeight(element.clientHeight || MIN_LANE_HEIGHT);
+      setLaneHeight(element.clientHeight || DEFAULT_LANE_HEIGHT);
     };
 
     updateHeight();
@@ -136,16 +140,18 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = (props) 
             key={activeRegion?.getId()}
             activeRegion={activeRegion}
             laneHeight={laneHeight}
-            beatWidth={TOOLBAR_CONSTANTS.BASE_BAR_WIDTH * pianoRollZoom}
+            beatWidth={beatWidth}
+            pencilEnabled={pencilEnabled}
             horizontalScrollLeft={horizontalScrollLeft}
           />
         ) : (
           <MidiEventAutomationLane
             {...props}
             automationType={automationType}
+            beatWidth={beatWidth}
             laneLabel={laneLabel}
             laneRef={laneRef}
-            laneHeight={Math.max(laneHeight, MIN_LANE_HEIGHT)}
+            laneHeight={laneHeight}
           />
         )}
       </div>
@@ -155,6 +161,7 @@ const PianoRollAutomationLane: React.FC<PianoRollAutomationLaneProps> = (props) 
 
 interface MidiEventAutomationLaneProps extends PianoRollAutomationLaneProps {
   automationType: MidiEventAutomationType;
+  beatWidth: number;
   laneLabel: string;
   laneRef: React.RefObject<HTMLDivElement | null>;
   laneHeight: number;
@@ -163,8 +170,10 @@ interface MidiEventAutomationLaneProps extends PianoRollAutomationLaneProps {
 const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
   activeRegion,
   automationType,
+  beatWidth,
   maxBars,
   timeSignature,
+  pencilEnabled,
   redrawVersion = 0,
   horizontalScrollLeft = 0,
   laneRef,
@@ -190,7 +199,6 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
   } | null>(null);
   const [previewPoints, setPreviewPoints] = useState<Record<string, PreviewPoint>>({});
   const previewPointsRef = useRef<Record<string, PreviewPoint>>({});
-  const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
   const keyWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-width')) || 60;
 
   const {
@@ -292,22 +300,14 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
   const interpolationMode = getAutomationInterpolationMode(automationType);
   const totalTicks = maxBars * timeSignature.numerator * 960 * (4 / timeSignature.denominator);
   const minValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MIN : 0;
-  const maxValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MAX : 127;
-
-  const toY = (value: number): number => {
-    const usableHeight = laneHeight - LANE_PADDING_Y * 2;
-    const normalized = (value - minValue) / (maxValue - minValue);
-    return laneHeight - LANE_PADDING_Y - normalized * usableHeight;
-  };
+  const maxValue = automationType === 'pitch-bend' ? MIDI_PITCH_BEND_MAX : MIDI_CONTROLLER_MAX;
+  const scale = getAutomationLaneScale(laneHeight, maxValue);
+  const { toY } = scale;
 
   const toValue = (y: number): number => {
-    const usableHeight = laneHeight - LANE_PADDING_Y * 2;
-    const clampedY = Math.min(laneHeight - LANE_PADDING_Y, Math.max(LANE_PADDING_Y, y));
-    const normalized = (laneHeight - LANE_PADDING_Y - clampedY) / usableHeight;
-    const rawValue = minValue + normalized * (maxValue - minValue);
     return automationType === 'pitch-bend'
-      ? clampMidiPitchBendValue(Math.round(rawValue))
-      : clampMidiControllerValue(Math.round(rawValue));
+      ? clampMidiPitchBendValue(scale.toValue(y))
+      : clampMidiControllerValue(scale.toValue(y));
   };
 
   const getPointLabel = (value: number): string => (
@@ -692,7 +692,7 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
       return;
     }
 
-    if (KGPianoRollState.instance().getActiveTool() === 'pencil' || isModifierKeyPressed(event)) {
+    if (isModifierKeyPressed(event)) {
       return;
     }
 
@@ -761,7 +761,6 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
     bumpAutomationRedrawVersion();
     await updateTrack(parentTrack);
     refreshProjectState();
-    preventBackgroundClearRef.current = true;
   };
 
   const handleBackgroundClick = async (event: React.MouseEvent<HTMLDivElement>) => {
@@ -774,7 +773,7 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
       return;
     }
 
-    if (KGPianoRollState.instance().getActiveTool() === 'pencil' || isModifierKeyPressed(event)) {
+    if (isModifierKeyPressed(event)) {
       if (event.detail > 1) {
         return;
       }
@@ -820,17 +819,15 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
       <div
         className={`piano-roll-automation-scroll-layer ${isModifierPressed ? 'pencil-cursor' : ''}`}
         style={{ transform: `translateX(-${horizontalScrollLeft}px)` }}
-        onMouseDown={handleBackgroundMouseDown}
-        onClick={(event) => { void handleBackgroundClick(event); }}
-        onDoubleClick={(event) => { void handleBackgroundDoubleClick(event); }}
+        onMouseDown={pencilEnabled ? undefined : handleBackgroundMouseDown}
+        onClick={pencilEnabled ? undefined : (event) => { void handleBackgroundClick(event); }}
+        onDoubleClick={pencilEnabled ? undefined : (event) => { void handleBackgroundDoubleClick(event); }}
       >
         <div className="piano-roll-automation-grid" />
         <svg
           className="piano-roll-automation-svg"
           width="100%"
           height={laneHeight}
-          viewBox={`0 0 ${ticksToPixels(totalTicks, beatWidth) + keyWidth} ${laneHeight}`}
-          preserveAspectRatio="none"
         >
           {interpolationMode === 'linear' && renderedPoints.length > 0 && (
             <polyline
@@ -866,7 +863,7 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
                   fill={point.isSelected ? SELECTED_POINT_COLOR : AUTOMATION_COLOR}
                   stroke={point.isSelected ? SELECTED_POINT_COLOR : '#1d2428'}
                   strokeWidth={point.isSelected ? 3 : 2}
-                  onMouseDown={(event) => { void handlePointMouseDown(point.id, event); }}
+                  onMouseDown={pencilEnabled ? undefined : (event) => { void handlePointMouseDown(point.id, event); }}
                 />
                 <text
                   className="piano-roll-automation-value"
@@ -880,6 +877,16 @@ const MidiEventAutomationLane: React.FC<MidiEventAutomationLaneProps> = ({
             );
           })}
         </svg>
+        {pencilEnabled && activeRegion && (
+          <PianoRollAutomationPencil
+            key={`${activeRegion.getId()}:${automationType}`}
+            region={activeRegion}
+            automationType={automationType}
+            beatWidth={beatWidth}
+            laneHeight={laneHeight}
+            onClick={handleCreatePoint}
+          />
+        )}
         {isLassoSelectingRef.current && (
           <div
             key={selectionBoxRenderTick}

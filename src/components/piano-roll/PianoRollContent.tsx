@@ -51,6 +51,7 @@ interface PianoRollContentProps {
   spectrogramPower?: number;
   spectrogramHeightResolution?: SpectrogramHeightResolution;
   pianoRollZoom?: number;
+  activeTool?: 'pointer' | 'pencil';
   automationEnabled?: boolean;
   automationType?: PianoRollAutomationType;
   automationRedrawVersion?: number;
@@ -90,6 +91,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   spectrogramPower = 0.5,
   spectrogramHeightResolution = 3,
   pianoRollZoom = 1,
+  activeTool = 'pointer',
   automationEnabled = false,
   automationType = 'pitch-bend',
   automationRedrawVersion = 0,
@@ -444,6 +446,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
               timeSignature={timeSignature}
               bpm={bpm}
               pianoRollZoom={pianoRollZoom}
+              pencilEnabled={activeTool === 'pencil'}
               redrawVersion={automationRedrawVersion}
               horizontalScrollLeft={noteScrollLeft}
               onHorizontalWheel={forwardAutomationHorizontalWheel}

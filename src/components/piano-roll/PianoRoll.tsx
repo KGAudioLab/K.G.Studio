@@ -539,7 +539,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
-    resizeStartRef.current = { clientY: e.clientY, height };
+    const panelHeight = pianoRollRef.current?.getBoundingClientRect().height || height;
+    resizeStartRef.current = { clientY: e.clientY, height: panelHeight };
     setIsResizing(true);
   };
 
@@ -1961,6 +1962,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         spectrogramPower={spectrogramPower}
         spectrogramHeightResolution={spectrogramHeightResolution}
         pianoRollZoom={pianoRollZoom}
+        activeTool={activeTool}
         automationEnabled={automationEnabled}
         automationType={automationType}
         automationRedrawVersion={automationRedrawVersion}
