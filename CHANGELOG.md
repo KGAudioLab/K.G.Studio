@@ -1,3 +1,10 @@
+# [0.25.2-build.20261116] (2026-11-16)
+
+* Merge pull request #82 from KGAudioLab/feat/2026-11-15-note-velocity-automation (d570ccf)
+* test: fix debugger and audio tempo fixtures (9bca68d)
+* feat: draw piano roll automation with the pencil tool (2d10206)
+* feat: add piano roll note velocity automation (565132b)
+
 # [0.25.1-build.20261113] (2026-11-13)
 
 * Merge pull request #81 from KGAudioLab/feat/2026-11-09-fix (b11b494)
