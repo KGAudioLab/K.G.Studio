@@ -427,6 +427,7 @@ export const frFrMessages: TranslationMessages = {
   'pianoRoll.automation': 'Automation',
   'pianoRoll.automationLane': 'Voie d\'automation {label}',
   'pianoRoll.automationType.pitchBend': 'Pitch bend',
+  'pianoRoll.automationType.velocity': 'Vélocité des notes',
   'pianoRoll.mode': 'Mode',
   'pianoRoll.modeOption.ionian': 'Ionien',
   'pianoRoll.modeOption.dorian': 'Dorien',

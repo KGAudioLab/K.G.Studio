@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { KGProject } from '../core/KGProject';
-import type { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { KGProject } from '../core/KGProject';
+import { KGAudioRegion } from '../core/region/KGAudioRegion';
+import { quarterNotesToTicks } from '../core/timing';
 import {
   buildAudioTempoAnalysisSpanForRegion,
   DEFAULT_AUDIO_TEMPO_DETECTION_OPTIONS,
@@ -69,18 +70,11 @@ describe('audio tempo detection', () => {
   });
 
   it('builds an analysis span from the visible region length', () => {
-    const project = {
-      getTimeSignature: () => ({ numerator: 4, denominator: 4 }),
-      getBpm: () => 120,
-      getMaxBars: () => 32,
-      getGlobalTrackByType: () => null,
-    } as unknown as KGProject;
-    const region = {
-      getStartTick: () => 8,
-      getLength: () => 16,
-      getAudioDurationSeconds: () => 20,
-      getClipStartOffsetSeconds: () => 1.25,
-    } as unknown as KGAudioRegion;
+    const project = new KGProject('Tempo detection', 32, 0, 120);
+    const region = new KGAudioRegion(
+      'audio', '1', 0, 'Audio', quarterNotesToTicks(8), quarterNotesToTicks(16),
+      'file', 'file.wav', 20, 1.25,
+    );
 
     expect(buildAudioTempoAnalysisSpanForRegion(project, region)).toEqual({
       offsetSeconds: 1.25,

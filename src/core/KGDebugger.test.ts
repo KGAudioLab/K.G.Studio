@@ -341,8 +341,11 @@ describe('KGDebugger mode-aware tool calls', () => {
     debuggerMocks.provider = provider;
     const payload = { tracks: [] };
     const execute = vi.fn().mockResolvedValue({ success: true, result: payload });
-    debuggerMocks.createToolInstance.mockReturnValue({ execute,
-      isAvailableInRegularMode: () => true, isAvailableInEfficientMode: () => true,
+    debuggerMocks.createToolInstance.mockReturnValue({
+      execute,
+      isAvailableInAdvancedMode: () => true,
+      isAvailableInRegularMode: () => true,
+      isAvailableInEfficientMode: () => true,
     });
     await KGDebugger.instance().testToolCall('{"name":"read_music","arguments":{"start":0,"length":8}}');
     expect(debuggerMocks.createToolInstance).toHaveBeenCalledWith('read_music', effective);

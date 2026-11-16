@@ -10,7 +10,7 @@
   border-top: 1px solid #3a3a3a;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-direction: column;
   min-height: 200px;
   width: 100%;
@@ -902,8 +902,7 @@
 .piano-roll-automation-track {
   position: relative;
   height: 100%;
-  min-height: 160px;
-  min-width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
+  width: calc(var(--max-number-of-bars) * var(--region-grid-bar-width) + var(--region-piano-key-width));
 }
 
 .piano-roll-automation-scroll-layer {
@@ -958,6 +957,7 @@
   letter-spacing: 0.04em;
   color: #87cefa;
   text-transform: uppercase;
+  pointer-events: none;
 }
 
 .piano-roll-automation-svg {
@@ -965,6 +965,25 @@
   inset: 0;
   overflow: visible;
   z-index: 1;
+}
+
+.piano-roll-automation-pencil {
+  position: absolute;
+  top: 0;
+  left: var(--region-piano-key-width);
+  width: calc(100% - var(--region-piano-key-width));
+  z-index: 2;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.piano-roll-automation-pencil-preview {
+  stroke: #e5f5ff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 
 .piano-roll-automation-line {
@@ -978,6 +997,31 @@
 
 .piano-roll-automation-point.selected {
   filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
+}
+
+.piano-roll-automation-lane--velocity .piano-roll-automation-lane-label {
+  max-width: calc(var(--region-piano-key-width) - 10px);
+  overflow-wrap: anywhere;
+}
+
+.piano-roll-velocity-svg {
+  color: #87cefa;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.piano-roll-velocity-svg .piano-roll-automation-point {
+  cursor: ns-resize;
+}
+
+.piano-roll-velocity-svg .selected {
+  color: #fff;
+}
+
+.piano-roll-velocity-ramp {
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .piano-roll-automation-value {

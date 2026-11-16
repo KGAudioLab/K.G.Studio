@@ -2,7 +2,7 @@ import type { AirePoint, AireSimplification } from './types';
 
 export const AIRE_SIMPLIFICATION_TOLERANCES = { mild: 1, medium: 2, aggressive: 4 } as const;
 
-/** Input is the sorted, distinct-tick, decoded AIRE curve. Retained points are never moved. */
+/** Input is a curve with distinct, ascending ticks on the 0–127 MIDI value scale. Retained points are never moved. */
 export function simplifyAirePoints(points: AirePoint[], level: AireSimplification = 'none', joinTicks: readonly number[] = []): AirePoint[] {
   if (level === 'none' || points.length < 3) return points;
   const tolerance = AIRE_SIMPLIFICATION_TOLERANCES[level];
