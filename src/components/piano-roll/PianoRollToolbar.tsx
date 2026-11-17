@@ -11,6 +11,8 @@ import {
 } from './pianoRollAutomation';
 import { useI18n } from '../../i18n/useI18n';
 import type { PianoRollMode } from '../../constants';
+import type { MidiArticulation } from '../../core/midi/KGMidiNote';
+import { PIANO_ROLL_ARTICULATIONS } from './pianoRollArticulation';
 
 interface PianoRollToolbarProps {
   showAudioSpectrogramToggle?: boolean;
@@ -35,6 +37,8 @@ interface PianoRollToolbarProps {
   onModeChange: (value: string) => void;
   chordGuide: 'N' | 'T' | 'S' | 'D';
   onChordGuideChange: (value: 'N' | 'T' | 'S' | 'D') => void;
+  onArticulationChange?: (value: MidiArticulation) => void;
+  hasSelectedNotes?: boolean;
   blinkButton?: string | null;
   mode?: PianoRollMode;
   thresholdDb?: number;
@@ -87,6 +91,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onModeChange,
   chordGuide,
   onChordGuideChange,
+  onArticulationChange,
+  hasSelectedNotes = false,
   blinkButton = null,
   mode = 'midi-edit',
   thresholdDb = -25,
@@ -279,6 +285,23 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
               </button>
             ))}
           </div>
+          {onArticulationChange && (
+            <div className="piano-roll-articulation-toolbar-group" role="group" aria-label={t('pianoRoll.articulation')}>
+              {PIANO_ROLL_ARTICULATIONS.map(({ value, icon, labelKey }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="tool-button articulation-button"
+                  disabled={!hasSelectedNotes}
+                  title={t(labelKey)}
+                  aria-label={t(labelKey)}
+                  onClick={() => onArticulationChange(value)}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

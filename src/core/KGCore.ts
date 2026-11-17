@@ -592,7 +592,8 @@ export class KGCore {
             note.getStartTick(),
             note.getEndTick(),
             note.getPitch(),
-            note.getVelocity()
+            note.getVelocity(),
+            note.getArticulation(),
           );
           clonedItems.push(clonedNote);
           break;
@@ -618,7 +619,8 @@ export class KGCore {
               note.getStartTick(),
               note.getEndTick(),
               note.getPitch(),
-              note.getVelocity()
+              note.getVelocity(),
+              note.getArticulation(),
             );
             clonedRegion.addNote(clonedNote);
           });

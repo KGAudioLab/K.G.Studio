@@ -1246,6 +1246,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(quarterNotesToTicks(1));
         KGPianoRollState.instance().setLastEditedNoteVelocity(127);
+        KGPianoRollState.instance().setLastEditedNoteArticulation(0);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
         KGPianoRollState.instance().setCurrentSnap(projectToLoad.getPianoRollSnapping());
         KGMainContentState.instance().setSnapping(projectToLoad.getIsSnappingEnabled());

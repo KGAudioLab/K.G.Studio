@@ -1,4 +1,5 @@
 import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
+import type { KGMidiNote, MidiArticulation } from '../midi/KGMidiNote';
 import type { NoteRankSelectionOptions } from '../../components/piano-roll/noteRankSelection';
 
 export const PIANO_ROLL_NO_SNAP = 'none' as const;
@@ -57,6 +58,7 @@ export class KGPianoRollState {
   private currentSnap: PianoRollSnapValue = PIANO_ROLL_NO_SNAP;
   private lastEditedNoteLength: number = 960; // Default to one quarter note
   private lastEditedNoteVelocity: number = 127;
+  private lastEditedNoteArticulation: MidiArticulation = 0;
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;
   private currentAutomationType: string = "pitch-bend";
@@ -122,6 +124,20 @@ export class KGPianoRollState {
 
   public setLastEditedNoteVelocity(velocity: number): void {
     this.lastEditedNoteVelocity = velocity;
+  }
+
+  public getLastEditedNoteArticulation(): MidiArticulation {
+    return this.lastEditedNoteArticulation;
+  }
+
+  public setLastEditedNoteArticulation(articulation: MidiArticulation): void {
+    this.lastEditedNoteArticulation = articulation;
+  }
+
+  public rememberNoteDefaults(note: KGMidiNote, useArticulation: boolean): void {
+    this.setLastEditedNoteLength(note.getEndTick() - note.getStartTick());
+    this.setLastEditedNoteVelocity(note.getVelocity());
+    this.setLastEditedNoteArticulation(useArticulation ? note.getArticulation() : 0);
   }
 
   public getCurrentMode(): string {

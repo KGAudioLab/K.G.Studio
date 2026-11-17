@@ -20,6 +20,7 @@ import { TICKS_PER_QUARTER, pixelsToTicks, ticksToPixels } from '../core/timing'
 
 interface UseNoteOperationsProps {
   activeRegion: KGMidiRegion | null;
+  useArticulation?: boolean;
   timeSignature: { numerator: number; denominator: number };
   updateTrack: (track: KGTrack) => void;
   tracks: KGTrack[];
@@ -47,6 +48,7 @@ interface DragPreviewBaseline {
 
 export const useNoteOperations = ({
   activeRegion,
+  useArticulation = false,
   timeSignature,
   updateTrack,
   tracks,
@@ -197,6 +199,7 @@ export const useNoteOperations = ({
     const lastEditedLength = pianoRollState.getLastEditedNoteLength();
     const noteEndTick = noteStartTick + lastEditedLength; // Use last edited note length
     const velocity = pianoRollState.getLastEditedNoteVelocity();
+    const articulation = useArticulation ? pianoRollState.getLastEditedNoteArticulation() : 0;
     const matchingChordPitches = pianoRollState.getCurrentMatchingChords();
     const selectedChordIndex = pianoRollState.getCurrentSelectedChordIndex();
     const cursorChordPitch = pianoRollState.getCurrentChordCursorPitch();
@@ -235,7 +238,8 @@ export const useNoteOperations = ({
           startTick: noteStartTick,
           endTick: noteEndTick,
           pitch: notePitch,
-          velocity
+          velocity,
+          articulation,
         }))
       );
       core.executeCommand(chordCommand);
@@ -246,7 +250,9 @@ export const useNoteOperations = ({
         noteStartTick,
         noteEndTick,
         notePitchesToCreate[0],
-        velocity
+        velocity,
+        undefined,
+        articulation,
       );
       core.executeCommand(singleNoteCommand);
       const createdNote = singleNoteCommand.getCreatedNote();
@@ -333,8 +339,7 @@ export const useNoteOperations = ({
 
       note.select();
       core.addSelectedItem(note);
-      KGPianoRollState.instance().setLastEditedNoteLength(note.getEndTick() - note.getStartTick());
-      KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
+      KGPianoRollState.instance().rememberNoteDefaults(note, useArticulation);
 
       const track = tracks.find(t => t.getId().toString() === activeRegion.getTrackId());
       if (track) {
@@ -605,9 +610,9 @@ export const useNoteOperations = ({
       
       KGCore.instance().executeCommand(command);
       
-      // Update last edited note length
-      const noteLength = newEndTick - newStartTick;
-      KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
+      const pianoRollState = KGPianoRollState.instance();
+      pianoRollState.setLastEditedNoteLength(newEndTick - newStartTick);
+      pianoRollState.setLastEditedNoteArticulation(useArticulation ? note.getArticulation() : 0);
       
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Executed ResizeNotesCommand: resized notes using command pattern`);
@@ -896,9 +901,9 @@ export const useNoteOperations = ({
       
       KGCore.instance().executeCommand(command);
       
-      // Update last edited note length
-      const noteLength = newEndTick - newStartTick;
-      KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
+      const pianoRollState = KGPianoRollState.instance();
+      pianoRollState.setLastEditedNoteLength(newEndTick - newStartTick);
+      pianoRollState.setLastEditedNoteArticulation(useArticulation ? note.getArticulation() : 0);
       
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Executed MoveNotesCommand: moved notes using command pattern`);

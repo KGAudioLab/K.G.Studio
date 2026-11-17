@@ -1,6 +1,6 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
-import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiNote, type MidiArticulation } from '../../midi/KGMidiNote';
 import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
@@ -13,6 +13,7 @@ export interface NoteCreationData {
   endTick: number;
   pitch: number;
   velocity: number;
+  articulation?: MidiArticulation;
   noteId?: string;
 }
 
@@ -72,7 +73,8 @@ export class CreateMidiEventsCommand extends KGCommand {
         noteData.startTick,
         noteData.endTick,
         noteData.pitch,
-        noteData.velocity
+        noteData.velocity,
+        noteData.articulation,
       );
       targetRegion.addNote(newNote);
       this.createdNotes.push({ note: newNote, regionId: noteData.regionId });

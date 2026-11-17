@@ -13,7 +13,7 @@ import NoteAttributeBar from './NoteAttributeBar';
 import PianoRollContent from './PianoRollContent';
 import { LoadingOverlay } from '../common';
 import { KGCore } from '../../core/KGCore';
-import { KGMidiNote } from '../../core/midi/KGMidiNote';
+import { KGMidiNote, type MidiArticulation } from '../../core/midi/KGMidiNote';
 import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
 import {
   KGPianoRollState,
@@ -25,7 +25,7 @@ import {
 import { ConfigManager } from '../../core/config/ConfigManager';
 import { ticksToBar, convertRegionToMidi, type RawMidiNote } from '../../util/midiUtil';
 import { downloadBlob } from '../../util/miscUtil';
-import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand, UpdateMidiRegionTransposeCommand } from '../../core/commands';
+import { ImportMidiClipCommand, ReplaceChordRegionsInRangeCommand, UpdateRegionCommand, GenerateIntelligentArpeggiatorCommand, UpdateMidiRegionTransposeCommand, UpdateNotePropertiesCommand } from '../../core/commands';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
 import { KGAudioFileStorage } from '../../core/io/KGAudioFileStorage';
 import { pixelsToTicks, ticksToPixels } from '../../core/timing';
@@ -297,6 +297,22 @@ const PianoRoll: React.FC<PianoRollProps> = ({
 
     return tracks.find(track => track.getId().toString() === activeRegion.getTrackId()) ?? null;
   }, [activeRegion, tracks]);
+  const isAiStringsRegion = !isAudioOnly && parentMidiTrack instanceof KGMidiTrack
+    && Boolean(getInstVelaInstrument(parentMidiTrack.getInstrument()));
+  const handleArticulationChange = (articulation: MidiArticulation) => {
+    if (!isAiStringsRegion || !activeRegion || selectedNotes.length === 0) return;
+
+    KGPianoRollState.instance().setLastEditedNoteArticulation(articulation);
+    const changedNotes = selectedNotes.filter(note => note.getArticulation() !== articulation);
+    if (changedNotes.length === 0) return;
+
+    KGCore.instance().executeCommand(new UpdateNotePropertiesCommand(
+      activeRegion.getId(),
+      changedNotes.map(note => ({ noteId: note.getId(), articulation: note.getArticulation() })),
+      changedNotes.map(note => ({ noteId: note.getId(), articulation })),
+    ));
+    refreshProjectState();
+  };
   const availableMidiTracks = useMemo(
     () => tracks.filter(track => track.getType() === TrackType.MIDI),
     [tracks],
@@ -775,6 +791,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         regionLengthBeats,
         detectedNotes,
         `Converted from ${sourceAudioTrack?.getName() ?? audioRegion.getName()}`,
+        undefined,
+        { interpretKeyswitches: false },
       );
       KGCore.instance().executeCommand(importCommand);
       refreshProjectState();
@@ -1848,8 +1866,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       <PianoRollHeader
         onClose={onClose}
         title={getPianoRollTitle()}
-        showAiMarker={!isAudioOnly && parentMidiTrack instanceof KGMidiTrack
-          && Boolean(getInstVelaInstrument(parentMidiTrack.getInstrument()))}
+        showAiMarker={isAiStringsRegion}
         isEditingTitle={isEditingTitle}
         titleInputValue={titleInputValue}
         onTitleClick={handleTitleClick}
@@ -1882,6 +1899,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         onModeChange={handleModeSelect}
         chordGuide={chordGuide}
         onChordGuideChange={handleChordGuideSelect}
+        onArticulationChange={isAiStringsRegion ? handleArticulationChange : undefined}
+        hasSelectedNotes={selectedNotes.length > 0}
         blinkButton={blinkButton}
         mode={currentMode}
         thresholdDb={spectrogramThresholdDb}
@@ -1947,6 +1966,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         timeSignature={timeSignature}
         activeRegion={activeRegion}
         referenceMidiRegion={referenceMidiRegion}
+        showArticulations={isAiStringsRegion}
         updateTrack={updateTrack}
         tracks={tracks}
         onSetNoteUpdateTrigger={handleSetNoteUpdateTrigger}

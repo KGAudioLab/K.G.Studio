@@ -1,6 +1,10 @@
 import { Expose } from 'class-transformer';
 import type { Selectable } from '../../components/interfaces';
 import { toTimelineTick, type TimelineTick } from '../timing';
+import { WithDefault } from '../../types/projectTypes';
+
+// 0 = regular (sustain for strings), 1 = spiccato, 2 = pizzicato, 3 = tremolo (reserved).
+export type MidiArticulation = 0 | 1 | 2 | 3;
 
 /**
  * KGMidiNote - Class representing a MIDI note in the DAW
@@ -21,16 +25,28 @@ export class KGMidiNote implements Selectable {
   
   @Expose()
   private velocity: number = 127;
+
+  @Expose()
+  @WithDefault(0)
+  private articulation: MidiArticulation = 0;
   
   @Expose()
   private selected: boolean = false;
 
-  constructor(id: string, startTick: number = 0, endTick: number = 0, pitch: number = 0, velocity: number = 127) {
+  constructor(
+    id: string,
+    startTick: number = 0,
+    endTick: number = 0,
+    pitch: number = 0,
+    velocity: number = 127,
+    articulation: MidiArticulation = 0,
+  ) {
     this.id = id;
     this.startTick = toTimelineTick(startTick);
     this.endTick = toTimelineTick(endTick);
     this.pitch = pitch;
     this.velocity = velocity;
+    this.articulation = articulation;
   }
 
   // Getters
@@ -54,6 +70,10 @@ export class KGMidiNote implements Selectable {
     return this.velocity;
   }
 
+  public getArticulation(): MidiArticulation {
+    return this.articulation;
+  }
+
   // Setters
   public setId(id: string): void {
     this.id = id;
@@ -73,6 +93,10 @@ export class KGMidiNote implements Selectable {
 
   public setVelocity(velocity: number): void {
     this.velocity = velocity;
+  }
+
+  public setArticulation(articulation: MidiArticulation): void {
+    this.articulation = articulation;
   }
   
   // Selectable interface methods

@@ -8,6 +8,7 @@ import { KGMidiControllerEvent } from '../../core/midi/KGMidiControllerEvent';
 import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../core/midi/KGMidiPitchBend';
 import { KGMidiTrack } from '../../core/track/KGMidiTrack';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import {
   clampMidiControllerValue,
@@ -849,18 +850,25 @@ const RegionEventListTab: React.FC<RegionEventListTabProps> = ({ activeMidiRegio
       const defaultVelocity = lastSelectedNote
         ? lastSelectedNote.getVelocity()
         : KGPianoRollState.instance().getLastEditedNoteVelocity();
+      const useArticulation = Boolean(getInstVelaInstrument(parentTrack.getInstrument()));
+      const defaultArticulation = useArticulation
+        ? lastSelectedNote?.getArticulation() ?? KGPianoRollState.instance().getLastEditedNoteArticulation()
+        : 0;
 
       const command = new CreateNoteCommand(
         activeMidiRegion.getId(),
         regionRelativePlayhead,
         regionRelativePlayhead + defaultLength,
         defaultPitch,
-        defaultVelocity
+        defaultVelocity,
+        undefined,
+        defaultArticulation,
       );
 
       KGCore.instance().executeCommand(command);
       KGPianoRollState.instance().setLastEditedNoteLength(defaultLength);
       KGPianoRollState.instance().setLastEditedNoteVelocity(defaultVelocity);
+      KGPianoRollState.instance().setLastEditedNoteArticulation(defaultArticulation);
       const createdNote = command.getCreatedNote();
       if (createdNote) {
         createdNote.select();

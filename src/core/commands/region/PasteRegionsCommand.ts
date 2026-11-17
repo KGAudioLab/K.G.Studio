@@ -105,7 +105,8 @@ export class PasteRegionsCommand extends KGCommand {
             note.getStartTick(),
             note.getEndTick(),
             note.getPitch(),
-            note.getVelocity()
+            note.getVelocity(),
+            note.getArticulation(),
           );
           (newRegion as KGMidiRegion).addNote(copiedNote);
         });

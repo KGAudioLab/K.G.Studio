@@ -2,6 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PIANO_ROLL_CONSTANTS, DEBUG_MODE } from '../../constants';
 import { useProjectStore } from '../../stores/projectStore';
 import { velocityToColor } from '../../util/velocityColor';
+import type { MidiArticulation } from '../../core/midi/KGMidiNote';
+import { PIANO_ROLL_ARTICULATIONS } from './pianoRollArticulation';
+
+export function PianoNoteArticulation({ articulation }: { articulation: MidiArticulation }) {
+  return (
+    <span className="piano-note-articulation" aria-hidden="true">
+      {(PIANO_ROLL_ARTICULATIONS[articulation === 3 ? 0 : articulation] ?? PIANO_ROLL_ARTICULATIONS[0]).icon}
+    </span>
+  );
+}
 
 interface PianoNoteProps {
   id: string;
@@ -11,6 +21,7 @@ interface PianoNoteProps {
   width: number;
   height: number;
   velocity: number;
+  articulation?: MidiArticulation;
   onResizeStart?: (noteId: string, resizeEdge: 'start' | 'end', initialX: number) => void;
   onResize?: (noteId: string, resizeEdge: 'start' | 'end', deltaX: number) => void;
   onResizeEnd?: (noteId: string, resizeEdge: 'start' | 'end') => void;
@@ -28,6 +39,7 @@ const PianoNote: React.FC<PianoNoteProps> = ({
   width,
   height,
   velocity,
+  articulation,
   onResizeStart,
   onResize,
   onResizeEnd,
@@ -273,7 +285,9 @@ const PianoNote: React.FC<PianoNoteProps> = ({
       data-is-resizing={isResizing}
       data-is-dragging={isDragging}
       data-is-selected={isSelected}
-    />
+    >
+      {articulation !== undefined && <PianoNoteArticulation articulation={articulation} />}
+    </div>
   );
 };
 

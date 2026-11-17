@@ -5,9 +5,17 @@ import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { GlobalTrackType } from '../../core/global-track';
 import { findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions } from '../globalTrackUtil';
 import { translate } from '../../i18n/translate';
+import type { MidiArticulation } from '../../core/midi/KGMidiNote';
 import type { InstVelaArticulation, InstVelaNote, InstVelaRequest } from './types';
 
 import { getInstVelaInstrument } from './instruments';
+
+const SCORE_ARTICULATIONS: Record<MidiArticulation, InstVelaArticulation> = {
+  0: 'sustain',
+  1: 'spiccato',
+  2: 'pizzicato',
+  3: 'sustain', // Tremolo is reserved for a future model.
+};
 
 export interface InstVelaRegion {
   id: string;
@@ -48,25 +56,17 @@ function makeRegionScore(
   meter: [number, number],
 ): InstVelaRegion | undefined {
   const instrument = getInstVelaInstrument(track.getInstrument())!;
-  const keyswitches: InstVelaArticulation[] = ['sustain', 'spiccato', 'pizzicato', 'sustain'];
   const notes = region.getNotes().map(note => ({
     start: note.getStartTick(),
     end: note.getEndTick(),
     pitch: note.getPitch(),
     velocity: Math.max(1, Math.min(127, Math.round(note.getVelocity()))),
-    keyswitch: keyswitches[note.getPitch() - instrument.keyswitch],
+    articulation: SCORE_ARTICULATIONS[note.getArticulation()] ?? SCORE_ARTICULATIONS[0],
   })).sort((a, b) => a.start - b.start
-    || Number(!a.keyswitch) - Number(!b.keyswitch)
-    || (a.keyswitch ?? '').localeCompare(b.keyswitch ?? '') || b.pitch - a.pitch || a.end - b.end
-    || a.velocity - b.velocity);
+    || b.pitch - a.pitch || a.end - b.end || a.velocity - b.velocity);
 
-  let articulation: InstVelaArticulation = 'sustain';
   const scoreNotes: InstVelaNote[] = [];
   for (const note of notes) {
-    if (note.keyswitch) {
-      articulation = note.keyswitch;
-      continue;
-    }
     const start = Math.max(0, note.start);
     const end = Math.min(region.getLengthTicks(), note.end);
     if (start < end) scoreNotes.push({
@@ -74,7 +74,7 @@ function makeRegionScore(
       end: end / TICKS_PER_QUARTER,
       pitch: note.pitch,
       velocity: note.velocity,
-      articulation,
+      articulation: note.articulation,
     });
   }
   if (!scoreNotes.length) return undefined;

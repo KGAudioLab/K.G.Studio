@@ -21,7 +21,7 @@ interface MidiRegionSnapshot {
 }
 
 function cloneNote(note: KGMidiNote, startTick: number = note.getStartTick(), endTick: number = note.getEndTick()): KGMidiNote {
-  return new KGMidiNote(note.getId(), startTick, endTick, note.getPitch(), note.getVelocity());
+  return new KGMidiNote(note.getId(), startTick, endTick, note.getPitch(), note.getVelocity(), note.getArticulation());
 }
 
 function clonePitchBend(event: KGMidiPitchBend, tick: number = event.getTick()): KGMidiPitchBend {

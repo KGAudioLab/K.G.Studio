@@ -62,6 +62,20 @@
   filter: brightness(1.1);
 }
 
+.piano-note-articulation {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 1px;
+  overflow: hidden;
+  color: #161616;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .piano-note.dragging {
   opacity: 0.8;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
@@ -270,6 +284,25 @@
   width: auto;
 }
 
+.piano-roll-toolbar:has(.piano-roll-articulation-toolbar-group) {
+  height: auto;
+  min-height: 30px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  padding-block: 4px;
+  row-gap: 4px;
+}
+
+.piano-roll-toolbar:has(.piano-roll-articulation-toolbar-group) > :is(.toolbar-left, .toolbar-right) {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.piano-roll-toolbar:has(.piano-roll-articulation-toolbar-group) > .toolbar-right {
+  margin-left: auto;
+}
+
 .piano-roll-toolbar .quant-button {
   font-size: 10px;
 }
@@ -310,10 +343,38 @@
   margin-right: 5px;
 }
 
-.piano-roll-chord-guide-toolbar-group {
+.piano-roll-chord-guide-toolbar-group,
+.piano-roll-articulation-toolbar-group {
   display: flex;
   align-items: center;
   margin-right: 5px;
+}
+
+.piano-roll-toolbar .articulation-button {
+  width: 20px;
+  min-width: 20px;
+  margin: 0;
+  border-radius: 0;
+  border: 1px solid #444;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.piano-roll-toolbar .articulation-button + .articulation-button {
+  border-left: 0;
+}
+
+.piano-roll-toolbar .articulation-button:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.piano-roll-toolbar .articulation-button:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.piano-roll-toolbar .articulation-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .piano-roll-toolbar .automation-toggle-button {
@@ -883,6 +944,10 @@
   border: 1px solid rgba(255, 77, 77, 0.8);
   pointer-events: none;
   z-index: 4;
+}
+
+.piano-grid-midi-reference-note .piano-note-articulation {
+  color: #eee;
 }
 
 .piano-grid-recording-note {

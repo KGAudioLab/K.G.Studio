@@ -52,6 +52,7 @@ function cloneMidiRegion(region: KGMidiRegion, trackId: number, trackIndex: numb
     note.getEndTick(),
     note.getPitch(),
     note.getVelocity(),
+    note.getArticulation(),
   )));
   duplicate.setPitchBends(region.getPitchBends().map(event => new KGMidiPitchBend(
     generateUniqueId('KGMidiPitchBend'),

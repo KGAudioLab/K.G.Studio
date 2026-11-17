@@ -5,7 +5,7 @@ import { KGMidiNote } from '../../core/midi/KGMidiNote';
 import { KGTrack } from '../../core/track/KGTrack';
 import { KGCore } from '../../core/KGCore';
 import { useProjectStore } from '../../stores/projectStore';
-import PianoNote from './PianoNote';
+import PianoNote, { PianoNoteArticulation } from './PianoNote';
 import PianoKeys from './PianoKeys';
 import PianoGridHeader from './PianoGridHeader';
 import PianoGrid from './PianoGrid';
@@ -18,10 +18,11 @@ import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 import PianoRollAutomationLane from './PianoRollAutomationLane';
 import type { PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric, SheetQuantization } from './sheetNotationTypes';
-import type { InstrumentType } from '../../core/track/KGMidiTrack';
+import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
 import SheetMusicView from './SheetMusicView';
 import type { PianoRollMode } from '../../constants';
 import { ticksToPixels } from '../../core/timing';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 const NOOP_SHEET_METRICS_CHANGE = (_metrics: SheetMeasureMetric[]) => {};
 
@@ -32,6 +33,7 @@ interface PianoRollContentProps {
   maxBars: number;
   timeSignature: { numerator: number; denominator: number };
   activeRegion: KGMidiRegion | null;
+  showArticulations?: boolean;
   referenceMidiRegion?: KGMidiRegion;
   updateTrack: (track: KGTrack) => void;
   tracks: KGTrack[];
@@ -72,6 +74,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   maxBars,
   timeSignature,
   activeRegion,
+  showArticulations = false,
   referenceMidiRegion,
   updateTrack,
   tracks,
@@ -147,6 +150,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     deleteSelectedNotes
   } = useNoteOperations({
     activeRegion,
+    useArticulation: showArticulations,
     timeSignature,
     updateTrack,
     tracks,
@@ -179,6 +183,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     cleanupSelectionListeners
   } = useNoteSelection({
     activeRegion,
+    useArticulation: showArticulations,
     updateTrack,
     tracks
   });
@@ -269,6 +274,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
             width={parseFloat(tempStyle.width as string)}
             height={noteHeight}
             velocity={note.getVelocity()}
+            articulation={showArticulations ? note.getArticulation() : undefined}
             onResizeStart={handleNoteResizeStart}
             onResize={handleNoteResize}
             onResizeEnd={handleNoteResizeEnd}
@@ -290,6 +296,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
           width={width}
           height={noteHeight}
           velocity={note.getVelocity()}
+          articulation={showArticulations ? note.getArticulation() : undefined}
           onResizeStart={handleNoteResizeStart}
           onResize={handleNoteResize}
           onResizeEnd={handleNoteResizeEnd}
@@ -300,7 +307,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
         />
       );
     });
-  }, [isAudioView, activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks, sheetMusicViewEnabled]);
+  }, [isAudioView, activeRegion, noteUpdateCounter, resizingNoteId, draggingNoteId, tempNoteStyles, selectedNoteIds, selectionBoxRender, tracks, sheetMusicViewEnabled, showArticulations]);
 
   const recordingNoteOverlays = useMemo(() => {
     if (!isRecording || !activeRegion || recordingNotes.length === 0) return null;
@@ -331,6 +338,9 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
     const beatWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-grid-beat-width')) || 40;
     const noteHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--region-piano-key-height')) || 20;
     const regionStartTick = referenceMidiRegion.getStartTick();
+    const referenceTrack = tracks.find(track => track.getId().toString() === referenceMidiRegion.getTrackId());
+    const referenceUsesArticulations = referenceTrack instanceof KGMidiTrack
+      && Boolean(getInstVelaInstrument(referenceTrack.getInstrument()));
 
     return referenceMidiRegion.getNotes().map(note => {
       const startTick = regionStartTick + note.getStartTick();
@@ -348,7 +358,9 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
             height: noteHeight,
             borderColor: velocityToColor(note.getVelocity()),
           }}
-        />
+        >
+          {referenceUsesArticulations && <PianoNoteArticulation articulation={note.getArticulation()} />}
+        </div>
       );
     });
   }, [mode, referenceMidiRegion, sheetMusicViewEnabled, tracks]);
