@@ -1,4 +1,5 @@
 import AireSettings from './AireSettings';
+import InstVelaSettings from './InstVelaSettings';
 import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
 import { LocalSeparatorModelCache } from '../../../util/local-separator/modelCache';
@@ -422,6 +423,7 @@ const GeneralSettings: React.FC = () => {
         </div>
 
         <AireSettings />
+        <InstVelaSettings />
       </div>
     </div>
   );

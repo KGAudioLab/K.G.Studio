@@ -137,8 +137,12 @@ export const useGlobalKeyboardHandler = () => {
         event.preventDefault();
         try {
           if (!isPlaying) {
-            startPlaying();
-            setStatus('Playback started');
+            void Promise.resolve(startPlaying()).then(started => {
+              if (started !== false) setStatus('Playback started');
+            }).catch(error => {
+              console.error('Play/pause failed:', error);
+              setStatus('Play/pause failed');
+            });
           } else {
             stopTransport();
             setStatus(isRecording ? 'Recording stopped — notes committed' : 'Playback stopped');

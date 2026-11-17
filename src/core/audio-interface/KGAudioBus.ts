@@ -9,6 +9,7 @@ import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { createStereoTrackPanner } from './createStereoTrackPanner';
 import { resolveInstrumentDefinition, resolvePlaybackInstrument } from '../instruments/instrumentResolver';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 // InstrumentType is defined in KGMidiTrack and re-used here
 
@@ -48,6 +49,8 @@ export class KGAudioBus {
   private liveExpressionNormalized: number = 1;
   private sustainPedalDown: boolean = false;
   private liveMidiSources: Map<number, LiveMidiSource[]> = new Map();
+  private renderedSources = new Set<Tone.ToneBufferSource>();
+  private renderedVolume?: Tone.Volume;
   
   // Audio processing chain (for future expansion)
   // private gain: Tone.Gain;
@@ -106,7 +109,7 @@ export class KGAudioBus {
       // Create the sampler using the factory
       const samplerFactory = KGToneSamplerFactory.instance();
       const buffersPool = KGToneBuffersPool.instance();
-      const playbackInstrument = resolvePlaybackInstrument(String(instrument));
+      const playbackInstrument = getInstVelaInstrument(String(instrument))?.preview ?? resolvePlaybackInstrument(String(instrument));
       const [sampler, audioBuffers] = await Promise.all([
         samplerFactory.createSampler(playbackInstrument),
         buffersPool.getToneAudioBuffers(playbackInstrument),
@@ -312,6 +315,10 @@ export class KGAudioBus {
    * Release all currently playing notes
    */
   public releaseAll(): void {
+    for (const source of this.renderedSources) {
+      try { source.stop(); } catch { /* Source already ended. */ }
+    }
+    this.renderedSources.clear();
     try {
       this.sampler.releaseAll();
       this.liveMidiSources.forEach((activeSources) => {
@@ -331,6 +338,22 @@ export class KGAudioBus {
     } catch (error) {
       console.error(`Error releasing all notes on ${this.instrument}:`, error);
     }
+  }
+
+  public startRenderedRegion(buffer: AudioBuffer, time: number, offset: number, duration: number, hasSoloedTracks: boolean): void {
+    if (!this.renderedVolume) {
+      this.renderedVolume = new Tone.Volume();
+      this.renderedVolume.connect(this.panner);
+      this.applyEffectiveVolume(hasSoloedTracks);
+    }
+    const source = new Tone.ToneBufferSource(new Tone.ToneAudioBuffer(buffer));
+    source.connect(this.renderedVolume);
+    this.renderedSources.add(source);
+    source.onended = () => {
+      this.renderedSources.delete(source);
+      source.dispose();
+    };
+    source.start(time, offset, duration);
   }
 
   // ===== AUDIO PROPERTIES =====
@@ -434,7 +457,7 @@ export class KGAudioBus {
       // Create new sampler with new instrument
       const samplerFactory = KGToneSamplerFactory.instance();
       const buffersPool = KGToneBuffersPool.instance();
-      const playbackInstrument = resolvePlaybackInstrument(String(newInstrument));
+      const playbackInstrument = getInstVelaInstrument(String(newInstrument))?.preview ?? resolvePlaybackInstrument(String(newInstrument));
       const [sampler, audioBuffers] = await Promise.all([
         samplerFactory.createSampler(playbackInstrument),
         buffersPool.getToneAudioBuffers(playbackInstrument),
@@ -502,6 +525,7 @@ export class KGAudioBus {
     try {
       this.releaseAll();
       this.sampler.dispose();
+      this.renderedVolume?.dispose();
       this.panner.dispose();
       this.fxChain.dispose();
       console.log(`Disposed KGAudioBus for ${this.instrument}`);
@@ -519,7 +543,7 @@ export class KGAudioBus {
     try {
       const effectiveVolume = this.automationVolume ?? this.volume;
       const isSilent = this.muted || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
-      this.sampler.volume.value = isSilent ? -Infinity : effectiveVolume;
+      this.setSourceVolume(isSilent ? -Infinity : effectiveVolume);
     } catch (error) {
       console.error(`Error updating volume for ${this.instrument}:`, error);
     }
@@ -546,10 +570,15 @@ export class KGAudioBus {
     try {
       const effectiveVolume = this.automationVolume ?? this.volume;
       const isSilent = (hasSoloedTracks ? !this.solo : this.muted) || effectiveVolume <= AUDIO_INTERFACE_CONSTANTS.MIN_TRACK_VOLUME_DB;
-      this.sampler.volume.value = isSilent ? -Infinity : effectiveVolume;
+      this.setSourceVolume(isSilent ? -Infinity : effectiveVolume);
     } catch (error) {
       console.error(`Error applying effective volume for ${this.instrument}:`, error);
     }
+  }
+
+  private setSourceVolume(db: number): void {
+    this.sampler.volume.value = db;
+    if (this.renderedVolume) this.renderedVolume.volume.value = db;
   }
 
   /**
@@ -664,7 +693,8 @@ export class KGAudioBus {
     audioBuffers: Tone.ToneAudioBuffers,
     targetPitch: number
   ): number | null {
-    const [minPitch, maxPitch] = resolveInstrumentDefinition(String(instrument))?.pitchRange || [21, 108];
+    const preview = getInstVelaInstrument(String(instrument))?.preview ?? instrument;
+    const [minPitch, maxPitch] = resolveInstrumentDefinition(String(preview))?.pitchRange || [21, 108];
     const boundedPitch = Math.max(minPitch, Math.min(maxPitch, targetPitch));
 
     for (let offset = 0; offset <= 96; offset++) {

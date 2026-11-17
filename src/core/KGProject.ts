@@ -68,6 +68,10 @@ export class KGProject {
   private isMetronomeEnabled: boolean = false;
 
   @Expose()
+  @WithDefault(true)
+  private instVelaAutoRender: boolean = true;
+
+  @Expose()
   @WithDefault(0)
   private playheadTick: TimelineTick = toTimelineTick(0);
 
@@ -169,6 +173,14 @@ export class KGProject {
 
   public getBpm(): number {
     return this.bpm;
+  }
+
+  public getInstVelaAutoRender(): boolean {
+    return this.instVelaAutoRender ?? true;
+  }
+
+  public setInstVelaAutoRender(enabled: boolean): void {
+    this.instVelaAutoRender = enabled;
   }
 
   public getKeySignature(): KeySignature {

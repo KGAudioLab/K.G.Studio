@@ -241,6 +241,33 @@
   transition: width 0.15s linear;
 }
 
+.instvela-card-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.instvela-card-body img {
+  flex: none;
+}
+
+.instvela-card-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.instvela-queue h4 {
+  margin: 0 0 8px;
+}
+
+.instvela-queue ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
 .kgone-region-info {
   background-color: #252525;
   border: 1px solid #3a3a3a;

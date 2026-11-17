@@ -29,11 +29,13 @@ import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { KGAudioInterface } from './KGAudioInterface';
 import { KGAudioBus } from './KGAudioBus';
-import { tickRangeToSeconds, tickToSeconds, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions } from '../../util/globalTrackUtil';
+import { tickRangeToSeconds, tickToSeconds, secondsToTick, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../global-track';
 import { ConfigManager } from '../config/ConfigManager';
 import { Mp3Encoder } from '@breezystack/lamejs';
 import { createStereoTrackPanner } from './createStereoTrackPanner';
+import { instVelaRenderer } from '../../util/instvela/renderer';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 export interface RenderOptions {
   sampleRate?: number;  // default 44100
@@ -97,6 +99,8 @@ export class KGOfflineRenderer {
     const sampleRate = options?.sampleRate ?? 44100;
     const channels = options?.channels ?? 2;
     const requestedTailSeconds = options?.tailSeconds ?? 2;
+    await instVelaRenderer.prepareProject(project);
+    const renderedStrings = instVelaRenderer.getProjectBuffers(project);
 
     // Calculate render duration in seconds
     const bpm = getEffectiveBpmAtTick(project, 0);
@@ -178,6 +182,27 @@ export class KGOfflineRenderer {
         const muted = audioInterface.getTrackMuted(trackId);
         const solo = audioInterface.getTrackSolo(trackId);
         if (solo) hasSoloedTracks = true;
+
+        if (getInstVelaInstrument(instrumentName)) {
+          const regions = track.getRegions().flatMap(region => {
+            const rawBuffer = renderedStrings.get(region.getId());
+            if (!rawBuffer) return [];
+            const startTick = region.getStartTick();
+            const audioDurationSeconds = rawBuffer.duration;
+            return [{
+              startTick,
+              lengthTicks: secondsToTick(project, tickToSeconds(project, startTick) + audioDurationSeconds) - startTick,
+              audioFileId: region.getId(),
+              clipStartOffsetSeconds: 0,
+              audioDurationSeconds,
+              rawBuffer,
+            }];
+          });
+          const volumeAutomation = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+          const panAutomation = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+          audioTrackData.push({ fx: track.getFX().map(effect => effect.clone()), trackId, volume, muted, solo, volumeAutomation, panAutomation, regions });
+          continue;
+        }
 
         const regions: typeof midiTrackData[0]['regions'] = [];
         for (const region of track.getRegions()) {

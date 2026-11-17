@@ -1,0 +1,682 @@
+{
+  "m01-violin-onnx-v1": {
+    "ac_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "1dbe7c9f7c73aef5f17bfab98c2122eb3e320753d385add22f69659a62006f16"
+    },
+    "ac_step.onnx": {
+      "bytes": 19220897,
+      "sha256": "11713108749eed4d0dd42cf9ff0d20e0f7fe4db2886cd4f98b06ca7a40ab285c"
+    },
+    "f0_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "fd24ee6cb6eb4938944538fce1280d2e1506f7d34e0f3905fe0763cc5ce6203f"
+    },
+    "f0_step.onnx": {
+      "bytes": 4514556,
+      "sha256": "a4e6e13ab2564126e0fee14f5e3e39a6030031b8ccf0664dccd84b6ef2b538e0"
+    },
+    "m01_constants.json": {
+      "bytes": 4091,
+      "sha256": "a888c191b53f01ea4232599f10afa64ab9f5dd4afb176b7c15f044ff6420c5ac"
+    },
+    "selftest/ac_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/ac_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/ac_cond.json": {
+      "bytes": 435,
+      "sha256": "2d95adf915823216f071a37c12c4a9d88e2aa092dfc8dce1c9b4c9c7f1d692e7"
+    },
+    "selftest/ac_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "dcfaa52955c6b7d5aadabcb25d3653a8803c90fc828c9701f805868a7823183d"
+    },
+    "selftest/ac_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "dcfaa52955c6b7d5aadabcb25d3653a8803c90fc828c9701f805868a7823183d"
+    },
+    "selftest/ac_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/ac_step.input.f0.bin": {
+      "bytes": 1600,
+      "sha256": "e730143a290b225e2a7dc13ffb83c1e196d183107c38ddebfa6995f853dbc68d"
+    },
+    "selftest/ac_step.input.known.bin": {
+      "bytes": 76800,
+      "sha256": "aad15376f8ceb1bde23e5b5a3dba8651ac9a65a907292bf3f7bbc58ced35a1c2"
+    },
+    "selftest/ac_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/ac_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/ac_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "b3f689962d5d23d2c4d34e32885e60cb9af0119e64bbf4ce2446694c45d9cdb9"
+    },
+    "selftest/ac_step.input.voicing.bin": {
+      "bytes": 1600,
+      "sha256": "7da902a745287e38e31889b0475f83d46108696593f0d5379b4cdf1d985f9ec0"
+    },
+    "selftest/ac_step.input.z_t.bin": {
+      "bytes": 76800,
+      "sha256": "3cefd6a18ed5e70ae93ba3f316e569cd65ce2a01f855dfb3c96fed8a01aa7d33"
+    },
+    "selftest/ac_step.json": {
+      "bytes": 1203,
+      "sha256": "bd08bd886e623faf50930a8fe0f1972c68ab715588bf40e039a5a820d4c969eb"
+    },
+    "selftest/ac_step.output.velocity.bin": {
+      "bytes": 76800,
+      "sha256": "f39e1735624c3c1eee26f6cb44862e1380a4185627c8c7aeffeda21f02b9fe4d"
+    },
+    "selftest/f0_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/f0_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/f0_cond.json": {
+      "bytes": 435,
+      "sha256": "838951bbe578c97061ea37ff23829e932fa9097878158af0b703c8901b3868b4"
+    },
+    "selftest/f0_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "1d075717b6516924758a758d83901cdaa3e46387f33f37a3e543b7d1aa4d0126"
+    },
+    "selftest/f0_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "1d075717b6516924758a758d83901cdaa3e46387f33f37a3e543b7d1aa4d0126"
+    },
+    "selftest/f0_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/f0_step.input.known.bin": {
+      "bytes": 1600,
+      "sha256": "c0c019c7c8cc89d13a3ed2c7d281854e73e4df4a36f927a172166ae9fbe11384"
+    },
+    "selftest/f0_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/f0_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/f0_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "de542fc62a6e0c5825b67e86eab7c4b006821f8b543ec347754dca5d414b5244"
+    },
+    "selftest/f0_step.input.x_t.bin": {
+      "bytes": 1600,
+      "sha256": "5cd2070276f818be2732f0badfd70eee22f2b25db7567b0093dfb11c5d663c64"
+    },
+    "selftest/f0_step.json": {
+      "bytes": 1100,
+      "sha256": "3e832113cbd5714fb69d17ce2a728a3c7180303b703a11d1812d0492d05de3ed"
+    },
+    "selftest/f0_step.output.velocity.bin": {
+      "bytes": 1600,
+      "sha256": "98f978ddbd870333313485539477fad2f37fe055450a963917b4dbb09a01e54f"
+    },
+    "selftest/f0_step.output.voicing_logit.bin": {
+      "bytes": 1600,
+      "sha256": "47e208c3e5ba0f2dd6d2734efe854010b6593a8ebccd0caa07d22ea28b27c254"
+    },
+    "selftest/vocoder.input.f0_hz.bin": {
+      "bytes": 400,
+      "sha256": "caa6071e894e860e61bc1b80e5a22c0903868402bcf2deb1be568b5d5abc3f0f"
+    },
+    "selftest/vocoder.input.noise.bin": {
+      "bytes": 864000,
+      "sha256": "ed476cc0466fda2dd8168adee18baab58030d9777bbb8c851cb88cef4699c96d"
+    },
+    "selftest/vocoder.input.phase0.bin": {
+      "bytes": 4,
+      "sha256": "45a6d738a7607576d3fe0862200bc67b10c12d5ed74167b4d5d5a708974c0f32"
+    },
+    "selftest/vocoder.input.voiced.bin": {
+      "bytes": 400,
+      "sha256": "e985c32fd28bde405da64bc903c85250a82a0fa3d2291eca21abbd52b26f503d"
+    },
+    "selftest/vocoder.input.z.bin": {
+      "bytes": 19200,
+      "sha256": "958570a8b0e4381e0ad97a411f5cd357b8c1c49c1b9d1abad5ccb8588c78d2e0"
+    },
+    "selftest/vocoder.json": {
+      "bytes": 754,
+      "sha256": "86c6e724157d8c78f313e5f705ea17dc9cdb51b6144071b46c7422c22d684da0"
+    },
+    "selftest/vocoder.output.wave.bin": {
+      "bytes": 96000,
+      "sha256": "f523450f6ab32a1a514a53f5600c6099d45bb37fdf9d1ffaa761af10a6256dc9"
+    },
+    "vocoder.onnx": {
+      "bytes": 20299211,
+      "sha256": "70005c2e49fe8af1e7e43bab2fba68c8186e7ae88b825aa2c21322b15a5b6140"
+    }
+  },
+  "m01-viola-onnx-v1": {
+    "ac_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "87c14e53b3d066ca78f6e0cdfdd97dfb5db5d1f55848f46eb305bd71a5ebf431"
+    },
+    "ac_step.onnx": {
+      "bytes": 19220897,
+      "sha256": "922ddeaf95229f95f59dac7ebe5bd7d166a05dc56e35faafce1b0d17e4309139"
+    },
+    "f0_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "ecabe2be68fa0e6f6259add65351cfd6971022972f9648e60e2d96a2c94359fe"
+    },
+    "f0_step.onnx": {
+      "bytes": 4514556,
+      "sha256": "94b8d3ec59511006205bb4b28d83fc9bcc734c79ffb5a37b94af6e78da218d03"
+    },
+    "m01_constants.json": {
+      "bytes": 4126,
+      "sha256": "805caabc0594de4ef0929277a75e558a9cc9fc3ef6cefd45630eda4fa6f4ac9d"
+    },
+    "selftest/ac_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/ac_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/ac_cond.json": {
+      "bytes": 435,
+      "sha256": "2d95adf915823216f071a37c12c4a9d88e2aa092dfc8dce1c9b4c9c7f1d692e7"
+    },
+    "selftest/ac_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "ce9614ed649c10080620a5a9c54829c0efaba18bacb8a7af8f783e21016a2559"
+    },
+    "selftest/ac_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "ce9614ed649c10080620a5a9c54829c0efaba18bacb8a7af8f783e21016a2559"
+    },
+    "selftest/ac_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/ac_step.input.f0.bin": {
+      "bytes": 1600,
+      "sha256": "e730143a290b225e2a7dc13ffb83c1e196d183107c38ddebfa6995f853dbc68d"
+    },
+    "selftest/ac_step.input.known.bin": {
+      "bytes": 76800,
+      "sha256": "aad15376f8ceb1bde23e5b5a3dba8651ac9a65a907292bf3f7bbc58ced35a1c2"
+    },
+    "selftest/ac_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/ac_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/ac_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "b3f689962d5d23d2c4d34e32885e60cb9af0119e64bbf4ce2446694c45d9cdb9"
+    },
+    "selftest/ac_step.input.voicing.bin": {
+      "bytes": 1600,
+      "sha256": "7da902a745287e38e31889b0475f83d46108696593f0d5379b4cdf1d985f9ec0"
+    },
+    "selftest/ac_step.input.z_t.bin": {
+      "bytes": 76800,
+      "sha256": "3cefd6a18ed5e70ae93ba3f316e569cd65ce2a01f855dfb3c96fed8a01aa7d33"
+    },
+    "selftest/ac_step.json": {
+      "bytes": 1203,
+      "sha256": "bd08bd886e623faf50930a8fe0f1972c68ab715588bf40e039a5a820d4c969eb"
+    },
+    "selftest/ac_step.output.velocity.bin": {
+      "bytes": 76800,
+      "sha256": "6ea0bb9f4cd68ce65c0265bc1365b06e72b8579df4e56527d6b24c713bee7ab6"
+    },
+    "selftest/f0_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/f0_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/f0_cond.json": {
+      "bytes": 435,
+      "sha256": "838951bbe578c97061ea37ff23829e932fa9097878158af0b703c8901b3868b4"
+    },
+    "selftest/f0_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "36fee568e5b88f74f77020fdd5fafd5cb1f34abb15baddf7009aa8972eb1203c"
+    },
+    "selftest/f0_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "36fee568e5b88f74f77020fdd5fafd5cb1f34abb15baddf7009aa8972eb1203c"
+    },
+    "selftest/f0_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/f0_step.input.known.bin": {
+      "bytes": 1600,
+      "sha256": "c0c019c7c8cc89d13a3ed2c7d281854e73e4df4a36f927a172166ae9fbe11384"
+    },
+    "selftest/f0_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/f0_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/f0_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "de542fc62a6e0c5825b67e86eab7c4b006821f8b543ec347754dca5d414b5244"
+    },
+    "selftest/f0_step.input.x_t.bin": {
+      "bytes": 1600,
+      "sha256": "5cd2070276f818be2732f0badfd70eee22f2b25db7567b0093dfb11c5d663c64"
+    },
+    "selftest/f0_step.json": {
+      "bytes": 1100,
+      "sha256": "3e832113cbd5714fb69d17ce2a728a3c7180303b703a11d1812d0492d05de3ed"
+    },
+    "selftest/f0_step.output.velocity.bin": {
+      "bytes": 1600,
+      "sha256": "adbdf5d94de8ffb6f47a78ec062b6c284a64e2fd097937343bc5523de03767c9"
+    },
+    "selftest/f0_step.output.voicing_logit.bin": {
+      "bytes": 1600,
+      "sha256": "e50f6c3442e7c6c14fc626a017ba3eba74e7d2023f1f1d34b169e78983c9057b"
+    },
+    "selftest/vocoder.input.f0_hz.bin": {
+      "bytes": 400,
+      "sha256": "caa6071e894e860e61bc1b80e5a22c0903868402bcf2deb1be568b5d5abc3f0f"
+    },
+    "selftest/vocoder.input.noise.bin": {
+      "bytes": 864000,
+      "sha256": "ed476cc0466fda2dd8168adee18baab58030d9777bbb8c851cb88cef4699c96d"
+    },
+    "selftest/vocoder.input.phase0.bin": {
+      "bytes": 4,
+      "sha256": "45a6d738a7607576d3fe0862200bc67b10c12d5ed74167b4d5d5a708974c0f32"
+    },
+    "selftest/vocoder.input.voiced.bin": {
+      "bytes": 400,
+      "sha256": "e985c32fd28bde405da64bc903c85250a82a0fa3d2291eca21abbd52b26f503d"
+    },
+    "selftest/vocoder.input.z.bin": {
+      "bytes": 19200,
+      "sha256": "958570a8b0e4381e0ad97a411f5cd357b8c1c49c1b9d1abad5ccb8588c78d2e0"
+    },
+    "selftest/vocoder.json": {
+      "bytes": 754,
+      "sha256": "86c6e724157d8c78f313e5f705ea17dc9cdb51b6144071b46c7422c22d684da0"
+    },
+    "selftest/vocoder.output.wave.bin": {
+      "bytes": 96000,
+      "sha256": "133ef7a2ca352bd99caff750dd2e53e29d8136bb19b9c94720228e18b9000af6"
+    },
+    "vocoder.onnx": {
+      "bytes": 20299211,
+      "sha256": "0de7aa3302a01f7546e3c6364b3d7841f919c5932a93f696f1ea16e849061ada"
+    }
+  },
+  "m01-cello-onnx-v1": {
+    "ac_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "4005125bf4af983a8fa41bb50bc9c41c88c6cd4748329240b8fafa29183c81f5"
+    },
+    "ac_step.onnx": {
+      "bytes": 19220897,
+      "sha256": "97efd868ecfa661b6f1f9b38a637f39645b640baa9bcaefd630ad5e405493deb"
+    },
+    "f0_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "485ecc96691757e2d307db7246157ffee2ba2810753df57038ca0e599e686479"
+    },
+    "f0_step.onnx": {
+      "bytes": 4514556,
+      "sha256": "1df3f972e4301727e48a25d6cbcee02943592ec05ea1df1c121d6f4599dca0e9"
+    },
+    "m01_constants.json": {
+      "bytes": 4165,
+      "sha256": "9e537fc8179ed3f8ee3f074a799ed978ef23314620026391d735bd843732b679"
+    },
+    "selftest/ac_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/ac_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/ac_cond.json": {
+      "bytes": 435,
+      "sha256": "2d95adf915823216f071a37c12c4a9d88e2aa092dfc8dce1c9b4c9c7f1d692e7"
+    },
+    "selftest/ac_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "ef1439ddd897f44e9bb067e4dda80944f9f10144d4b3d9965314a0041176e410"
+    },
+    "selftest/ac_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "ef1439ddd897f44e9bb067e4dda80944f9f10144d4b3d9965314a0041176e410"
+    },
+    "selftest/ac_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/ac_step.input.f0.bin": {
+      "bytes": 1600,
+      "sha256": "e730143a290b225e2a7dc13ffb83c1e196d183107c38ddebfa6995f853dbc68d"
+    },
+    "selftest/ac_step.input.known.bin": {
+      "bytes": 76800,
+      "sha256": "aad15376f8ceb1bde23e5b5a3dba8651ac9a65a907292bf3f7bbc58ced35a1c2"
+    },
+    "selftest/ac_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/ac_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/ac_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "b3f689962d5d23d2c4d34e32885e60cb9af0119e64bbf4ce2446694c45d9cdb9"
+    },
+    "selftest/ac_step.input.voicing.bin": {
+      "bytes": 1600,
+      "sha256": "7da902a745287e38e31889b0475f83d46108696593f0d5379b4cdf1d985f9ec0"
+    },
+    "selftest/ac_step.input.z_t.bin": {
+      "bytes": 76800,
+      "sha256": "3cefd6a18ed5e70ae93ba3f316e569cd65ce2a01f855dfb3c96fed8a01aa7d33"
+    },
+    "selftest/ac_step.json": {
+      "bytes": 1203,
+      "sha256": "bd08bd886e623faf50930a8fe0f1972c68ab715588bf40e039a5a820d4c969eb"
+    },
+    "selftest/ac_step.output.velocity.bin": {
+      "bytes": 76800,
+      "sha256": "351a1d8676881ce5a398bac30ec78466801a350d567ebd66659c1e6235e015ae"
+    },
+    "selftest/f0_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/f0_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/f0_cond.json": {
+      "bytes": 435,
+      "sha256": "838951bbe578c97061ea37ff23829e932fa9097878158af0b703c8901b3868b4"
+    },
+    "selftest/f0_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "e06531b64d904f98b68cb10b191859ad8e6334c9391ac3e55a7fb94ff8eced93"
+    },
+    "selftest/f0_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "e06531b64d904f98b68cb10b191859ad8e6334c9391ac3e55a7fb94ff8eced93"
+    },
+    "selftest/f0_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/f0_step.input.known.bin": {
+      "bytes": 1600,
+      "sha256": "c0c019c7c8cc89d13a3ed2c7d281854e73e4df4a36f927a172166ae9fbe11384"
+    },
+    "selftest/f0_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/f0_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/f0_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "de542fc62a6e0c5825b67e86eab7c4b006821f8b543ec347754dca5d414b5244"
+    },
+    "selftest/f0_step.input.x_t.bin": {
+      "bytes": 1600,
+      "sha256": "5cd2070276f818be2732f0badfd70eee22f2b25db7567b0093dfb11c5d663c64"
+    },
+    "selftest/f0_step.json": {
+      "bytes": 1100,
+      "sha256": "3e832113cbd5714fb69d17ce2a728a3c7180303b703a11d1812d0492d05de3ed"
+    },
+    "selftest/f0_step.output.velocity.bin": {
+      "bytes": 1600,
+      "sha256": "67bfefdd41cd5211264d231d22376eeae3fd07473f8386d8300770dd40faecba"
+    },
+    "selftest/f0_step.output.voicing_logit.bin": {
+      "bytes": 1600,
+      "sha256": "374d3219c633a295d81d3c1c22055d0fa94f41310f099a93d1c4ee72603a587e"
+    },
+    "selftest/vocoder.input.f0_hz.bin": {
+      "bytes": 400,
+      "sha256": "caa6071e894e860e61bc1b80e5a22c0903868402bcf2deb1be568b5d5abc3f0f"
+    },
+    "selftest/vocoder.input.noise.bin": {
+      "bytes": 864000,
+      "sha256": "ed476cc0466fda2dd8168adee18baab58030d9777bbb8c851cb88cef4699c96d"
+    },
+    "selftest/vocoder.input.phase0.bin": {
+      "bytes": 4,
+      "sha256": "45a6d738a7607576d3fe0862200bc67b10c12d5ed74167b4d5d5a708974c0f32"
+    },
+    "selftest/vocoder.input.voiced.bin": {
+      "bytes": 400,
+      "sha256": "e985c32fd28bde405da64bc903c85250a82a0fa3d2291eca21abbd52b26f503d"
+    },
+    "selftest/vocoder.input.z.bin": {
+      "bytes": 19200,
+      "sha256": "958570a8b0e4381e0ad97a411f5cd357b8c1c49c1b9d1abad5ccb8588c78d2e0"
+    },
+    "selftest/vocoder.json": {
+      "bytes": 754,
+      "sha256": "86c6e724157d8c78f313e5f705ea17dc9cdb51b6144071b46c7422c22d684da0"
+    },
+    "selftest/vocoder.output.wave.bin": {
+      "bytes": 96000,
+      "sha256": "b8f4241ed83881a89f1abef0f448838b4adc56dd9aa0594a7d5908d2ce584baa"
+    },
+    "vocoder.onnx": {
+      "bytes": 20299211,
+      "sha256": "9f6bd10fe1d6cf74d6caeaee8ee8074fa26dcb1258b54a8fb28f4e286049fe8a"
+    }
+  },
+  "m01-double-bass-onnx-v1": {
+    "ac_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "0c9fa35e7931b76590cb139824d63e6703ea3fc1b00b097b6dee5322295b3f9c"
+    },
+    "ac_step.onnx": {
+      "bytes": 19220897,
+      "sha256": "a90dd477bbbb91309eaf940fcf389f9dc8b15099576b9bf3a678e8de3fc502a4"
+    },
+    "f0_cond.onnx": {
+      "bytes": 111710,
+      "sha256": "e491b39d0e8d3364c280e2561f71d5cc70001ec7fdc7cb3ac7797eba76183f4f"
+    },
+    "f0_step.onnx": {
+      "bytes": 4514556,
+      "sha256": "ed874d1d9d7236a15390406a78907e8ff8fadbb1270a035bbc345df596754527"
+    },
+    "m01_constants.json": {
+      "bytes": 4172,
+      "sha256": "73556b48999c1d56e17c2740d791c0d3991be4b70343872a40cf0862d828dc69"
+    },
+    "selftest/ac_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/ac_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/ac_cond.json": {
+      "bytes": 435,
+      "sha256": "2d95adf915823216f071a37c12c4a9d88e2aa092dfc8dce1c9b4c9c7f1d692e7"
+    },
+    "selftest/ac_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "f219fffabcf056cac2f44c5fadb5357833efbe78efcbde2e2453e02a7fc3edef"
+    },
+    "selftest/ac_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "f219fffabcf056cac2f44c5fadb5357833efbe78efcbde2e2453e02a7fc3edef"
+    },
+    "selftest/ac_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/ac_step.input.f0.bin": {
+      "bytes": 1600,
+      "sha256": "4b81b50325c362b1cc2f03911d80eaec60111d1e95ea820060ef73f71b500e44"
+    },
+    "selftest/ac_step.input.known.bin": {
+      "bytes": 76800,
+      "sha256": "7ea4d4f5fb1eedcc523050379bebc89ab968d62caf15861329cc4518b4ee169e"
+    },
+    "selftest/ac_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/ac_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/ac_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "b3f689962d5d23d2c4d34e32885e60cb9af0119e64bbf4ce2446694c45d9cdb9"
+    },
+    "selftest/ac_step.input.voicing.bin": {
+      "bytes": 1600,
+      "sha256": "7da902a745287e38e31889b0475f83d46108696593f0d5379b4cdf1d985f9ec0"
+    },
+    "selftest/ac_step.input.z_t.bin": {
+      "bytes": 76800,
+      "sha256": "6dc171a435b16d00d5a99bdee709ce039aab1c4803c7d1eef366069c0440907a"
+    },
+    "selftest/ac_step.json": {
+      "bytes": 1203,
+      "sha256": "bd08bd886e623faf50930a8fe0f1972c68ab715588bf40e039a5a820d4c969eb"
+    },
+    "selftest/ac_step.output.velocity.bin": {
+      "bytes": 76800,
+      "sha256": "bf47ba1c64412b1005992a03c9a0bb2e2e910155f5eec0307a7b28a73e530a09"
+    },
+    "selftest/f0_cond.input.categorical.bin": {
+      "bytes": 6400,
+      "sha256": "4c6fb04761d620963c9124d93aa313c20206cba74a930e28ea184624e751e6c8"
+    },
+    "selftest/f0_cond.input.continuous.bin": {
+      "bytes": 28800,
+      "sha256": "34e922f21d27ecfda4dc5e39c6569e2000824b03272248b9b997aaa98da4dc5d"
+    },
+    "selftest/f0_cond.json": {
+      "bytes": 435,
+      "sha256": "838951bbe578c97061ea37ff23829e932fa9097878158af0b703c8901b3868b4"
+    },
+    "selftest/f0_cond.output.cond.bin": {
+      "bytes": 204800,
+      "sha256": "a81e08c0b84d86a37bd0224bcad4fb6f74a3c422f69b623aab0f36a6675ff0bd"
+    },
+    "selftest/f0_step.input.cond.bin": {
+      "bytes": 204800,
+      "sha256": "a81e08c0b84d86a37bd0224bcad4fb6f74a3c422f69b623aab0f36a6675ff0bd"
+    },
+    "selftest/f0_step.input.drop.bin": {
+      "bytes": 2,
+      "sha256": "b413f47d13ee2fe6c845b2ee141af81de858df4ec549a58b7970bb96645bc8d2"
+    },
+    "selftest/f0_step.input.known.bin": {
+      "bytes": 1600,
+      "sha256": "a6619709fa1490f33418b3eb1e38c1b6799e84243c287432d1041779de86f1fd"
+    },
+    "selftest/f0_step.input.known_mask.bin": {
+      "bytes": 1600,
+      "sha256": "c8594e130a0cf90da71412b5a261d59bfd8b6f261f2842bf98e4be987dcda65c"
+    },
+    "selftest/f0_step.input.mask.bin": {
+      "bytes": 400,
+      "sha256": "2702df6a1da35921b998451e8506f993dd891f37194d4ffeeea242f5a833b752"
+    },
+    "selftest/f0_step.input.t.bin": {
+      "bytes": 8,
+      "sha256": "de542fc62a6e0c5825b67e86eab7c4b006821f8b543ec347754dca5d414b5244"
+    },
+    "selftest/f0_step.input.x_t.bin": {
+      "bytes": 1600,
+      "sha256": "56f4678ba55b5fbd98468daa97daeb7924c18ae7dd9f199b57203cb23bce30f8"
+    },
+    "selftest/f0_step.json": {
+      "bytes": 1100,
+      "sha256": "3e832113cbd5714fb69d17ce2a728a3c7180303b703a11d1812d0492d05de3ed"
+    },
+    "selftest/f0_step.output.velocity.bin": {
+      "bytes": 1600,
+      "sha256": "a966480d0730f28d98ad31b3b2e0fb893bb1c2e8709cd446d327eb30483af398"
+    },
+    "selftest/f0_step.output.voicing_logit.bin": {
+      "bytes": 1600,
+      "sha256": "487ebe6f786c0a7ed73b38c031c8bb1bd52571f85179cec06168ee316801be58"
+    },
+    "selftest/vocoder.input.f0_hz.bin": {
+      "bytes": 400,
+      "sha256": "caa6071e894e860e61bc1b80e5a22c0903868402bcf2deb1be568b5d5abc3f0f"
+    },
+    "selftest/vocoder.input.noise.bin": {
+      "bytes": 12288000,
+      "sha256": "95a76e437df57840a935a965d340e5aa7c55d3986e9b5af4e3adc148016c680e"
+    },
+    "selftest/vocoder.input.phase0.bin": {
+      "bytes": 4,
+      "sha256": "45a6d738a7607576d3fe0862200bc67b10c12d5ed74167b4d5d5a708974c0f32"
+    },
+    "selftest/vocoder.input.voiced.bin": {
+      "bytes": 400,
+      "sha256": "e985c32fd28bde405da64bc903c85250a82a0fa3d2291eca21abbd52b26f503d"
+    },
+    "selftest/vocoder.input.z.bin": {
+      "bytes": 19200,
+      "sha256": "958570a8b0e4381e0ad97a411f5cd357b8c1c49c1b9d1abad5ccb8588c78d2e0"
+    },
+    "selftest/vocoder.json": {
+      "bytes": 756,
+      "sha256": "5debb0d8bdcf5c2a62d06761ef84614d43c9b28d5654958ff295d048772cfa35"
+    },
+    "selftest/vocoder.output.wave.bin": {
+      "bytes": 96000,
+      "sha256": "b1b432427bce5e2b5aaa636f59670472c75a0f628720df446ab997f0b081df07"
+    },
+    "vocoder.onnx": {
+      "bytes": 20300651,
+      "sha256": "e9955d95a1dbbda6b06849c12ff523529a91308f2b7924cab5aedb65ccf19054"
+    }
+  }
+}
