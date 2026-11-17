@@ -2,10 +2,15 @@ import { useEffect } from 'react';
 import { useStore } from 'zustand';
 import { useI18n } from '../i18n/useI18n';
 import { useProjectStore } from '../stores/projectStore';
+import { INSTVELA_INSTRUMENTS } from '../util/instvela/instruments';
 import { INSTVELA_BUNDLES, INSTVELA_MODEL_PAGE } from '../util/instvela/modelAssets';
 import { ensureInstVelaModels, instVelaModels, refreshInstVelaModels } from '../util/instvela/models';
 import { instVelaRenderer } from '../util/instvela/renderer';
+import { pitchToNoteNameString } from '../util/midiUtil';
 import AireProgress from './AireProgress';
+
+// The fourth keyswitch is reserved for future tremolo support.
+const KEYSWITCH_COLUMNS = ['sustain', 'spiccato', 'pizzicato'] as const;
 
 export default function AiStringsTab({ isActive }: { isActive: boolean }) {
   const { t } = useI18n();
@@ -52,6 +57,40 @@ export default function AiStringsTab({ isActive }: { isActive: boolean }) {
         {downloading && <AireProgress percent={models.percent} text={downloadText} />}
         {models.error && <p className="kgone-error-msg" role="alert">{t('aire.modelFailed', { error: models.error })}</p>}
       </div>
+      <section className="instvela-keyswitches" aria-labelledby="instvela-keyswitches-title">
+        <div className="instvela-keyswitches-scroll">
+          <table className="instvela-keyswitches-table" aria-describedby="instvela-keyswitches-help">
+            <caption id="instvela-keyswitches-title">{t('instvela.keyswitches.title')}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{t('instvela.keyswitches.instrument')}</th>
+                {KEYSWITCH_COLUMNS.map(articulation => (
+                  <th key={articulation} scope="col">{t(`pianoRoll.articulation.${articulation}`)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(INSTVELA_INSTRUMENTS).map(([id, instrument]) => (
+                <tr key={id}>
+                  <th scope="row">{t(instrument.preview === 'contrabass'
+                    ? 'instvela.keyswitches.doubleBass' : `instrument.name.${instrument.preview}`)}</th>
+                  {KEYSWITCH_COLUMNS.map((articulation, offset) => {
+                    const pitch = instrument.keyswitch + offset;
+                    return (
+                      <td key={articulation}>
+                        <span className="instvela-keyswitch-note">
+                          {pitchToNoteNameString(pitch)} <span className="instvela-keyswitch-number">({pitch})</span>
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="kgone-hint" id="instvela-keyswitches-help">{t('instvela.keyswitches.help')}</p>
+      </section>
       <label className="humanize-checkbox-row">
         <input type="checkbox" checked={autoRender} aria-describedby="instvela-auto-render-help"
           onChange={event => setAutoRender(event.target.checked)} />

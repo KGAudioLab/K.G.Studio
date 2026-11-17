@@ -260,6 +260,65 @@
   gap: 6px;
 }
 
+.instvela-keyswitches {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.instvela-keyswitches .kgone-hint {
+  color: #999;
+}
+
+.instvela-keyswitches-scroll {
+  overflow-x: auto;
+}
+
+.instvela-keyswitches-table {
+  width: 100%;
+  min-width: 280px;
+  border-collapse: collapse;
+  color: #ccc;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.instvela-keyswitches-table caption {
+  padding-bottom: 8px;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.instvela-keyswitches-table th,
+.instvela-keyswitches-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #3a3a3a;
+  text-align: center;
+}
+
+.instvela-keyswitches-table th {
+  font-weight: 500;
+}
+
+.instvela-keyswitches-table th:first-child {
+  text-align: left;
+}
+
+.instvela-keyswitches-table thead {
+  background-color: #252525;
+}
+
+.instvela-keyswitch-note {
+  display: block;
+  white-space: nowrap;
+}
+
+.instvela-keyswitch-number {
+  color: #999;
+}
+
 .instvela-queue h4 {
   margin: 0 0 8px;
 }
