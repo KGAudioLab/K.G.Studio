@@ -1,6 +1,7 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
-import { KGMidiRegion } from '../../region/KGMidiRegion';
+import type { KGMidiRegion } from '../../region/KGMidiRegion';
+import { createMidiRegionForTrack } from '../../track/KGMidiTrack';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { useProjectStore } from '../../../stores/projectStore';
 
@@ -51,9 +52,9 @@ export class CreateRegionCommand extends KGCommand {
     }
 
     // Create the new MIDI region
-    this.createdRegion = new KGMidiRegion(
+    this.createdRegion = createMidiRegionForTrack(
+      targetTrack,
       this.regionId,
-      this.trackId,
       this.trackIndex,
       this.regionName,
       this.startTick,

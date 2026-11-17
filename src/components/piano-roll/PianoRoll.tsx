@@ -94,6 +94,7 @@ import {
   convertDetectedAudioNotesToRawMidiNotes,
 } from '../../util/audioToMidi';
 import { TrackType } from '../../core/track/KGTrack';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 interface PianoRollProps {
   onClose: () => void;
@@ -1847,6 +1848,8 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       <PianoRollHeader
         onClose={onClose}
         title={getPianoRollTitle()}
+        showAiMarker={!isAudioOnly && parentMidiTrack instanceof KGMidiTrack
+          && Boolean(getInstVelaInstrument(parentMidiTrack.getInstrument()))}
         isEditingTitle={isEditingTitle}
         titleInputValue={titleInputValue}
         onTitleClick={handleTitleClick}

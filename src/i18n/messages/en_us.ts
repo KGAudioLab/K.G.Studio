@@ -23,6 +23,7 @@ export const enUsMessages: TranslationMessages = {
   'instvela.cached': '{count} of 4 models cached',
   'instvela.deleteCache': 'Delete Cached VELA Models',
   'instvela.cardTitle': 'AI Strings powered by InstVELA',
+  'instvela.modelPage': 'InstVELA model page',
   'instvela.providerIdle': 'Waiting for a render',
   'instvela.providerPreparing': 'Preparing inference…',
   'instvela.providerLast': 'Last provider: {provider}',

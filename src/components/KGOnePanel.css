@@ -247,8 +247,12 @@
   gap: 10px;
 }
 
-.instvela-card-body img {
+.instvela-card-body > a {
   flex: none;
+}
+
+.instvela-card-body img {
+  display: block;
 }
 
 .instvela-card-copy {

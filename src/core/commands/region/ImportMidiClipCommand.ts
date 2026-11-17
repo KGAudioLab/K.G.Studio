@@ -1,6 +1,7 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
-import { KGMidiRegion } from '../../region/KGMidiRegion';
+import type { KGMidiRegion } from '../../region/KGMidiRegion';
+import { createMidiRegionForTrack } from '../../track/KGMidiTrack';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { generateUniqueId } from '../../../util/miscUtil';
 import type { RawMidiNote } from '../../../util/midiUtil';
@@ -47,9 +48,9 @@ export class ImportMidiClipCommand extends KGCommand {
     }
 
     // Create the region
-    this.createdRegion = new KGMidiRegion(
+    this.createdRegion = createMidiRegionForTrack(
+      track,
       this.regionId,
-      this.trackId,
       this.trackIndex,
       this.regionName,
       this.startTick,

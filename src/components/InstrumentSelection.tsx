@@ -14,6 +14,8 @@ import { resolveInstrumentDefinition } from '../core/instruments/instrumentResol
 import { resolvePlaybackInstrument } from '../core/instruments/instrumentResolver';
 import { UserInstrumentManager } from './UserInstrumentManager';
 import TrackFxPanel from './fx/TrackFxPanel';
+import AiSparkle from './common/AiSparkle';
+import { getInstVelaInstrument } from '../util/instvela/instruments';
 
 const CUSTOM_GROUP = 'CUSTOM';
 
@@ -93,7 +95,9 @@ const InstrumentSelection: React.FC = () => {
           <button type="button" className="instrument-image-edit-btn" disabled={!hasTargetTrack}
             aria-label={t('trackImage.choose')} title={t('trackImage.choose')}
             onClick={() => setImageDialogTrack(targetTrack)}><TbPhotoEdit aria-hidden="true" /></button>
-          <h3>{hasTargetTrack ? previewAlt : ''}</h3>
+          <h3>{hasTargetTrack && (
+            <>{getInstVelaInstrument(currentInstrumentKey) && <AiSparkle />}{previewAlt}</>
+          )}</h3>
         </div>
         <button className="instrument-selection-close-btn" onClick={closeInstrumentSelection}>✕</button>
       </div>
@@ -141,6 +145,7 @@ const InstrumentSelection: React.FC = () => {
                       className={`instrument-group-item${selectedGroupKey === key ? ' active' : ''}`}
                       onClick={() => handleSelectGroup(key)}
                     >
+                      {key === 'AI_STRINGS' && <AiSparkle />}
                       {key === CUSTOM_GROUP ? t('instrument.group.CUSTOM') : getInstrumentGroupLabel(key as InstrumentGroupKey, t)}
                     </div>
                   ))}
@@ -154,6 +159,7 @@ const InstrumentSelection: React.FC = () => {
                       className={`instrument-instrument-item${currentInstrumentKey === inst.key ? ' active' : ''}`}
                       onClick={() => handleSelectInstrument(inst.key)}
                     >
+                      {getInstVelaInstrument(inst.key) && <AiSparkle />}
                       {inst.label}
                     </div>
                   ))}

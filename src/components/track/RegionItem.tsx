@@ -12,6 +12,7 @@ import type { AudioRecordingPeak } from '../../core/audio-interface/KGAudioRecor
 import type { RegionPreviewContentStyle } from '../interfaces';
 import { KGCore } from '../../core/KGCore';
 import { tickRangeToSeconds, tickToSeconds } from '../../util/globalTrackUtil';
+import AiSparkle from '../common/AiSparkle';
 
 const DRAG_START_THRESHOLD_PX = 4;
 const MAX_WAVEFORM_CANVAS_WIDTH = 4096;
@@ -24,6 +25,7 @@ const getRegionClickOptions = (event: Pick<React.MouseEvent, 'shiftKey' | 'metaK
 interface RegionItemProps {
   id: string;
   name: string;
+  showAiMarker?: boolean;
   style: React.CSSProperties;
   // Additional props that will be needed for resize functionality
   barNumber?: number;
@@ -63,6 +65,7 @@ interface RegionItemProps {
 const RegionItem: React.FC<RegionItemProps> = ({
   id,
   name,
+  showAiMarker = false,
   style,
   barNumber,
   length,
@@ -746,6 +749,7 @@ const RegionItem: React.FC<RegionItemProps> = ({
       data-is-dragging={isDragging}
     >
       <div className="region-header">
+        {showAiMarker && <AiSparkle />}
         {name}
       </div>
       <div className={`region-content${(audioRegion || isAudioRegion) ? ' audio-region-content' : ''}`}>

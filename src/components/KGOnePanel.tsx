@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import * as Tone from 'tone';
 import HumanizeTab from './HumanizeTab';
 import AiStringsTab from './AiStringsTab';
+import AiSparkle from './common/AiSparkle';
 import { KGMidiRegion } from '../core/region/KGMidiRegion';
 import './KGOnePanel.css';
 import { FaPlay, FaPause, FaDownload } from 'react-icons/fa';
@@ -713,7 +714,9 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
         <button className={`kgone-tab${musicGeneratorTab === 'separator' ? ' active' : ''}`}
           aria-pressed={musicGeneratorTab === 'separator'} onClick={() => setMusicGeneratorTab('separator')}>{t('kgone.tab.separator')}</button>
         <button className={`kgone-tab${musicGeneratorTab === 'aiStrings' ? ' active' : ''}`}
-          aria-pressed={musicGeneratorTab === 'aiStrings'} onClick={() => setMusicGeneratorTab('aiStrings')}>{t('kgone.tab.aiStrings')}</button>
+          aria-pressed={musicGeneratorTab === 'aiStrings'} onClick={() => setMusicGeneratorTab('aiStrings')}>
+          <AiSparkle />{t('kgone.tab.aiStrings')}
+        </button>
         <button className={`kgone-tab${musicGeneratorTab === 'humanize' ? ' active' : ''}`}
           aria-pressed={musicGeneratorTab === 'humanize'} onClick={() => setMusicGeneratorTab('humanize')}>{t('aire.humanize')}</button>
       </div>

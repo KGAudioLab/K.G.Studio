@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { KGTrack } from '../../core/track/KGTrack';
+import { KGMidiTrack } from '../../core/track/KGMidiTrack';
 import { KGMidiRegion } from '../../core/region/KGMidiRegion';
 import { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { KGAudioInterface } from '../../core/audio-interface/KGAudioInterface';
@@ -17,6 +18,7 @@ import { isAcceptedMidiImportFile } from '../../util/midiUtil';
 import { isAcceptedAudioImportFile } from '../../util/audioImportUtil';
 import { snapBarValue } from '../../util/mainContentSnapUtil';
 import { ticksPerBar } from '../../core/timing';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 interface RegionResizePreviewBaseline {
   regionId: string;
@@ -695,6 +697,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
 
   // Filter regions for this track
   const trackRegions = regions.filter(region => region.trackIndex === index);
+  const isAiStringTrack = track instanceof KGMidiTrack && Boolean(getInstVelaInstrument(track.getInstrument()));
   const isAutomationActive = activeTrackAutomationTrackId === track.getId().toString() && activeTrackAutomationType !== null;
   const getLocalFileDropEffect = (files: FileList | null | undefined) => {
     const file = files?.[0];
@@ -805,6 +808,7 @@ const TrackGridItem: React.FC<TrackGridItemProps> = ({
             key={region.id}
             id={region.id}
             name={region.name}
+            showAiMarker={isAiStringTrack}
             style={{
               ...getRegionStyle(region),
               ['--region-border-color' as string]: surfaceColors.borderColor,

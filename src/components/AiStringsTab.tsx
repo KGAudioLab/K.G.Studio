@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from 'zustand';
 import { useI18n } from '../i18n/useI18n';
 import { useProjectStore } from '../stores/projectStore';
-import { INSTVELA_BUNDLES } from '../util/instvela/modelAssets';
+import { INSTVELA_BUNDLES, INSTVELA_MODEL_PAGE } from '../util/instvela/modelAssets';
 import { ensureInstVelaModels, instVelaModels, refreshInstVelaModels } from '../util/instvela/models';
 import { instVelaRenderer } from '../util/instvela/renderer';
 import AireProgress from './AireProgress';
@@ -32,7 +32,9 @@ export default function AiStringsTab({ isActive }: { isActive: boolean }) {
       <div className="kgone-local-mode-card">
         <div className="kgone-local-mode-title">{t('instvela.cardTitle')}</div>
         <div className="instvela-card-body">
-          <img src={`${import.meta.env.BASE_URL}resources/instvela-logo.png`} alt="" width={64} height={64} />
+          <a href={INSTVELA_MODEL_PAGE} target="_blank" rel="noopener noreferrer" aria-label={t('instvela.modelPage')}>
+            <img src={`${import.meta.env.BASE_URL}resources/instvela-logo.png`} alt="" width={64} height={64} />
+          </a>
           <div className="instvela-card-copy kgone-local-mode-text">
             <div>{t('instvela.description')}</div>
             <div aria-live="polite">{t('instvela.cached', { count: models.cached })}</div>
