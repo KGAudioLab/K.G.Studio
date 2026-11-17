@@ -1,4 +1,5 @@
 import { OpfsModelCache, type ModelDownloadProgress } from './opfsModelCache';
+import { fetchModel } from './fetchModel';
 import { LOCAL_LLM_MODEL_EXPECTED_SIZE_BYTES, LOCAL_LLM_MODEL_FILENAME } from './localLLMConfig';
 
 const cache = new OpfsModelCache({ directoryName: 'models' });
@@ -87,7 +88,7 @@ export class LocalLLMModelCache {
       };
     }
 
-    const response = await fetch(sourceUrl);
+    const response = await fetchModel(sourceUrl);
     if (!response.ok || !response.body) {
       throw new Error(`Model download failed (${response.status})`);
     }

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { instrumentImagesPlugin } from './build/instrumentImagesPlugin';
 import { fxDefaultsConfigPlugin } from './build/fxDefaultsConfigPlugin';
 import { localMcpPlugin } from './build/mcpPlugin';
+import { HF_CREDENTIAL_FILE, huggingFaceModelPlugin } from './build/huggingFaceModelPlugin';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
@@ -14,7 +15,7 @@ const version = packageJson.version;
 
 // https://vite.dev/config/
 export default defineConfig(({ mode, command }) => ({
-  plugins: [react(), fxDefaultsConfigPlugin(), instrumentImagesPlugin(), ...(mode === 'mcp' && command === 'serve' ? [localMcpPlugin()] : [])],
+  plugins: [react(), fxDefaultsConfigPlugin(), instrumentImagesPlugin(), huggingFaceModelPlugin(), ...(mode === 'mcp' && command === 'serve' ? [localMcpPlugin()] : [])],
   base: '/kgstudio/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
@@ -32,6 +33,7 @@ export default defineConfig(({ mode, command }) => ({
   },
   server: {
     host: mode === 'mcp' ? '127.0.0.1' : true,
+    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', HF_CREDENTIAL_FILE] },
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
