@@ -35,7 +35,10 @@ Ces outils fonctionnent entièrement dans votre navigateur avec **l’accéléra
   - **L’expression entre vos mains** — réglez les articulations soutenu, spiccato et pizzicato pour chaque note dans le piano roll. L’import MIDI reconnaît les touches d’articulation prises en charge, et le rendu automatique actualise les régions nouvelles ou modifiées lorsque vous les désélectionnez.
   - **Le rendu sur votre appareil** — téléchargez les modèles et conservez-les dans le cache local, puis effectuez le rendu dans votre navigateur avec l’accélération WebGPU sur le matériel compatible et un repli sur le CPU si nécessaire.
   - **Version préliminaire, retours bienvenus** — M01Preview prend en charge les parties de cordes monophoniques. Nous affinons les modèles pour améliorer la qualité sonore et l’expression musicale, et accueillons vos retours sur les artefacts ou les passages qui manquent de naturel.
-  - **État de l’humanisation** — la fonction est temporairement désactivée pendant que nous affinons ses modèles ; elle sera réactivée dans une prochaine version.
+
+<div align="center">
+  <img src="./docs/KGStudio-InstVELA-Demo-20261117.gif" alt="Démonstration des instruments IA de K.G.Studio avec InstVELA" width="640" />
+</div>
 
 - **2026.10.18** : ajout de la prise en charge locale de MCP pour les agents IA externes :
   - **Outils pour les agents externes** — connectez Codex, Claude Code, OpenCode ou Pi pour éditer la musique avec des outils qui se mettent à jour automatiquement lorsque le mode d’agent actif change.
