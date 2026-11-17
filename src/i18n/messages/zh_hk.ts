@@ -29,7 +29,7 @@ export const zhHkMessages: TranslationMessages = {
   'instvela.providerIdle': '等待渲染',
   'instvela.providerPreparing': '正在準備推論…',
   'instvela.providerLast': '上次使用的裝置：{provider}',
-  'instvela.description': '使用 InstVELA 渲染 AI 弦樂音軌上的 MIDI 片段。',
+  'instvela.description': '使用 InstVELA (M01Preview) 渲染 AI 弦樂音軌上的 MIDI 片段。',
   'instvela.downloadModels': '下載全部四個模型',
   'instvela.downloading': '正在下載模型（{percent}%）',
   'instvela.loadingFiles': '正在載入（{completed} / {total}）…',

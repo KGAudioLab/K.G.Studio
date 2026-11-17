@@ -29,7 +29,7 @@ export const frFrMessages: TranslationMessages = {
   'instvela.providerIdle': 'En attente d’un rendu',
   'instvela.providerPreparing': 'Préparation de l’inférence…',
   'instvela.providerLast': 'Dernier fournisseur : {provider}',
-  'instvela.description': 'Effectuez le rendu des régions MIDI des pistes de cordes IA avec InstVELA.',
+  'instvela.description': 'Effectuez le rendu des régions MIDI des pistes de cordes IA avec InstVELA (M01Preview).',
   'instvela.downloadModels': 'Télécharger les quatre modèles',
   'instvela.downloading': 'Téléchargement des modèles ({percent} %)',
   'instvela.loadingFiles': 'Chargement ({completed} / {total})…',

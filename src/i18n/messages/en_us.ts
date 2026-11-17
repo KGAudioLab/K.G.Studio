@@ -27,7 +27,7 @@ export const enUsMessages: TranslationMessages = {
   'instvela.providerIdle': 'Waiting for a render',
   'instvela.providerPreparing': 'Preparing inference…',
   'instvela.providerLast': 'Last provider: {provider}',
-  'instvela.description': 'Render MIDI regions on AI Strings tracks with InstVELA.',
+  'instvela.description': 'Render MIDI regions on AI Strings tracks with InstVELA (M01Preview).',
   'instvela.downloadModels': 'Download all four models',
   'instvela.downloading': 'Downloading models ({percent}%)',
   'instvela.loadingFiles': 'Loading ({completed} / {total}) ...',
