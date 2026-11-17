@@ -717,8 +717,10 @@ const KGOnePanel: React.FC<KGOnePanelProps> = ({ isVisible }) => {
           aria-pressed={musicGeneratorTab === 'aiStrings'} onClick={() => setMusicGeneratorTab('aiStrings')}>
           <AiSparkle />{t('kgone.tab.aiStrings')}
         </button>
+        {/* Humanize is temporarily hidden. Keep this entry for re-enabling.
         <button className={`kgone-tab${musicGeneratorTab === 'humanize' ? ' active' : ''}`}
           aria-pressed={musicGeneratorTab === 'humanize'} onClick={() => setMusicGeneratorTab('humanize')}>{t('aire.humanize')}</button>
+        */}
       </div>
       <div className="kgone-panel-body">
         <div className="kgone-tab-content stem-extraction-tab-content" hidden={musicGeneratorTab !== 'separator'}>

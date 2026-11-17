@@ -118,7 +118,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onExportMidi,
   onIntelligentArpeggiator,
   onTransposeSettings,
-  onHumanize,
+  // onHumanize, // Humanize is temporarily hidden.
   onStemExtraction,
 }) => {
   const { t } = useI18n();
@@ -127,7 +127,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo || !!onConvertToMidi);
-  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings || !!onHumanize || !!onStemExtraction));
+  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings /* || !!onHumanize */ || !!onStemExtraction));
   const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
   const snapOptions = React.useMemo(
     () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
@@ -462,11 +462,13 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                     <span className="processing-wave">{t('kgone.separator.menuItem')}</span>
                   </div>
                 )}
+                {/* Humanize is temporarily hidden. Keep this entry for re-enabling.
                 {onHumanize && (
                   <div className="quant-option" onClick={() => { setShowRegionColorPalette(false); setShowMoreMenu(false); onHumanize(); }}>
                     <span className="processing-wave">{t('aire.menuItem')}</span>
                   </div>
                 )}
+                */}
                 {onTransposeSettings && (
                   <div
                     className="quant-option"

@@ -422,10 +422,11 @@ describe('KGOnePanel browser stem extraction', () => {
     expect(screen.queryByText('Local inference failed')).not.toBeInTheDocument();
   });
 
-  it('switches tabs and keeps Humanize configuration when the panel is hidden', async () => {
+  it('hides the Humanize tab entry and preserves its configuration when the panel is hidden', async () => {
     const view = render(<KGOnePanel isVisible={true} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Humanize' }));
-    expect(mockSetMusicGeneratorTab).toHaveBeenCalledWith('humanize');
+    expect(screen.queryByRole('button', { name: 'Humanize' })).not.toBeInTheDocument();
+    // The entry is hidden; retain coverage of the preserved implementation through internal state.
+    musicGeneratorTab = 'humanize';
     view.rerender(<KGOnePanel isVisible={true} />);
     expect(screen.getByLabelText('Instrument Family')).toBeVisible();
     expect(screen.getAllByText('Stem Extraction').find(el => el.classList.contains('kgone-local-mode-title'))!).not.toBeVisible();
@@ -468,7 +469,7 @@ describe('KGOnePanel browser stem extraction', () => {
     track.addRegion(region); extraTracks = [track];
     musicGeneratorTab = 'humanize';
     const view = render(<KGOnePanel isVisible={true} />);
-    expect(screen.getByRole('button', { name: 'Humanize', pressed: true })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Humanize', pressed: true })).not.toBeInTheDocument();
     const action = () => screen.getAllByRole('button', { name: 'Humanize' }).find(button => button.classList.contains('kgone-btn-generate'))!;
     expect(action()).toBeDisabled();
     selectedRegionIds = ['midi-region']; view.rerender(<KGOnePanel isVisible={true} />);

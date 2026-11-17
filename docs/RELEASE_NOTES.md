@@ -4,6 +4,13 @@ This file contains the complete release history of K.G.Studio. For a summary of 
 
 ---
 
+- **2026.11.17**: Introducing **AI Instruments** — compose the notes, hear the performance:
+  - **Four expressive string voices** — bring MIDI parts to life with violin, viola, cello, and double bass, powered by **[InstVELA (M01Preview)](https://huggingface.co/KGAudioLab/InstVELA-models-onnx)** with generated pitch movement and evolving dynamics.
+  - **Expression in your hands** — set sustain, spiccato, and pizzicato per note in the piano roll. MIDI import recognizes the supported keyswitches, and Auto-render updates new or edited regions when you deselect them.
+  - **Rendering on your device** — download and cache the models locally, then render directly in your browser with WebGPU acceleration on supported hardware and CPU fallback when needed.
+  - **Preview release, open to feedback** — M01Preview supports monophonic string parts. We are fine-tuning the models to improve sound quality and musical expression, and welcome feedback on artifacts or passages that sound less natural.
+  - **Humanization status** — temporarily disabled while we fine-tune its models; it will return in a future release.
+
 - **2026.10.18**: Added local MCP support for external AI agents:
   - **External agent tools** — connect Codex, Claude Code, OpenCode, or Pi to edit music with tools that update automatically when the active agent mode changes.
   - **Project management** — inspect the current project and create, list, save, or open projects directly from your connected agent.

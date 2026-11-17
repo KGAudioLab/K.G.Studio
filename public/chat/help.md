@@ -105,7 +105,6 @@ Chat commands: `/clear`, `/welcome`, `/help`, `/hotkeys`
   - **Detect Tempo**: open the piano roll on an audio region and click **...** → **Detect Tempo** to analyse the audio for BPM; optionally auto-aligns the project's Tempo Track regions to match detected beats.
 
 - AI Music Tools
-  - **Humanize MIDI expression**: select a MIDI region on the timeline and choose **… → Humanize…** to open **AI Music Tools → Humanize**. All settings are visible; an enabled loop limits the target range. Leaving the tab cancels processing.
   - Click the **✦** (magic wand) button in the toolbar to open the AI Music Tools panel.
   - **Stem Separation (browser)**: split any audio region into stems entirely in-browser — no server needed. Two models available: **UVR-MDX-NET-Inst_HQ_3** (2-stem: Vocals / Instrumental, ~64 MB) and **Demucs htdemucs_4s** (4-stem: Vocals / Drums / Bass / Others, ~172 MB). Download the model once from the Generator panel, then click **Separate Stems**. Requires WebGPU (Chrome 113+ / Edge 113+).
 
@@ -130,4 +129,7 @@ K.G.Studio does not provide or host any of the models listed above, nor is it af
 
 We hope you enjoy using K.G.Studio Musician Assistant!
 
-In waveform or spectrogram view, **… → Stem Extraction…** opens **AI Music Tools → Stem Extraction**. The Humanize tab follows the selected MIDI region and shows provider and model-cache controls.
+In waveform or spectrogram view, **… → Stem Extraction…** opens **AI Music Tools → Stem Extraction**.
+
+[humanize-help-temporarily-hidden]: <> "- **Humanize MIDI expression**: select a MIDI region on the timeline and choose **… → Humanize…** to open **AI Music Tools → Humanize**. All settings are visible; an enabled loop limits the target range. Leaving the tab cancels processing."
+[humanize-tab-help-temporarily-hidden]: <> "The Humanize tab follows the selected MIDI region and shows provider and model-cache controls."

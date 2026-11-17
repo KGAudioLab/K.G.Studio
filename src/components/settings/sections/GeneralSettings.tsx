@@ -1,4 +1,4 @@
-import AireSettings from './AireSettings';
+// import AireSettings from './AireSettings'; // Humanize is temporarily hidden.
 import InstVelaSettings from './InstVelaSettings';
 import React, { useState, useEffect, useCallback } from 'react';
 import { ConfigManager } from '../../../core/config/ConfigManager';
@@ -422,7 +422,9 @@ const GeneralSettings: React.FC = () => {
           </div>
         </div>
 
+        {/* Humanize is temporarily hidden. Keep this entry for re-enabling.
         <AireSettings />
+        */}
         <InstVelaSettings />
       </div>
     </div>
