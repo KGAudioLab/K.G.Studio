@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { KGMidiRegion } from '../../core/region/KGMidiRegion';
+import type { KGMidiTrack } from '../../core/track/KGMidiTrack';
 
 const regionStart = 15360;
 const beatWidth = 80;
@@ -59,11 +60,79 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.piano-roll-automation-scroll-layer')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, -1100, 0)');
 });
 
-async function selectAutomation(page: Page, label: string) {
-  await page.locator('.automation-type-dropdown').click();
-  await page.locator('.quant-option').filter({ hasText: label }).click();
+async function selectAutomation(page: Page, label: string, optionLabel = label) {
+  const dropdown = page.locator('.automation-type-dropdown');
+  await dropdown.click();
+  await page.locator('.piano-roll-automation-toolbar-group .quant-dropdown').getByText(optionLabel, { exact: true }).click();
+  await expect(dropdown).toHaveText(optionLabel);
   return page.getByLabel(`${label} automation lane`);
 }
+
+test('limits AI Instrument curves to CC7 and keeps note velocity editable', async ({ page }) => {
+  await selectAutomation(page, 'CC11', 'CC11 (Expression)');
+  const changeInstrument = (instrument: 'ai_violin' | 'acoustic_grand_piano') => page.evaluate(async instrument => {
+    const corePath = '/kgstudio/src/core/KGCore.ts';
+    const storePath = '/kgstudio/src/stores/projectStore.ts';
+    const { KGCore } = await import(corePath) as typeof import('../../core/KGCore');
+    const { useProjectStore } = await import(storePath) as typeof import('../../stores/projectStore');
+    const track = KGCore.instance().getCurrentProject().getTracks()[0] as KGMidiTrack;
+    track.setInstrument(instrument);
+    useProjectStore.getState().refreshProjectState();
+  }, instrument);
+
+  await changeInstrument('ai_violin');
+  await expect(page.getByLabel('CC7 automation lane')).toBeVisible();
+  await page.locator('.automation-type-dropdown').click();
+  const options = page.locator('.piano-roll-automation-toolbar-group .quant-option');
+  await expect(options).toHaveText(['Note Velocity', 'CC7 (Volume)']);
+  await options.filter({ hasText: 'Note Velocity' }).click();
+  await expect(page.getByLabel('Note Velocity automation lane')).toBeVisible();
+
+  await changeInstrument('acoustic_grand_piano');
+  await page.locator('.automation-type-dropdown').click();
+  await expect(options).toHaveText([
+    'Note Velocity', 'Pitch Bend', 'CC1 (Modulation)', 'CC2 (Breath)', 'CC7 (Volume)', 'CC11 (Expression)', 'CC64 (Sustain Pedal)',
+  ]);
+});
+
+test('bounces AI Instrument audio with both volume curves and ignores pan automation', async ({ page }) => {
+  const levels = await page.evaluate(async () => {
+    const load = (path: string) => import(`/kgstudio/src/${path}`);
+    const { KGCore } = await load('core/KGCore.ts');
+    const { KGOfflineRenderer } = await load('core/audio-interface/KGOfflineRenderer.ts');
+    const { KGTrackAutomationPoint } = await load('core/track/KGTrackAutomationPoint.ts');
+    const { KGMidiControllerEvent } = await load('core/midi/KGMidiControllerEvent.ts');
+    const { instVelaRenderer } = await load('util/instvela/renderer.ts');
+    const project = KGCore.instance().getCurrentProject();
+    const track = project.getTracks()[0] as KGMidiTrack;
+    const [region] = track.getRegions();
+    track.setInstrument('ai_violin');
+    track.setFX([]);
+    region.setStartTick(0);
+    region.setControllerEvents(7, [new KGMidiControllerEvent('cc-volume', 960, 64)]);
+    region.setControllerEvents(11, [new KGMidiControllerEvent('expression', 0, 0)]);
+    track.setVolumeAutomation([new KGTrackAutomationPoint('track-volume', 480, -6)]);
+    track.setPanAutomation([new KGTrackAutomationPoint('pan', 0, -1)]);
+
+    const sampleRate = 44100;
+    const audio = new AudioBuffer({ length: sampleRate, numberOfChannels: 2, sampleRate });
+    audio.getChannelData(0).fill(0.5);
+    audio.getChannelData(1).fill(0.5);
+    instVelaRenderer.prepareProject = async () => {};
+    instVelaRenderer.getProjectBuffers = () => new Map([[region.getId(), audio]]);
+
+    const output = (await KGOfflineRenderer.instance().renderToBuffer(project, { sampleRate })).get()!;
+    return [0, 1].map(channel => [0.125, 0.375, 0.75].map(time => (
+      output.getChannelData(channel)[Math.round(time * sampleRate)]
+    )));
+  });
+
+  expect(levels[1]).toEqual(levels[0]);
+  const [initial, afterTrackVolume, afterCc7] = levels[0];
+  expect(initial).toBeGreaterThan(0);
+  expect(afterTrackVolume / initial).toBeCloseTo(10 ** (-6 / 20), 4);
+  expect(afterCc7 / afterTrackVolume).toBeCloseTo(64 / 127, 4);
+});
 
 function readNotes(page: Page) {
   return page.evaluate(async () => {
@@ -89,7 +158,8 @@ function history(page: Page, action: 'undo' | 'redo') {
 }
 
 test('edits single velocities and draws an undoable ramp in a scrolled piano roll', async ({ page }) => {
-  const lane = await selectAutomation(page, 'Note Velocity');
+  const lane = page.getByLabel('Note Velocity automation lane');
+  await expect(lane).toBeVisible();
   const svg = lane.locator('svg');
   const dot = (id: string) => lane.locator(`circle[data-note-id="${id}"]`);
   await expect(lane.locator('circle')).toHaveCount(notes.length);
@@ -178,12 +248,12 @@ function readEvents(page: Page, controller: number | null) {
   }, controller);
 }
 
-for (const { label, controller, maxValue } of [
-  { label: 'CC7', controller: 7, maxValue: 127 },
-  { label: 'Pitch Bend', controller: null, maxValue: 16383 },
+for (const { label, optionLabel, controller, maxValue } of [
+  { label: 'CC7', optionLabel: 'CC7 (Volume)', controller: 7, maxValue: 127 },
+  { label: 'Pitch Bend', optionLabel: 'Pitch Bend', controller: null, maxValue: 16383 },
 ]) {
   test(`the pencil simplifies and replaces only the covered ${label} points`, async ({ page }) => {
-    const lane = await selectAutomation(page, label);
+    const lane = await selectAutomation(page, label, optionLabel);
     const before = await readEvents(page, controller);
     const otherController = controller === null ? 7 : null;
     const otherEvents = await readEvents(page, otherController);

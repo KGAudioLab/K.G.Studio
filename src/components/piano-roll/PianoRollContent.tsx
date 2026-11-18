@@ -16,7 +16,7 @@ import type { KGAudioRegion } from '../../core/region/KGAudioRegion';
 import { velocityToColor } from '../../util/velocityColor';
 import type { SpectrogramHeightResolution } from '../../util/spectrogramUtil';
 import PianoRollAutomationLane from './PianoRollAutomationLane';
-import type { PianoRollAutomationType } from './pianoRollAutomation';
+import { DEFAULT_PIANO_ROLL_AUTOMATION_TYPE, type PianoRollAutomationType } from './pianoRollAutomation';
 import type { SheetMeasureMetric, SheetQuantization } from './sheetNotationTypes';
 import { KGMidiTrack, type InstrumentType } from '../../core/track/KGMidiTrack';
 import SheetMusicView from './SheetMusicView';
@@ -96,7 +96,7 @@ const PianoRollContent: React.FC<PianoRollContentProps> = ({
   pianoRollZoom = 1,
   activeTool = 'pointer',
   automationEnabled = false,
-  automationType = 'pitch-bend',
+  automationType = DEFAULT_PIANO_ROLL_AUTOMATION_TYPE,
   automationRedrawVersion = 0,
   sheetMusicViewEnabled = false,
   sheetMusicTrackScopeEnabled = false,

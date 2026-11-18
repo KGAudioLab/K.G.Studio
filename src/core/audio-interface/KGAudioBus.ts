@@ -50,6 +50,7 @@ export class KGAudioBus {
   private sustainPedalDown: boolean = false;
   private liveMidiSources: Map<number, LiveMidiSource[]> = new Map();
   private renderedSources = new Set<Tone.ToneBufferSource>();
+  private renderedMidiVolume?: Tone.Gain;
   private renderedVolume?: Tone.Volume;
   
   // Audio processing chain (for future expansion)
@@ -341,19 +342,34 @@ export class KGAudioBus {
   }
 
   public startRenderedRegion(buffer: AudioBuffer, time: number, offset: number, duration: number, hasSoloedTracks: boolean): void {
+    const midiVolume = this.renderedMidiVolume ??= new Tone.Gain(1);
     if (!this.renderedVolume) {
       this.renderedVolume = new Tone.Volume();
+      midiVolume.connect(this.renderedVolume);
       this.renderedVolume.connect(this.panner);
       this.applyEffectiveVolume(hasSoloedTracks);
     }
     const source = new Tone.ToneBufferSource(new Tone.ToneAudioBuffer(buffer));
-    source.connect(this.renderedVolume);
+    source.connect(midiVolume);
     this.renderedSources.add(source);
     source.onended = () => {
       this.renderedSources.delete(source);
       source.dispose();
     };
     source.start(time, offset, duration);
+  }
+
+  public setRenderedMidiVolume(value: number, time = Tone.immediate()): void {
+    const midiVolume = this.renderedMidiVolume ??= new Tone.Gain(1);
+    midiVolume.gain.setValueAtTime(value, time);
+  }
+
+  public resetRenderedMidiVolume(): void {
+    if (!this.renderedMidiVolume) return;
+
+    const now = Tone.immediate();
+    this.renderedMidiVolume.gain.cancelScheduledValues(now);
+    this.renderedMidiVolume.gain.setValueAtTime(1, now);
   }
 
   // ===== AUDIO PROPERTIES =====
@@ -525,6 +541,7 @@ export class KGAudioBus {
     try {
       this.releaseAll();
       this.sampler.dispose();
+      this.renderedMidiVolume?.dispose();
       this.renderedVolume?.dispose();
       this.panner.dispose();
       this.fxChain.dispose();

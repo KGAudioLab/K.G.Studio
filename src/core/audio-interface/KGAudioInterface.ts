@@ -15,6 +15,7 @@ import {
 } from '../../util/midiUtil';
 import {
   bakeMidiAutomationPointsInWindow,
+  collectMidiVolumeAutomationPoints,
   collectRegionMidiAutomationPoints,
   normalizeMidiAutomationPoints,
   resolveMidiAutomationValueAtTick,
@@ -36,6 +37,7 @@ import {
   type AudioRecordingStartResult,
 } from './KGAudioRecorder';
 import { KGMidiTrack, type InstrumentType } from '../track/KGMidiTrack';
+import type { KGTrack } from '../track/KGTrack';
 import { METRONOME_INSTRUMENT, METRONOME_TRACK_ID } from '../track/KGMetronomeTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
@@ -583,6 +585,28 @@ export class KGAudioInterface {
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
         if (audioBus && track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())) {
+          const midiVolumePoints = collectMidiVolumeAutomationPoints(track.getRegions());
+          if (midiVolumePoints.length > 0) {
+            const initialVolume = resolveMidiAutomationValueAtTick(midiVolumePoints, initialAutomationTick, 127);
+            audioBus.setRenderedMidiVolume(clampMidiControllerValue(initialVolume) / 127);
+            const bakedVolume = bakeMidiAutomationPointsInWindow(
+              midiVolumePoints, automationWindowStartTick, scheduleEndTick,
+              {
+                maxIntervalMs: interpolationIntervalMs,
+                bpm: getEffectiveBpmAtTick(project, automationWindowStartTick),
+                defaultValue: 127,
+                quantizeValue: clampMidiControllerValue,
+              },
+            );
+            for (const { tick, value } of bakedVolume) {
+              if (!isLooping && tick === automationWindowStartTick) continue;
+              const eventId = Tone.Transport.schedule(time => {
+                audioBus.setRenderedMidiVolume(value / 127, time + playbackDelay);
+              }, this.projectTickToTransportTime(tick));
+              this.scheduledEvents.add(eventId);
+            }
+          }
+
           const fullLoop = isLooping && options?.scheduleFullLoop;
           for (const region of track.getRegions()) {
             const buffer = renderedStrings.get(region.getId());
@@ -1552,12 +1576,14 @@ export class KGAudioInterface {
 
   // ===== PRIVATE UTILITY METHODS =====
 
-  private applyTrackAutomationAtBeat(track: { getId(): number; getVolumeAutomation(): Array<{ getTick(): number; getValue(): number }>; getPanAutomation(): Array<{ getTick(): number; getValue(): number }> }, tick: number): void {
+  private applyTrackAutomationAtBeat(track: KGTrack, tick: number): void {
     const trackId = track.getId().toString();
     const audioBus = this.trackAudioBuses.get(trackId);
     const playerBus = this.trackAudioPlayerBuses.get(trackId);
     const volumePoints = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
-    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+    const panPoints = track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())
+      ? []
+      : track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
 
     const nextVolume = volumePoints.length > 0
       ? resolveTrackAutomationValueAtTick(volumePoints, 'volume', tick, getTrackAutomationDefaultValue('volume'))
@@ -1588,7 +1614,7 @@ export class KGAudioInterface {
   }
 
   private scheduleTrackAutomation(
-    track: { getId(): number; getVolumeAutomation(): Array<{ getTick(): number; getValue(): number }>; getPanAutomation(): Array<{ getTick(): number; getValue(): number }> },
+    track: KGTrack,
     windowStartTick: number,
     windowEndTick: number,
     interpolationIntervalMs: number,
@@ -1603,7 +1629,6 @@ export class KGAudioInterface {
     }
 
     const volumePoints = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
-    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
 
     bakeTrackAutomationPointsInWindow(volumePoints, 'volume', windowStartTick, windowEndTick, interpolationIntervalMs, bpm)
       .forEach(({ tick, value }) => {
@@ -1623,6 +1648,9 @@ export class KGAudioInterface {
         this.scheduledEvents.add(eventId);
       });
 
+    if (track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())) return;
+
+    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
     bakeTrackAutomationPointsInWindow(panPoints, 'pan', windowStartTick, windowEndTick, interpolationIntervalMs, bpm)
       .forEach(({ tick, value }) => {
         if (includeWindowStart ? tick < windowStartTick : tick <= windowStartTick) {
@@ -1670,6 +1698,7 @@ export class KGAudioInterface {
     this.trackAudioBuses.forEach(audioBus => {
       audioBus.setAutomationVolume(null);
       audioBus.setAutomationPan(null);
+      audioBus.resetRenderedMidiVolume();
     });
     this.trackAudioPlayerBuses.forEach(playerBus => {
       playerBus.setAutomationVolume(null);

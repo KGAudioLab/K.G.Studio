@@ -1,6 +1,7 @@
 import type { ResolvedChordGuideItem } from '../ChordGuideTypes';
 import type { KGMidiNote, MidiArticulation } from '../midi/KGMidiNote';
 import type { NoteRankSelectionOptions } from '../../components/piano-roll/noteRankSelection';
+import { DEFAULT_PIANO_ROLL_AUTOMATION_TYPE, type PianoRollAutomationType } from '../../components/piano-roll/pianoRollAutomation';
 
 export const PIANO_ROLL_NO_SNAP = 'none' as const;
 
@@ -61,7 +62,7 @@ export class KGPianoRollState {
   private lastEditedNoteArticulation: MidiArticulation = 0;
   private currentMode: string = "ionian"; // Default mode
   private automationViewEnabled: boolean = false;
-  private currentAutomationType: string = "pitch-bend";
+  private currentAutomationType: PianoRollAutomationType = DEFAULT_PIANO_ROLL_AUTOMATION_TYPE;
   private pianoRollZoom: number = 1;
   private sheetMusicViewEnabled: boolean = false;
   private sheetMusicTrackScopeEnabled: boolean = false;
@@ -156,11 +157,11 @@ export class KGPianoRollState {
     this.automationViewEnabled = enabled;
   }
 
-  public getCurrentAutomationType(): string {
+  public getCurrentAutomationType(): PianoRollAutomationType {
     return this.currentAutomationType;
   }
 
-  public setCurrentAutomationType(type: string): void {
+  public setCurrentAutomationType(type: PianoRollAutomationType): void {
     this.currentAutomationType = type;
   }
 

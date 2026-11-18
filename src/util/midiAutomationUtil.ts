@@ -1,5 +1,6 @@
 import { clampMidiPitchBendValue } from './midiUtil';
 import { TICKS_PER_QUARTER } from '../core/timing';
+import type { KGMidiRegion } from '../core/region/KGMidiRegion';
 
 export interface MidiAutomationPoint {
   tick: number;
@@ -94,6 +95,13 @@ export function collectRegionMidiAutomationPoints(
       value: point.value,
     })))
   );
+}
+
+export function collectMidiVolumeAutomationPoints(regions: readonly KGMidiRegion[]): MidiAutomationPoint[] {
+  return collectRegionMidiAutomationPoints(regions.map(region => ({
+    startTick: region.getStartTick(),
+    points: region.getControllerEvents(7).map(event => ({ tick: event.getTick(), value: event.getValue() })),
+  })));
 }
 
 export function resolveMidiAutomationValueAtTick(

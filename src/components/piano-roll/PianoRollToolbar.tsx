@@ -6,6 +6,7 @@ import { ColorPalettePopup, KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
 import {
+  DEFAULT_PIANO_ROLL_AUTOMATION_TYPE,
   getTranslatedAutomationOptions,
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
@@ -48,6 +49,7 @@ interface PianoRollToolbarProps {
   zoom: number;
   onZoomChange: (value: number) => void;
   showAutomationControls?: boolean;
+  isAiInstrument?: boolean;
   automationEnabled?: boolean;
   automationType?: PianoRollAutomationType;
   onAutomationToggle?: () => void;
@@ -102,8 +104,9 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   zoom,
   onZoomChange,
   showAutomationControls = false,
+  isAiInstrument = false,
   automationEnabled = false,
-  automationType = 'pitch-bend',
+  automationType = DEFAULT_PIANO_ROLL_AUTOMATION_TYPE,
   onAutomationToggle,
   onAutomationTypeChange,
   onDetectChords,
@@ -128,7 +131,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo || !!onConvertToMidi);
   const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings /* || !!onHumanize */ || !!onStemExtraction));
-  const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
+  const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t, isAiInstrument), [t, isAiInstrument]);
   const snapOptions = React.useMemo(
     () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
     [t],
