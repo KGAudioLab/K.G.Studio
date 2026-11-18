@@ -77,16 +77,16 @@ K.G.Studio 是一款輕量、現代化的 DAW，完全執行於瀏覽器中，�
   <table>
     <tr>
       <td align="center">
-        <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
-          <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
+        <a href="https://youtu.be/SN67p-GTPLk" target="_blank">
+          <img src="./public/demo/cover-SN67p-GTPLk.png" alt="快速演示" width="400"/>
         </a>
-        <br><b>短演示（僅 DAW）</b>
+        <br><b>快速演示</b>
       </td>
       <td align="center">
-        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
-          <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
+        <a href="https://youtu.be/W25buhoeYN0" target="_blank">
+          <img src="./public/demo/cover-W25buhoeYN0.png" alt="完整操作演示" width="400"/>
         </a>
-        <br><b>完整演示（僅 DAW）</b>
+        <br><b>完整操作演示</b>
       </td>
     </tr>
   </table>

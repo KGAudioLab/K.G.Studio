@@ -77,16 +77,16 @@ Browser capabilities and runtime constraints still leave gaps in some features a
   <table>
     <tr>
       <td align="center">
-        <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
-          <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
+        <a href="https://youtu.be/SN67p-GTPLk" target="_blank">
+          <img src="./public/demo/cover-SN67p-GTPLk.png" alt="Quick Demo" width="400"/>
         </a>
-        <br><b>Short Demo (DAW Only)</b>
+        <br><b>Quick Demo</b>
       </td>
       <td align="center">
-        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
-          <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
+        <a href="https://youtu.be/W25buhoeYN0" target="_blank">
+          <img src="./public/demo/cover-W25buhoeYN0.png" alt="Full Walkthrough" width="400"/>
         </a>
-        <br><b>Full Demo (DAW Only)</b>
+        <br><b>Full Walkthrough</b>
       </td>
     </tr>
   </table>

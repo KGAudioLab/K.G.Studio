@@ -77,16 +77,16 @@ Les capacités du navigateur et les contraintes de son environnement d’exécut
   <table>
     <tr>
       <td align="center">
-        <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
-          <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
+        <a href="https://youtu.be/SN67p-GTPLk" target="_blank">
+          <img src="./public/demo/cover-SN67p-GTPLk.png" alt="Démo rapide" width="400"/>
         </a>
-        <br><b>Démo courte (DAW uniquement)</b>
+        <br><b>Démo rapide</b>
       </td>
       <td align="center">
-        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
-          <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
+        <a href="https://youtu.be/W25buhoeYN0" target="_blank">
+          <img src="./public/demo/cover-W25buhoeYN0.png" alt="Présentation complète" width="400"/>
         </a>
-        <br><b>Démo complète (DAW uniquement)</b>
+        <br><b>Présentation complète</b>
       </td>
     </tr>
   </table>
