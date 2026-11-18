@@ -59,6 +59,8 @@ vi.mock('./core/KGCore', () => ({
 }));
 
 import { GlobalLoadingOverlayContainer, PlaybackPreparationOverlayContainer, ProjectTitleSync, loadDeploymentSoundfontOverride } from './App';
+import { instVelaModels } from './util/instvela/models';
+import { instVelaRenderer } from './util/instvela/renderer';
 
 describe('ProjectTitleSync', () => {
   beforeEach(() => {
@@ -151,11 +153,14 @@ describe('PlaybackPreparationOverlayContainer', () => {
 describe('GlobalLoadingOverlayContainer', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    mockState = { isPreparingPlayback: false, projectName: 'Test Project' };
     mockActiveLoadCount = 0;
     loadingListener = null;
   });
 
   afterEach(() => {
+    instVelaModels.setState({ downloadProgress: null });
+    instVelaRenderer.state.setState({ playback: null });
     vi.useRealTimers();
   });
 
@@ -171,6 +176,21 @@ describe('GlobalLoadingOverlayContainer', () => {
     });
 
     expect(screen.queryByText(/Loading \.\.\./)).not.toBeInTheDocument();
+  });
+
+  it('shows the model file count during downloads and resumes the render overlay afterward', () => {
+    render(<><GlobalLoadingOverlayContainer /><PlaybackPreparationOverlayContainer /></>);
+    act(() => {
+      instVelaRenderer.state.setState({ playback: { completed: 0, total: 2 } });
+      instVelaModels.setState({ downloadProgress: { completed: 12, total: 168 } });
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Loading (12 / 168) ...');
+
+    act(() => instVelaModels.setState({ downloadProgress: { completed: 13, total: 168 } }));
+    expect(screen.getByRole('status')).toHaveTextContent('Loading (13 / 168) ...');
+
+    act(() => instVelaModels.setState({ downloadProgress: null }));
+    expect(screen.getByRole('status')).toHaveTextContent('rendering (0 / 2) ...');
   });
 });
 

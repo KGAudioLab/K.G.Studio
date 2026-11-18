@@ -6,13 +6,14 @@ import type { KGProject } from '../KGProject';
 import type { KGMidiNote } from '../midi/KGMidiNote';
 import type { KGMidiPitchBend } from '../midi/KGMidiPitchBend';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
-import type { InstrumentType } from '../track/KGMidiTrack';
+import type { InstrumentType, KGMidiTrack } from '../track/KGMidiTrack';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { resolveInstrumentDefinition } from '../instruments/instrumentResolver';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
 import { clampMidiControllerValue, MIDI_PITCH_BEND_CENTER, midiPitchBendToNormalized } from '../../util/midiUtil';
 import {
   bakeMidiAutomationPointsInWindow,
+  collectMidiVolumeAutomationPoints,
   collectRegionMidiAutomationPoints,
   normalizeMidiAutomationPoints,
   resolveMidiAutomationValueAtTick,
@@ -29,11 +30,13 @@ import { KGToneBuffersPool } from './KGToneBuffersPool';
 import { KGToneSamplerFactory } from './KGToneSamplerFactory';
 import { KGAudioInterface } from './KGAudioInterface';
 import { KGAudioBus } from './KGAudioBus';
-import { tickRangeToSeconds, tickToSeconds, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions } from '../../util/globalTrackUtil';
+import { tickRangeToSeconds, tickToSeconds, secondsToTick, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions } from '../../util/globalTrackUtil';
 import { GlobalTrackType } from '../global-track';
 import { ConfigManager } from '../config/ConfigManager';
 import { Mp3Encoder } from '@breezystack/lamejs';
 import { createStereoTrackPanner } from './createStereoTrackPanner';
+import { instVelaRenderer } from '../../util/instvela/renderer';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 export interface RenderOptions {
   sampleRate?: number;  // default 44100
@@ -97,6 +100,8 @@ export class KGOfflineRenderer {
     const sampleRate = options?.sampleRate ?? 44100;
     const channels = options?.channels ?? 2;
     const requestedTailSeconds = options?.tailSeconds ?? 2;
+    await instVelaRenderer.prepareProject(project);
+    const renderedStrings = instVelaRenderer.getProjectBuffers(project);
 
     // Calculate render duration in seconds
     const bpm = getEffectiveBpmAtTick(project, 0);
@@ -153,6 +158,7 @@ export class KGOfflineRenderer {
       solo: boolean;
       volumeAutomation: MidiAutomationPoint[];
       panAutomation: MidiAutomationPoint[];
+      midiVolumeAutomation?: MidiAutomationPoint[];
       regions: Array<{
         startTick: number;
         lengthTicks: number;
@@ -170,7 +176,7 @@ export class KGOfflineRenderer {
       const trackId = track.getId().toString();
 
       if (track.getType() === 'MIDI') {
-        const midiTrack = track as unknown as { getInstrument: () => InstrumentType };
+        const midiTrack = track as KGMidiTrack;
         const instrumentName = midiTrack.getInstrument();
 
         // Get live bus state for volume/mute/solo via public getters
@@ -178,6 +184,28 @@ export class KGOfflineRenderer {
         const muted = audioInterface.getTrackMuted(trackId);
         const solo = audioInterface.getTrackSolo(trackId);
         if (solo) hasSoloedTracks = true;
+
+        if (getInstVelaInstrument(instrumentName)) {
+          const midiRegions = midiTrack.getRegions();
+          const regions = midiRegions.flatMap(region => {
+            const rawBuffer = renderedStrings.get(region.getId());
+            if (!rawBuffer) return [];
+            const startTick = region.getStartTick();
+            const audioDurationSeconds = rawBuffer.duration;
+            return [{
+              startTick,
+              lengthTicks: secondsToTick(project, tickToSeconds(project, startTick) + audioDurationSeconds) - startTick,
+              audioFileId: region.getId(),
+              clipStartOffsetSeconds: 0,
+              audioDurationSeconds,
+              rawBuffer,
+            }];
+          });
+          const volumeAutomation = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+          const midiVolumeAutomation = collectMidiVolumeAutomationPoints(midiRegions);
+          audioTrackData.push({ fx: track.getFX().map(effect => effect.clone()), trackId, volume, muted, solo, volumeAutomation, panAutomation: [], midiVolumeAutomation, regions });
+          continue;
+        }
 
         const regions: typeof midiTrackData[0]['regions'] = [];
         for (const region of track.getRegions()) {
@@ -480,6 +508,23 @@ export class KGOfflineRenderer {
           bpm
         );
 
+        let regionOutput = trackGain;
+        if (trackInfo.midiVolumeAutomation?.length) {
+          const midiVolumeGain = new Tone.Gain(1);
+          midiVolumeGain.connect(trackGain);
+          const bakedVolume = bakeMidiAutomationPointsInWindow(
+            trackInfo.midiVolumeAutomation, renderStartTick, renderEndTick,
+            {
+              maxIntervalMs: interpolationIntervalMs,
+              bpm: getEffectiveBpmAtTick(project, renderStartTick),
+              defaultValue: 127,
+              quantizeValue: clampMidiControllerValue,
+            },
+          );
+          applyOfflineExpressionAutomation(midiVolumeGain, bakedVolume, project, renderStartTick);
+          regionOutput = midiVolumeGain;
+        }
+
         for (const regionInfo of trackInfo.regions) {
           const regionStartTick = regionInfo.startTick;
           const regionEndTick = regionStartTick + regionInfo.lengthTicks;
@@ -504,7 +549,7 @@ export class KGOfflineRenderer {
           // main context, so creating nodes there would bind them to the wrong context.
           const toneBuffer = new Tone.ToneAudioBuffer(regionInfo.rawBuffer);
           const source = new Tone.ToneBufferSource(toneBuffer);
-          source.connect(trackGain);
+          source.connect(regionOutput);
 
           context.transport.schedule((time) => {
             source.start(time, clipStartOffsetSeconds, effectiveDurationSeconds);

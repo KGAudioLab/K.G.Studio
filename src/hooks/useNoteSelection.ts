@@ -10,12 +10,14 @@ import { ticksToPixels } from '../core/timing';
 
 interface UseNoteSelectionProps {
   activeRegion: KGMidiRegion | null;
+  useArticulation?: boolean;
   updateTrack: (track: KGTrack) => void;
   tracks: KGTrack[];
 }
 
 export const useNoteSelection = ({
   activeRegion,
+  useArticulation = false,
   updateTrack,
   tracks
 }: UseNoteSelectionProps) => {
@@ -106,10 +108,7 @@ export const useNoteSelection = ({
         // Add to KGCore selection
         core.addSelectedItem(note);
         
-        // Update last edited note length
-        const noteLength = note.getEndTick() - note.getStartTick();
-        KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
-        KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
+        KGPianoRollState.instance().rememberNoteDefaults(note, useArticulation);
         
         if (DEBUG_MODE.PIANO_ROLL) {
           console.log(`Added note to selection: ${noteId}`);
@@ -138,10 +137,7 @@ export const useNoteSelection = ({
       // Add to KGCore selection
       core.addSelectedItem(note);
       
-      // Update last edited note length
-      const noteLength = note.getEndTick() - note.getStartTick();
-      KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
-      KGPianoRollState.instance().setLastEditedNoteVelocity(note.getVelocity());
+      KGPianoRollState.instance().rememberNoteDefaults(note, useArticulation);
       
       if (DEBUG_MODE.PIANO_ROLL) {
         console.log(`Selected note (replacing previous selection): ${noteId}`);
@@ -417,12 +413,11 @@ export const useNoteSelection = ({
           current.distance < closest.distance ? current : closest
         ).note;
         
-        const noteLength = closestNote.getEndTick() - closestNote.getStartTick();
-        KGPianoRollState.instance().setLastEditedNoteLength(noteLength);
-        KGPianoRollState.instance().setLastEditedNoteVelocity(closestNote.getVelocity());
+        const pianoRollState = KGPianoRollState.instance();
+        pianoRollState.rememberNoteDefaults(closestNote, useArticulation);
         
         if (DEBUG_MODE.PIANO_ROLL) {
-          console.log(`Updated last edited note length to ${noteLength} from closest note: ${closestNote.getId()}`);
+          console.log(`Updated last edited note length to ${pianoRollState.getLastEditedNoteLength()} from closest note: ${closestNote.getId()}`);
         }
       }
       

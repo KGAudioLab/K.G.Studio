@@ -106,7 +106,8 @@ export class SplitRegionCommand extends KGCommand {
             note.getStartTick(),
             note.getEndTick(),
             note.getPitch(),
-            note.getVelocity()
+            note.getVelocity(),
+            note.getArticulation(),
           ));
         } else {
           // Goes into region 2 — shift both beats relative to new region start
@@ -115,7 +116,8 @@ export class SplitRegionCommand extends KGCommand {
             note.getStartTick() - splitOffsetTicks,
             note.getEndTick() - splitOffsetTicks,
             note.getPitch(),
-            note.getVelocity()
+            note.getVelocity(),
+            note.getArticulation(),
           ));
         }
       }

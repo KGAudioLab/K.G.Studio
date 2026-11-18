@@ -1,9 +1,12 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
-import { KGMidiRegion } from '../../region/KGMidiRegion';
+import type { KGMidiRegion } from '../../region/KGMidiRegion';
+import { createMidiRegionForTrack, KGMidiTrack } from '../../track/KGMidiTrack';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { generateUniqueId } from '../../../util/miscUtil';
 import type { RawMidiNote } from '../../../util/midiUtil';
+import { getInstVelaInstrument } from '../../../util/instvela/instruments';
+import { convertInstVelaKeyswitches } from '../../../util/instvela/keyswitches';
 
 /**
  * Command to insert a MIDI clip (from MIDI import or transcription) into a MIDI track.
@@ -26,7 +29,8 @@ export class ImportMidiClipCommand extends KGCommand {
     lengthTicks: number,
     rawNotes: RawMidiNote[],
     regionName?: string,
-    regionId?: string
+    regionId?: string,
+    private readonly options: { interpretKeyswitches?: boolean } = {},
   ) {
     super();
     this.trackId = trackId;
@@ -47,26 +51,26 @@ export class ImportMidiClipCommand extends KGCommand {
     }
 
     // Create the region
-    this.createdRegion = new KGMidiRegion(
+    this.createdRegion = createMidiRegionForTrack(
+      track,
       this.regionId,
-      this.trackId,
       this.trackIndex,
       this.regionName,
       this.startTick,
       this.lengthTicks
     );
 
-    // Populate notes
-    for (const raw of this.rawNotes) {
-      const note = new KGMidiNote(
-        generateUniqueId('KGMidiNote'),
-        raw.startTick,
-        raw.endTick,
-        raw.pitch,
-        raw.velocity
-      );
-      this.createdRegion.addNote(note);
-    }
+    const notes = this.rawNotes.map(raw => new KGMidiNote(
+      generateUniqueId('KGMidiNote'),
+      raw.startTick,
+      raw.endTick,
+      raw.pitch,
+      raw.velocity,
+    ));
+    const instrument = track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument());
+    this.createdRegion.setNotes(instrument && this.options.interpretKeyswitches !== false
+      ? convertInstVelaKeyswitches(notes, instrument.keyswitch)
+      : notes);
 
     track.addRegion(this.createdRegion);
     console.log(`Imported MIDI clip "${this.regionName}" (${this.rawNotes.length} notes) at beat ${this.startTick}`);

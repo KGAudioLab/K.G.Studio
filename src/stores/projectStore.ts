@@ -42,8 +42,9 @@ import { FLUIDR3_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { showAlert } from '../util/dialogUtil';
 import { translate } from '../i18n/translate';
 import { RESERVED_PROJECT_NAME } from '../util/projectNameUtil';
+import { InstVelaRegionError } from '../util/instvela/renderer';
 
-export type MusicGeneratorTab = 'separator' | 'humanize';
+export type MusicGeneratorTab = 'separator' | 'aiStrings' | 'humanize';
 
 /**
  * Update CSS custom property for time signature numerator
@@ -163,6 +164,8 @@ interface ProjectState {
   selectedMode: string;
   isLooping: boolean;
   isMetronomeEnabled: boolean;
+  instVelaAutoRender: boolean;
+  setInstVelaAutoRender: (enabled: boolean) => void;
   showGlobalTracks: boolean;
   isSnappingEnabled: boolean;
   snappingMode: MainContentSnappingMode;
@@ -276,7 +279,7 @@ interface ProjectState {
   seekPlayheadTick: (position: number) => Promise<boolean>;
   setPlayheadSeekPreviewPosition: (position: number | null) => boolean;
   setAutoScrollEnabled: (enabled: boolean) => void;
-  startPlaying: () => Promise<void>;
+  startPlaying: () => Promise<void | false>;
   stopPlaying: () => Promise<void>;
   stopTransport: () => Promise<void>;
   toggleLoop: () => void;
@@ -519,6 +522,14 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     });
   };
 
+  const showInstVelaPlaybackError = (error: unknown): boolean => {
+    if (!(error instanceof InstVelaRegionError)) return false;
+    get().setStatus(error.message);
+    get().activateSidePanel('kgone');
+    set({ musicGeneratorTab: 'aiStrings' });
+    return true;
+  };
+
   // Set up playhead update callback to keep store in sync during playback
   KGCore.instance().setPlayheadUpdateCallback((position: number) => {
     const project = KGCore.instance().getCurrentProject();
@@ -621,6 +632,11 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     selectedMode: currentProject.getSelectedMode(),
     isLooping: currentProject.getIsLooping(),
     isMetronomeEnabled: currentProject.getIsMetronomeEnabled(),
+    instVelaAutoRender: currentProject.getInstVelaAutoRender?.() ?? true,
+    setInstVelaAutoRender: enabled => {
+      KGCore.instance().getCurrentProject().setInstVelaAutoRender(enabled);
+      set({ instVelaAutoRender: enabled });
+    },
     showGlobalTracks: currentProject.getShowGlobalTracks(),
     isSnappingEnabled: currentProject.getIsSnappingEnabled(),
     snappingMode: currentProject.getSnappingMode(),
@@ -1185,6 +1201,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           selectedMode: projectToLoad.getSelectedMode(),
           isLooping: projectToLoad.getIsLooping(),
           isMetronomeEnabled: projectToLoad.getIsMetronomeEnabled(),
+          instVelaAutoRender: projectToLoad.getInstVelaAutoRender?.() ?? true,
           showGlobalTracks: projectToLoad.getShowGlobalTracks(),
           isSnappingEnabled: projectToLoad.getIsSnappingEnabled(),
           snappingMode: projectToLoad.getSnappingMode(),
@@ -1229,6 +1246,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         // Reset piano roll state for new/loaded project
         KGPianoRollState.instance().setLastEditedNoteLength(quarterNotesToTicks(1));
         KGPianoRollState.instance().setLastEditedNoteVelocity(127);
+        KGPianoRollState.instance().setLastEditedNoteArticulation(0);
         KGPianoRollState.instance().setPianoRollZoom(projectToLoad.getPianoRollZoom());
         KGPianoRollState.instance().setCurrentSnap(projectToLoad.getPianoRollSnapping());
         KGMainContentState.instance().setSnapping(projectToLoad.getIsSnappingEnabled());
@@ -1343,13 +1361,17 @@ export const useProjectStore = create<ProjectState>((set, get) => {
 
     startPlaying: async () => {
       if (get().isPreparingPlayback) {
-        return;
+        return false;
       }
 
       set({ isPreparingPlayback: true });
       try {
-        await KGCore.instance().startPlaying();
+        const started = await KGCore.instance().startPlaying();
+        if (started === false) return false;
         set({ isPlaying: true, autoScrollEnabled: true });
+      } catch (error) {
+        if (!showInstVelaPlaybackError(error)) throw error;
+        return false;
       } finally {
         set({ isPreparingPlayback: false });
       }
@@ -1428,9 +1450,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         setRecordingPrerollTick(recordingStartTickAbsolute);
         set({ isPreparingPlayback: true });
         try {
-          await KGCore.instance().startPlaying({
+          const started = await KGCore.instance().startPlaying({
             preserveLoopPreroll: projectLooping,
           });
+          if (started === false) return;
           set({ isPlaying: true, autoScrollEnabled: true });
 
           const prerollMs = getRecordingPrerollMilliseconds(
@@ -1469,6 +1492,10 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               get().setStatus(error instanceof Error ? error.message : 'Unable to start audio recording.');
             });
           }, prerollMs);
+        } catch (error) {
+          if (!(error instanceof InstVelaRegionError)) throw error;
+          await get().stopRecording();
+          showInstVelaPlaybackError(error);
         } finally {
           set({ isPreparingPlayback: false });
         }
@@ -1571,10 +1598,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       setRecordingPrerollTick(recordingStartTick);
       set({ isPreparingPlayback: true });
       try {
-        await KGCore.instance().startPlaying({
+        const started = await KGCore.instance().startPlaying({
           preserveLoopPreroll: projectLooping,
         });
+        if (started === false) return;
         set({ isPlaying: true, autoScrollEnabled: true });
+      } catch (error) {
+        if (!(error instanceof InstVelaRegionError)) throw error;
+        _recordingActiveNotes.clear();
+        await get().stopRecording();
+        showInstVelaPlaybackError(error);
       } finally {
         set({ isPreparingPlayback: false });
       }
@@ -2335,6 +2368,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         keySignature: project.getKeySignature(),
         selectedMode: project.getSelectedMode(),
         isMetronomeEnabled: project.getIsMetronomeEnabled(),
+        instVelaAutoRender: project.getInstVelaAutoRender?.() ?? true,
         showGlobalTracks: project.getShowGlobalTracks(),
         isSnappingEnabled: project.getIsSnappingEnabled(),
         snappingMode: project.getSnappingMode(),

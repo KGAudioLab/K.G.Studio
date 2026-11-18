@@ -5,6 +5,8 @@ import { MockTransport, ToneMock } from '../../test/mocks/tone';
 import { GlobalTrackType } from '../global-track';
 import { KGTempoRegion } from '../region/KGTempoRegion';
 import { KGMidiControllerEvent } from '../midi/KGMidiControllerEvent';
+import { KGTrackAutomationPoint } from '../track/KGTrackAutomationPoint';
+import { instVelaRenderer } from '../../util/instvela/renderer';
 
 vi.mock('tone', async () => {
   const { ToneMock } = await import('../../test/mocks/tone');
@@ -90,6 +92,9 @@ function createMockAudioBus() {
     setAutomationVolume: vi.fn(),
     setAutomationPan: vi.fn(),
     scheduleAutomationPan: vi.fn(),
+    setRenderedMidiVolume: vi.fn(),
+    resetRenderedMidiVolume: vi.fn(),
+    startRenderedRegion: vi.fn(),
     applyEffectiveVolume: vi.fn(),
     setMuted: vi.fn(),
     setSolo: vi.fn(),
@@ -538,7 +543,7 @@ describe('KGAudioInterface preroll playback', () => {
   });
 });
 
-describe('KGAudioInterface audio-track mute and solo playback', () => {
+describe('KGAudioInterface rendered audio playback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MockTransport.position = 0;
@@ -575,6 +580,55 @@ describe('KGAudioInterface audio-track mute and solo playback', () => {
     }
     (scheduledCall[0] as (time: number) => void)(1);
   }
+
+  it('applies track volume and CC7 when resuming AI Instrument playback', () => {
+    const region = createMockMidiRegion({ startTick: 1, length: 4, pitchBends: [createMockMidiPitchBend()] });
+    region.addControllerEvent(7, new KGMidiControllerEvent('volume-start', 0, 0));
+    region.addControllerEvent(7, new KGMidiControllerEvent('volume-end', q(2), 127));
+    for (const controller of [1, 2, 10, 11, 64]) {
+      region.addControllerEvent(controller, new KGMidiControllerEvent(`cc-${controller}`, q(1), 127));
+    }
+    const track = createMockMidiTrack({ id: 1, instrument: 'ai_violin', regions: [region] });
+    track.setVolumeAutomation([
+      new KGTrackAutomationPoint('volume-start', q(1), -6),
+      new KGTrackAutomationPoint('volume-end', q(3), -12),
+    ]);
+    track.setPanAutomation([
+      new KGTrackAutomationPoint('pan-start', q(1), -1),
+      new KGTrackAutomationPoint('pan-end', q(3), 1),
+    ]);
+    const project = createMockProject({ bpm: 120, tracks: [track] });
+    const buffer = { duration: 2 } as AudioBuffer;
+    const getProjectBuffers = vi.spyOn(instVelaRenderer, 'getProjectBuffers')
+      .mockReturnValue(new Map([[region.getId(), buffer]]));
+    const audio = KGAudioInterface.instance();
+    const audioBus = createMockAudioBus();
+    (audio as unknown as { trackAudioBuses: Map<string, unknown> }).trackAudioBuses.set('1', audioBus);
+
+    try {
+      audio.preparePlayback(project, q(2));
+      expect(audioBus.resetRenderedMidiVolume).toHaveBeenCalledOnce();
+      expect(audioBus.setRenderedMidiVolume).toHaveBeenCalledExactlyOnceWith(64 / 127);
+      expect(audioBus.setAutomationVolume).toHaveBeenLastCalledWith(-9);
+
+      for (const [callback] of MockTransport.schedule.mock.calls) {
+        (callback as (time: number) => void)(1);
+      }
+
+      expect(audioBus.startRenderedRegion).toHaveBeenCalledWith(buffer, 1.2, expect.any(Number), expect.any(Number), false);
+      expect(audioBus.setRenderedMidiVolume).toHaveBeenLastCalledWith(1, 1.2);
+      expect(audioBus.setAutomationVolume).toHaveBeenLastCalledWith(-12);
+      expect(audioBus.setAutomationPan.mock.calls).toEqual([[null], [null]]);
+      expect(audioBus.scheduleAutomationPan).not.toHaveBeenCalled();
+      expect(audioBus.setLiveMidiPitchBend).not.toHaveBeenCalled();
+      expect(audioBus.scheduleLiveMidiPitchBend).not.toHaveBeenCalled();
+      expect(audioBus.setLiveMidiExpression).not.toHaveBeenCalled();
+      expect(audioBus.scheduleLiveMidiExpression).not.toHaveBeenCalled();
+      expect(audioBus.setLiveMidiSustain).not.toHaveBeenCalled();
+    } finally {
+      getProjectBuffers.mockRestore();
+    }
+  });
 
   it('starts a muted audio-region source so unmuting restores its gain without restarting transport', () => {
     const project = createAudioProject(true);

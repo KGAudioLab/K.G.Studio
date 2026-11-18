@@ -1,9 +1,11 @@
 import React from 'react';
 import { FaTimes } from 'react-icons/fa';
+import AiSparkle from '../common/AiSparkle';
 
 interface PianoRollHeaderProps {
   onClose: () => void;
   title: string;
+  showAiMarker?: boolean;
   isEditingTitle: boolean;
   titleInputValue: string;
   onTitleClick: () => void;
@@ -16,6 +18,7 @@ interface PianoRollHeaderProps {
 const PianoRollHeader: React.FC<PianoRollHeaderProps> = ({
   onClose,
   title,
+  showAiMarker = false,
   isEditingTitle,
   titleInputValue,
   onTitleClick,
@@ -55,6 +58,7 @@ const PianoRollHeader: React.FC<PianoRollHeaderProps> = ({
           onClick={onTitleClick}
           title={title}
         >
+          {showAiMarker && <AiSparkle />}
           {title}
         </div>
       )}

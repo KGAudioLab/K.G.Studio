@@ -3,6 +3,9 @@
         "aire": {
             "base_url": "https://huggingface.co/KGAudioLab/instrument-aire-models/resolve/main/models/"
         },
+        "instvela": {
+            "base_url": "https://huggingface.co/KGAudioLab/InstVELA-models-onnx/resolve/main/models/"
+        },
         "language": "auto",
         "agent_mode": "advanced",
         "mcp_enabled": false,

@@ -1,6 +1,7 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
+import { createMidiRegionForTrack } from '../../track/KGMidiTrack';
 import { KGMidiNote } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
@@ -20,7 +21,7 @@ interface MidiRegionSnapshot {
 }
 
 function cloneNote(note: KGMidiNote, startTick: number = note.getStartTick(), endTick: number = note.getEndTick()): KGMidiNote {
-  return new KGMidiNote(note.getId(), startTick, endTick, note.getPitch(), note.getVelocity());
+  return new KGMidiNote(note.getId(), startTick, endTick, note.getPitch(), note.getVelocity(), note.getArticulation());
 }
 
 function clonePitchBend(event: KGMidiPitchBend, tick: number = event.getTick()): KGMidiPitchBend {
@@ -77,9 +78,9 @@ export class ImportChordRegionsCommand extends KGCommand {
     }
 
     if (this.action === 'create') {
-      this.createdRegion = new KGMidiRegion(
+      this.createdRegion = createMidiRegionForTrack(
+        track,
         this.regionId,
-        this.trackId,
         this.trackIndex,
         this.regionName,
         this.startTick,

@@ -15,6 +15,7 @@ import {
 } from '../../util/midiUtil';
 import {
   bakeMidiAutomationPointsInWindow,
+  collectMidiVolumeAutomationPoints,
   collectRegionMidiAutomationPoints,
   normalizeMidiAutomationPoints,
   resolveMidiAutomationValueAtTick,
@@ -36,6 +37,7 @@ import {
   type AudioRecordingStartResult,
 } from './KGAudioRecorder';
 import { KGMidiTrack, type InstrumentType } from '../track/KGMidiTrack';
+import type { KGTrack } from '../track/KGTrack';
 import { METRONOME_INSTRUMENT, METRONOME_TRACK_ID } from '../track/KGMetronomeTrack';
 import type { KGAudioRegion } from '../region/KGAudioRegion';
 import { KGCore } from '../KGCore';
@@ -43,6 +45,9 @@ import { ConfigManager } from '../config/ConfigManager';
 import { GlobalTrackType } from '../global-track';
 import { tickRangeToSeconds, tickToSeconds, findGlobalTrackByType, getEffectiveBpmAtTick, getSortedTempoRegions, secondsToTick } from '../../util/globalTrackUtil';
 import { TICKS_PER_QUARTER, ticksPerBar } from '../timing';
+import { instVelaRenderer } from '../../util/instvela/renderer';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
+import { ensureInstVelaModels } from '../../util/instvela/models';
 
 interface PreparePlaybackOptions {
   allowStartBeforeLoopStart?: boolean;
@@ -442,6 +447,9 @@ export class KGAudioInterface {
    */
   public async setTrackInstrument(trackId: string, instrumentType: InstrumentType): Promise<void> {
     try {
+      if (getInstVelaInstrument(String(instrumentType))) {
+        void ensureInstVelaModels().catch(error => console.error('InstVELA model download failed:', error));
+      }
       const audioBus = this.trackAudioBuses.get(trackId);
       if (audioBus) {
         await audioBus.setInstrument(instrumentType);
@@ -552,6 +560,7 @@ export class KGAudioInterface {
       this.setTransportPosition(Math.max(0, startPosition));
 
       // Schedule all MIDI events
+      const renderedStrings = instVelaRenderer.getProjectBuffers(project);
       project.getPlaybackTracks().forEach(track => {
         const trackId = track.getId().toString();
         const isMetronomeTrack = track.getId() === METRONOME_TRACK_ID;
@@ -575,6 +584,55 @@ export class KGAudioInterface {
 
         console.log(`Track ${trackId} has audio bus: ${audioBus ? 'true' : 'false'}; type: ${track.getType()}`);
         
+        if (audioBus && track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())) {
+          const midiVolumePoints = collectMidiVolumeAutomationPoints(track.getRegions());
+          if (midiVolumePoints.length > 0) {
+            const initialVolume = resolveMidiAutomationValueAtTick(midiVolumePoints, initialAutomationTick, 127);
+            audioBus.setRenderedMidiVolume(clampMidiControllerValue(initialVolume) / 127);
+            const bakedVolume = bakeMidiAutomationPointsInWindow(
+              midiVolumePoints, automationWindowStartTick, scheduleEndTick,
+              {
+                maxIntervalMs: interpolationIntervalMs,
+                bpm: getEffectiveBpmAtTick(project, automationWindowStartTick),
+                defaultValue: 127,
+                quantizeValue: clampMidiControllerValue,
+              },
+            );
+            for (const { tick, value } of bakedVolume) {
+              if (!isLooping && tick === automationWindowStartTick) continue;
+              const eventId = Tone.Transport.schedule(time => {
+                audioBus.setRenderedMidiVolume(value / 127, time + playbackDelay);
+              }, this.projectTickToTransportTime(tick));
+              this.scheduledEvents.add(eventId);
+            }
+          }
+
+          const fullLoop = isLooping && options?.scheduleFullLoop;
+          for (const region of track.getRegions()) {
+            const buffer = renderedStrings.get(region.getId());
+            if (!buffer) continue;
+            const regionStart = region.getStartTick();
+            const scheduleAt = (tick: number, once = false) => {
+              const safeTick = tick > regionStart ? tick + resumeSafetyOffsetTicks : tick;
+              if (safeTick >= scheduleEndTick) return;
+              const offset = tickRangeToSeconds(project, regionStart, safeTick);
+              const duration = Math.min(buffer.duration - offset, isLooping
+                ? tickRangeToSeconds(project, safeTick, scheduleEndTick) : Infinity);
+              if (duration <= 0) return;
+              const play = (time: number) => audioBus.startRenderedRegion(
+                buffer, time + playbackDelay, offset, duration, this.hasSoloedTracks());
+              const position = this.projectTickToTransportTime(safeTick);
+              this.scheduledEvents.add(once
+                ? Tone.Transport.scheduleOnce(play, position)
+                : Tone.Transport.schedule(play, position));
+            };
+            const tick = Math.max(regionStart, playbackWindowStartTick);
+            if (fullLoop && tick < startPosition) scheduleAt(startPosition, true);
+            scheduleAt(tick);
+          }
+          return;
+        }
+
         // Schedule MIDI track events
         if (audioBus && track.getType() === 'MIDI') {
           const trackNotes: Array<{ note: KGMidiNote; absoluteStartTick: number; absoluteEndTick: number }> = [];
@@ -1518,12 +1576,14 @@ export class KGAudioInterface {
 
   // ===== PRIVATE UTILITY METHODS =====
 
-  private applyTrackAutomationAtBeat(track: { getId(): number; getVolumeAutomation(): Array<{ getTick(): number; getValue(): number }>; getPanAutomation(): Array<{ getTick(): number; getValue(): number }> }, tick: number): void {
+  private applyTrackAutomationAtBeat(track: KGTrack, tick: number): void {
     const trackId = track.getId().toString();
     const audioBus = this.trackAudioBuses.get(trackId);
     const playerBus = this.trackAudioPlayerBuses.get(trackId);
     const volumePoints = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
-    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
+    const panPoints = track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())
+      ? []
+      : track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
 
     const nextVolume = volumePoints.length > 0
       ? resolveTrackAutomationValueAtTick(volumePoints, 'volume', tick, getTrackAutomationDefaultValue('volume'))
@@ -1554,7 +1614,7 @@ export class KGAudioInterface {
   }
 
   private scheduleTrackAutomation(
-    track: { getId(): number; getVolumeAutomation(): Array<{ getTick(): number; getValue(): number }>; getPanAutomation(): Array<{ getTick(): number; getValue(): number }> },
+    track: KGTrack,
     windowStartTick: number,
     windowEndTick: number,
     interpolationIntervalMs: number,
@@ -1569,7 +1629,6 @@ export class KGAudioInterface {
     }
 
     const volumePoints = track.getVolumeAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
-    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
 
     bakeTrackAutomationPointsInWindow(volumePoints, 'volume', windowStartTick, windowEndTick, interpolationIntervalMs, bpm)
       .forEach(({ tick, value }) => {
@@ -1589,6 +1648,9 @@ export class KGAudioInterface {
         this.scheduledEvents.add(eventId);
       });
 
+    if (track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())) return;
+
+    const panPoints = track.getPanAutomation().map(point => ({ tick: point.getTick(), value: point.getValue() }));
     bakeTrackAutomationPointsInWindow(panPoints, 'pan', windowStartTick, windowEndTick, interpolationIntervalMs, bpm)
       .forEach(({ tick, value }) => {
         if (includeWindowStart ? tick < windowStartTick : tick <= windowStartTick) {
@@ -1636,6 +1698,7 @@ export class KGAudioInterface {
     this.trackAudioBuses.forEach(audioBus => {
       audioBus.setAutomationVolume(null);
       audioBus.setAutomationPan(null);
+      audioBus.resetRenderedMidiVolume();
     });
     this.trackAudioPlayerBuses.forEach(playerBus => {
       playerBus.setAutomationVolume(null);

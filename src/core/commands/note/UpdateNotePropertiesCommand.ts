@@ -1,33 +1,26 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
-import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiNote, type MidiArticulation } from '../../midi/KGMidiNote';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGTrack } from '../../track/KGTrack';
-
-interface NoteSnapshot {
-  noteId: string;
-  pitch: number;
-  velocity: number;
-  startTick: number;
-  endTick: number;
-}
 
 interface NoteUpdate {
   noteId: string;
   pitch?: number;
   velocity?: number;
+  articulation?: MidiArticulation;
   startTick?: number;
   endTick?: number;
 }
 
 export class UpdateNotePropertiesCommand extends KGCommand {
   private regionId: string;
-  private snapshots: NoteSnapshot[];
+  private snapshots: NoteUpdate[];
   private updates: NoteUpdate[];
   private targetRegion: KGMidiRegion | null = null;
   private parentTrack: KGTrack | null = null;
 
-  constructor(regionId: string, snapshots: NoteSnapshot[], updates: NoteUpdate[]) {
+  constructor(regionId: string, snapshots: NoteUpdate[], updates: NoteUpdate[]) {
     super();
     this.regionId = regionId;
     this.snapshots = [...snapshots];
@@ -51,12 +44,17 @@ export class UpdateNotePropertiesCommand extends KGCommand {
       throw new Error(`Region with ID ${this.regionId} not found`);
     }
 
-    const notes = this.targetRegion.getNotes();
-    for (const update of this.updates) {
+    this.applyUpdates(this.targetRegion, this.updates);
+  }
+
+  private applyUpdates(region: KGMidiRegion, updates: NoteUpdate[]): void {
+    const notes = region.getNotes();
+    for (const update of updates) {
       const note = notes.find((n: KGMidiNote) => n.getId() === update.noteId);
       if (note) {
         if (update.pitch !== undefined) note.setPitch(update.pitch);
         if (update.velocity !== undefined) note.setVelocity(update.velocity);
+        if (update.articulation !== undefined) note.setArticulation(update.articulation);
         if (update.startTick !== undefined) note.setStartTick(update.startTick);
         if (update.endTick !== undefined) note.setEndTick(update.endTick);
       }
@@ -68,16 +66,7 @@ export class UpdateNotePropertiesCommand extends KGCommand {
       throw new Error('Cannot undo: command was not executed');
     }
 
-    const notes = this.targetRegion.getNotes();
-    for (const snap of this.snapshots) {
-      const note = notes.find((n: KGMidiNote) => n.getId() === snap.noteId);
-      if (note) {
-        note.setPitch(snap.pitch);
-        note.setVelocity(snap.velocity);
-        note.setStartTick(snap.startTick);
-        note.setEndTick(snap.endTick);
-      }
-    }
+    this.applyUpdates(this.targetRegion, this.snapshots);
   }
 
   getDescription(): string {

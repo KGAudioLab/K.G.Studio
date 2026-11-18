@@ -74,7 +74,7 @@ describe('track FX persistence', () => {
     expect(first.getFX()).toEqual([]); expect(second.getFX()).toEqual([]);
     first.addFX(new KGEQFX());
     expect(second.getFX()).toEqual([]);
-    expect(project.getProjectStructureVersion()).toBe(22);
+    expect(project.getProjectStructureVersion()).toBe(KGProject.CURRENT_PROJECT_STRUCTURE_VERSION);
     const snapshot = instanceToPlain(project);
     upgradeProjectToLatest(project);
     expect(instanceToPlain(project)).toEqual(snapshot);

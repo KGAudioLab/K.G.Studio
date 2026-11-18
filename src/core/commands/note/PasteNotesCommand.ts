@@ -91,7 +91,8 @@ export class PasteNotesCommand extends KGCommand {
         newStartTick,
         newEndTick,
         originalNote.getPitch(),
-        originalNote.getVelocity()
+        originalNote.getVelocity(),
+        originalNote.getArticulation(),
       );
       
       // Store created note data for undo

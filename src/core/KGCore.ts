@@ -14,6 +14,7 @@ import { generateUniqueId } from '../util/miscUtil';
 import { KGCommand, KGCommandHistory } from './commands';
 import { getEffectiveBpmAtTick } from '../util/globalTrackUtil';
 import type { ChordGuideData } from './ChordGuideTypes';
+import { instVelaRenderer } from '../util/instvela/renderer';
 
 interface PlaybackStartOptions {
   preserveLoopPreroll?: boolean;
@@ -51,6 +52,8 @@ export class KGCore {
   // Timer management for playback
   private playbackIntervalId: number | null = null;
   private playbackSeekGeneration: number = 0;
+  private playbackPreparation?: AbortController;
+  private selectedMidiRegionIds: string[] = [];
   
   // Callback for external state updates (e.g., store)
   private playheadUpdateCallback: ((position: number) => void) | null = null;
@@ -151,6 +154,11 @@ export class KGCore {
   }
 
   public setCurrentProject(project: KGProject): void {
+    if (project !== this.currentProject) {
+      this.playbackPreparation?.abort();
+      this.selectedMidiRegionIds = [];
+      instVelaRenderer.setProject(project);
+    }
     this.currentProject = project;
     
     // Sync project settings with audio interface
@@ -225,6 +233,10 @@ export class KGCore {
   }
 
   private notifySelectionChanged(): void {
+    const ids = this.selectedItems.filter(item => item instanceof KGMidiRegion).map(region => region.getId());
+    const deselected = this.selectedMidiRegionIds.filter(id => !ids.includes(id));
+    this.selectedMidiRegionIds = ids;
+    instVelaRenderer.renderDeselected(this.currentProject, deselected);
     this.selectionChangeCallbacks.forEach(callback => callback());
   }
 
@@ -249,12 +261,15 @@ export class KGCore {
     return this.isPlaying;
   }
 
-  public async preparePlay(options?: PlaybackStartOptions): Promise<void> {
+  public async preparePlay(options?: PlaybackStartOptions, signal?: AbortSignal): Promise<void> {
     try {
       const audioInterface = KGAudioInterface.instance();
       
       // Ensure audio context is started (required for Web Audio)
       await audioInterface.startAudioContext();
+      if (signal?.aborted) return;
+      await instVelaRenderer.prepareProject(this.currentProject, signal);
+      if (signal?.aborted) return;
       
       // Prepare playback with current project and playhead position
       audioInterface.preparePlayback(this.currentProject, this.playheadTick, {
@@ -318,7 +333,7 @@ export class KGCore {
   }
 
   // High-level playback control methods
-  public async startPlaying(options?: PlaybackStartOptions): Promise<void> {
+  public async startPlaying(options?: PlaybackStartOptions): Promise<void | false> {
     // Handle loop mode initialization
     if (this.currentProject.getIsLooping()) {
       const [startBar, endBar] = this.currentProject.getLoopingRange();
@@ -342,17 +357,21 @@ export class KGCore {
       }
     }
 
-    // Prepare playback first
-    await this.preparePlay(options);
-
-    // Start playing (non-blocking)
-    this.play(); // Don't await this
-
-    this.startPlaybackUpdates();
-
+    this.playbackPreparation?.abort();
+    const preparation = new AbortController();
+    this.playbackPreparation = preparation;
+    try {
+      await this.preparePlay(options, preparation.signal);
+      if (preparation.signal.aborted) return false;
+      await this.play();
+      this.startPlaybackUpdates();
+    } finally {
+      if (this.playbackPreparation === preparation) this.playbackPreparation = undefined;
+    }
   }
 
   public async stopPlaying(): Promise<void> {
+    this.playbackPreparation?.abort();
     this.playbackSeekGeneration += 1;
     // Stop the timer first
     this.stopPlaybackUpdates();
@@ -573,7 +592,8 @@ export class KGCore {
             note.getStartTick(),
             note.getEndTick(),
             note.getPitch(),
-            note.getVelocity()
+            note.getVelocity(),
+            note.getArticulation(),
           );
           clonedItems.push(clonedNote);
           break;
@@ -599,7 +619,8 @@ export class KGCore {
               note.getStartTick(),
               note.getEndTick(),
               note.getPitch(),
-              note.getVelocity()
+              note.getVelocity(),
+              note.getArticulation(),
             );
             clonedRegion.addNote(clonedNote);
           });

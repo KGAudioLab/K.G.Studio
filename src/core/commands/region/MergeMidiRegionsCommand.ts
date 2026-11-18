@@ -2,7 +2,7 @@ import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGMidiControllerEvent } from '../../midi/KGMidiControllerEvent';
-import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiNote, type MidiArticulation } from '../../midi/KGMidiNote';
 import { KGMidiPitchBend } from '../../midi/KGMidiPitchBend';
 import { KGTrack } from '../../track/KGTrack';
 import { useProjectStore } from '../../../stores/projectStore';
@@ -17,6 +17,7 @@ interface RegionSnapshot {
     endTick: number;
     pitch: number;
     velocity: number;
+    articulation: MidiArticulation;
   }>;
   pitchBends: Array<{
     id: string;
@@ -41,7 +42,8 @@ function cloneNote(note: KGMidiNote, startTick: number, endTick: number): KGMidi
     startTick,
     endTick,
     note.getPitch(),
-    note.getVelocity()
+    note.getVelocity(),
+    note.getArticulation(),
   );
 }
 
@@ -129,6 +131,7 @@ export class MergeMidiRegionsCommand extends KGCommand {
           endTick: note.getEndTick(),
           pitch: note.getPitch(),
           velocity: note.getVelocity(),
+          articulation: note.getArticulation(),
         })),
         pitchBends: region.getPitchBends().map(pitchBend => ({
           id: pitchBend.getId(),
@@ -221,7 +224,8 @@ export class MergeMidiRegionsCommand extends KGCommand {
       note.startTick,
       note.endTick,
       note.pitch,
-      note.velocity
+      note.velocity,
+      note.articulation,
     )));
     this.survivingRegion.setPitchBends(survivingSnapshot.pitchBends.map(pitchBend => new KGMidiPitchBend(
       pitchBend.id,
@@ -248,7 +252,8 @@ export class MergeMidiRegionsCommand extends KGCommand {
         note.startTick,
         note.endTick,
         note.pitch,
-        note.velocity
+        note.velocity,
+        note.articulation,
       )));
       region.setPitchBends(snapshot.pitchBends.map(pitchBend => new KGMidiPitchBend(
         pitchBend.id,

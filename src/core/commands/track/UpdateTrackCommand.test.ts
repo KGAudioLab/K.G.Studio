@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KGCore } from '../../KGCore';
 import { KGProject } from '../../KGProject';
 import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
+import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGMidiTrack } from '../../track/KGMidiTrack';
 import { KGTrack } from '../../track/KGTrack';
+import { DEFAULT_AI_STRINGS_REGION_COLOR, DEFAULT_MIDI_REGION_COLOR } from '../../../constants/regionColorPalette';
 import { UpdateTrackCommand } from './UpdateTrackCommand';
 
 vi.mock('../../KGCore', () => ({
@@ -23,6 +26,8 @@ describe('UpdateTrackCommand', () => {
   let project: KGProject;
   const mockCore = {
     getCurrentProject: vi.fn(),
+    getSelectedItems: vi.fn((): KGMidiNote[] => []),
+    removeSelectedItems: vi.fn(),
   };
   const mockAudioInterface = {
     setTrackVolume: vi.fn(),
@@ -157,6 +162,96 @@ describe('UpdateTrackCommand', () => {
     expect(midi.getResolvedImageName()).toBe('violin.png');
     change.undo();
     expect(midi.getImageName()).toBe('cello.png');
+  });
+
+  it.each([undefined, '#8C2B7A'])('swaps default region colors and supports undo with track color %s', trackColor => {
+    const midi = new KGMidiTrack('Violin', 1, 'violin');
+    midi.setColor(trackColor);
+    const inherited = new KGMidiRegion('inherited', '1', 0, 'Inherited');
+    const green = new KGMidiRegion('green', '1', 0, 'Green');
+    const custom = new KGMidiRegion('custom', '1', 0, 'Custom');
+    const originalColors = [undefined, DEFAULT_MIDI_REGION_COLOR.toLowerCase(), '#3D77C9'];
+    green.setColor(originalColors[1]);
+    custom.setColor(originalColors[2]);
+    midi.setRegions([inherited, green, custom]);
+    project.setTracks([midi]);
+
+    const colors = () => midi.getRegions().map(region => region.getColor());
+    const toAi = new UpdateTrackCommand(1, { instrument: 'ai_violin' });
+    const aiColors = [trackColor ? undefined : DEFAULT_AI_STRINGS_REGION_COLOR, DEFAULT_AI_STRINGS_REGION_COLOR, '#3D77C9'];
+    toAi.execute();
+    expect(colors()).toEqual(aiColors);
+    toAi.undo();
+    expect(colors()).toEqual(originalColors);
+    toAi.execute();
+    expect(colors()).toEqual(aiColors);
+
+    const toRegular = new UpdateTrackCommand(1, { instrument: 'violin' });
+    const regularColors = [trackColor ? undefined : DEFAULT_MIDI_REGION_COLOR, DEFAULT_MIDI_REGION_COLOR, '#3D77C9'];
+    toRegular.execute();
+    expect(colors()).toEqual(regularColors);
+    toRegular.undo();
+    expect(colors()).toEqual(aiColors);
+    toRegular.execute();
+    expect(colors()).toEqual(regularColors);
+  });
+
+  it('interprets AI keyswitches across regions and restores the original notes on undo', () => {
+    const midi = new KGMidiTrack('Cello', 1, 'cello');
+    const first = new KGMidiRegion('first', '1', 0, 'First', 960, 960);
+    const later = new KGMidiRegion('later', '1', 0, 'Later', 1920, 960);
+    const sustain = new KGMidiNote('sustain', 0, 120, 48);
+    const spiccatoSwitch = new KGMidiNote('switch-spiccato', 120, 180, 25);
+    const spiccato = new KGMidiNote('spiccato', 0, 120, 49);
+    const pizzicato = new KGMidiNote('pizzicato', 120, 240, 50, 96, 3);
+    const pizzicatoSwitch = new KGMidiNote('switch-pizzicato', 120, 180, 26);
+    const reset = new KGMidiNote('reset', 240, 360, 51);
+    const resetSwitch = new KGMidiNote('switch-sustain', 240, 300, 27);
+    const firstNotes = [sustain, spiccatoSwitch];
+    const laterNotes = [spiccato, pizzicato, pizzicatoSwitch, reset, resetSwitch];
+    first.setNotes(firstNotes);
+    later.setNotes(laterNotes);
+    midi.setRegions([later, first]);
+    project.setTracks([midi]);
+    spiccatoSwitch.select();
+    spiccato.select();
+    mockCore.getSelectedItems.mockReturnValueOnce([spiccatoSwitch, spiccato]);
+
+    const command = new UpdateTrackCommand(1, { instrument: 'ai_cello' });
+    command.execute();
+
+    expect(midi.getInstrument()).toBe('ai_cello');
+    expect(first.getNotes()).toEqual([sustain]);
+    expect(later.getNotes()).toEqual([spiccato, pizzicato, reset]);
+    expect(later.getNotes().map(note => note.getArticulation())).toEqual([1, 2, 0]);
+    expect(mockCore.removeSelectedItems).toHaveBeenCalledExactlyOnceWith([spiccatoSwitch]);
+    expect(spiccatoSwitch.isSelected()).toBe(false);
+    expect(spiccato.isSelected()).toBe(true);
+
+    command.undo();
+    expect(midi.getInstrument()).toBe('cello');
+    expect(first.getNotes()).toEqual(firstNotes);
+    expect(later.getNotes()).toEqual(laterNotes);
+    expect(later.getNotes().map(note => note.getArticulation())).toEqual([0, 3, 0, 0, 0]);
+
+    command.execute();
+    expect(later.getNotes()).toEqual([spiccato, pizzicato, reset]);
+    expect(later.getNotes().map(note => note.getArticulation())).toEqual([1, 2, 0]);
+  });
+
+  it('preserves low notes and explicit articulations when switching between AI instruments', () => {
+    const midi = new KGMidiTrack('Strings', 1, 'ai_cello');
+    const region = new KGMidiRegion('part', '1', 0, 'Part', 0, 960);
+    const notes = [new KGMidiNote('low-note', 0, 120, 37, 96, 2), new KGMidiNote('high-note', 120, 240, 60)];
+    region.setNotes(notes);
+    midi.addRegion(region);
+    project.setTracks([midi]);
+
+    new UpdateTrackCommand(1, { instrument: 'ai_violin' }).execute();
+
+    expect(midi.getInstrument()).toBe('ai_violin');
+    expect(region.getNotes()).toEqual(notes);
+    expect(region.getNotes().map(note => note.getArticulation())).toEqual([2, 0]);
   });
 
 });

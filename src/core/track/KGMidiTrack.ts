@@ -4,8 +4,10 @@ import { KGMidiRegion } from '../region/KGMidiRegion';
 import { KGRegion } from '../region/KGRegion';
 import { FLUIDR3_INSTRUMENT_MAP } from '../../constants/generalMidiConstants';
 import { AUDIO_INTERFACE_CONSTANTS } from '../../constants/coreConstants';
+import { DEFAULT_AI_STRINGS_REGION_COLOR } from '../../constants/regionColorPalette';
 import { WithDefault } from '../../types/projectTypes';
 import { isPercussionInstrument, resolveInstrumentDefinition, resolvePlaybackInstrument } from '../instruments/instrumentResolver';
+import { getInstVelaInstrument } from '../../util/instvela/instruments';
 
 export type InstrumentType = keyof typeof FLUIDR3_INSTRUMENT_MAP;
 export interface MidiTransposeSettings {
@@ -96,4 +98,19 @@ export class KGMidiTrack extends KGTrack {
   public override getCurrentType(): string {
     return 'KGMidiTrack';
   }
+}
+
+export function createMidiRegionForTrack(
+  track: KGTrack,
+  id: string,
+  trackIndex: number,
+  name: string,
+  startTick: number,
+  lengthTicks: number,
+): KGMidiRegion {
+  const region = new KGMidiRegion(id, String(track.getId()), trackIndex, name, startTick, lengthTicks);
+  if (track instanceof KGMidiTrack && getInstVelaInstrument(track.getInstrument())) {
+    region.setColor(DEFAULT_AI_STRINGS_REGION_COLOR);
+  }
+  return region;
 }

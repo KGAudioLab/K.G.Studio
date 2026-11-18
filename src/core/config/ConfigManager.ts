@@ -3,6 +3,7 @@ import { KGConfigStorage } from '../io/KGConfigStorage';
 import type { LanguageSetting } from '../../i18n/types';
 import type { AgentMode } from '../../util/agentMode';
 import type { FXDefaults } from '../fx/fxDefaults';
+import { INSTVELA_BASE_URL } from '../../util/instvela/modelAssets';
 
 /**
  * Application configuration interface
@@ -20,6 +21,7 @@ interface AppConfig {
       model_url: string;
     };
     aire: { base_url: string };
+    instvela: { base_url: string };
     uvr5_web_runtime: {
       mdx_net_model_url: string;
       htdemucs_4s_model_url: string;
@@ -265,6 +267,7 @@ export class ConfigManager {
             model_url: 'https://huggingface.co/notabilia/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task'
           },
           aire: { base_url: 'https://huggingface.co/KGAudioLab/instrument-aire-models/resolve/main/models/' },
+          instvela: { base_url: INSTVELA_BASE_URL },
           uvr5_web_runtime: {
             mdx_net_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/UVR-MDX-NET-Inst_HQ_3.onnx',
             htdemucs_4s_model_url: 'https://huggingface.co/notabilia/uvr5-models/resolve/main/htdemucs_embedded.onnx',
@@ -395,7 +398,13 @@ export class ConfigManager {
       return { ...baseConfig };
     }
 
-    return this.deepMerge(baseConfig, overrideConfig) as AppConfig;
+    const merged = this.deepMerge(baseConfig, overrideConfig) as AppConfig;
+    const modelUrl = merged.general?.instvela?.base_url;
+    if (typeof modelUrl === 'string' &&
+      modelUrl.trim().replace(/\/+$/, '') === 'https://huggingface.co/KGAudioLab/instrument-vela-models-onnx/resolve/main/models') {
+      merged.general = { ...merged.general, instvela: { base_url: INSTVELA_BASE_URL } };
+    }
+    return merged;
   }
 
   /**

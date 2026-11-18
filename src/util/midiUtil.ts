@@ -2,10 +2,10 @@ import { createDefaultFXChain } from '../core/fx/defaultFXChain';
 import { DEBUG_MODE } from '../constants/uiConstants';
 import type { TimeSignature } from '../types/projectTypes';
 import { KGProject, type KeySignature } from '../core/KGProject';
-import { KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
+import { createMidiRegionForTrack, KGMidiTrack, type InstrumentType } from '../core/track/KGMidiTrack';
 import { STANDARD_MIDI_INSTRUMENT_MAP } from '../constants/generalMidiConstants';
 import { resolveInstrumentDefinition } from '../core/instruments/instrumentResolver';
-import { KGMidiRegion } from '../core/region/KGMidiRegion';
+import type { KGMidiRegion } from '../core/region/KGMidiRegion';
 import { KGMidiNote } from '../core/midi/KGMidiNote';
 import { KGTempoRegion } from '../core/region/KGTempoRegion';
 import { generateUniqueId } from './miscUtil';
@@ -888,9 +888,9 @@ export const convertMidiToProject = (midiData: Uint8Array, existingProject?: KGP
     importedTrackEndTicks.push(regionEndTick);
     const regionId = generateUniqueId('KGMidiRegion');
     const regionName = `${trackName} Region`;
-    const region = new KGMidiRegion(
+    const region = createMidiRegionForTrack(
+      kgTrack,
       regionId,
-      trackId.toString(),
       actualTrackIndex,
       regionName,
       regionStartTick,

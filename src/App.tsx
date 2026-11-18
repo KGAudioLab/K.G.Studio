@@ -25,6 +25,10 @@ import { KGProjectStorage } from './core/io/KGProjectStorage';
 import { RESERVED_PROJECT_NAME } from './util/projectNameUtil';
 import type { ChordGuideCustomConfig } from './core/ChordGuideTypes';
 import { UserInstrumentRegistry } from './core/instruments/UserInstrumentRegistry';
+import { useStore } from 'zustand';
+import { useI18n } from './i18n/useI18n';
+import { instVelaModels } from './util/instvela/models';
+import { instVelaRenderer } from './util/instvela/renderer';
 
 // The legacy filename remains supported for soundfont deployment compatibility.
 export async function loadDeploymentSoundfontOverride(
@@ -204,7 +208,7 @@ function App() {
       {/* Status Bar */}
       <StatusBar />
 
-      {/* Global Loading Overlay for instrument buffer loading */}
+      {/* Global Loading Overlay for instrument buffers and model downloads */}
       <GlobalLoadingOverlayContainer />
 
       {/* Migration Loading Overlay */}
@@ -231,8 +235,10 @@ export const ProjectTitleSync: React.FC = () => {
   return null;
 };
 
-// Local component to subscribe to pool events and manage a counter
 export const GlobalLoadingOverlayContainer: React.FC = () => {
+  const { t } = useI18n();
+  const modelDownload = useStore(instVelaModels, state => state.downloadProgress);
+  const downloadingModels = modelDownload !== null;
   const [loadingCount, setLoadingCount] = useState<number>(() => KGToneBuffersPool.instance().getActiveLoadCount());
   const [overdue, setOverdue] = useState<boolean>(false);
   const timeoutRef = useRef<number | null>(null);
@@ -254,8 +260,7 @@ export const GlobalLoadingOverlayContainer: React.FC = () => {
 
   // Handle long-running overlay: after 10s, hide and alert the user, but allow future loads to show overlay again
   useEffectReact(() => {
-    // When loading starts, start a 30s timer if not already overdue/timed
-    if (loadingCount > 0 && !overdue && timeoutRef.current === null) {
+    if (loadingCount > 0 && !downloadingModels && !overdue && timeoutRef.current === null) {
       timeoutRef.current = window.setTimeout(async () => {
         const activeLoadCount = KGToneBuffersPool.instance().getActiveLoadCount();
         setLoadingCount(activeLoadCount);
@@ -288,12 +293,16 @@ export const GlobalLoadingOverlayContainer: React.FC = () => {
         timeoutRef.current = null;
       }
     };
-  }, [loadingCount, overdue]);
+  }, [downloadingModels, loadingCount, overdue]);
+
+  const message = modelDownload
+    ? t('instvela.loadingFiles', { ...modelDownload })
+    : loadingCount > 1 ? `Loading ... (${loadingCount})` : 'Loading ...';
 
   return (
     <LoadingOverlay
-      visible={loadingCount > 0 && !overdue}
-      message={loadingCount > 1 ? `Loading ... (${loadingCount})` : 'Loading ...'}
+      visible={downloadingModels || (loadingCount > 0 && !overdue)}
+      message={message}
     />
   );
 };
@@ -320,6 +329,7 @@ const MigrationOverlayContainer: React.FC = () => {
 // Bounce/render overlay — shown during offline WAV/MP3 rendering
 const BounceOverlayContainer: React.FC = () => {
   const [renderMessage, setRenderMessage] = useState<string | null>(null);
+  const downloadingModels = useStore(instVelaModels, state => state.downloadProgress !== null);
 
   useEffectReact(() => {
     const renderer = KGOfflineRenderer.instance();
@@ -334,7 +344,7 @@ const BounceOverlayContainer: React.FC = () => {
 
   return (
     <LoadingOverlay
-      visible={renderMessage !== null}
+      visible={!downloadingModels && renderMessage !== null}
       message={renderMessage ?? 'Rendering...'}
     />
   );
@@ -343,7 +353,10 @@ const BounceOverlayContainer: React.FC = () => {
 const PLAYBACK_PREPARATION_OVERLAY_DELAY_MS = 150;
 
 export const PlaybackPreparationOverlayContainer: React.FC = () => {
+  const { t } = useI18n();
   const isPreparingPlayback = useProjectStore(state => state.isPreparingPlayback);
+  const rendering = useStore(instVelaRenderer.state, state => state.playback);
+  const downloadingModels = useStore(instVelaModels, state => state.downloadProgress !== null);
   const [visible, setVisible] = useState<boolean>(false);
   const timeoutRef = useRef<number | null>(null);
 
@@ -373,8 +386,8 @@ export const PlaybackPreparationOverlayContainer: React.FC = () => {
 
   return (
     <LoadingOverlay
-      visible={visible}
-      message="Preparing playback..."
+      visible={!downloadingModels && (visible || rendering !== null)}
+      message={rendering ? t('instvela.renderingCount', { ...rendering }) : 'Preparing playback...'}
     />
   );
 };

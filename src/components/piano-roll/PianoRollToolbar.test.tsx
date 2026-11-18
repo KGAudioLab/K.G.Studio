@@ -173,6 +173,26 @@ describe('PianoRollToolbar', () => {
     expect(onChordGuideChange).toHaveBeenNthCalledWith(4, 'D');
   });
 
+  it('shows articulation actions beside the chord guide and does not latch the buttons', () => {
+    const onArticulationChange = vi.fn();
+    renderWithLocale(<PianoRollToolbar {...baseProps} onArticulationChange={onArticulationChange} hasSelectedNotes />);
+
+    const group = screen.getByRole('group', { name: 'Articulation' });
+    expect(group.previousElementSibling).toHaveClass('piano-roll-chord-guide-toolbar-group');
+    const buttons = [...group.querySelectorAll('button')];
+    expect(buttons.map(button => button.textContent)).toEqual(['–', '▾', '•']);
+    for (const button of buttons) {
+      expect(button).not.toHaveAttribute('aria-pressed');
+      fireEvent.click(button);
+    }
+    expect(onArticulationChange.mock.calls).toEqual([[0], [1], [2]]);
+  });
+
+  it('keeps the articulation actions disabled until notes are selected', () => {
+    renderWithLocale(<PianoRollToolbar {...baseProps} onArticulationChange={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Pizzicato' })).toBeDisabled();
+  });
+
   it('hides automation controls in spectrogram mode', () => {
     renderWithLocale(
       <PianoRollToolbar

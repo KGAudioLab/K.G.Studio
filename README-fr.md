@@ -22,12 +22,23 @@ K.G.Studio est une DAW légère et moderne qui fonctionne entièrement dans le n
 
 ### Outils musicaux IA
 
-Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accélération WebGPU** sur le matériel compatible, en traitant les données MIDI et audio localement.
+Ces outils fonctionnent entièrement dans votre navigateur avec **l’accélération WebGPU** sur le matériel compatible, en traitant les données MIDI et audio localement.
 
-- **Humanisation** — Générez des courbes de contrôleurs MIDI expressives avec [AIRE](https://huggingface.co/KGAudioLab/instrument-aire-models) pour les cordes, les cuivres et les bois, selon le rôle musical et l’ambiance. Façonnez la modulation, le souffle, le volume ou l’expression tout en préservant le placement temporel et la vélocité des notes.
+- **Instruments IA** — Transformez vos notes MIDI en sons expressifs de violon, d’alto, de violoncelle et de contrebasse avec **[InstVELA (M01Preview)](https://huggingface.co/KGAudioLab/InstVELA-models-onnx)**. Réglez les articulations soutenu, spiccato et pizzicato dans le piano roll, avec un rendu effectué localement dans votre navigateur.
+- **Humanisation** *(temporairement désactivée)* — Générez des courbes de contrôleurs MIDI expressives avec [AIRE](https://huggingface.co/KGAudioLab/instrument-aire-models) pour les cordes, les cuivres et les bois, selon le rôle musical et l’ambiance. Façonnez la modulation, le souffle, le volume ou l’expression tout en préservant le placement temporel et la vélocité des notes.
 - **Extraction de stems** — Séparez l’audio en voix et instruments, ou en voix, batterie, basse et autres instruments. Écoutez les stems extraits et importez-les directement dans votre arrangement pour poursuivre l’édition.
 
 ## Dernières mises à jour
+
+- **2026.11.17** : découvrez les **Instruments IA** — composez les notes, écoutez l’interprétation :
+  - **Quatre instruments à cordes expressifs** — donnez vie à vos parties MIDI avec le violon, l’alto, le violoncelle et la contrebasse, grâce à **[InstVELA (M01Preview)](https://huggingface.co/KGAudioLab/InstVELA-models-onnx)** et à ses variations de hauteur et de dynamique générées.
+  - **L’expression entre vos mains** — réglez les articulations soutenu, spiccato et pizzicato pour chaque note dans le piano roll. L’import MIDI reconnaît les touches d’articulation prises en charge, et le rendu automatique actualise les régions nouvelles ou modifiées lorsque vous les désélectionnez.
+  - **Le rendu sur votre appareil** — téléchargez les modèles et conservez-les dans le cache local, puis effectuez le rendu dans votre navigateur avec l’accélération WebGPU sur le matériel compatible et un repli sur le CPU si nécessaire.
+  - **Version préliminaire, retours bienvenus** — M01Preview prend en charge les parties de cordes monophoniques. Nous affinons les modèles pour améliorer la qualité sonore et l’expression musicale, et accueillons vos retours sur les artefacts ou les passages qui manquent de naturel.
+
+<div align="center">
+  <img src="./docs/KGStudio-InstVELA-Demo-20261117.gif" alt="Démonstration des instruments IA de K.G.Studio avec InstVELA" width="640" />
+</div>
 
 - **2026.10.18** : ajout de la prise en charge locale de MCP pour les agents IA externes :
   - **Outils pour les agents externes** — connectez Codex, Claude Code, OpenCode ou Pi pour éditer la musique avec des outils qui se mettent à jour automatiquement lorsque le mode d’agent actif change.
@@ -44,7 +55,7 @@ Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accé
 </div>
 
 - **2026.10.10** : ajout de l’humanisation expressive MIDI et de nouvelles capacités d’édition pour l’agent IA :
-  - **Humanisation AIRE** — générez des courbes d’expression MIDI éditables pour les cordes, les cuivres et les bois, entièrement dans votre navigateur avec l’accélération WebGPU. Choisissez le rôle musical, l’ambiance et le contrôleur cible (CC1, CC2, CC7 ou CC11), avec un conditionnement optionnel par la vélocité et une simplification des courbes. Le placement temporel et la vélocité des notes sont préservés.
+  - **Humanisation AIRE** *(actuellement désactivée)* — générez des courbes d’expression MIDI éditables pour les cordes, les cuivres et les bois, entièrement dans votre navigateur avec l’accélération WebGPU. Choisissez le rôle musical, l’ambiance et le contrôleur cible (CC1, CC2, CC7 ou CC11), avec un conditionnement optionnel par la vélocité et une simplification des courbes. Le placement temporel et la vélocité des notes sont préservés.
   - **Mode avancé de l’agent** — utilisez des outils musicaux JSON structurés et un placement temporel précis en ticks pour éditer vos arrangements en détail. L’assistant peut modifier ou supprimer l’automation du volume, du panoramique, du pitch bend et des CC MIDI, avec des mises à jour groupées de points en une seule opération annulable. Les listes structurées de pistes et d’instruments enrichissent le contexte du projet.
 
 - **2026.07.18** : introduction de nouveaux workflows puissants pour l'arrangement et l'édition MIDI :
@@ -52,29 +63,13 @@ Les deux outils fonctionnent entièrement dans votre navigateur avec **l’accé
   - **Mode Référence MIDI** — superposez une seconde région MIDI dans le piano roll sous forme de référence en lecture seule, alignée sur la timeline, afin de coordonner plus facilement mélodies, harmonies, voicings et relations rythmiques lors de l'édition d'une autre partie.
   - **Améliorations diverses** — visibilité et navigation de la tête de lecture affinées, pistes globales fixes, duplication de piste configurable, orthographe enharmonique adaptée à la tonalité dans les partitions et superposition des menus de l'éditeur améliorée.
 
-- **2026.07.12** : développement des workflows de création, d'édition et de lecture MIDI :
-  - **Arpégiateur intelligent** — apprenez un motif à partir de notes d'exemple et générez des variations guidées par des accords ou du MIDI, tout en conservant les hauteurs chromatiques d'origine et avec annulation atomique.
-  - **Édition et export MIDI accélérés** — sélectionnez les notes par rang de hauteur sur des plages configurables, puis exportez une région, une piste complète ou l'ensemble du projet au format MIDI standard.
-  - **Instruments personnalisés persistants** — créez des instruments réutilisables à partir d'échantillons WAV ou MP3 avec assignation par hauteur, préécoute, tessiture configurable, instruments de secours intégrés et prise en charge transparente de la lecture et de l'export MIDI.
-  - **Un éditeur plus ciblé** — le piano roll s'ancre désormais sous la timeline dans une disposition redimensionnable, tandis que les commandes de piste restent accessibles lors du défilement horizontal.
-  - **Lecture et notation plus fiables** — le mode solo prévaut désormais sur le mute, les pistes audio peuvent être réactivées pendant la lecture et les silences en clé de fa s'affichent à la bonne position sur la portée.
-
-- **2026.06.05** : développement majeur du **K.G.Studio Musician Assistant**, transformé en agent IA de niveau projet complet :
-  - **Outils de gestion de pistes** — l'agent peut désormais lister, créer, mettre à jour et supprimer des pistes, et parcourir tous les instruments disponibles, sans nécessiter de sélectionner une région au préalable.
-  - **Outils de pistes globales** — accès complet en lecture/écriture/suppression aux quatre pistes globales : **Chord Progression**, **Tempo (BPM)**, **Key Signature** et **Markers**. L'agent peut restructurer l'ensemble du squelette harmonique et rythmique d'un arrangement en une seule conversation.
-  - **Confirmation des outils** — les opérations d'écriture affichent une étape de confirmation dans le chat avant d'être exécutées, vous donnant la possibilité de vérifier avant que quoi que ce soit ne change.
-  - **Liste de tâches de l'agent** — l'assistant maintient désormais une liste de tâches en ligne, affichée sous forme de cartes de snapshot en direct directement dans le chat, rendant les plans en plusieurs étapes transparents et traçables.
-  - **Historique des conversations** — les sessions de chat sont persistées par projet et peuvent être reprises après rechargement de la page.
-  - **Compactage automatique du contexte** — les longues conversations sont résumées automatiquement lorsque la limite de contexte approche, permettant aux sessions de continuer sans intervention manuelle.
-  - **Mode agent efficace** — un prompt simplifié et un ensemble d'outils réduit pour les modèles de langage plus petits ou locaux, activé automatiquement lors de l'utilisation du Local Browser LLM.
-
 Pour consulter l'historique complet des versions, voir les [**Notes de version**](./docs/RELEASE_NOTES.md).
 
 ## État du projet
 
-**K.G.Studio est un projet expérimental encore en phase de développement précoce.** Nous explorons les possibilités d'intégrer des agents IA et des LLM dans les flux de production musicale, en construisant essentiellement une expérience de type « Cursor ou Claude Code pour DAW ».
+**La plupart des fonctionnalités essentielles prévues pour la sortie officielle de K.G.Studio sont désormais disponibles.** Nous continuons d’améliorer la stabilité, les performances et l’expérience de création musicale, tout en renforçant la collaboration entre l’assistant IA et les outils d’édition de la DAW.
 
-Ce projet étudie comment la collaboration entre l'IA et l'humain peut enrichir la création musicale, depuis les suggestions harmoniques intelligentes jusqu'aux tâches d'édition automatisées. En tant que plateforme expérimentale, attendez-vous à des changements fréquents, des fonctionnalités en évolution et une instabilité occasionnelle au fur et à mesure que nous repoussons les limites de la production musicale assistée par l'IA.
+Les capacités du navigateur et les contraintes de son environnement d’exécution laissent encore des écarts avec une DAW de bureau traditionnelle pour certaines fonctionnalités et certains workflows de production. Nous poursuivrons l’optimisation de l’implémentation, l’amélioration des workflows et l’exploration de nouvelles approches techniques pour réduire progressivement ces écarts.
 
 ## Vidéos de démonstration
 
@@ -82,90 +77,28 @@ Ce projet étudie comment la collaboration entre l'IA et l'humain peut enrichir 
   <table>
     <tr>
       <td align="center">
-        <a href="https://youtu.be/FXgihfAH2vc" target="_blank">
-          <img src="./public/demo/cover-FXgihfAH2vc.png" alt="Short Demo" width="400"/>
+        <a href="https://youtu.be/SN67p-GTPLk" target="_blank">
+          <img src="./public/demo/cover-SN67p-GTPLk.png" alt="Démo rapide" width="400"/>
         </a>
-        <br><b>Démo courte (DAW uniquement)</b>
+        <br><b>Démo rapide</b>
       </td>
       <td align="center">
-        <a href="https://www.youtube.com/watch?v=W25buhoeYN0" target="_blank">
-          <img src="./public/demo/cover-vKbWAQRt0r0.png" alt="Full Demo" width="400"/>
+        <a href="https://youtu.be/W25buhoeYN0" target="_blank">
+          <img src="./public/demo/cover-W25buhoeYN0.png" alt="Présentation complète" width="400"/>
         </a>
-        <br><b>Démo complète (DAW uniquement)</b>
+        <br><b>Présentation complète</b>
       </td>
     </tr>
   </table>
 </div>
 
-## Démarrage rapide
-
-### Configurer K.G.Studio Musician Assistant
-
-Il existe deux façons d'utiliser K.G.Studio Musician Assistant : **Local LLM (Browser)**, qui s'exécute entièrement dans votre navigateur sans clé API, sans coût et sans que les données quittent votre appareil, ou un **fournisseur LLM externe** pour obtenir des réponses de meilleure qualité.
-
-#### Option A : Local LLM (Browser) — Aucune clé API requise ✦
-
-K.G.Studio peut exécuter **Gemma 4 E4B** directement dans votre navigateur grâce à l'accélération WebGPU. Aucun appel API n'est effectué, aucun coût n'est engagé et vos données ne quittent jamais votre machine.
-
-  - Cliquez ici pour commencer à utiliser l'application en ligne : [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
-  - Dans **Settings ⚙️ → Music Assistant → LLM Provider**, sélectionnez **Local LLM (Browser)** (option par défaut).
-  - Le modèle (~2.8 GB) se télécharge automatiquement la première fois que vous ouvrez le chat et est mis en cache dans l'OPFS (Origin Private File System) de votre navigateur pour des lancements ultérieurs quasi instantanés.
-  - Vous pouvez également configurer la **Context Length** (32k / 64k / 128k tokens) ; des valeurs plus élevées nécessitent davantage de VRAM.
-  - Commencez à discuter ! Pas de clé, pas de compte, pas de trafic réseau après le téléchargement initial du modèle.
-
-**Conditions pour Local LLM :** un navigateur compatible WebGPU (Chrome 113+ ou Edge 113+) exécuté dans un contexte sécurisé (HTTPS ou localhost). Matériel recommandé : un GPU avec au moins 8 GB de VRAM, ou un système avec au moins 16 GB de mémoire unifiée.
-
-> **Remarque :** la qualité du modèle local ne peut pas être comparée à celle des modèles commerciaux de type GPT ou Claude. Pour des tâches d'édition musicale complexes, un fournisseur externe produira en général de meilleurs résultats.
-
-#### Option B : Fournisseur LLM externe (meilleure qualité)
-
-  - Cliquez ici pour commencer à utiliser l'application en ligne : [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
-  - [Obtenez une clé API OpenRouter](https://openrouter.ai/keys) (un compte OpenRouter est requis).
-  - Dans **Settings ⚙️ → Music Assistant → LLM Provider**, sélectionnez **OpenAI Compatible**.
-  - Dans **Fournisseur LLM (compatible OpenAI) → Key**, collez votre clé. (Remarque : hors localhost, votre clé n'est pas persistée par défaut pour des raisons de sécurité ; vous pouvez activer « Persist API Keys on Non-Localhost » dans les paramètres pour la persister, mais cela peut augmenter le risque XSS.)
-  - Dans **Fournisseur LLM (compatible OpenAI) → Model**, saisissez l’identifiant du modèle de votre choix depuis la [page des modèles OpenRouter](https://openrouter.ai/models). Vérifiez ses tarifs et sa politique de traitement des données avant utilisation ; K.G.Studio **n’est pas** affilié à OpenRouter ni à aucun fournisseur de modèles.
-  - Dans **Fournisseur LLM (compatible OpenAI) → Base URL**, saisissez `https://openrouter.ai/api/v1`.
-
-**Conseils :**
-- Vous pouvez également utiliser l'API officielle d'OpenAI, d'autres services compatibles OpenAI, ou un serveur LLM auto-hébergé (par exemple Ollama, vLLM). Notez que la qualité des modèles varie : tous les modèles ne sont pas aussi performants pour les tâches d'édition musicale. Nous recommandons GPT 6.1 Sol pour son équilibre entre qualité et coût.
-- Si vous disposez d'un abonnement actif chez OpenAI ou chez un autre fournisseur LLM, vous pouvez utiliser [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) pour exécuter un serveur proxy local qui achemine les requêtes via votre abonnement existant, sans nécessiter de clé API séparée.
-
-### Opérations DAW de base
-  - Double-cliquez (ou maintenez Ctrl/Cmd et cliquez) sur une piste pour créer une région.
-  - Faites glisser les bords de la région pour la redimensionner ; faites glisser son corps pour la déplacer.
-  - Cliquez sur le petit crayon en haut à gauche d'une région pour ouvrir le piano roll.
-  - Dans le piano roll, double-cliquez (ou Ctrl/Cmd+clic) pour créer une note.
-  - Cliquez pour sélectionner ; Shift+clic pour la multi-sélection ; glissez pour faire une sélection rectangulaire.
-  - Faites glisser les bords de la note pour la redimensionner ; faites glisser le corps de la note pour déplacer les notes sélectionnées.
-  - Utilisez Snapping dans la barre d'outils du piano roll (en haut à droite) pour quantifier sur la grille.
-
-### Utiliser K.G.Studio Musician Assistant
-  - Sélectionnez la région musicale sur laquelle vous souhaitez que l'assistant travaille, saisissez votre prompt dans le chat ; appuyez sur Enter pour envoyer, Shift+Enter pour insérer une nouvelle ligne.
-  - L'agent traitera automatiquement votre demande et invoquera des outils pour effectuer des modifications limitées à la région sélectionnée. Une tâche peut nécessiter un ou plusieurs tours pour être accomplie.
-  - Notez que l'IA peut se tromper ; vous devez donc toujours vérifier le résultat et l'ajuster si nécessaire. Vous pouvez également utiliser annulation/rétablissement pour revenir sur les changements.
-  - Cliquez sur le bouton « + » ou utilisez la commande `/clear` pour effacer l'historique du chat.
-
-### Plus de détails
-
-Vous trouverez le guide utilisateur détaillé [ici](./docs/USER_GUIDE.md).
-
-### Points forts
-- **K.G.Studio Musician Assistant** : discutez avec l'agent IA alimenté par un LLM ; il exécute automatiquement des outils pour effectuer des modifications musicales dans la région sélectionnée.
-- **LLM intégré au navigateur — aucune clé API requise** : exécutez **Gemma 4 E4B** entièrement dans votre navigateur via WebGPU (LiteRT-LM). Aucun appel API, aucun coût, aucune donnée quittant votre appareil. Le modèle est téléchargé une fois et mis en cache localement.
-- **Séparation de stems intégrée au navigateur — aucun serveur requis** : séparez n'importe quelle région audio en stems avec **UVR-MDX-NET-Inst_HQ_3** (2 stems : Vocals / Instrumental) ou **Demucs htdemucs_4s** (4 stems : Vocals / Drums / Bass / Others), tous deux entièrement exécutés dans le navigateur via ONNX Runtime WebGPU.
-- **Détection d'accords audio** : ouvrez le piano roll sur une région audio et lancez **Detect Chords** pour analyser automatiquement l'enregistrement et remplir la Chord Track globale avec un pipeline FFT sans dépendance, avec sensibilité, stabilité et détection des accords de septième configurables.
-- **Détection de tempo avec alignement automatique des temps** : lancez **Detect Tempo** depuis la barre d'outils du piano roll pour analyser le BPM d'une région audio et, si vous le souhaitez, réaligner la Tempo Track du projet.
-- **Système de pistes globales** : quatre pistes globales persistantes — **Marker**, **Tempo**, **Key Signature** et **Chord** — fournissent une structure à l'échelle du projet à laquelle toutes les fonctions (timing de lecture, détection d'accords, notation musicale) se réfèrent.
-- **Plusieurs fournisseurs LLM** : OpenAI, Claude / Gemini (via OpenRouter), services compatibles OpenAI (Ollama, vLLM, etc.), ou Local Browser LLM intégré — sans clé requise.
-- **Édition de pistes et de régions** : ajouter/réordonner des pistes, créer/déplacer/redimensionner des régions, multi-sélection avec lasso, déplacement/redimensionnement de groupe, fusion et scission de régions, avec annulation/rétablissement complet.
-- **Piano roll** : notes, pitch bend et lanes d'automation MIDI CC ; vue de notation musicale (sheet music) via VexFlow ; superposition de spectrogramme pour la référence audio-vers-MIDI.
-- **Vrais instruments** : sampler basé sur Tone.js avec soundfonts FluidR3 de haute qualité. Enregistrez directement l'audio depuis votre microphone vers une piste audio.
-- **Assistant d'accords intelligent** : suggestions d'accords en temps réel basées sur l'harmonie fonctionnelle (T/S/D), avec aperçu visuel et création d'accord en un clic.
-- **Persistance avec confidentialité** : projets et configuration enregistrés entièrement dans votre navigateur (OPFS / IndexedDB). Aucun serveur propriétaire.
-
-Pour une vue technique plus approfondie, voir [overview.md](./docs/technical/overview.md).
-
 ## Premiers pas
+
+Pour commencer au plus vite, ouvrez K.G.Studio en ligne, directement dans votre navigateur. Aucune installation n’est nécessaire.
+
+**[▶ Ouvrir K.G.Studio et créer de la musique dans votre navigateur](https://kgaudiolab.github.io/kgstudio)**
+
+K.G.Studio est distribué sous forme de pages web et de ressources statiques. Les fonctions principales de la DAW et les traitements IA locaux s’exécutent entièrement dans votre navigateur, sans API de traitement côté serveur. En dehors du chargement de l’application et du téléchargement des ressources, comme les banques de sons, les images et les modèles, ces fonctions n’appellent aucun service externe ; vos projets, données MIDI, fichiers audio et réglages sont stockés sur votre appareil. Si vous choisissez un fournisseur IA externe, vos requêtes et le contexte du projet nécessaire à leur traitement sont envoyés directement au fournisseur configuré.
 
 ### Ou cloner et exécuter localement :
 ```bash
@@ -257,6 +190,74 @@ Le client externe doit fonctionner sur le même ordinateur ou avoir accès à so
 
 **L'hébergement statique reste pris en charge.** Les commandes habituelles `dev`, `build` et `preview` n'activent pas les points d'accès MCP. `npm run build` produit toujours un dossier `dist/` autonome pour GitHub Pages et les autres hébergeurs statiques, et le workflow de déploiement GitHub Pages reste inchangé. La page publique ne se connecte pas à localhost. Seules les commandes locales avec MCP activé fournissent ce serveur facultatif.
 
+## Configuration rapide
+
+### Configurer K.G.Studio Musician Assistant
+
+Il existe deux façons d'utiliser K.G.Studio Musician Assistant : **Local LLM (Browser)**, qui s'exécute entièrement dans votre navigateur sans clé API, sans coût et sans que les données quittent votre appareil, ou un **fournisseur LLM externe** pour obtenir des réponses de meilleure qualité.
+
+#### Option A : Local LLM (Browser) — Aucune clé API requise ✦
+
+K.G.Studio peut exécuter **Gemma 4 E4B** directement dans votre navigateur grâce à l'accélération WebGPU. Aucun appel API n'est effectué, aucun coût n'est engagé et vos données ne quittent jamais votre machine.
+
+  - Cliquez ici pour commencer à utiliser l'application en ligne : [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
+  - Dans **Settings ⚙️ → Music Assistant → LLM Provider**, sélectionnez **Local LLM (Browser)** (option par défaut).
+  - Le modèle (~2.8 GB) se télécharge automatiquement la première fois que vous ouvrez le chat et est mis en cache dans l'OPFS (Origin Private File System) de votre navigateur pour des lancements ultérieurs quasi instantanés.
+  - Vous pouvez également configurer la **Context Length** (32k / 64k / 128k tokens) ; des valeurs plus élevées nécessitent davantage de VRAM.
+  - Commencez à discuter ! Pas de clé, pas de compte, pas de trafic réseau après le téléchargement initial du modèle.
+
+**Conditions pour Local LLM :** un navigateur compatible WebGPU (Chrome 113+ ou Edge 113+) exécuté dans un contexte sécurisé (HTTPS ou localhost). Matériel recommandé : un GPU avec au moins 8 GB de VRAM, ou un système avec au moins 16 GB de mémoire unifiée.
+
+> **Remarque :** la qualité du modèle local ne peut pas être comparée à celle des modèles commerciaux de type GPT ou Claude. Pour des tâches d'édition musicale complexes, un fournisseur externe produira en général de meilleurs résultats.
+
+#### Option B : Fournisseur LLM externe (meilleure qualité)
+
+  - Cliquez ici pour commencer à utiliser l'application en ligne : [K.G.Studio (kgaudiolab.github.io/kgstudio)](https://kgaudiolab.github.io/kgstudio)
+  - [Obtenez une clé API OpenRouter](https://openrouter.ai/keys) (un compte OpenRouter est requis).
+  - Dans **Settings ⚙️ → Music Assistant → LLM Provider**, sélectionnez **OpenAI Compatible**.
+  - Dans **Fournisseur LLM (compatible OpenAI) → Key**, collez votre clé. (Remarque : hors localhost, votre clé n'est pas persistée par défaut pour des raisons de sécurité ; vous pouvez activer « Persist API Keys on Non-Localhost » dans les paramètres pour la persister, mais cela peut augmenter le risque XSS.)
+  - Dans **Fournisseur LLM (compatible OpenAI) → Model**, saisissez l’identifiant du modèle de votre choix depuis la [page des modèles OpenRouter](https://openrouter.ai/models). Vérifiez ses tarifs et sa politique de traitement des données avant utilisation ; K.G.Studio **n’est pas** affilié à OpenRouter ni à aucun fournisseur de modèles.
+  - Dans **Fournisseur LLM (compatible OpenAI) → Base URL**, saisissez `https://openrouter.ai/api/v1`.
+
+**Conseils :**
+- Vous pouvez également utiliser l'API officielle d'OpenAI, d'autres services compatibles OpenAI, ou un serveur LLM auto-hébergé (par exemple Ollama, vLLM). Notez que la qualité des modèles varie : tous les modèles ne sont pas aussi performants pour les tâches d'édition musicale. Nous recommandons GPT 6.1 Sol pour son équilibre entre qualité et coût.
+- Si vous disposez d'un abonnement actif chez OpenAI ou chez un autre fournisseur LLM, vous pouvez utiliser [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) pour exécuter un serveur proxy local qui achemine les requêtes via votre abonnement existant, sans nécessiter de clé API séparée.
+
+### Opérations DAW de base
+  - Double-cliquez (ou maintenez Ctrl/Cmd et cliquez) sur une piste pour créer une région.
+  - Faites glisser les bords de la région pour la redimensionner ; faites glisser son corps pour la déplacer.
+  - Cliquez sur le petit crayon en haut à gauche d'une région pour ouvrir le piano roll.
+  - Dans le piano roll, double-cliquez (ou Ctrl/Cmd+clic) pour créer une note.
+  - Cliquez pour sélectionner ; Shift+clic pour la multi-sélection ; glissez pour faire une sélection rectangulaire.
+  - Faites glisser les bords de la note pour la redimensionner ; faites glisser le corps de la note pour déplacer les notes sélectionnées.
+  - Utilisez Snapping dans la barre d'outils du piano roll (en haut à droite) pour quantifier sur la grille.
+
+### Utiliser K.G.Studio Musician Assistant
+  - Sélectionnez la région musicale sur laquelle vous souhaitez que l'assistant travaille, saisissez votre prompt dans le chat ; appuyez sur Enter pour envoyer, Shift+Enter pour insérer une nouvelle ligne.
+  - L'agent traitera automatiquement votre demande et invoquera des outils pour effectuer des modifications limitées à la région sélectionnée. Une tâche peut nécessiter un ou plusieurs tours pour être accomplie.
+  - Notez que l'IA peut se tromper ; vous devez donc toujours vérifier le résultat et l'ajuster si nécessaire. Vous pouvez également utiliser annulation/rétablissement pour revenir sur les changements.
+  - Cliquez sur le bouton « + » ou utilisez la commande `/clear` pour effacer l'historique du chat.
+
+### Plus de détails
+
+Vous trouverez le guide utilisateur détaillé [ici](./docs/USER_GUIDE.md).
+
+### Points forts
+- **K.G.Studio Musician Assistant** : discutez avec l'agent IA alimenté par un LLM ; il exécute automatiquement des outils pour effectuer des modifications musicales dans la région sélectionnée.
+- **LLM intégré au navigateur — aucune clé API requise** : exécutez **Gemma 4 E4B** entièrement dans votre navigateur via WebGPU (LiteRT-LM). Aucun appel API, aucun coût, aucune donnée quittant votre appareil. Le modèle est téléchargé une fois et mis en cache localement.
+- **Séparation de stems intégrée au navigateur — aucun serveur requis** : séparez n'importe quelle région audio en stems avec **UVR-MDX-NET-Inst_HQ_3** (2 stems : Vocals / Instrumental) ou **Demucs htdemucs_4s** (4 stems : Vocals / Drums / Bass / Others), tous deux entièrement exécutés dans le navigateur via ONNX Runtime WebGPU.
+- **Détection d'accords audio** : ouvrez le piano roll sur une région audio et lancez **Detect Chords** pour analyser automatiquement l'enregistrement et remplir la Chord Track globale avec un pipeline FFT sans dépendance, avec sensibilité, stabilité et détection des accords de septième configurables.
+- **Détection de tempo avec alignement automatique des temps** : lancez **Detect Tempo** depuis la barre d'outils du piano roll pour analyser le BPM d'une région audio et, si vous le souhaitez, réaligner la Tempo Track du projet.
+- **Système de pistes globales** : quatre pistes globales persistantes — **Marker**, **Tempo**, **Key Signature** et **Chord** — fournissent une structure à l'échelle du projet à laquelle toutes les fonctions (timing de lecture, détection d'accords, notation musicale) se réfèrent.
+- **Plusieurs fournisseurs LLM** : OpenAI, Claude / Gemini (via OpenRouter), services compatibles OpenAI (Ollama, vLLM, etc.), ou Local Browser LLM intégré — sans clé requise.
+- **Édition de pistes et de régions** : ajouter/réordonner des pistes, créer/déplacer/redimensionner des régions, multi-sélection avec lasso, déplacement/redimensionnement de groupe, fusion et scission de régions, avec annulation/rétablissement complet.
+- **Piano roll** : notes, pitch bend et lanes d'automation MIDI CC ; vue de notation musicale (sheet music) via VexFlow ; superposition de spectrogramme pour la référence audio-vers-MIDI.
+- **Vrais instruments** : sampler basé sur Tone.js avec soundfonts FluidR3 de haute qualité. Enregistrez directement l'audio depuis votre microphone vers une piste audio.
+- **Assistant d'accords intelligent** : suggestions d'accords en temps réel basées sur l'harmonie fonctionnelle (T/S/D), avec aperçu visuel et création d'accord en un clic.
+- **Persistance avec confidentialité** : projets et configuration enregistrés entièrement dans votre navigateur (OPFS / IndexedDB). Aucun serveur propriétaire.
+
+Pour une vue technique plus approfondie, voir [overview.md](./docs/technical/overview.md).
+
 ## Configuration
 
 K.G.Studio charge ses valeurs par défaut depuis `./public/config.json` (avec une valeur de secours interne) et persiste les modifications utilisateur dans le navigateur via `ConfigManager` + IndexedDB. IndexedDB est la base de données locale propre à votre navigateur, stockée sur votre appareil ; elle ne quitte pas votre machine et est effacée si vous supprimez les données de ce site. Modifiez les paramètres via le panneau Settings intégré à l'application.
@@ -276,10 +277,10 @@ K.G.Studio charge ses valeurs par défaut depuis `./public/config.json` (avec un
 ### Connectivité et confidentialité
 
 - K.G.Studio fonctionne entièrement côté client. Aucun serveur propriétaire n'est nécessaire pour faire fonctionner l'application.
-- Les projets et fichiers audio sont stockés dans l'OPFS (Origin Private File System) de votre navigateur ; la configuration est stockée dans IndexedDB. Toutes les données restent sur votre appareil.
+- Les projets et fichiers audio sont stockés localement dans l'OPFS (Origin Private File System) de votre navigateur ; la configuration est stockée dans IndexedDB.
 - L'accès réseau est utilisé uniquement pour :
-  - télécharger les échantillons d'instruments depuis le CDN de soundfonts configuré
-  - communiquer avec le fournisseur LLM que vous avez choisi (par exemple OpenAI ou des services compatibles OpenAI)
+  - charger l’application et télécharger les ressources, comme les échantillons d’instruments, les images et les modèles
+  - envoyer vos requêtes et le contexte pertinent du projet au fournisseur LLM externe que vous choisissez (par exemple OpenAI ou des services compatibles OpenAI)
   - lorsque vous l'activez explicitement avec `dev:mcp` ou `preview:mcp`, communiquer avec le pont MCP local pour permettre aux agents externes d'utiliser les outils musicaux du navigateur
 - En dehors de ces cas, l'application fonctionne localement. Si vous bloquez les points d'accès aux échantillons ou au LLM, l'application se charge toujours ; les fonctions de lecture et d'IA concernées nécessitent que ces points d'accès soient disponibles.
 - Pour des raisons de sécurité, lorsque l'application est exécutée depuis un hôte non local, nous ne persistons pas votre clé API dans IndexedDB par défaut (afin de réduire le risque XSS). Vous devrez la saisir à chaque démarrage de K.G.Studio. Pour activer la persistance sur des hôtes non locaux, activez « Persist API Keys on Non-Localhost » dans les paramètres (non recommandé pour les environnements partagés ou de production).
@@ -387,7 +388,21 @@ K.G.Studio ne fournit ni n'héberge aucun des modèles listés ci-dessus et n'es
 
 ## Outils musicaux IA
 
-Le panneau **Outils musicaux IA** extrait des stems directement dans votre navigateur. Cliquez sur le bouton **✦ (baguette magique)** de la barre d’outils pour l’ouvrir. Le panneau propose les onglets **Extraction de stems** et **Humaniser**. L’ouverture de ce panneau ferme le chat AI Assistant.
+Le panneau **Outils musicaux IA** réunit les instruments IA et l’extraction de stems dans votre navigateur. Cliquez sur le bouton **✦ (baguette magique)** de la barre d’outils pour l’ouvrir. Le panneau propose actuellement les onglets **Extraction de stems** et **Cordes IA**. L’ouverture de ce panneau ferme le chat AI Assistant.
+
+### Instruments IA
+
+**Composez les notes. Écoutez l’interprétation.**
+
+Donnez une nouvelle expressivité à vos arrangements. Les **Instruments IA** de K.G.Studio, propulsés par **[InstVELA (M01Preview)](https://huggingface.co/KGAudioLab/InstVELA-models-onnx)**, transforment vos notes MIDI en sons de cordes avec des variations de hauteur et une dynamique évolutive générées, pour donner du mouvement et du caractère à vos lignes musicales.
+
+Cette première version propose les **Cordes IA** : **violon, alto, violoncelle et contrebasse**, avec les articulations **soutenu, spiccato et pizzicato**. Écrivez vos notes dans le piano roll ou importez une partie MIDI, définissez l’articulation de chaque note, puis écoutez le résultat avec le reste de votre projet. Vos notes MIDI restent modifiables, tandis que le rendu automatique actualise les régions nouvelles ou modifiées lorsque vous les désélectionnez.
+
+Les modèles d’instruments fonctionnent **directement dans votre navigateur**, avec l’accélération WebGPU sur le matériel compatible. Les modèles sont téléchargés et mis en cache localement ; le rendu instrumental conserve vos données MIDI et l’audio généré sur votre appareil.
+
+Commencez par une mélodie lyrique, ajoutez une ligne de basse et construisez votre arrangement de cordes, partie par partie, dans K.G.Studio.
+
+> *M01Preview est une version préliminaire qui prend actuellement en charge les parties de cordes monophoniques. L’audio généré peut contenir des artefacts ou des passages qui manquent de naturel. Nous affinons activement les modèles pour améliorer la qualité sonore et l’expression musicale, et accueillons vos retours pour guider les améliorations à venir.*
 
 ### Stem Separation
 
@@ -411,9 +426,11 @@ Ouvrez le panneau **Outils musicaux IA** (bouton ✦ dans la barre d'outils), s�
   - Faites glisser chaque lecteur de stem individuellement sur une **audio track** pour le placer où vous le souhaitez.
   - Ou cliquez sur **Import All Stems to Timeline** pour créer automatiquement une nouvelle piste audio par stem, positionnée juste sous la piste source et alignée sur le même point de départ que la région d'origine. Il s'agit d'une seule opération annulable.
 
+En vue forme d’onde ou spectrogramme, **… → Extraction de stems…** ouvre cet onglet.
+
 ### Humaniser
 
-En vue forme d’onde ou spectrogramme, **… → Extraction de stems…** ouvre cet onglet.
+> *La fonction d’humanisation est temporairement désactivée pendant que nous affinons les modèles pour améliorer leurs performances. Elle sera réactivée dans une prochaine version.*
 
 Sélectionnez une région MIDI sur la timeline, puis choisissez **… → Humaniser…** pour ouvrir **Outils musicaux IA → Humaniser**. Tous les réglages sont visibles dans l’onglet. AIRE génère une expression modifiable pour **CC1, CC2, CC7 ou CC11**, sans changer le timing ni la vélocité des notes. Une boucle active limite le traitement à son intersection avec la région. Les réglages sont conservés pendant la session ; quitter l’onglet annule le traitement. À la fin, la courbe du contrôleur généré s’affiche dans le piano roll. L’onglet suit la sélection sur la timeline et affiche le fournisseur et l’état du cache du modèle, avec des boutons pour télécharger, retélécharger ou supprimer le modèle sélectionné.
 
@@ -441,6 +458,7 @@ Les priorités peuvent évoluer.
 
 ### Après la 1.0
 
+- [X] Instruments IA — rendu MIDI vers audio en local avec **[InstVELA (M01Preview)](https://huggingface.co/KGAudioLab/InstVELA-models-onnx)** pour le violon, l’alto, le violoncelle et la contrebasse (version préliminaire)
 - [X] Extension des outils de l'agent IA pour manipuler directement depuis le chat les régions, les pistes et les pistes globales (progressions d'accords, tempo, tonalité)
 - [X] Effets de piste (FX) — égaliseur (EQ), réverbération, compresseur et limiteur avec ordre configurable dans la chaîne d’effets
 - [ ] Vue Mixer avec panneau dédié, faders par piste, sends, bus de retour et canal master
@@ -483,9 +501,7 @@ Aucune contribution n'est trop petite : du signalement de bugs à la proposition
 
 ### Avertissement
 
-K.G.Studio est un projet expérimental en phase de développement précoce. Nous explorons les possibilités d'intégrer des agents IA et des LLM dans les flux de production musicale, en construisant essentiellement une expérience de type « Cursor ou Claude Code pour DAW ».
-
-Ce projet étudie comment la collaboration entre l'IA et l'humain peut enrichir la création musicale, depuis les suggestions harmoniques intelligentes jusqu'aux tâches d'édition automatisées. En tant que plateforme expérimentale, attendez-vous à des changements fréquents, des fonctionnalités en évolution et une instabilité occasionnelle à mesure que nous repoussons les limites de la production musicale assistée par l'IA.
+Consultez l’[État du projet](#état-du-projet) pour connaître nos priorités de développement et les limites liées au navigateur.
 
 K.G.Studio ne fournit ni n'héberge aucun modèle LLM et n'est affilié à aucun fournisseur de modèles. Toutes les données sont stockées localement sur votre appareil ; K.G.Studio ne collecte ni ne transmet vos données. Vous êtes seul responsable de toute donnée que vous fournissez à des fournisseurs de modèles tiers.
 

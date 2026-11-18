@@ -692,10 +692,13 @@ describe('TrackGridPanel lasso selection', () => {
     expect(executeCommandMock).not.toHaveBeenCalled();
   });
 
-  it('imports a dropped MIDI file into a MIDI track without changing its instrument', async () => {
+  it.each([
+    { instrument: 'violin', color: undefined },
+    { instrument: 'ai_violin', color: '#B233BD' },
+  ])('imports a dropped MIDI file into a $instrument track with its default region color', async ({ instrument, color }) => {
     const midiTrack = createMockMidiTrack({ id: 1, regions: [] });
     midiTrack.setTrackIndex(0);
-    midiTrack.setInstrument('violin');
+    midiTrack.setInstrument(instrument);
     currentTracks = [midiTrack];
     const onExternalDropComplete = vi.fn();
 
@@ -733,9 +736,10 @@ describe('TrackGridPanel lasso selection', () => {
     });
 
     expect(currentTracks).toHaveLength(1);
-    expect((currentTracks[0] as KGMidiTrack).getInstrument()).toBe('violin');
+    expect((currentTracks[0] as KGMidiTrack).getInstrument()).toBe(instrument);
     const importedRegion = (currentTracks[0] as KGMidiTrack).getRegions()[0] as KGMidiRegion;
     expect(importedRegion.getName()).toBe('phrase.mid');
+    expect(importedRegion.getColor()).toBe(color);
     expect(importedRegion.getStartTick()).toBe(q(8));
     expect(importedRegion.getLengthTicks()).toBe(q(6));
     expect(importedRegion.getNotes().map(note => note.getStartTick())).toEqual([0, q(4)]);

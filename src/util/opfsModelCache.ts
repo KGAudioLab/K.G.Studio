@@ -1,3 +1,5 @@
+import { fetchModel } from './fetchModel';
+
 export interface ModelDownloadProgress {
   receivedBytes: number;
   totalBytes: number | null;
@@ -81,7 +83,7 @@ export class OpfsModelCache {
     onProgress?: (progress: ModelDownloadProgress) => void,
   ): Promise<void> {
     options.signal?.throwIfAborted();
-    const response = await fetch(sourceUrl, { signal: options.signal });
+    const response = await fetchModel(sourceUrl, { signal: options.signal });
     if (!response.ok) {
       throw new Error(`Model download failed (${response.status})`);
     }

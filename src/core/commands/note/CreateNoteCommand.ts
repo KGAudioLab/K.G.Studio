@@ -1,6 +1,6 @@
 import { KGCommand } from '../KGCommand';
 import { KGCore } from '../../KGCore';
-import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiNote, type MidiArticulation } from '../../midi/KGMidiNote';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { generateUniqueId } from '../../../util/miscUtil';
 
@@ -23,7 +23,8 @@ export class CreateNoteCommand extends KGCommand {
     endTick: number,
     pitch: number,
     velocity: number = 127,
-    noteId?: string
+    noteId?: string,
+    private readonly articulation: MidiArticulation = 0,
   ) {
     super();
     this.regionId = regionId;
@@ -61,7 +62,8 @@ export class CreateNoteCommand extends KGCommand {
       this.startTick,
       this.endTick,
       this.pitch,
-      this.velocity
+      this.velocity,
+      this.articulation,
     );
 
     // Add the note to the region

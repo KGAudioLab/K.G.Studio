@@ -6,11 +6,14 @@ import { ColorPalettePopup, KGDropdown } from '../common';
 import { KGPianoRollState } from '../../core/state/KGPianoRollState';
 import { KGCore } from '../../core/KGCore';
 import {
+  DEFAULT_PIANO_ROLL_AUTOMATION_TYPE,
   getTranslatedAutomationOptions,
   type PianoRollAutomationType,
 } from './pianoRollAutomation';
 import { useI18n } from '../../i18n/useI18n';
 import type { PianoRollMode } from '../../constants';
+import type { MidiArticulation } from '../../core/midi/KGMidiNote';
+import { PIANO_ROLL_ARTICULATIONS } from './pianoRollArticulation';
 
 interface PianoRollToolbarProps {
   showAudioSpectrogramToggle?: boolean;
@@ -35,6 +38,8 @@ interface PianoRollToolbarProps {
   onModeChange: (value: string) => void;
   chordGuide: 'N' | 'T' | 'S' | 'D';
   onChordGuideChange: (value: 'N' | 'T' | 'S' | 'D') => void;
+  onArticulationChange?: (value: MidiArticulation) => void;
+  hasSelectedNotes?: boolean;
   blinkButton?: string | null;
   mode?: PianoRollMode;
   thresholdDb?: number;
@@ -44,6 +49,7 @@ interface PianoRollToolbarProps {
   zoom: number;
   onZoomChange: (value: number) => void;
   showAutomationControls?: boolean;
+  isAiInstrument?: boolean;
   automationEnabled?: boolean;
   automationType?: PianoRollAutomationType;
   onAutomationToggle?: () => void;
@@ -87,6 +93,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onModeChange,
   chordGuide,
   onChordGuideChange,
+  onArticulationChange,
+  hasSelectedNotes = false,
   blinkButton = null,
   mode = 'midi-edit',
   thresholdDb = -25,
@@ -96,8 +104,9 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   zoom,
   onZoomChange,
   showAutomationControls = false,
+  isAiInstrument = false,
   automationEnabled = false,
-  automationType = 'pitch-bend',
+  automationType = DEFAULT_PIANO_ROLL_AUTOMATION_TYPE,
   onAutomationToggle,
   onAutomationTypeChange,
   onDetectChords,
@@ -112,7 +121,7 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   onExportMidi,
   onIntelligentArpeggiator,
   onTransposeSettings,
-  onHumanize,
+  // onHumanize, // Humanize is temporarily hidden.
   onStemExtraction,
 }) => {
   const { t } = useI18n();
@@ -121,8 +130,8 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
   const showSpectrogramOnlyControls = mode === 'spectrogram' && !sheetMusicViewEnabled;
   const showSpecControls = !sheetMusicViewEnabled && (mode === 'spectrogram' || mode === 'hybrid');
   const showSpecMenu = !sheetMusicViewEnabled && (!!onDetectChords || !!onDetectTempo || !!onConvertToMidi);
-  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings || !!onHumanize || !!onStemExtraction));
-  const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t), [t]);
+  const showMoreMenuButton = showSpecMenu || (!sheetMusicViewEnabled && (!!onSelectNoteByRank || !!onExportMidi || !!onIntelligentArpeggiator || !!onTransposeSettings /* || !!onHumanize */ || !!onStemExtraction));
+  const automationOptions = React.useMemo(() => getTranslatedAutomationOptions(t, isAiInstrument), [t, isAiInstrument]);
   const snapOptions = React.useMemo(
     () => KGPianoRollState.SNAP_OPTIONS.map(option => ({ label: t(option.labelKey), value: option.value })),
     [t],
@@ -279,6 +288,23 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
               </button>
             ))}
           </div>
+          {onArticulationChange && (
+            <div className="piano-roll-articulation-toolbar-group" role="group" aria-label={t('pianoRoll.articulation')}>
+              {PIANO_ROLL_ARTICULATIONS.map(({ value, icon, labelKey }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="tool-button articulation-button"
+                  disabled={!hasSelectedNotes}
+                  title={t(labelKey)}
+                  aria-label={t(labelKey)}
+                  onClick={() => onArticulationChange(value)}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -439,11 +465,13 @@ const PianoRollToolbar: React.FC<PianoRollToolbarProps> = ({
                     <span className="processing-wave">{t('kgone.separator.menuItem')}</span>
                   </div>
                 )}
+                {/* Humanize is temporarily hidden. Keep this entry for re-enabling.
                 {onHumanize && (
                   <div className="quant-option" onClick={() => { setShowRegionColorPalette(false); setShowMoreMenu(false); onHumanize(); }}>
                     <span className="processing-wave">{t('aire.menuItem')}</span>
                   </div>
                 )}
+                */}
                 {onTransposeSettings && (
                   <div
                     className="quant-option"

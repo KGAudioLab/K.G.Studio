@@ -1,7 +1,7 @@
 import type { Selectable } from '../../../components/interfaces';
 import { generateUniqueId } from '../../../util/miscUtil';
 import { KGCore } from '../../KGCore';
-import { KGMidiNote } from '../../midi/KGMidiNote';
+import { KGMidiNote, type MidiArticulation } from '../../midi/KGMidiNote';
 import { KGMidiRegion } from '../../region/KGMidiRegion';
 import { KGCommand } from '../KGCommand';
 
@@ -13,6 +13,7 @@ interface SplitNoteRecord {
   endTick: number;
   pitch: number;
   velocity: number;
+  articulation: MidiArticulation;
 }
 
 export class SplitSelectedNotesCommand extends KGCommand {
@@ -63,6 +64,7 @@ export class SplitSelectedNotesCommand extends KGCommand {
           endTick: note.getEndTick(),
           pitch: note.getPitch(),
           velocity: note.getVelocity(),
+          articulation: note.getArticulation(),
         }));
     }
 
@@ -98,14 +100,16 @@ export class SplitSelectedNotesCommand extends KGCommand {
         splitRecord.startTick,
         this.splitAtTick,
         splitRecord.pitch,
-        splitRecord.velocity
+        splitRecord.velocity,
+        splitRecord.articulation,
       );
       const rightNote = new KGMidiNote(
         splitRecord.rightNoteId,
         this.splitAtTick,
         splitRecord.endTick,
         splitRecord.pitch,
-        splitRecord.velocity
+        splitRecord.velocity,
+        splitRecord.articulation,
       );
 
       leftNote.select();

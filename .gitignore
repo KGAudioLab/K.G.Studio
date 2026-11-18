@@ -21,6 +21,7 @@ DEPLOYMENT.md
 
 # Editor directories and files
 !.vscode/extensions.json
+.hfrc
 .idea
 .claude
 .codex

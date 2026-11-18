@@ -15,6 +15,7 @@ const pianoRollStateMocks = vi.hoisted(() => ({
   setSheetMusicViewEnabled: vi.fn(),
   setLastEditedNoteLength: vi.fn(),
   setLastEditedNoteVelocity: vi.fn(),
+  setLastEditedNoteArticulation: vi.fn(),
   setPianoRollZoom: vi.fn(),
   setCurrentSnap: vi.fn(),
 }));

@@ -133,6 +133,7 @@ export const INSTRUMENT_GROUPS = {
     PIANO_AND_KEYBOARDS: "Piano and Keyboards",
     GUITAR: "Guitar",
     BASS: "Bass",
+    AI_STRINGS: "AI Strings",
     STRINGS: "Strings",
     BRASS: "Brass",
     WOODWIND: "Woodwind",
@@ -168,6 +169,12 @@ export const FLUIDR3_INSTRUMENT_MAP: {
     slap_bass_1: { displayName: "Slap Bass", midiInstrument: 37, image: "bass.png", group: "BASS", pitchRange: [21, 108] },
     synth_bass_1: { displayName: "Synth Bass 1", midiInstrument: 39, image: "synth.png", group: "BASS", pitchRange: [21, 108] },
     
+    // group: AI strings
+    ai_violin: { displayName: "AI Violin", midiInstrument: 41, image: "violin.png", group: "AI_STRINGS", pitchRange: [55, 100] },
+    ai_viola: { displayName: "AI Viola", midiInstrument: 42, image: "viola.png", group: "AI_STRINGS", pitchRange: [48, 93] },
+    ai_cello: { displayName: "AI Cello", midiInstrument: 43, image: "cello.png", group: "AI_STRINGS", pitchRange: [36, 81] },
+    ai_double_bass: { displayName: "AI Double Bass", midiInstrument: 44, image: "contrabass.png", group: "AI_STRINGS", pitchRange: [24, 69] },
+
     // group: strings
     violin: { displayName: "Violin", midiInstrument: 41, image: "violin.png", group: "STRINGS", pitchRange: [21, 108] },
     viola: { displayName: "Viola", midiInstrument: 42, image: "viola.png", group: "STRINGS", pitchRange: [21, 108] },
