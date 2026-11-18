@@ -4,6 +4,11 @@ import { KGTrack, TrackType } from '../../track/KGTrack';
 import { KGMidiTrack, type InstrumentType } from '../../track/KGMidiTrack';
 import { KGAudioInterface } from '../../audio-interface/KGAudioInterface';
 import { isPercussionInstrument } from '../../instruments/instrumentResolver';
+import { KGMidiNote, type MidiArticulation } from '../../midi/KGMidiNote';
+import { getInstVelaInstrument } from '../../../util/instvela/instruments';
+import { convertInstVelaKeyswitches } from '../../../util/instvela/keyswitches';
+import { DEFAULT_AI_STRINGS_REGION_COLOR, DEFAULT_MIDI_REGION_COLOR } from '../../../constants/regionColorPalette';
+import { resolveRegionColor } from '../../../util/regionColor';
 
 /**
  * Interface defining properties that can be updated on a track
@@ -29,6 +34,8 @@ export class UpdateTrackCommand extends KGCommand {
   private trackId: number;
   private newProperties: TrackUpdateProperties;
   private originalProperties: TrackUpdateProperties = {};
+  private readonly originalRegionNotes = new Map<string, { notes: KGMidiNote[]; articulations: MidiArticulation[] }>();
+  private readonly originalRegionColors = new Map<string, string | undefined>();
   private targetTrack: KGTrack | null = null;
   private changedProperties: Set<keyof TrackUpdateProperties> = new Set();
 
@@ -50,6 +57,8 @@ export class UpdateTrackCommand extends KGCommand {
     }
 
     this.changedProperties.clear();
+    this.originalRegionNotes.clear();
+    this.originalRegionColors.clear();
 
     // Store original properties for undo
     this.originalProperties = {
@@ -88,10 +97,17 @@ export class UpdateTrackCommand extends KGCommand {
 
     // Update instrument (only for MIDI tracks)
     if (this.newProperties.instrument !== undefined && this.targetTrack instanceof KGMidiTrack) {
-      const originalInstrument = this.originalProperties.instrument;
+      const originalInstrument = this.targetTrack.getInstrument();
       if (this.newProperties.instrument !== originalInstrument) {
         // Update the track model
         this.targetTrack.setInstrument(this.newProperties.instrument);
+
+        const aiInstrument = getInstVelaInstrument(this.newProperties.instrument);
+        const wasAiInstrument = Boolean(getInstVelaInstrument(originalInstrument));
+        if (Boolean(aiInstrument) !== wasAiInstrument) {
+          this.swapDefaultRegionColors(this.targetTrack, Boolean(aiInstrument));
+          if (aiInstrument) this.interpretTrackKeyswitches(core, this.targetTrack, aiInstrument.keyswitch);
+        }
         
         // Update the audio interface
         const audioInterface = KGAudioInterface.instance();
@@ -194,6 +210,51 @@ export class UpdateTrackCommand extends KGCommand {
     }
   }
 
+  private swapDefaultRegionColors(track: KGMidiTrack, isAiInstrument: boolean): void {
+    const [previousDefault, nextDefault] = isAiInstrument
+      ? [DEFAULT_MIDI_REGION_COLOR, DEFAULT_AI_STRINGS_REGION_COLOR]
+      : [DEFAULT_AI_STRINGS_REGION_COLOR, DEFAULT_MIDI_REGION_COLOR];
+    const trackColor = track.getColor();
+    for (const region of track.getRegions()) {
+      const color = region.getColor();
+      if (resolveRegionColor(color, trackColor, false) !== previousDefault) continue;
+      this.originalRegionColors.set(region.getId(), color);
+      region.setColor(nextDefault);
+    }
+  }
+
+  private interpretTrackKeyswitches(core: KGCore, track: KGMidiTrack, basePitch: number): void {
+    const absoluteNoteStarts = new Map<KGMidiNote, number>();
+    const regions = track.getRegions().map(region => {
+      const notes = region.getNotes();
+      const startTick = region.getStartTick();
+      for (const note of notes) absoluteNoteStarts.set(note, startTick + note.getStartTick());
+      return { region, notes, articulations: notes.map(note => note.getArticulation()) };
+    });
+
+    const notes = [...absoluteNoteStarts.keys()];
+    const musicalNotes = convertInstVelaKeyswitches(notes, basePitch, note => absoluteNoteStarts.get(note)!);
+    if (musicalNotes === notes) return;
+
+    const keptNotes = new Set(musicalNotes);
+    const removedNoteIds = new Set<string>();
+    for (const note of notes) {
+      if (!keptNotes.has(note)) {
+        note.deselect();
+        removedNoteIds.add(note.getId());
+      }
+    }
+    for (const { region, notes, articulations } of regions) {
+      const remainingNotes = notes.filter(note => keptNotes.has(note));
+      if (remainingNotes.length === notes.length && notes.every((note, index) => note.getArticulation() === articulations[index])) continue;
+      this.originalRegionNotes.set(region.getId(), { notes, articulations });
+      region.setNotes(remainingNotes);
+    }
+
+    const removedSelection = core.getSelectedItems().filter(item => item instanceof KGMidiNote && removedNoteIds.has(item.getId()));
+    if (removedSelection.length > 0) core.removeSelectedItems(removedSelection);
+  }
+
   undo(): void {
     if (!this.targetTrack) {
       throw new Error('Cannot undo: no track was updated');
@@ -220,6 +281,15 @@ export class UpdateTrackCommand extends KGCommand {
         this.targetTrack instanceof KGMidiTrack) {
       // Update the track model
       this.targetTrack.setInstrument(this.originalProperties.instrument);
+
+      for (const region of this.targetTrack.getRegions()) {
+        const id = region.getId();
+        if (this.originalRegionColors.has(id)) region.setColor(this.originalRegionColors.get(id));
+        const original = this.originalRegionNotes.get(id);
+        if (!original) continue;
+        original.notes.forEach((note, index) => note.setArticulation(original.articulations[index]));
+        region.setNotes(original.notes);
+      }
       
       // Update the audio interface
       const audioInterface = KGAudioInterface.instance();
