@@ -1,3 +1,19 @@
+# [0.26.0-build.20261118] (2026-11-18)
+
+* Merge pull request #83 from KGAudioLab/feat/2026-11-16-instvela-support (c73115c)
+* docs: update demo videos across READMEs (b25f445)
+* docs: added black background logo (8af8d2f)
+* fix: convert keyswitches and region colors on AI instrument changes (21348e3)
+* feat: refine piano roll and AI Instrument automation (d8d6245)
+* docs: add InstVELA demo GIF and refine release highlights (4e4c464)
+* feat: document AI Instruments and temporarily hide Humanize (5681e5f)
+* docs: specify InstVELA M01Preview in localized descriptions (7990747)
+* feat: localize AI Strings and add MIDI keyswitch reference (130843a)
+* feat: add note-level AI Strings articulations (c2d95e2)
+* feat: add AI Strings markers and region colors (2f059a8)
+* feat: add AI Strings with InstVELA (c8316bb)
+* feat: authenticate local Hugging Face model downloads (7591617)
+
 # [0.25.2-build.20261116] (2026-11-16)
 
 * Merge pull request #82 from KGAudioLab/feat/2026-11-15-note-velocity-automation (d570ccf)
